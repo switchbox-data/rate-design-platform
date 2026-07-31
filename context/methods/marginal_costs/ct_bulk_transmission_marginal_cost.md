@@ -115,7 +115,7 @@ just s ct create-bulk-tx-mc-data-all --upload
 just s ct create-bulk-tx-mc-data ct_eversource 2025 --allocation-load utility_zone --upload
 ```
 
-Both `ct_eversource` and `ct_ui` are defined in `state.env` as `UTILITIES=ct_eversource,ct_ui` and in `supply_utils.py` as entries in `ISONE_UTILITY_ZONES`.
+Both `ct_eversource` and `ct_ui` are defined in `state.env` as `UTILITIES=ct_eversource,ct_ui` and in `supply_utils.py` as entries in `ISONE_UTILITY_ZONES`. External data sources still use historical identifiers (HIFLD: "CONNECTICUT LIGHT & POWER CO" / "UNITED ILLUMINATING CO"; EIA IDs 4176 / 19497).
 
 ---
 
@@ -142,7 +142,7 @@ Both `ct_eversource` and `ct_ui` are defined in `state.env` as `UTILITIES=ct_eve
 | Allocation method       | Top-100 exceedance    | Top-100 exceedance               |
 | Default allocation load | NE system             | NE system                        |
 | Zone-load option        | Not implemented       | `--allocation-load utility_zone` |
-| Utilities               | `ri_energy`           | `ct_eversource`, `ct_ui`         |
+| Utilities               | `rie`                 | `ct_eversource`, `ct_ui`         |
 | ISO-NE zone label       | `RI`                  | `CT`                             |
 
 The only material difference is the `--allocation-load` flag, which was added when implementing CT to allow sensitivity analysis. It is available for RI as well (the same CLI flag exists), but RI currently only runs with the NE system default.

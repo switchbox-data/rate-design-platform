@@ -104,6 +104,10 @@ build/
 !rate_design/hp_rates/ny/config/marginal_costs/**
 !rate_design/hp_rates/ri/config/marginal_costs/**
 !rate_design/hp_rates/md/config/marginal_costs/**
+!rate_design/hp_rates/ny/config/rev_requirement/top-ups/charge_decisions/**
+!rate_design/hp_rates/ri/config/rev_requirement/top-ups/charge_decisions/**
+!rate_design/hp_rates/md/config/rev_requirement/top-ups/charge_decisions/**
+!rate_design/hp_rates/ct/config/rev_requirement/top-ups/charge_decisions/**
 !rate_design/hp_rates/ri/config/distribution_cost_params.json
 
 # Terraform state files

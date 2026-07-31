@@ -496,7 +496,7 @@ def _run_isone(
     n_peak = args.n_peak_hours
     allocation_load = args.allocation_load
 
-    # Resolve utility-specific zone (e.g. "RI" for rie, "CT" for ct_eversource)
+    # Resolve utility-specific zone (e.g. "RI" for rie, "CT" for ct_eversource/ct_ui)
     utility_zone = ISONE_UTILITY_ZONES[utility]
     # Zones used for allocation load
     allocation_zones = (

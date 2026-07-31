@@ -51,6 +51,8 @@ UTILITY_MASTER_TARIFF_IDS: dict[str, int] = {
     "cenhud": 85880,
     "rie": 859,
     "bge": 674,
+    "ct_eversource": 614,  # Genability masterTariffId (EIA 4176 / historical CL&P)
+    "ct_ui": 3153052,  # Genability masterTariffId (EIA 19497 / United Illuminating)
 }
 
 

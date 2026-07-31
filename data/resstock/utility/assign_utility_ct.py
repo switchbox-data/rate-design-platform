@@ -26,8 +26,10 @@ per-PUMA utility probability distributions, which are then used to sample a
 utility assignment for each ResStock building.
 
 CT electric utilities (IOUs + municipals):
-  - Connecticut Light & Power Co (Eversource Energy CT)
-  - United Illuminating Co (Avangrid)
+  - Eversource Energy CT (std_name ``ct_eversource``; HIFLD still
+    ``CONNECTICUT LIGHT & POWER CO``)
+  - United Illuminating / Avangrid (std_name ``ct_ui``; HIFLD
+    ``UNITED ILLUMINATING CO``)
   - Farmington River Power Company
   - Bozrah Light & Power, City of Jewett City, City of Norwich,
     City of South Norwalk, Groton Dept of Utilities,
