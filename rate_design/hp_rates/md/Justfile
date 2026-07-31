@@ -117,8 +117,9 @@ split-chesapeake-gas-tariffs:
 # munis is dual-fuel and needs its own map file. somerset_rec / berlin_muni /
 # hagerstown_muni stay outside this list (electric-only for our purposes).
 #
-# Chesapeake-territory RES-1/RES-2 split reads load_curve_annual from the raw
-# NREL release (passed automatically by the shared create-gas-tariff-map recipe).
+# Chesapeake-territory RES-1/RES-2 split reads generated load_curve_annual from
+# the _sb release so annual therms reflect Switchbox's hourly load modifications.
+# The path is passed automatically by the shared create-gas-tariff-map recipe.
 #
 # Shortcuts (upgrade 00 only — quick per-utility run):
 #   just -f md/Justfile map-gas-bge

@@ -8,6 +8,12 @@ How we build `load_curve_annual` for the Switchbox `_sb` ResStock release (`res_
 
 **Related:** `resstock_sb_release_pipeline_main_py.md` (pipeline / `SB_CLONE_EXCLUDED_FILE_TYPES`), `approximate_non_hp_load.md` (hourly HVAC rewrite), `investigate_resstock_eia_load_discrepancy.md` / MF adj (hourly electricity rewrite).
 
+**Downstream use:** Maryland gas tariff mapping reads this `_sb` annual dataset.
+`utils/pre/gas_tariff_mapper.py` converts
+`out.natural_gas.total.energy_consumption.kwh` to annual therms and assigns
+Chesapeake RES-1 (≤150 therms) or RES-2 (>150 therms). It deliberately does not
+use or fall back to raw NREL annual totals.
+
 ---
 
 ## Why this exists

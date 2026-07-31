@@ -228,6 +228,15 @@ based on **annual consumption** reviewed at calendar year-end:
 - **RES-1** (≤ 150 therms/year): lower volumetric rate, lower fixed charge (`$8/month`)
 - **RES-2** (> 150 therms/year): lower volumetric rate but higher fixed charge (`$10/month`)
 
+`utils/pre/gas_tariff_mapper.py` derives annual therms from
+`out.natural_gas.total.energy_consumption.kwh` in the generated Switchbox
+`res_2024_amy2018_2_sb/load_curve_annual` dataset (÷ 29.3001 kWh/therm). The shared
+`rate_design/hp_rates/Justfile` passes the `_sb` annual directory for the requested
+upgrade. This is intentional: `_sb` annual totals are rebuilt from modified `_sb`
+hourly curves, so Chesapeake tariff classes reflect non-HP approximation and any
+other Switchbox load adjustments. The mapper does not fall back to raw NREL annual
+loads when the `_sb` annual directory is missing.
+
 The "lower rate, higher fixed charge" pattern at higher usage is consistent with Maryland
 rate design practice: high-use customers (predominantly space-heating customers) pay more
 in fixed charges to reduce volumetric cross-subsidization.
