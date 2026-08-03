@@ -38,9 +38,9 @@ run_batch @flow (master)
   │    └─ generate electric tariff maps (write_tariff_maps_from_scenario)
   ├─ independent scenarios (no depends_on):
   │    └─ run_quartet @flow
-  │         ├─ precalc: cairo_run(delivery) ∥ cairo_run(supply)
+  │         ├─ precalc: cairo_run(delivery) → cairo_run(supply)
   │         ├─ tariff promotion seam
-  │         └─ calibrated: cairo_run(delivery) ∥ cairo_run(supply)
+  │         └─ calibrated: cairo_run(delivery) → cairo_run(supply)
   └─ dependent scenarios (has depends_on):
        ├─ check_dependency (verify dependency's quartet completed)
        ├─ derive_tariffs (compute subclass RR + dispatch tariff creation by structure)
@@ -48,7 +48,7 @@ run_batch @flow (master)
 ```
 
 - `cairo_run` is the atomic `@task`: shells out to `run_scenario.py` as a subprocess for full memory isolation.
-- `run_quartet` is a `@flow` with `ThreadPoolTaskRunner(max_workers=2)` so delivery + supply run concurrently within each stage.
+- `run_quartet` is a `@flow` with `ThreadPoolTaskRunner(max_workers=2)`. Whether each stage's delivery + supply pair actually overlaps is controlled by `concurrent_variants` (see below); the arrows above show the default sequential mode.
 - `derive_tariffs` dispatches to `pipeline_derive.py` handlers (no if-chains in the pipeline).
 
 ## Canonical run naming
@@ -79,6 +79,45 @@ A module-level `threading.Semaphore` (initialized by `run_batch` from `max_concu
 - The semaphore lives in the Prefect worker process; `cairo_run` tasks execute in the same process via `ThreadPoolTaskRunner` and acquire the semaphore before `subprocess.run()`
 
 Size constraint: `max_concurrent_cairo_runs × process_workers ≤ available cores/memory`.
+
+The semaphore is a batch-wide backstop, deliberately kept independent of `concurrent_variants`. With `concurrent_variants: false` it is a no-op — `run_batch` iterates scenarios sequentially and each quartet gates its own delivery/supply pair, so only one subprocess is ever in flight — but it still bounds things once concurrent scenario fan-out lands (see Deferred).
+
+### `concurrent_variants`: sequential vs. concurrent delivery/supply
+
+`concurrent_variants` (pipeline YAML, default `false`) decides whether each stage's delivery and supply runs overlap. It is the main lever for trading throughput against peak memory.
+
+**Sequential (default).** Only one CAIRO subprocess is alive at a time, so no `--num-workers` override is passed and `run_scenario.py` applies its own `min(process_workers, os.cpu_count())` — the run gets the whole box. This is the safe default: memory, not CPU, is the binding constraint, and each CAIRO _parent_ process loads the full hourly load set for the utility before dispatching to Dask. Overlapping two runs means two of those parents resident at once, which is what OOM-killed runs on a 4-vCPU/15 GiB instance with no swap.
+
+**Concurrent.** Both subprocesses run at once, so each gets half the effective worker count via `--num-workers`:
+
+```python
+num_workers = max(1, min(process_workers, os.cpu_count() or 1) // 2) if concurrent else None
+```
+
+**Halving `process_workers` alone is not sufficient** — it must be halved _after_ clamping to `os.cpu_count()`. On a 4-vCPU instance with `process_workers=8`, a single run already clamps to `min(8, 4) = 4`; halving `process_workers` itself (8 → 4) produces the same value (4) and changes nothing, so two concurrent subprocesses still spawn 4 Dask workers each (8 total on 4 cores) and still OOM. Halving the already-clamped value instead (`min(8, 4) // 2 = 2`) keeps the pair within the box's actual core count.
+
+Note that even the correctly halved count is not always enough: multi-rate scenarios evaluate more tariffs per run and OOM'd at 2 workers each on a 4-vCPU box where the single-rate scenario survived. If a run OOMs in sequential mode too, lower `process_workers` in the YAML — no code change needed.
+
+`--num-workers` fully overrides `process_workers` for that subprocess — `run_scenario.py`'s `run()` uses the CLI value as-is when provided, without re-clamping it against `os.cpu_count()`. The halving only covers the delivery/supply pair within one quartet; it does not account for multiple scenarios or quartets running concurrently (see Deferred).
+
+### How the sequential gate works
+
+`_run_stage` submits delivery, and in sequential mode calls `d_future.wait()` before submitting supply:
+
+```python
+d_future = cairo_run.submit(delivery_name, ..., num_workers=num_workers)
+if not concurrent:
+    d_future.wait()
+s_future = cairo_run.submit(supply_name, ..., num_workers=num_workers)
+return d_future.result(), s_future.result()
+```
+
+`PrefectFuture.wait()` blocks until the task reaches a final state and **does not raise** — failures surface at `.result()`. Two consequences, both intentional:
+
+- A delivery failure still lets supply run and record its run index, so a re-run only redoes delivery. This matches the pre-toggle behavior.
+- The gate lives in the flow thread, so the supply task is not created until delivery finishes — it does not sit in `Running` while idle.
+
+**Why not `wait_for=[d_future]`?** Two reasons. It raises `UpstreamTaskError` when the upstream is not `COMPLETED`, so a delivery failure would skip supply entirely and forfeit that partial progress. And it resolves the dependency _inside_ the downstream task run, so the supply task is created immediately and occupies one of the two `ThreadPoolTaskRunner` slots while doing nothing.
 
 ## Run index (resume mechanism)
 
@@ -118,6 +157,7 @@ year: 2025
 output_base: /data.sb/switchbox/cairo/outputs/hp_rates
 process_workers: 8
 max_concurrent_cairo_runs: 2
+concurrent_variants: false
 resstock:
   base: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb
   upgrade_precalc: "00"
@@ -399,7 +439,7 @@ Applies to `mc_supply_energy` and `mc_supply_capacity`.
 
 ## Deferred
 
-- End-to-end BGE verification (next session)
 - `multi_rate_preserved` in production
 - Concurrent independent scenario fan-out (currently sequential)
+- OOM retry for `cairo_run`: retry on subprocess exit `-9`/`137` with adaptive worker reduction (via `prefect.runtime.task_run.run_count`). Only worth building when re-enabling `concurrent_variants` on a larger box — a retry at unchanged concurrency would likely OOM again, since the failure is deterministic under overlap rather than transient.
 - TOU structure handler
