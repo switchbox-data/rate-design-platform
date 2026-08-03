@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 import sys
 import threading
@@ -111,6 +112,7 @@ def cairo_run(
     batch_dir: Path,
     state: str,
     is_delivery: bool,
+    num_workers: int | None = None,
 ) -> Path:
     """Execute one CAIRO run as a subprocess.  Returns the output directory.
 
@@ -124,7 +126,12 @@ def cairo_run(
 
     **Concurrency**: gated by ``_cairo_semaphore`` (initialised by
     ``run_batch``).  The semaphore limits how many CAIRO subprocesses run
-    simultaneously across the whole pipeline.
+    simultaneously across the whole pipeline.  When ``run_quartet`` overlaps
+    delivery and supply (``concurrent_variants: true``) it passes a halved
+    ``num_workers`` here — otherwise both subprocesses would each
+    independently size their Dask worker pool from ``process_workers`` in the
+    YAML, oversubscribing CPU/memory and risking an OOM kill.  In sequential
+    mode only one subprocess is alive, so no override is passed.
 
     Args:
         run_id: Canonical run name (e.g. ``md_bge_default_precalc_delivery``).
@@ -134,6 +141,10 @@ def cairo_run(
         batch_dir: Batch output directory (contains ``.runs/`` index).
         state: Two-letter state code (e.g. ``md``).
         is_delivery: Whether this is a delivery variant (adds ``--billing-kwh``).
+        num_workers: Optional override for ``--num-workers``.  Fully replaces
+            the YAML's ``process_workers`` for this subprocess (no ``min()``
+            clamp is applied downstream). When omitted, ``run_scenario.py``
+            falls back to ``min(process_workers, os.cpu_count())``.
 
     Returns:
         Absolute path to the CAIRO output directory for this run.
@@ -160,6 +171,8 @@ def cairo_run(
     ]
     if is_delivery:
         cmd.append("--billing-kwh")
+    if num_workers is not None:
+        cmd.extend(["--num-workers", str(num_workers)])
 
     log.info("Acquiring semaphore for %s", run_id)
     with _cairo_semaphore:
@@ -465,6 +478,44 @@ def derive_tariffs(
 # ---------------------------------------------------------------------------
 
 
+def _run_stage(
+    delivery_name: str,
+    supply_name: str,
+    *,
+    yaml_path: Path,
+    batch_dir: Path,
+    state: str,
+    num_workers: int | None,
+    concurrent: bool,
+) -> tuple[Path, Path]:
+    """Run one stage's delivery + supply pair. Returns their output dirs.
+
+    When ``concurrent`` is False, ``wait()`` gates supply on delivery from the
+    flow thread, so supply is not submitted until delivery reaches a final
+    state.  ``wait()`` does not raise — a delivery failure still lets supply
+    run (recording its run index for resume) and surfaces at ``result()``.
+    """
+    d_future = cairo_run.submit(
+        delivery_name,
+        yaml_path=yaml_path,
+        batch_dir=batch_dir,
+        state=state,
+        is_delivery=True,
+        num_workers=num_workers,
+    )
+    if not concurrent:
+        d_future.wait()
+    s_future = cairo_run.submit(
+        supply_name,
+        yaml_path=yaml_path,
+        batch_dir=batch_dir,
+        state=state,
+        is_delivery=False,
+        num_workers=num_workers,
+    )
+    return d_future.result(), s_future.result()
+
+
 @flow(  # type: ignore[no-matching-overload]  # ty: ignore[no-matching-overload]
     name="run-quartet",
     task_runner=ThreadPoolTaskRunner(max_workers=2),
@@ -476,20 +527,39 @@ def run_quartet(
     utility: str,
     yaml_path: Path,
     batch_dir: Path,
+    process_workers: int,
+    concurrent: bool,
 ) -> dict[str, Path]:
     """Run one scenario's full quartet: 2 stages × 2 variants = 4 CAIRO runs.
 
     Steps:
 
-    1. **Precalc stage** — submit delivery and supply ``cairo_run`` tasks
-       concurrently (gated by the semaphore).
+    1. **Precalc stage** — run delivery and supply ``cairo_run`` tasks.
     2. **Tariff promotion** — extract ``*_calibrated.json`` from precalc
        outputs so they are available as inputs for the calibrated stage.
-    3. **Calibrated stage** — submit delivery and supply ``cairo_run`` tasks
-       concurrently.
+    3. **Calibrated stage** — run delivery and supply ``cairo_run`` tasks.
 
     All run configurations are already materialised in the scenario YAML by
     preflight — this flow only constructs canonical run names and dispatches.
+
+    Within each stage, ``concurrent`` decides whether the delivery and supply
+    runs overlap, which in turn decides the Dask worker count:
+
+    * **Sequential** (``concurrent=False``, the default): supply is gated on
+      delivery, so only one CAIRO subprocess is ever alive. No
+      ``--num-workers`` override is passed and ``run_scenario.py`` applies its
+      own ``min(process_workers, os.cpu_count())`` — the run gets the full box.
+    * **Concurrent** (``concurrent=True``): both subprocesses run at once, so
+      each is given half the *effective* worker count via ``--num-workers`` to
+      avoid oversubscribing CPU/memory. The effective count is
+      ``min(process_workers, os.cpu_count())`` — the value ``run_scenario.py``
+      would use on its own — halved (minimum 1). Halving ``process_workers``
+      alone is not sufficient: on a small instance (e.g. 4 vCPUs) with
+      ``process_workers=8``, a *single* run already clamps to
+      ``min(8, 4) = 4``, so halving 8 → 4 changes nothing and two concurrent
+      subprocesses still spawn 4 Dask workers each (8 total on 4 cores),
+      causing OOM kills. Halving the already-clamped value instead
+      (``min(8, 4) // 2 = 2``) keeps the pair within the box's core count.
 
     Args:
         scenario_name: Scenario key (e.g. ``default``).
@@ -497,38 +567,30 @@ def run_quartet(
         utility: Utility code (e.g. ``bge``).
         yaml_path: Path to the generated scenario YAML.
         batch_dir: Batch output directory (contains ``.runs/`` index).
+        process_workers: ``process_workers`` from the pipeline YAML. Only used
+            when ``concurrent`` is True (see above).
+        concurrent: ``concurrent_variants`` from the pipeline YAML. Whether
+            each stage's delivery and supply runs overlap.
 
     Returns:
         Mapping of ``{stage}_{variant}`` to the output directory path for
         each of the four runs.
     """
     results: dict[str, Path] = {}
-
-    # --- Stage 1: precalc (delivery + supply in parallel) ---
-    precalc_d_name = canonical_run_name(
-        state, utility, scenario_name, "precalc", "delivery"
-    )
-    precalc_s_name = canonical_run_name(
-        state, utility, scenario_name, "precalc", "supply"
+    num_workers = (
+        max(1, min(process_workers, os.cpu_count() or 1) // 2) if concurrent else None
     )
 
-    precalc_d_future = cairo_run.submit(
-        precalc_d_name,
+    # --- Stage 1: precalc ---
+    precalc_d_dir, precalc_s_dir = _run_stage(
+        canonical_run_name(state, utility, scenario_name, "precalc", "delivery"),
+        canonical_run_name(state, utility, scenario_name, "precalc", "supply"),
         yaml_path=yaml_path,
         batch_dir=batch_dir,
         state=state,
-        is_delivery=True,
+        num_workers=num_workers,
+        concurrent=concurrent,
     )
-    precalc_s_future = cairo_run.submit(
-        precalc_s_name,
-        yaml_path=yaml_path,
-        batch_dir=batch_dir,
-        state=state,
-        is_delivery=False,
-    )
-
-    precalc_d_dir = precalc_d_future.result()
-    precalc_s_dir = precalc_s_future.result()
     results["precalc_delivery"] = precalc_d_dir
     results["precalc_supply"] = precalc_s_dir
 
@@ -541,31 +603,18 @@ def run_quartet(
         [p.name for p in promoted],
     )
 
-    # --- Stage 2: calibrated (delivery + supply in parallel) ---
-    cal_d_name = canonical_run_name(
-        state, utility, scenario_name, "calibrated", "delivery"
-    )
-    cal_s_name = canonical_run_name(
-        state, utility, scenario_name, "calibrated", "supply"
-    )
-
-    cal_d_future = cairo_run.submit(
-        cal_d_name,
+    # --- Stage 2: calibrated ---
+    cal_d_dir, cal_s_dir = _run_stage(
+        canonical_run_name(state, utility, scenario_name, "calibrated", "delivery"),
+        canonical_run_name(state, utility, scenario_name, "calibrated", "supply"),
         yaml_path=yaml_path,
         batch_dir=batch_dir,
         state=state,
-        is_delivery=True,
+        num_workers=num_workers,
+        concurrent=concurrent,
     )
-    cal_s_future = cairo_run.submit(
-        cal_s_name,
-        yaml_path=yaml_path,
-        batch_dir=batch_dir,
-        state=state,
-        is_delivery=False,
-    )
-
-    results["calibrated_delivery"] = cal_d_future.result()
-    results["calibrated_supply"] = cal_s_future.result()
+    results["calibrated_delivery"] = cal_d_dir
+    results["calibrated_supply"] = cal_s_dir
 
     return results
 
@@ -684,6 +733,8 @@ def run_batch(
             utility=config.utility,
             yaml_path=scenarios_yaml,
             batch_dir=batch_dir,
+            process_workers=config.process_workers,
+            concurrent=config.concurrent_variants,
         )
 
     # --- Run dependent scenarios (after dependency + derive step) ---
@@ -703,6 +754,8 @@ def run_batch(
             utility=config.utility,
             yaml_path=scenarios_yaml,
             batch_dir=batch_dir,
+            process_workers=config.process_workers,
+            concurrent=config.concurrent_variants,
         )
 
     log.info("run_batch: all scenarios complete for batch %s", batch)
