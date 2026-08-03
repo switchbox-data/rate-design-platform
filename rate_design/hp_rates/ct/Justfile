@@ -13,6 +13,8 @@ set dotenv-path := "state.env"
 
 state := env_var_or_default('STATE', 'ct')
 
+path_s3_utility_loads := "s3://data.sb/isone/hourly_demand/utilities/"
+
 import '../Justfile'
 
 # =============================================================================
@@ -57,3 +59,32 @@ create-bulk-tx-mc-data-all *extra_args:
         done
     done
     echo ">> Done: all CT bulk TX MC (${#utils[@]} utilities × $(echo {{ ct_bulk_tx_years }} | wc -w) years)" >&2
+
+# =============================================================================
+# CT-only: distribution + sub-transmission marginal costs (CL&P MCOS-2 Table 3)
+#
+# Uses CL&P's own system-wide diluted marginal cost ($20.17/kW-yr, 2026$)
+# allocated via the standard Probability-of-Peak (PoP) method — same
+# methodology as NY/RI/MD — on CT zone hourly load (top-100 hours by default).
+# See context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md.
+#
+# CL&P's MCOS-2 covers ct_eversource only; ct_ui has no MCOS-derived value yet
+# (see the methodology doc's open questions), so this recipe does not loop
+# over both CT utilities the way create-bulk-tx-mc-data-all does.
+# =============================================================================
+
+# Generate dist+sub-tx MC for ct_eversource and one year.
+#
+#   just -f ct/Justfile create-dist-mc-data 2025
+# just -f ct/Justfile create-dist-mc-data 2025 --upload
+create-dist-mc-data year_arg *extra_args:
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py \
+      --state CT \
+      --utility ct_eversource \
+      --year {{ year_arg }} \
+      --load-year {{ year_arg }} \
+      --mc-table-path {{ path_config }}/marginal_costs/ct_marginal_costs_{{ year_arg }}.csv \
+      --utility-load-s3-base {{ path_s3_utility_loads }} \
+      --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \
+      --n-hours {{ upstream_hours }} \
+      {{ extra_args }}

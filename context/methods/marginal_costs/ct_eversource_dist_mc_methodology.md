@@ -1,10 +1,11 @@
 # CT Eversource (CL&P) sub-TX + distribution marginal cost: plan of action
 
-**Status: PLAN — not yet implemented.** This document lays out how to derive the `sub_tx_and_dist`
-BAT marginal-cost input for Eversource CT (CL&P) from the two MCOS exhibits, and how to allocate it
-to an 8760 hourly signal. No config CSV, allocator code, or S3 output exists yet for CT distribution
-MC (CT's `rate_design/hp_rates/ct/config/` has no `marginal_costs/` subdirectory today — contrast
-with `ny/`, `ri/`, `md/`). Only CT **bulk transmission** MC is implemented so far
+**Status: IMPLEMENTED.** This document lays out how the `sub_tx_and_dist` BAT marginal-cost input
+for Eversource CT (CL&P) is derived from the two MCOS exhibits, and how it is allocated to an 8760
+hourly signal. The config CSV, allocator wiring, and S3 output described below exist and have been
+run; see §3.4 for the implementation notes (including two upstream data gaps — ISO-NE utility-level
+load and 2026 CPI data — that had to be filled first). Only CT **bulk transmission** MC was
+implemented before this
 ([ct_bulk_transmission_marginal_cost.md](ct_bulk_transmission_marginal_cost.md)).
 
 For the underlying LRMC framework and cross-state definition choice, see
@@ -79,10 +80,10 @@ structural consequence of the platform's architecture.
 3. Carry `$86.58/kW-yr` as a documented **sensitivity/upper bound** (parallel to how BGE's `$203–258`
    E3 figure and NY's undiluted numbers are retained as sensitivities elsewhere).
 
-### 2.3 Config file (to create)
+### 2.3 Config file
 
-Following the RI/MD pattern (`ri_marginal_costs_2025.csv`, `md_marginal_costs_2025.csv`), create
-`rate_design/hp_rates/ct/config/marginal_costs/ct_marginal_costs_2025.csv`:
+Following the RI/MD pattern (`ri_marginal_costs_2025.csv`, `md_marginal_costs_2025.csv`),
+`rate_design/hp_rates/ct/config/marginal_costs/ct_marginal_costs_2025.csv` contains:
 
 ```csv
 utility,sub_tx_and_dist_mc_kw_yr,dollar_year
@@ -138,10 +139,23 @@ reproduce from the load data.
 
 Use the CT zone hourly load already on S3 for the CT bulk-TX pipeline:
 `s3://data.sb/isone/hourly_demand/zones/`, zone label `CT`. Both `ct_eversource` and `ct_ui` map to
-the single `CT` ISO-NE zone via `ISONE_UTILITY_ZONES` in `supply_utils.py`. The existing
-`generate_utility_tx_dx_mc.py` loads utility-level data from
-`s3://data.sb/isone/hourly_demand/utilities/utility=ct_eversource/...` — this is already wired via
-the `--utility-load-s3-base` argument.
+the single `CT` ISO-NE zone. `generate_utility_tx_dx_mc.py` loads **utility-level** (not zone-level)
+data from `s3://data.sb/isone/hourly_demand/utilities/utility=ct_eversource/...` via the
+`--utility-load-s3-base` argument — the same layout NY/RI/MD use.
+
+That utility-level partition **did not exist** before this implementation (only `utility=rie` was
+present under `s3://data.sb/isone/hourly_demand/utilities/`); CT bulk-TX reads zone-level data
+directly via `load_isone_zone_loads()` and never needed the utility-level aggregation. To fill the
+gap:
+
+1. Added `ct_eversource` and `ct_ui` rows (zone `CT`, location 4004) to
+   `data/isone/zone_mapping/generate_zone_mapping_csv.py` and regenerated
+   `data/isone/zone_mapping/csv/isone_utility_zone_mapping.csv`.
+2. Ran `data/isone/hourly_demand/aggregate_isone_utility_loads.py` (via the
+   `aggregate-utility-loads` Justfile recipe) for `ct_eversource` and `ct_ui`, year 2025 — a 1:1
+   zone→utility relabel (both utilities share the single CT zone, same as RI's `rie`→`RI`).
+3. Uploaded the resulting `utility=ct_eversource/year=2025/` and `utility=ct_ui/year=2025/`
+   partitions to `s3://data.sb/isone/hourly_demand/utilities/`.
 
 **Caveat**: this is CT-zone transmission-level load (both utilities combined), not CL&P's
 substation-level distribution load. It doesn't reflect CL&P's BTM-solar/HP-adoption forward
@@ -149,12 +163,20 @@ adjustments. This is the same trade-off as in other states where we use zone-lev
 utility-specific substation data — sufficient for the BAT, and matches the approach used for CT
 bulk-TX MC.
 
-### 3.4 Implementation steps
+### 3.4 Implementation notes
 
-1. **Add CT to `generate_utility_tx_dx_mc.py`**: add `"CT"` to the `--state` choices (currently
-   `["NY", "RI", "MD"]`).
-2. **Create the config CSV** (§2.3).
-3. **Run the standard PoP allocation**:
+1. **Added CT to `generate_utility_tx_dx_mc.py`**: `"CT"` is now in the `--state` choices
+   (`["NY", "RI", "MD", "CT"]`).
+2. **Created the config CSV** (§2.3).
+3. **Filled the utility-level load gap** (§3.3) — `ct_eversource`/`ct_ui` zone-mapping rows, ran the
+   ISO-NE utility aggregation for 2025, uploaded to S3.
+4. **Refreshed CPI data through 2026**: the MCOS-2 Table 3 figure is filed in 2026$
+   (`dollar_year=2026` in the config CSV), but `data/fred/cpi/parquet/` only had annual averages
+   through 2025. Ran `just -f data/fred/cpi/Justfile fetch-cpi CPIAUCSL 2019 2026` (2026 is a
+   partial-year average — 6 months as of this run — since FRED lags by ~1 month) and uploaded.
+   `$20.17 → $19.65/kW-yr` in 2025$ (CPI factor 0.9740).
+5. **Ran the standard PoP allocation** via the new `just -f ct/Justfile create-dist-mc-data 2025
+   --upload` recipe (§3.5):
    ```bash
    uv run python utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py \
        --state CT --utility ct_eversource --year 2025 \
@@ -163,19 +185,32 @@ bulk-TX MC.
        --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \
        --upload
    ```
-4. **Validate**: the built-in validation check (`validate_allocation`) confirms the flat-1-kW annual
-   sum equals the input `$/kW-yr` (exact by construction). Additionally, sanity-check the seasonal
-   distribution — top-`K` hours should cluster overwhelmingly in summer (Jun–Sep), consistent with
-   CL&P's own finding.
-5. **Output**: same schema as all other states (`timestamp, utility, year, mc_total_per_kwh`) at
-   `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=YYYY/data.parquet`.
+6. **Validated**: the built-in `validate_allocation`-equivalent 1-kW-constant-load check passed
+   exactly ($19.6460/kW-yr, 0.0000% error). The top-100 PoP hours for 2025 fall entirely in
+   June–August (30 in June, 62 in July, 8 in August, 0 elsewhere) — consistent with CL&P's own
+   finding of concentrated summer peak-probability, though the specific split differs somewhat from
+   CL&P's multi-year-normalized ~80% Jul–Aug / ~20% Jun–Sep because this uses a single year (2025)
+   of CT zone load rather than CL&P's normalized 2022–2025 substation analysis.
+7. **Output**: same schema as all other states (`timestamp, utility, year, mc_total_per_kwh`) at
+   `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet`.
    Downstream CAIRO wiring is unchanged.
-6. **Wire a `just` recipe** in `rate_design/hp_rates/ct/Justfile` (e.g. `create-dist-mc-data`),
-   mirroring `create-bulk-tx-mc-data`.
-7. **Add tests** mirroring `tests/test_ri_bulk_tx_mc.py` for the CT PoP allocator (8760-hour
-   coverage, annual reconciliation, seasonal concentration check).
+8. **Wired a `just` recipe**, `create-dist-mc-data`, in `rate_design/hp_rates/ct/Justfile`
+   (mirrors `create-bulk-tx-mc-data`'s style, but scoped to `ct_eversource` only — see §3.5).
+9. **Added tests** in `tests/test_ct_dist_mc.py`: ISO-NE zone-mapping coverage for both CT
+   utilities, config-CSV schema/value checks, and an end-to-end PoP allocation on a synthetic
+   summer-peaking CT load profile (8760-hour coverage, exact 1-kW annual reconciliation, peak-hour
+   seasonal concentration in Jun–Sep with none in Nov–Mar).
 
-### 3.5 Primary vs. secondary voltage column (Table 2A reference values)
+### 3.5 Why `create-dist-mc-data` doesn't loop over both CT utilities
+
+Unlike `create-bulk-tx-mc-data-all` (which applies the same AESC PTF value to every ISO-NE utility
+in `state.env`'s `UTILITIES` list), the dist+sub-TX MC value is CL&P-specific — `ct_ui` has no row in
+`ct_marginal_costs_2025.csv` (see [Open questions](#4-open-questions--decisions-needed)). Looping
+over `UTILITIES=ct_eversource,ct_ui` the way the generic `create-dist-and-sub-tx-mc-data-all` shared
+recipe does would raise `ValueError: No marginal cost data found for ct_ui`. `create-dist-mc-data`
+therefore takes an explicit year argument and always targets `ct_eversource`.
+
+### 3.6 Primary vs. secondary voltage column (Table 2A reference values)
 
 Table 2A gives near-identical Primary and Secondary `$/kWh` columns (e.g. system-wide annual average
 is `$0.00241` primary vs `$0.00242` secondary). The difference is negligible (loss-adjustment). Since
@@ -184,7 +219,7 @@ rates), the primary/secondary distinction doesn't affect the implementation. Tab
 useful as a cross-check: our PoP-allocated 8760 should produce similar seasonal concentration to
 what Table 2A shows (nearly all cost in summer, near-zero winter).
 
-### 3.6 Back-Up 36 (if obtainable)
+### 3.7 Back-Up 36 (if obtainable)
 
 MCOS-2's table of contents lists **Back-Up 36 "Probabilities of peak by month and time of day
 period"** and a **"Monthly Probability of Distribution Peak, System-wide" chart** — these would
@@ -200,26 +235,40 @@ allocation or as a direct replacement. This is a nice-to-have, not a blocker for
 - **`ct_ui` (United Illuminating).** This MCOS is CL&P-only. UI's own MCOS/rate-case filing needed
   before UI has a `sub_tx_and_dist` value — flagged as a document gap, same status as the UI revenue
   requirement gap noted in
-  [ct_residential_charges_in_bat.md](../bat_mc_residual/ct_residential_charges_in_bat.md).
+  [ct_residential_charges_in_bat.md](../bat_mc_residual/ct_residential_charges_in_bat.md). UI's
+  ISO-NE zone-mapping and utility-level load data (§3.3) are in place if/when a value is found;
+  only the config-CSV row is missing.
 - **Locational sensitivity.** Confirm whether we want `$86.58/kW-yr` carried as a formal sensitivity
-  run (§2.2 point 3) or just documented here.
-- **`--n-hours` parameter.** Start with the platform default of `100` and check that the resulting
-  seasonal split shows the same ~80% Jul–Aug concentration CL&P reports in the testimony. Adjust if
-  needed.
+  run (§2.2 point 3) or just documented here. Not yet run.
+- **`--n-hours` parameter.** Ran with the platform default of `100` for 2025: the resulting top-100
+  hours fall entirely in June–August (30/62/8 split), directionally consistent with but not an exact
+  match to CL&P's normalized ~80% Jul–Aug / ~20% Jun–Sep testimony finding (see §3.4 point 6 for why
+  the exact split differs). Not tuned further; revisit if a closer match to CL&P's own split matters
+  for a given analysis.
 - **Whether "marginal customer/facilities cost" should ever get its own BAT MC term.** Not a
   CT-specific question, but CT's MCOS happens to compute Bonbright-style customer/facilities marginal
   costs explicitly (Tables 4–7), which makes the gap visible. Worth raising with the team as a
   cross-cutting design question (see §1).
+- **2026 CPI is a partial-year average.** The CPI inflation factor (§3.4 point 4) uses a 2026 annual
+  average computed from only the months FRED had published as of this implementation. As more 2026
+  months are published, re-running `just fetch-cpi` will shift the 2026 average slightly, which
+  would change the `$20.17 → $19.65` inflated value by a small amount. Not expected to matter
+  materially, but worth knowing if the output value changes on a future re-run.
 
 ---
 
 ## 5. Concrete task list
 
-1. Add `"CT"` to `--state` choices in `generate_utility_tx_dx_mc.py`.
-2. Create `rate_design/hp_rates/ct/config/marginal_costs/ct_marginal_costs_2025.csv` (§2.3).
-3. Wire a `just` recipe in `rate_design/hp_rates/ct/Justfile` (e.g. `create-dist-mc-data`), mirroring
-   `create-bulk-tx-mc-data`.
-4. Run PoP allocation and validate (§3.4).
-5. Add tests (8760-hour coverage, annual reconciliation, seasonal concentration check).
-6. Update this doc and [dist_mc_definition_choice.md](dist_mc_definition_choice.md) §2–3 once
-   implemented, adding CT to the source-number and per-state tables.
+1. ~~Add `"CT"` to `--state` choices in `generate_utility_tx_dx_mc.py`.~~ Done.
+2. ~~Create `rate_design/hp_rates/ct/config/marginal_costs/ct_marginal_costs_2025.csv` (§2.3).~~ Done.
+3. ~~Wire a `just` recipe in `rate_design/hp_rates/ct/Justfile` (`create-dist-mc-data`).~~ Done.
+4. ~~Run PoP allocation and validate (§3.4).~~ Done — output at
+   `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet`.
+5. ~~Add tests (8760-hour coverage, annual reconciliation, seasonal concentration check).~~ Done —
+   `tests/test_ct_dist_mc.py`.
+6. ~~Update this doc and [dist_mc_definition_choice.md](dist_mc_definition_choice.md) §2–3, adding CT
+   to the source-number and per-state tables.~~ Done.
+7. **Remaining**: wire `path_dist_and_sub_tx_mc` into a CT scenario config (`scenarios_ct_eversource.yaml`
+   or equivalent) once CT scenario YAMLs exist, so a CAIRO run actually consumes this MC output. No CT
+   scenario configs exist yet in `rate_design/hp_rates/ct/config/scenarios/` — that's a separate,
+   larger piece of CT onboarding beyond this MC-generation task.

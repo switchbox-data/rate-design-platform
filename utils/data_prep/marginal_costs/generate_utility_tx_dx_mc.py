@@ -22,6 +22,7 @@ Output partitions written as:
     - NY default base: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/
     - RI default base: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
     - MD default base: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/
+    - CT default base: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/
     - Partition path: utility=X/year=YYYY/data.parquet
 
 Usage:
@@ -44,6 +45,13 @@ Usage:
         --mc-table-path rate_design/hp_rates/ny/config/marginal_costs/ny_sub_tx_and_dist_mc_levelized.csv \
         --utility-load-s3-base s3://data.sb/nyiso/hourly_demand/utilities/ \
         --output-s3-base s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/ \
+        --upload
+
+    # CT/Eversource (CL&P) on ISO-NE native loads, inflates 2026$ → 2025$
+    python generate_utility_tx_dx_mc.py --state CT --utility ct_eversource --year 2025 \
+        --mc-table-path rate_design/hp_rates/ct/config/marginal_costs/ct_marginal_costs_2025.csv \
+        --utility-load-s3-base s3://data.sb/isone/hourly_demand/utilities/ \
+        --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \
         --upload
 """
 
@@ -516,8 +524,8 @@ def main():
         "--state",
         type=str,
         required=True,
-        choices=["NY", "RI", "MD"],
-        help="State to process (supported: NY, RI, MD)",
+        choices=["NY", "RI", "MD", "CT"],
+        help="State to process (supported: NY, RI, MD, CT)",
     )
     parser.add_argument(
         "--utility",
