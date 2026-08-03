@@ -160,6 +160,28 @@ scenarios:
 
 ## Invocation
 
+### 1. Start the Prefect server
+
+The pipeline requires a running Prefect server to track flows, tasks, and run state. Start it in a **separate terminal** before launching any pipeline runs:
+
+```bash
+uv run prefect server start --port 4200
+```
+
+The server UI is then available at `http://127.0.0.1:4200`. Keep this terminal open for the duration of the batch.
+
+### 2. Point the pipeline at the server
+
+In the terminal where you will launch the pipeline, set `PREFECT_API_URL` so the Prefect client knows where to send flow/task state:
+
+```bash
+export PREFECT_API_URL=http://127.0.0.1:4200/api
+```
+
+If the port differs (e.g. another Prefect instance is already using 4200), pass a different `--port` to `server start` and update `PREFECT_API_URL` to match. The port in both commands must agree — if they don't, the pipeline will either fail to connect or silently fall back to an ephemeral server that loses all run history.
+
+### 3. Launch the pipeline
+
 ```bash
 uv run python -m rate_design.hp_rates.run_pipeline \
   --yaml rate_design/hp_rates/md/config/scenarios/pipeline_bge.yaml \
