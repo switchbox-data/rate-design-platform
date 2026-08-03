@@ -33,7 +33,7 @@ Status: redesigned pipeline with generic quartet-based orchestration, structure 
 ```
 run_batch @flow (master)
   ├─ preflight @flow
-  │    ├─ validate inputs (MC paths, ResStock, RR YAMLs, tariff JSONs)
+  │    ├─ validate inputs (FUSE mount, MC paths, ResStock, RR YAMLs, tariff JSONs)
   │    ├─ generate scenarios YAML (pipeline YAML → per-run format for run_scenario.py)
   │    └─ generate electric tariff maps (write_tariff_maps_from_scenario)
   ├─ independent scenarios (no depends_on):
