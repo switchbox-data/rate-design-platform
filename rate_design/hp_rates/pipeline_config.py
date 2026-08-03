@@ -165,6 +165,7 @@ class PipelineConfig:
     year: int
     process_workers: int
     max_concurrent_cairo_runs: int
+    concurrent_variants: bool
     output_base: str
 
     scenarios: dict[str, ScenarioConfig]
@@ -333,6 +334,7 @@ def load_pipeline_config(yaml_path: Path) -> PipelineConfig:
         year=int(data["year"]),
         process_workers=int(data.get("process_workers", 8)),
         max_concurrent_cairo_runs=int(data.get("max_concurrent_cairo_runs", 2)),
+        concurrent_variants=bool(data.get("concurrent_variants", False)),
         output_base=data["output_base"],
         scenarios=scenarios,
         run_defaults=run_defaults,
