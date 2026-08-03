@@ -655,7 +655,7 @@
           }
         ]
       ],
-      "fixedchargefirstmeter": 10.00,
+      "fixedchargefirstmeter": 10.0,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
       "minchargeunits": "$/month",
