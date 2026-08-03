@@ -36,6 +36,7 @@ from rate_design.hp_rates.pipeline_config import (
     ALLOCATION_TO_BAT_COL,
     PipelineConfig,
     ScenarioConfig,
+    canonical_run_name,
     multi_rate_rr_path,
     tariff_stem,
 )
@@ -95,27 +96,6 @@ def _run_is_complete(batch_dir: Path, run_name: str) -> bool:
     """Check whether a run has already completed (index file exists)."""
     index_file = batch_dir / ".runs" / f"{run_name}.path"
     return index_file.is_file()
-
-
-# ---------------------------------------------------------------------------
-# Canonical run name helpers
-# ---------------------------------------------------------------------------
-
-
-def canonical_run_name(
-    batch: str,
-    scenario_name: str,
-    stage: str,
-    variant: str,
-) -> str:
-    """Build the canonical run name for one CAIRO invocation.
-
-    Format: ``{batch}_{scenario_name}_{stage}_{variant}``.
-    The batch already encodes ``{state}_{utility}_...``.
-
-    Example: ``md_bge_default_precalc_delivery``.
-    """
-    return f"{batch}_{scenario_name}_{stage}_{variant}"
 
 
 # ---------------------------------------------------------------------------
@@ -420,7 +400,8 @@ def _relabel_tariff_copy(source: Path, destination: Path, label: str) -> Path:
 
 def check_dependency(
     batch_dir: Path,
-    batch: str,
+    state: str,
+    utility: str,
     dep_scenario_name: str,
 ) -> dict[str, Path]:
     """Verify that a dependency scenario's quartet has completed.
@@ -433,7 +414,9 @@ def check_dependency(
     results: dict[str, Path] = {}
     for stage in ("precalc", "calibrated"):
         for variant in ("delivery", "supply"):
-            run_id = canonical_run_name(batch, dep_scenario_name, stage, variant)
+            run_id = canonical_run_name(
+                state, utility, dep_scenario_name, stage, variant
+            )
             if not _run_is_complete(batch_dir, run_id):
                 raise RuntimeError(
                     f"Dependency {dep_scenario_name!r} run {run_id!r} has not "
@@ -489,10 +472,10 @@ def derive_tariffs(
 def run_quartet(
     scenario_name: str,
     *,
-    batch: str,
+    state: str,
+    utility: str,
     yaml_path: Path,
     batch_dir: Path,
-    state: str,
 ) -> dict[str, Path]:
     """Run one scenario's full quartet: 2 stages × 2 variants = 4 CAIRO runs.
 
@@ -510,10 +493,10 @@ def run_quartet(
 
     Args:
         scenario_name: Scenario key (e.g. ``default``).
-        batch: Batch prefix for canonical names (e.g. ``md_bge``).
+        state: Two-letter state code (e.g. ``md``).
+        utility: Utility code (e.g. ``bge``).
         yaml_path: Path to the generated scenario YAML.
         batch_dir: Batch output directory (contains ``.runs/`` index).
-        state: Two-letter state code (e.g. ``md``).
 
     Returns:
         Mapping of ``{stage}_{variant}`` to the output directory path for
@@ -522,8 +505,12 @@ def run_quartet(
     results: dict[str, Path] = {}
 
     # --- Stage 1: precalc (delivery + supply in parallel) ---
-    precalc_d_name = canonical_run_name(batch, scenario_name, "precalc", "delivery")
-    precalc_s_name = canonical_run_name(batch, scenario_name, "precalc", "supply")
+    precalc_d_name = canonical_run_name(
+        state, utility, scenario_name, "precalc", "delivery"
+    )
+    precalc_s_name = canonical_run_name(
+        state, utility, scenario_name, "precalc", "supply"
+    )
 
     precalc_d_future = cairo_run.submit(
         precalc_d_name,
@@ -555,8 +542,12 @@ def run_quartet(
     )
 
     # --- Stage 2: calibrated (delivery + supply in parallel) ---
-    cal_d_name = canonical_run_name(batch, scenario_name, "calibrated", "delivery")
-    cal_s_name = canonical_run_name(batch, scenario_name, "calibrated", "supply")
+    cal_d_name = canonical_run_name(
+        state, utility, scenario_name, "calibrated", "delivery"
+    )
+    cal_s_name = canonical_run_name(
+        state, utility, scenario_name, "calibrated", "supply"
+    )
 
     cal_d_future = cairo_run.submit(
         cal_d_name,
@@ -689,16 +680,18 @@ def run_batch(
     for scenario in independent:
         run_quartet(
             scenario.name,
-            batch=batch,
+            state=config.state,
+            utility=config.utility,
             yaml_path=scenarios_yaml,
             batch_dir=batch_dir,
-            state=config.state,
         )
 
     # --- Run dependent scenarios (after dependency + derive step) ---
     for scenario in dependent:
         assert scenario.depends_on is not None
-        dep_outputs = check_dependency(batch_dir, batch, scenario.depends_on)
+        dep_outputs = check_dependency(
+            batch_dir, config.state, config.utility, scenario.depends_on
+        )
         dep_precalc = {
             "precalc_delivery": dep_outputs["precalc_delivery"],
             "precalc_supply": dep_outputs["precalc_supply"],
@@ -706,10 +699,10 @@ def run_batch(
         derive_tariffs(config, scenario, dep_precalc)
         run_quartet(
             scenario.name,
-            batch=batch,
+            state=config.state,
+            utility=config.utility,
             yaml_path=scenarios_yaml,
             batch_dir=batch_dir,
-            state=config.state,
         )
 
     log.info("run_batch: all scenarios complete for batch %s", batch)

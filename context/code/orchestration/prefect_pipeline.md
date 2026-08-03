@@ -53,11 +53,11 @@ run_batch @flow (master)
 
 ## Canonical run naming
 
-Format: `{batch}_{scenario_name}_{stage}_{variant}`
+Format: `{state}_{utility}_{scenario_name}_{stage}_{variant}`
 
 Example: `md_bge_default_precalc_delivery`
 
-The batch encodes state + utility + date/version info (e.g. `md_20260728`). This name is passed as `--run-num` to `run_scenario.py` and used as the key in the run index.
+The run name identifies (state, utility, scenario, stage, variant) — it is batch-independent. The batch is already encoded in the output directory path. This name is passed as `--run-num` to `run_scenario.py` and used as the key in the run index.
 
 ## CAIRO invocation: subprocess model
 
@@ -219,17 +219,20 @@ Example: `/data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260728`
 ### Canonical run name
 
 ```
-{batch}_{scenario_name}_{stage}_{variant}
+{state}_{utility}_{scenario_name}_{stage}_{variant}
 ```
 
 | Component       | Source                        | Example                               |
 | --------------- | ----------------------------- | ------------------------------------- |
-| `batch`         | CLI `--batch`                 | `md_20260728`                         |
+| `state`         | `PipelineConfig.state`        | `md`                                  |
+| `utility`       | `PipelineConfig.utility`      | `bge`                                 |
 | `scenario_name` | scenario key in pipeline YAML | `hp_seasonal_percustomer_passthrough` |
 | `stage`         | quartet position              | `precalc` or `calibrated`             |
 | `variant`       | cost scope                    | `delivery` or `supply`                |
 
-Example: `md_20260728_hp_seasonal_percustomer_passthrough_precalc_delivery`
+The run name is batch-independent — the batch is already in the directory path.
+
+Example: `md_bge_hp_seasonal_percustomer_passthrough_precalc_delivery`
 
 ### Run index file
 
