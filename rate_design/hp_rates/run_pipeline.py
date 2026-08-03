@@ -710,12 +710,14 @@ def run_batch(
     config = load_pipeline_config(yaml_path)
     _init_semaphore(config.max_concurrent_cairo_runs)
 
-    # Determine batch output directory
     batch_dir = Path(config.output_base) / config.state / config.utility / batch
-    batch_dir.mkdir(parents=True, exist_ok=True)
 
-    # --- Preflight ---
+    # --- Preflight (validates mount, inputs; generates YAML + tariff maps) ---
     scenarios_yaml = preflight(config, batch, scenarios=scenarios)
+
+    # Create batch dir only after preflight passes — avoids local dirs on
+    # unmounted /data.sb.
+    batch_dir.mkdir(parents=True, exist_ok=True)
 
     # --- Partition scenarios into independent and dependent ---
     selected = list(config.scenarios.values())

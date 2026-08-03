@@ -802,6 +802,15 @@ def validate_preflight_inputs(
     are exempt (created mid-pipeline by ``compute_subclass_rr``).
     """
     errors: list[str] = []
+
+    # Output mount — fail fast when /data.sb FUSE is not active
+    if config.output_base.startswith("/data.sb"):
+        if not Path("/data.sb").is_mount():
+            errors.append(
+                f"Output base {config.output_base} requires /data.sb to be "
+                f"mounted (s3fs FUSE).  Run: sudo mount /data.sb"
+            )
+
     rd = config.run_defaults
     config_dir = config.state_config_dir
     state_upper = config.state.upper()

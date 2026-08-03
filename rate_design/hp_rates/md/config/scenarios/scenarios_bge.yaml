@@ -12,7 +12,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_default.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_b/md_bge_default_precalc_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_default_precalc_delivery
     utility_revenue_requirement: rev_requirement/bge_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -39,7 +39,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_default_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_b/md_bge_default_precalc_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_default_precalc_supply
     utility_revenue_requirement: rev_requirement/bge_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false
@@ -66,7 +66,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_default_calibrated.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_b/md_bge_default_calibrated_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_default_calibrated_delivery
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -93,7 +93,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_default_supply_calibrated.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_b/md_bge_default_calibrated_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_default_calibrated_supply
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false
@@ -121,7 +121,7 @@ runs:
       hp: tariffs/electric/bge_hp_seasonal_percustomer_passthrough.json
       non-hp: tariffs/electric/bge_non-hp_base_percustomer_passthrough.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_b/md_bge_hp_seasonal_percustomer_passthrough_precalc_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_hp_seasonal_percustomer_passthrough_precalc_delivery
     utility_revenue_requirement: rev_requirement/bge_hp_vs_non-hp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
@@ -156,7 +156,7 @@ runs:
       hp: tariffs/electric/bge_hp_seasonal_percustomer_passthrough_supply.json
       non-hp: tariffs/electric/bge_non-hp_base_percustomer_passthrough_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_b/md_bge_hp_seasonal_percustomer_passthrough_precalc_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_hp_seasonal_percustomer_passthrough_precalc_supply
     utility_revenue_requirement: rev_requirement/bge_hp_vs_non-hp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
@@ -190,7 +190,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_hp_seasonal_percustomer_passthrough_calibrated.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_b/md_bge_hp_seasonal_percustomer_passthrough_calibrated_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_hp_seasonal_percustomer_passthrough_calibrated_delivery
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -219,7 +219,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_hp_seasonal_percustomer_passthrough_supply_calibrated.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_b/md_bge_hp_seasonal_percustomer_passthrough_calibrated_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_hp_seasonal_percustomer_passthrough_calibrated_supply
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false
