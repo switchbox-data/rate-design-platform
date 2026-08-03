@@ -172,10 +172,16 @@ The server UI is then available at `http://127.0.0.1:4200`. Keep this terminal o
 
 ### 2. Point the pipeline at the server
 
-In the terminal where you will launch the pipeline, set `PREFECT_API_URL` so the Prefect client knows where to send flow/task state:
+In the terminal where you will launch the pipeline, tell the Prefect client where to send flow/task state. Either set it for the current shell session:
 
 ```bash
 export PREFECT_API_URL=http://127.0.0.1:4200/api
+```
+
+Or persist it in a Prefect profile (survives new shells):
+
+```bash
+prefect config set PREFECT_API_URL=http://127.0.0.1:4200/api
 ```
 
 If the port differs (e.g. another Prefect instance is already using 4200), pass a different `--port` to `server start` and update `PREFECT_API_URL` to match. The port in both commands must agree — if they don't, the pipeline will either fail to connect or silently fall back to an ephemeral server that loses all run history.
