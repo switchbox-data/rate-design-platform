@@ -1,6 +1,6 @@
 # CT Residential Electric Charges: Cross-Subsidy Analysis for BAT (DRAFT)
 
-**Status:** Draft — Genability discovery done; Eversource decisions partially grounded in Docket **26-05-10** Exhibit CLP-REVREQ-1. UI and several FMCC / Public Benefits splits still need filings listed under [Documents still needed](#documents-still-needed).
+**Status:** Draft — Genability discovery done. Eversource: 10 of 16 charges ✅ decided/encoded (Customer Charge, Energy Charge, Minimum Charge, ESI, RAM, Transmission, Generation Service Charge + FMCC Generation Charge ×2 seasons each); the remaining 5 have documented recommendations below (grounded in Docket **26-05-10** exhibits + the OCC bill-components guide) but are **not yet encoded** — see [Open questions](#open-questions). UI decisions are still hypotheses pending a UI REVREQ-equivalent filing (see [Documents still needed](#documents-still-needed)).
 
 Connecticut has two investor-owned electric distribution utilities:
 
@@ -69,64 +69,104 @@ Confirmed / strong CT examples from REVREQ + OCC bill-component materials:
 
 ## Eversource CT (`ct_eversource`) — summary table
 
-16 Genability rates. Sample rates are from discovery effective **2025-01-01** (illustrative; replace with monthly_rates YAML after fetch).
+16 Genability rates. Sample rates are from discovery effective **2025-01-01** (illustrative; replace with monthly_rates YAML after fetch). **10 of 16 are ✅ decided and encoded** in `ct_eversource_charge_decisions.json` (Customer Charge, Energy Charge, Minimum Charge by auto-labeling; ESI, RAM, Transmission confirmed against exhibits; Generation Service Charge + FMCC Generation Charge, both seasonal instances, confirmed against OCC + the Rate 1 tariff's own "Supply" heading). The remaining **5 are still `decision: null`** — the charge-by-charge notes below give my read of each, grounded in direct quotes from the OCC bill-components guide (see [`ct_electric_bill_components.md`](../../domain/charges/ct_electric_bill_components.md)) plus REVREQ/RATES, but **these are recommendations, not yet encoded** — I want sign-off before flipping anything in the JSON.
 
-| Charge (Genability)                  | tariffRateId | Unit  | Sample rate | Proposed decision   | Evidence / remaining gap                                                                                           |
-| ------------------------------------ | ------------ | ----- | ----------- | ------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Customer Charge                      | 20448095     | $/mo  | 9.62        | `already_in_drr`    | Base customer charge (auto OK).                                                                                    |
-| Energy Charge                        | 20448096     | $/kWh | 0.05844     | `already_in_drr`    | Core distribution energy rate. Confirm vs Rate 1 tariff book that riders are separate Genability lines.            |
-| Electric System Improvements         | 20448097     | $/kWh | 0.01967     | `add_to_drr`        | CapEx tracker outside base DRR (17-10-46); REVREQ §VII sunsets / rolls into base Jul 2027. Like RI CapEx Factor.   |
-| Revenue Adjustment Mechanism         | 20448098     | $/kWh | 0.00195     | `exclude_trueup`    | Revenue decoupling (Conn. Gen. Stat. §16-19-tt(b)); REVREQ: reconciles actual base revenues vs approved DRR.       |
-| Transmission Service Charge          | 20448099     | $/kWh | 0.03401     | `add_to_drr`        | ISO-NE / FERC OATT pass-through (RI TX pattern). Confirm TAC / RNS-LNS split in annual TX filing.                  |
-| Systems Benefits Charge              | 20448100     | $/kWh | 0.03326     | `add_to_drr`\*      | Fixed public-benefits pool ÷ kWh. \*OCC: mostly hardship/LIDR — may reclassify LMI slice as `exclude_eligibility`. |
-| Competitive Transition Assessment    | 20448101     | $/kWh | 0.00038     | `exclude_trueup`?   | Legacy stranded-cost; near-zero; REVREQ uses CTA collections as storm-cost offset. Confirm remaining balance.      |
-| Conservation Charge                  | 20448102     | $/kWh | 0.00        | `add_to_drr`        | Statutory C&LM component; `$0` at discovery — keep if it can become non-zero; pair with CAM.                       |
-| Conservation Adjustment Mechanism    | 20448103     | $/kWh | 0.006       | `add_to_drr`        | EE / C&LM recovery (OCC); fixed budget ÷ kWh — RI EE Programs analogue.                                            |
-| Renewable Energy Charge              | 20448104     | $/kWh | 0.001       | verify              | OCC: funds CT Clean Energy Fund / Renewable Energy Investment — likely **program** (`add_to_drr`), not REC.        |
-| FMCC Delivery Charge                 | 20448105     | $/kWh | 0.04791     | `add_to_drr`        | Non-bypassable FMCC / NBFMCC: clean-energy + congestion programs (OCC + REVREQ §VIII CapEx list).                  |
-| Generation Service Charge (Jan–June) | 20448107     | $/kWh | 0.1129      | `add_to_srr`        | Standard Service commodity (winter).                                                                               |
-| FMCC Generation Charge (Jan–June)    | 20448108     | $/kWh | −0.001      | research            | Bypassable / supply-side FMCC — need Standard Service / FMCC reconciliation filing.                                |
-| Minimum Charge                       | 20448111     | $/mo  | 9.62        | `exclude_redundant` | Equals customer charge.                                                                                            |
-| Generation Service Charge (July–Dec) | 20800838     | $/kWh | 0.09115     | `add_to_srr`        | Standard Service commodity (summer).                                                                               |
-| FMCC Generation Charge (July–Dec)    | 20800839     | $/kWh | −0.0012     | research            | Bypassable / supply-side FMCC (summer).                                                                            |
+| Charge (Genability)                  | tariffRateId | Unit  | Sample rate | Decision status                                  | My recommendation                                                                         |
+| ------------------------------------ | ------------ | ----- | ----------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| Customer Charge                      | 20448095     | $/mo  | 9.62        | ✅ decided: `already_in_drr`                     | (no change)                                                                               |
+| Energy Charge                        | 20448096     | $/kWh | 0.05844     | ✅ decided: `already_in_drr`                     | (no change)                                                                               |
+| Electric System Improvements         | 20448097     | $/kWh | 0.01967     | ✅ decided: `add_to_drr`                         | (no change)                                                                               |
+| Revenue Adjustment Mechanism         | 20448098     | $/kWh | 0.00195     | ✅ decided: `exclude_trueup`                     | (no change)                                                                               |
+| Transmission Service Charge          | 20448099     | $/kWh | 0.03401     | ✅ decided: `add_to_drr`                         | (no change)                                                                               |
+| Systems Benefits Charge              | 20448100     | $/kWh | 0.03326     | null                                             | `exclude_eligibility` — see [§ below](#systems-benefits-charge-sbc)                       |
+| Competitive Transition Assessment    | 20448101     | $/kWh | 0.00038     | null                                             | `add_to_drr` (sunk-cost recovery) — see [§ below](#competitive-transition-assessment-cta) |
+| Conservation Charge                  | 20448102     | $/kWh | 0.00        | null                                             | `add_to_drr` — see [§ below](#conservation-charge--conservation-adjustment-mechanism-cam) |
+| Conservation Adjustment Mechanism    | 20448103     | $/kWh | 0.006       | null                                             | `add_to_drr` — see [§ below](#conservation-charge--conservation-adjustment-mechanism-cam) |
+| Renewable Energy Charge              | 20448104     | $/kWh | 0.001       | decided (auto): `add_to_srr` — **I'd flip this** | `add_to_drr` — see [§ below](#renewable-energy-charge)                                    |
+| FMCC Delivery Charge                 | 20448105     | $/kWh | 0.04791     | null                                             | `add_to_drr`, with a caveat — see [§ below](#fmcc-delivery-charge-nbfmcc)                 |
+| Generation Service Charge (Jan–June) | 20448107     | $/kWh | 0.1129      | ✅ decided: `add_to_srr`                         | (no change)                                                                               |
+| FMCC Generation Charge (Jan–June)    | 20448108     | $/kWh | −0.001      | ✅ decided: `add_to_srr`                         | (no change)                                                                               |
+| Minimum Charge                       | 20448111     | $/mo  | 9.62        | ✅ decided: `exclude_redundant`                  | (no change)                                                                               |
+| Generation Service Charge (July–Dec) | 20800838     | $/kWh | 0.09115     | ✅ decided: `add_to_srr`                         | (no change)                                                                               |
+| FMCC Generation Charge (July–Dec)    | 20800839     | $/kWh | −0.0012     | ✅ decided: `add_to_srr`                         | (no change)                                                                               |
 
 ### Eversource — charge-by-charge notes
 
-#### Base delivery (`already_in_drr`)
+#### Base delivery (`already_in_drr`) — ✅ decided
 
-- **Customer Charge** (`$9.62/mo`): auto OK.
-- **Energy Charge** (`$0.05844/kWh`): auto OK for the rate-case distribution volumetric. Confirm Rate 1 tariff that Genability is not bundling riders into this line.
+- **Customer Charge** (`$9.62/mo`): the standard Rate 1 fixed monthly customer charge. OCC confirms: "The monthly fixed charge covers costs related to customer billing, meter reading, customer service and maintaining the service line... Currently Eversource charges $9.62 per month for Rate 1" ([`ct_electric_bill_components.md`](../../domain/charges/ct_electric_bill_components.md)). Exactly the rate-case base distribution customer charge — no ambiguity.
+- **Energy Charge** (`$0.05844/kWh`): the core volumetric distribution rate. OCC: "The price for delivery of electricity using the local wires, transformers, substations, and other equipment... Currently: Eversource Distribution rate is 5.844¢ per kWh for Rate 1." The `5.844¢` figure matches exactly, confirming Genability's "Energy Charge" line **is** the base distribution volumetric rate, not a bundle that includes any of the riders below.
 
-#### CapEx tracker → top-up (`add_to_drr`)
+#### CapEx tracker → top-up (`add_to_drr`) — ✅ decided, encoded in `ct_eversource_charge_decisions.json`
 
-- **Electric System Improvements:** PURA approved ESI in the **17-10-46** settlement to recover resiliency CapEx and core capital above thresholds between rate cases. REVREQ §VII: Pub. Act 23-102 §5 prohibits reauthorizing the on-bill CapEx tracker; Company proposes reflecting ESI capital in **base distribution rates** effective Jul 1, 2027, with a wind-down through ~Apr 2029 for pre-effective true-ups. For **2025 BAT inputs**, ESI is outside base DRR → `add_to_drr` (no MC 8760 — residual), analogous to RI CapEx Factor.
+- **Electric System Improvements:** PURA approved ESI in the **17-10-46** settlement to recover resiliency CapEx and core capital above thresholds between rate cases. REVREQ §VII: Pub. Act 23-102 §5 prohibits reauthorizing the on-bill CapEx tracker; Company proposes reflecting ESI capital in **base distribution rates** effective Jul 1, 2027, with a wind-down through ~Apr 2029 for pre-effective true-ups. For **2025 BAT inputs**, ESI is outside base DRR → `add_to_drr` (no MC 8760 — residual), analogous to RI CapEx Factor. `master_charge`: "Electric System Improvements (ESI)", `master_type`: "Base delivery" (RI CapEx Factor convention).
 
-#### Revenue true-up (`exclude_trueup`)
+#### Revenue true-up (`exclude_trueup`) — ✅ decided, encoded in `ct_eversource_charge_decisions.json`
 
-- **Revenue Adjustment Mechanism:** REVREQ §II: continue revenue decoupling under Conn. Gen. Stat. §16-19-tt(b); reconciles actual annual base distribution revenues to the approved DRR. Mechanics rely on but do not change the RR → `exclude_trueup`. (Rates Panel detail in Exhibit CLP-RATES-1 — still useful to pull.)
+- **Revenue Adjustment Mechanism:** REVREQ §II: continue revenue decoupling under Conn. Gen. Stat. §16-19-tt(b); reconciles actual annual base distribution revenues to the approved DRR. OCC independently confirms both the naming and mechanics: "Is a revenue decoupling mechanism that reconciles annual distribution revenues to the level allowed in the company's last rate case. Customers are charged if total annual revenues are below that set in a rate case, but customers are credited when total revenues exceed not allowed levels." This resolves the earlier naming ambiguity — OCC calls it "RAM," matching the exhibits' "RDM"/"Revenue Decoupling Mechanism" as the same Conn. Gen. Stat. §16-19-tt(b) mechanism under different labels. A pure two-sided reconciliation (can be a charge _or_ a credit) around the approved rate-case revenue level → `exclude_trueup`, not a net cost recovery. `master_charge`: "Revenue Decoupling (RDM)", `master_type`: "Revenue true-up".
 
-#### Transmission (`add_to_drr`)
+#### Transmission (`add_to_drr`) — ✅ decided, encoded in `ct_eversource_charge_decisions.json`
 
-- **Transmission Service Charge:** Treat as OATT / ISO-NE pass-through → `add_to_drr`, MC = bulk TX ([`ct_bulk_transmission_marginal_cost.md`](../marginal_costs/ct_bulk_transmission_marginal_cost.md)). Still want the annual Transmission Adjustment / TAC filing for exact RNS vs LNS labeling.
+- **Transmission Service Charge:** OCC: "The price for delivery of electricity over high voltage power lines from the generation company to the distribution company. These charges are regulated by the Federal Energy Regulatory Commission... Transmission charges are made up of local (CT only) charges as well as regional charges, which are charges from all of New England." FERC-regulated, ISO-NE pass-through → `add_to_drr`, MC = bulk TX ([`ct_bulk_transmission_marginal_cost.md`](../marginal_costs/ct_bulk_transmission_marginal_cost.md)). `master_charge`: "Transmission Charge", `master_type`: "Base delivery" (matches RI's Transmission Charge convention). Still want the annual Transmission Adjustment / TAC filing for exact RNS vs LNS labeling, but the DRR/SRR classification itself doesn't depend on that detail.
 
-#### Public Benefits / RAM program pools (`add_to_drr`, with LMI caveat)
+#### Systems Benefits Charge (SBC) — recommendation, not yet encoded
 
-- **Systems Benefits Charge:** OCC bill-components: hardship programs, matching payments, LIDR-related costs; REVREQ: EE program FTEs continue through SBC even after CapEx rolls into base. Fixed pool ÷ kWh → structural HP cross-subsidy. Default `add_to_drr`; if OCC/RAM exhibits split LIDR dollars cleanly, move that slice to `exclude_eligibility` (RI LIDRF pattern).
-- **Conservation Charge + CAM:** OCC: statutory C&LM + CAM fund EE. Fixed EE budget ÷ kWh → `add_to_drr` (RI EE Programs Charge).
-- **FMCC Delivery (NBFMCC):** OCC / CEEJAC: non-bypassable FMCC funds PURA clean-energy programs (RRES, NRES, SCEF, ESS, EVs, IES) and related congestion costs. REVREQ §VIII lists CapEx currently recovered through NBFMCC that will roll into base rates. For 2025 → `add_to_drr`.
+OCC: "The cost of public education, hardship programs and other societal costs. The SBC varies by electric company over time. The SBC will produce approximately $95.6 million for Eversource and $24.2 million for UI. **The primary uses of the SBC are paying electric company costs associated with hardship customers and providing a program that matches payments made by customers with arrearages that further reduces the amount they owe.** Because most of these charges are related to residential consumers (as opposed to businesses), the residential SBC charges is higher than to commercial and industrial consumers."
 
-#### Legacy / small
+My read: OCC names exactly two "primary uses" for the `$95.6M` Eversource SBC pool, and both are hardship/arrearage/low-income assistance programs — not a general public-benefits catch-all. That, combined with earlier research in this doc's history (CGA legislative reports and the OCC RAM Overview, both showing CT's SBC is overwhelmingly, \>85%, devoted to hardship/energy-assistance programs), pushes me toward **`exclude_eligibility`** rather than `add_to_drr` — this reads as an income-transfer program (RI LIDRF precedent), not a rate-design cost that should shape the BAT's measured cross-subsidy. Caveat: OCC's opening phrase "public education... and other societal costs" implies a residual non-LMI component that isn't quantified anywhere I've found; if it's material, only part of the `$0.03326/kWh` should be `exclude_eligibility` with the rest `add_to_drr`. Flagging as an open question rather than assuming a split.
 
-- **Competitive Transition Assessment:** Near-zero at discovery; restructuring remnant. Prefer `exclude_trueup` unless a remaining stranded-cost balance is material — check CTA / RAM schedule.
+#### Competitive Transition Assessment (CTA) — recommendation, not yet encoded
 
-#### Renewables line (verify)
+OCC: "Originally, the CTA covered the electric distribution company's stranded generation costs that were still on the company's books at the time of restructuring... The majority of these costs were recovered by 2011 for CL&P... Currently, the remaining charges and credits vary year to year and are associated with long-term purchased power contracts that remain from the 1980's-90's from cogeneration facilities... For Eversource Rate 1 the CTA is in a credit position of -0.116¢ per kWh" (2022 value — a **credit**, i.e. negative charge).
 
-- **Renewable Energy Charge (`$0.001/kWh`):** Auto-mapped to RES supply, but OCC describes this as the **Renewable Energy Investment / Clean Energy Fund** charge (fixed program), not a load-scaling REC obligation. **Likely flip to `add_to_drr`** once confirmed against the CEF statute / RAM workpapers. Do not use flat MC 8760 until confirmed as REC-style.
+My read: this isn't a program budget (no ongoing "pool" being funded), and it isn't a symmetric revenue-decoupling true-up either — it's recovery (or refund) of a specific, fixed set of legacy sunk-cost contracts whose balance moves year to year but isn't tied to actual-vs-approved _revenue_. The taxonomy's own "Sunk-cost recovery" category (`add_to_drr`) is defined as "Fixed debt, CTA / stranded-cost, storm, or settlement pools via $/kWh" — CTA is the taxonomy's own worked example. My recommendation is **`add_to_drr`**, `master_type` "Sunk-cost recovery," treating it as a fixed pool ÷ kWh even though the pool can be negative. Worth checking against the current CTA/RAM compliance filing since `exhibit_clp_revreq_1.md` notes CTA collections are now also used as a storm-cost offset vehicle in the 2026 case — but even under that reading it still lands on "Sunk-cost recovery" rather than changing category.
 
-#### Supply (`add_to_srr` / research)
+#### Conservation Charge + Conservation Adjustment Mechanism (CAM) — recommendation, not yet encoded
 
-- **Generation Service Charge (seasonal pair):** Standard Service → `add_to_srr`.
-- **FMCC Generation (bypassable):** Still research — may be supply congestion true-up (`exclude_trueup` or `add_to_srr`). Need Standard Service / bypassable FMCC reconciliation.
+OCC: "This charge is to support energy efficiency programs. The CAM Charge includes the state mandated 0.3 cent per kWh Conservation & Load Management Charge and up to an additional 0.3 cent per kWh through the Conservation Adjustment Mechanism (CAM). The two C&LM Charges collected through the CAM line item brings in up to approximately $160 million annually to fund conservation and energy efficiency programs."
+
+My read: OCC confirms these two Genability lines are exactly the two statutory sub-components it describes as "the two C&LM Charges" — the base, state-mandated Conservation & Load Management Charge (Genability's "Conservation Charge," `$0` at 2025 discovery but can be non-zero) and the variable top-up "Conservation Adjustment Mechanism" (Genability's "Conservation Adjustment Mechanism," `$0.006/kWh` at discovery). Both fund the same fixed, roughly `$160M`/year statewide EE program budget ÷ kWh — a textbook program-surcharge cross-subsidy (RI EE Programs Charge analogue). My recommendation for both: **`add_to_drr`**.
+
+#### Renewable Energy Charge — recommendation to flip the existing decision
+
+OCC: "The payments to the Renewable Energy Investment Fund, which promotes the growth, development and sale of renewable energy sources. The renewables charge is a 0.1 cent per kWh charge to support renewable energy programs. It is the primary funding source for the Connecticut Clean Energy Fund, administered by the Connecticut Green Bank."
+
+My read: this is currently auto-classified `add_to_srr` / "RES supply" in the JSON, which assumes it's a per-MWh REC-compliance obligation that scales with a customer's own load (like an RPS alternative-compliance-payment pass-through, which would get a flat MC 8760 like other RES supply charges). OCC's description doesn't support that — it's a fixed-rate contribution to a fund (Clean Energy Fund / Green Bank) that finances incentive _programs_, not a REC purchase tied 1:1 to the customer's own consumption. **I'd flip this to `add_to_drr`** (program surcharge), same bucket as Conservation/CAM above, rather than leaving it as a supply-side RES charge with a flat marginal-cost signal.
+
+#### FMCC Delivery Charge (NBFMCC) — recommendation, not yet encoded
+
+OCC: "By law, NBFMCCs are collected on electricity bills to cover certain costs approved by the Federal Energy Regulatory Commission (FERC) and related costs approved by the Public Utility Regulatory Authority (PURA) to reduce federally mandated congestion charges and reliability 'must run' contracts (CGS § 16-1(35))... NBFMCCs capture costs that cannot be avoided if a customer chooses a retail electric supplier... Non-bypassable NBFMCCs include costs associated with ISO-NE, costs to avoid congestion on the transmission system, renewable energy incentives, **the Millstone contract**, and other initiatives required by state law."
+
+My read: this is the messiest one. It bundles several distinct things — ISO-NE congestion-avoidance costs, renewable-energy program incentives (possibly overlapping with the Renewable Energy Charge above), and specifically **the Millstone nuclear power purchase contract**, which is an economically distinct legacy above/below-market PPA, not a "program" in the same sense as SBC/CAM. `exhibit_clp_revreq_1.md` §VIII's CapEx list (DER Map, CT Solar Tariff, SCEF, Bill Redesign) only covers the _capital_ sliver of NBFMCC, not the whole ongoing charge, so that passage alone doesn't settle it. My default recommendation is still **`add_to_drr`** (fixed-cost pool ÷ kWh, like the other program surcharges), but I'd flag the Millstone piece as a genuine open question — if it's large and its recovery mechanics don't fit "fixed pool," it might warrant its own sub-classification rather than being folded uniformly into NBFMCC. I don't have a document that separates the Millstone dollars from the rest of NBFMCC.
+
+#### Generation Service Charge (GSC) — ✅ decided, encoded in `ct_eversource_charge_decisions.json`
+
+OCC, in the "Supplier Services" section (not Delivery Services): "This is the charge for the actual electricity or kilowatt hours that you use... Standard Service is the default service for electricity provided to you by your electric distribution company... (Effective January 1, 2022, Eversource's GSC is 11.574¢ per kWh for Residential Rate 1 customers...)"
+
+The utility's own tariff filing (Exhibit CLP-RATES-3, Schedule E-1.1, Rate 1) independently confirms this — it lists Rate 1's charges under four headings (Local Delivery, Transmission, Public Benefits, **Supply**), with Generation Service grouped under **Supply**, alongside Third-Party Service as the customer's other supplier option:
+
+> "**Supply:** Supplier Service Options — Generation Service per kWh (as per Generation Services tariff) `$0.12791` / Supplier Service Options — Third-Party Service `as per contract`" ([`exhibit_clp_rates_3_residential_tariffs.md`](../../sources/exhibit_clp_rates_3_residential_tariffs.md))
+
+Two independent, authoritative sources — OCC's consumer guide and the utility's own filed tariff — both place Generation Service Charge under the generation/supply side of the bill, not delivery: it's literally the price Eversource charges for procuring the electricity itself under Standard Service, as opposed to a customer buying that electricity from a competitive retail supplier instead. That maps directly onto this doc's taxonomy row "Supply commodity — Standard Service generation... → `add_to_srr`" — no delivery-side category (`already_in_drr`, `add_to_drr`, `exclude_trueup`) fits a charge that a customer can entirely opt out of by choosing a different generation supplier. Since the platform models Eversource's own Standard Service tariff (not retail-supplier contract pricing), this charge is universal across the modeled residential population. Decision for both seasonal instances (Jan–June, July–Dec): **`add_to_srr`**, `master_charge`: "Supply commodity (bundled)", `master_type`: "Supply commodity" (matches the NY/MD convention for Standard Service commodity charges).
+
+#### FMCC Generation Charge (BFMCC) — ✅ decided, encoded in `ct_eversource_charge_decisions.json`
+
+OCC: "'Bypassable' FMCCs are charges that customers may avoid by selecting a retail energy supplier rather than receiving service through the electric companies' Standard Service rates... include charges from... ISO-NE, costs related to congestion on the transmission system, and certain financial instruments meant to offset those costs. (Effective January 1, 2022, Eversource's FMCC-Generation is -0.09¢ per kWh for Residential Rate 1 customers. **When the BFMCC is netted with the Generation Service Charge, Eversource's GSC Charge is 11.484¢ per kWh.**)"
+
+The tariff (same Rate 1 "Supply" section as Generation Service, above) lists it as a distinct rate line, applied to the same customer population as GSC:
+
+> "FMCC Generation Charge — per kWh (as per FMCC tariff; **not applicable to customers taking Third-Party Service**) `-$0.00150`" ([`exhibit_clp_rates_3_residential_tariffs.md`](../../sources/exhibit_clp_rates_3_residential_tariffs.md))
+
+Same value (`-$0.0015/kWh`) recurs identically for Rate 1, 5, 6, and 7 in both `exhibit_clp_rates_2_residential.md`'s rate-build worksheets and `exhibit_clp_rates_3_residential_tariffs.md`'s tariff schedules — always as a **credit** (`is_credit: true`, negative in every observed vintage from OCC's 2022 snapshot through the 2025 Genability discovery).
+
+Reasoning for `add_to_srr`:
+
+1. **Same bypassability as GSC, same population.** The tariff's "not applicable to customers taking Third-Party Service" parenthetical is identical in structure to the one on Generation Service — it's charged to (credited to) exactly the customers who pay GSC, and to no one else. It isn't a separate opt-in program with its own eligibility criteria; it's a component of what Standard Service customers pay/receive for their generation.
+2. **Both authoritative sources place it in Supply, not Delivery.** OCC discusses it exclusively under "Supplier Services" (not "Delivery Services"), and the tariff lists it under the Rate 1 "Supply" heading, distinct from Local Delivery / Transmission / Public Benefits.
+3. **It's netted with GSC for billing purposes.** OCC states outright that Eversource combines BFMCC with the Generation Service Charge into a single "GSC Charge" bill line — the regulator's own accounting treats them as one number, not two independently-recovered mechanisms.
+4. **It doesn't fit `exclude_trueup`.** Unlike RAM/RDM (which reconcile actual vs. approved _revenue_ against a rate-case-set target), FMCC-Generation is a cost-recovery/settlement mechanism tied to ISO-NE congestion and "financial instruments" on the generation side — there's no revenue-requirement target it's reconciling against.
+
+`master_charge`: "Supply commodity (bundled)", `master_type`: "Supply commodity" — same as Generation Service Charge, so the two aggregate together in downstream processing (matching the netted "GSC Charge" treatment OCC describes, and the naming convention already used for bundled Standard Service commodity charges in NY/MD).
 
 ---
 
@@ -167,13 +207,13 @@ Confirmed / strong CT examples from REVREQ + OCC bill-component materials:
 
 #### Public Benefits / still to pin down
 
-- Energy Assistance → prefer `exclude_eligibility` after confirming LMI recovery.
+- Energy Assistance → prefer `exclude_eligibility` after confirming LMI recovery. OCC's SBC description (see Eversource SBC notes above) covers both utilities in one paragraph — "The SBC will produce approximately $95.6 million for Eversource and $24.2 million for UI" — but UI's Genability breakout doesn't have a single "SBC" line; UI's public-benefits charges are split into several separate lines (Energy Assistance, EE Programs, Renewable Energy Investment, Grid Operator, State Mandated Purchases, Customer Produced Energy, Misc Mandates) that don't map 1:1 onto the OCC paragraph, so this is a weaker inference than the Eversource case — treat "Energy Assistance Costs" as the LMI-recovery candidate, not the others.
 - EE Programs → `add_to_drr` (done).
-- Renewable Energy Investment → likely `add_to_drr` (program), not RES.
+- Renewable Energy Investment → likely `add_to_drr` (program), not RES. OCC's Renewable Energy Investment description explicitly covers both utilities together, same reasoning as the Eversource Renewable Energy Charge above.
 - State Mandated Purchases / Customer Produced Energy → `add_to_drr` pending UI RAM descriptions.
 - ISO-NE Grid Operator / Misc Mandates → need filing text.
 - Decoupling + Transmission Adjustment → true-ups.
-- Generation + Bypassable FMCC → supply side.
+- Generation + Bypassable FMCC → supply side. OCC's GSC/BFMCC section gives a UI sample rate ("UI does not currently have a separate BFMCC so their GSC Charge is 10.6731¢ per kWh for Rate R") implying UI's Bypassable FMCC line was `$0` even in 2022 — consistent with the `$0.00` sample rate at 2025 discovery.
 
 ---
 
@@ -183,17 +223,17 @@ To **finalize every top-up decision** and populate `delivery_rev_requirements_fr
 
 ### A. Charge classification (top-ups)
 
-| # | Document                                                                                                                                                                        | Why                                                                                                                                             | Priority |
-| - | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| 1 | **OCC Electric Bill/Rate Components** ([PDF](https://portal.ct.gov/-/media/OCC/01012022-Electric-Bill-Components-Final-122721.pdf); refresh if a newer OCC/PURA edition exists) | Authoritative definitions of SBC, CAM/C&LM, Renewable Investment, CTA, FMCC, Combined Public Benefits — maps Genability labels → economic type. | High     |
-| 2 | **Latest Eversource RAM decision / compliance** (e.g. Docket **25-01-03** / **26-01-03**) — rates effective May 1                                                               | Line-item budgets and over/under-recoveries for ESI, SBC, NBFMCC, CAM, CTA, RDM; separates provision vs true-up.                                | High     |
-| 3 | **Latest UI RAM / Public Benefits filing** (parallel annual docket)                                                                                                             | Same for UI’s Energy Assistance, State Mandated Purchases, Customer Produced Energy, Misc Mandates, Grid Operator.                              | High     |
-| 4 | **Eversource Rate 1 and UI Rate R tariff books** (current sheets)                                                                                                               | Confirm Genability line names vs tariff nomenclature; seasonal Standard Service; minimum charge.                                                | High     |
-| 5 | **Bypassable vs non-bypassable FMCC** exhibit / Standard Service reconciliation                                                                                                 | Distinguish FMCC Delivery (NBFMCC → delivery top-up) from FMCC Generation / Bypassable FMCC (supply).                                           | High     |
-| 6 | **Transmission / TAC annual filing** (Eversource + UI)                                                                                                                          | Confirm Transmission Service Charge / UI Summer–Winter TX are OATT pass-throughs vs anything inside base DRR.                                   | Medium   |
-| 7 | **Exhibit CLP-RATES-1** (Rates Panel, Docket 26-05-10)                                                                                                                          | Decoupling / RDM mechanics (already strong from REVREQ; this seals RAM carrying-charge tweak).                                                  | Medium   |
-| 8 | **Renewable Energy Investment / CEF statute or CEFIA budget**                                                                                                                   | Flip Eversource Renewable Energy Charge and UI Renewable Energy Investment from auto-`add_to_srr` to program `add_to_drr` if confirmed.         | Medium   |
-| 9 | **CTA remaining-balance / RAM schedule**                                                                                                                                        | Decide `exclude_trueup` vs residual stranded-cost `add_to_drr`.                                                                                 | Low      |
+| # | Document                                                                                                                                        | Why                                                                                                                                                                                                                                                                    | Priority |
+| - | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| 1 | ✅ **OCC Electric Bill/Rate Components** — extracted to [`ct_electric_bill_components.md`](../../domain/charges/ct_electric_bill_components.md) | Authoritative definitions of SBC, CAM/C&LM, Renewable Investment, CTA, FMCC, Combined Public Benefits — maps Genability labels → economic type. Used above to turn most `research`/`null` charges into recommendations (not yet encoded — see charge-by-charge notes). | Done     |
+| 2 | **Latest Eversource RAM decision / compliance** (e.g. Docket **25-01-03** / **26-01-03**) — rates effective May 1                               | Line-item budgets and over/under-recoveries for ESI, SBC, NBFMCC, CAM, CTA, RDM; separates provision vs true-up.                                                                                                                                                       | High     |
+| 3 | **Latest UI RAM / Public Benefits filing** (parallel annual docket)                                                                             | Same for UI’s Energy Assistance, State Mandated Purchases, Customer Produced Energy, Misc Mandates, Grid Operator.                                                                                                                                                     | High     |
+| 4 | **Eversource Rate 1 and UI Rate R tariff books** (current sheets)                                                                               | Confirm Genability line names vs tariff nomenclature; seasonal Standard Service; minimum charge.                                                                                                                                                                       | High     |
+| 5 | **Bypassable vs non-bypassable FMCC** exhibit / Standard Service reconciliation                                                                 | Distinguish FMCC Delivery (NBFMCC → delivery top-up) from FMCC Generation / Bypassable FMCC (supply).                                                                                                                                                                  | High     |
+| 6 | **Transmission / TAC annual filing** (Eversource + UI)                                                                                          | Confirm Transmission Service Charge / UI Summer–Winter TX are OATT pass-throughs vs anything inside base DRR.                                                                                                                                                          | Medium   |
+| 7 | **Exhibit CLP-RATES-1** (Rates Panel, Docket 26-05-10)                                                                                          | Decoupling / RDM mechanics (already strong from REVREQ; this seals RAM carrying-charge tweak).                                                                                                                                                                         | Medium   |
+| 8 | **Renewable Energy Investment / CEF statute or CEFIA budget**                                                                                   | Flip Eversource Renewable Energy Charge and UI Renewable Energy Investment from auto-`add_to_srr` to program `add_to_drr` if confirmed.                                                                                                                                | Medium   |
+| 9 | **CTA remaining-balance / RAM schedule**                                                                                                        | Decide `exclude_trueup` vs residual stranded-cost `add_to_drr`.                                                                                                                                                                                                        | Low      |
 
 ### B. Delivery revenue requirement dollars (for `compute-rr`)
 
@@ -212,12 +252,16 @@ To **finalize every top-up decision** and populate `delivery_rev_requirements_fr
 
 ## Open questions
 
-1. **SBC LMI split (Eversource):** Treat whole SBC as `add_to_drr`, or carve hardship/LIDR into `exclude_eligibility` once RAM exhibits split dollars?
-2. **Renewable Energy Charge vs RES:** Program (CEF → `add_to_drr`) vs REC obligation (`add_to_srr` + flat MC)? OCC points to CEF.
-3. **Bypassable FMCC (generation):** True-up vs fixed supply pool; `exclude_trueup` vs `add_to_srr`?
-4. **UI Energy Assistance Costs:** Confirm `exclude_eligibility`.
-5. **UI Summer/Winter Transmission:** Confirm not inside base DRR (fix auto-label).
-6. **Residential-class DRR:** Which SFR/class schedules in 26-05-10 (and UI dockets) give Rate 1 / Rate R allocated delivery RR?
+Five Eversource decisions are still `null` in the JSON; I have a recommendation for each (see charge-by-charge notes above), but none are encoded yet — pending sign-off:
+
+1. **SBC LMI split (Eversource):** Recommend `exclude_eligibility` (OCC: both named "primary uses" are hardship/arrearage programs) — but OCC's opening phrase also mentions "public education... and other societal costs," an unquantified possible non-LMI residual. Encode whole-charge `exclude_eligibility`, or wait for a RAM exhibit that splits the dollars?
+2. **Renewable Energy Charge vs RES:** Recommend flipping from auto-`add_to_srr` to `add_to_drr` (OCC describes it as funding the Clean Energy Fund / Green Bank, not a REC obligation).
+3. **FMCC Delivery (NBFMCC):** Recommend `add_to_drr`, but it bundles the **Millstone nuclear PPA** with program incentives and congestion costs — is a single classification for the whole charge appropriate, or does Millstone need separating out?
+4. **Competitive Transition Assessment:** Recommend `add_to_drr` (taxonomy's own "Sunk-cost recovery" example) rather than `exclude_trueup` — reasonable, or is the storm-cost-offset use in the 2026 case a reason to treat it differently?
+5. **Conservation Charge / CAM:** Recommendation (`add_to_drr`) is fairly high-confidence given OCC's direct description — flagging mainly for sign-off, not because of remaining ambiguity.
+6. **UI Energy Assistance Costs:** Confirm `exclude_eligibility` (UI has no in-repo REVREQ or OCC-level SBC breakout to confirm against).
+7. **UI Summer/Winter Transmission:** Confirm not inside base DRR (fix auto-label).
+8. **Residential-class DRR:** Which SFR/class schedules in 26-05-10 (and UI dockets) give Rate 1 / Rate R allocated delivery RR?
 
 ---
 
@@ -248,9 +292,10 @@ Encoded output path: `charge_decisions/{utility}_charge_decisions.json` → `mon
 ## References
 
 - CL&P revenue requirements testimony: [`context/sources/exhibit_clp_revreq_1.md`](../../sources/exhibit_clp_revreq_1.md) (PURA 26-05-10)
+- CL&P rates/tariff testimony and exhibits: [`exhibit_clp_rates_1.md`](../../sources/exhibit_clp_rates_1.md), [`exhibit_clp_rates_2_residential.md`](../../sources/exhibit_clp_rates_2_residential.md), [`exhibit_clp_rates_3_residential_tariffs.md`](../../sources/exhibit_clp_rates_3_residential_tariffs.md) (PURA 26-05-10)
+- OCC bill components (extracted): [`context/domain/charges/ct_electric_bill_components.md`](../../domain/charges/ct_electric_bill_components.md) — plain-English description of every Delivery/Supplier Services charge, used throughout the charge-by-charge notes above
 - RI charge taxonomy / ISO-NE supply decomposition: `context/methods/bat_mc_residual/ri_residential_charges_in_bat.md`
 - MD worked example (BGE): `context/methods/bat_mc_residual/md_residential_charges_in_bat.md`
 - CT bulk TX MC (AESC PTF): `context/methods/marginal_costs/ct_bulk_transmission_marginal_cost.md`
-- OCC bill components (external): [Electric Bill/Rate Components (PDF)](https://portal.ct.gov/-/media/OCC/01012022-Electric-Bill-Components-Final-122721.pdf)
 - PURA filings: [PURVIEW](https://www.dpuc.state.ct.us/PURA.nsf/cv/Home)
 - Supply vs delivery allocation: `context/domain/bat_mc_residual/supply_vs_delivery_cost_allocation.md`

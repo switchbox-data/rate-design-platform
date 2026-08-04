@@ -21,13 +21,14 @@ Fairness, cost allocation, and how regulators use ECOS vs MCOS. Feeds BAT/margin
 
 ### domain/charges/
 
-LMI discount programs and gas heating rate structures.
+LMI discount programs, gas heating rate structures, and consumer-facing bill-component explainers.
 
-| File                       | Purpose                                                    |
-| -------------------------- | ---------------------------------------------------------- |
-| gas_heating_rates_in_ny.md | NY gas heating rate structures and tariff landscape        |
-| lmi_discounts_in_ny.md     | NY utility low-income discount programs (e.g. EAP, EEAP)   |
-| lmi_discounts_in_ri.md     | RI utility low-income programs (RIE rates, LIDR+ proposal) |
+| File                           | Purpose                                                                                                                                                                                                                                                                                 |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| gas_heating_rates_in_ny.md     | NY gas heating rate structures and tariff landscape                                                                                                                                                                                                                                     |
+| lmi_discounts_in_ny.md         | NY utility low-income discount programs (e.g. EAP, EEAP)                                                                                                                                                                                                                                |
+| lmi_discounts_in_ri.md         | RI utility low-income programs (RIE rates, LIDR+ proposal)                                                                                                                                                                                                                              |
+| ct_electric_bill_components.md | OCC (Jan 2022) plain-English guide to every CT Eversource/UI residential bill charge (GSC, BFMCC, Transmission, Distribution, ESI, RAM, SBC, Renewable Energy, CAM, CTA, NBFMCC) — used in `ct_residential_charges_in_bat.md` to classify `ct_eversource_charge_decisions.json` entries |
 
 ### domain/marginal_costs/
 

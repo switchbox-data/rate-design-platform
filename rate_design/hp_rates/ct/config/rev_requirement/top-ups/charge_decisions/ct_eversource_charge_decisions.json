@@ -105,9 +105,9 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": null,
-    "master_charge": null,
-    "master_type": null
+    "decision": "add_to_drr",
+    "master_charge": "Electric System Improvements (ESI)",
+    "master_type": "Base delivery"
   },
   "20448098": {
     "rate_name": "Revenue Adjustment Mechanism",
@@ -147,9 +147,9 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": null,
-    "master_charge": null,
-    "master_type": null
+    "decision": "exclude_trueup",
+    "master_charge": "Revenue Decoupling (RDM)",
+    "master_type": "Revenue true-up"
   },
   "20448099": {
     "rate_name": "Transmission Service Charge",
@@ -189,9 +189,9 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": null,
-    "master_charge": null,
-    "master_type": null
+    "decision": "add_to_drr",
+    "master_charge": "Transmission Charge",
+    "master_type": "Base delivery"
   },
   "20448100": {
     "rate_name": "Systems Benefits Charge",
@@ -489,9 +489,9 @@
     },
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": null,
-    "master_charge": null,
-    "master_type": null
+    "decision": "add_to_srr",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
   },
   "20448108": {
     "rate_name": "FMCC Generation Charge (Jan - June)",
@@ -537,9 +537,9 @@
     },
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": null,
-    "master_charge": null,
-    "master_type": null
+    "decision": "add_to_srr",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
   },
   "20448111": {
     "rate_name": "Minimum Charge",
@@ -611,9 +611,9 @@
     },
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": null,
-    "master_charge": null,
-    "master_type": null
+    "decision": "add_to_srr",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
   },
   "20800839": {
     "rate_name": "FMCC Generation Charge (July - Dec)",
@@ -659,8 +659,8 @@
     },
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": null,
-    "master_charge": null,
-    "master_type": null
+    "decision": "add_to_srr",
+    "master_charge": "Supply commodity (bundled)",
+    "master_type": "Supply commodity"
   }
 }
