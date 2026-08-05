@@ -1,6 +1,6 @@
 # CT Residential Electric Charges: Cross-Subsidy Analysis for BAT (DRAFT)
 
-**Status:** Draft — Genability discovery done. Eversource: **all 16 charges have a `decision` value** in `ct_eversource_charge_decisions.json`; 15 are considered settled (Customer Charge, Energy Charge, Minimum Charge, ESI, RAM, Transmission, Generation Service Charge + FMCC Generation Charge ×2 seasons each, SBC, CTA, Conservation Charge + CAM, FMCC Delivery/NBFMCC). Only the **Renewable Energy Charge auto-label** is flagged as likely wrong (currently `add_to_srr`, recommend `add_to_drr`) but not yet re-encoded — see [Open questions](#open-questions). UI decisions are still hypotheses pending a UI REVREQ-equivalent filing (see [Documents still needed](#documents-still-needed)).
+**Status:** Draft — Genability discovery done. Eversource Rate 1: **all 16 charges are decided and settled** in `ct_eversource_charge_decisions.json` (Customer Charge, Energy Charge, Minimum Charge, ESI, RAM, Transmission, Generation Service Charge + FMCC Generation Charge ×2 seasons each, SBC, CTA, Conservation Charge + CAM, FMCC Delivery/NBFMCC, Renewable Energy Charge). Eversource Rates 5 and 7 (residential alternative tariffs, see [§ below](#eversource-rate-5--rate-7-residential-alternative-tariffs)) inherit the same decisions from Rate 1 — also fully decided. UI decisions are still hypotheses pending a UI REVREQ-equivalent filing (see [Documents still needed](#documents-still-needed)).
 
 Connecticut has two investor-owned electric distribution utilities:
 
@@ -8,6 +8,13 @@ Connecticut has two investor-owned electric distribution utilities:
 | ------------------- | --------------------------------------------------------- | --------------------------- | ------------------------------------- |
 | `ct_eversource`     | Eversource Energy CT (formerly Connecticut Light & Power) | 614                         | `ct_eversource_charge_decisions.json` |
 | `ct_ui`             | United Illuminating (Avangrid)                            | 3153052                     | `ct_ui_charge_decisions.json`         |
+
+Eversource CT also offers two **other residential rate schedules** under the same Genability LSE (`lse_id` 2250) as Rate 1 — see [Eversource Rate 5 / Rate 7](#eversource-rate-5--rate-7-residential-alternative-tariffs) below:
+
+| Platform `std_name`      | Tariff (per Genability `tariff_code`)                                             | `masterTariffId` | Charge decisions file                          |
+| ------------------------ | --------------------------------------------------------------------------------- | ---------------- | ---------------------------------------------- |
+| `ct_eversource_elecheat` | Rate 5, Residential Electric Heating Service (closed to new customers since 2006) | 616              | `ct_eversource_elecheat_charge_decisions.json` |
+| `ct_eversource_tou`      | Rate 7, Residential Time-of-Day Electric Service                                  | 615              | `ct_eversource_tou_charge_decisions.json`      |
 
 Default residential supply is **Standard Service** (ISO-NE wholesale costs + bypassable FMCC). Regulation is by **PURA**. Delivery riders and Public Benefits flow largely through the annual **Rate Adjustment Mechanism (RAM)** cycle (May 1 effective), separate from base distribution rates.
 
@@ -69,26 +76,26 @@ Confirmed / strong CT examples from REVREQ + OCC bill-component materials:
 
 ## Eversource CT (`ct_eversource`) — summary table
 
-16 Genability rates. Sample rates are from discovery effective **2025-01-01** (illustrative; replace with monthly_rates YAML after fetch). **All 16 are encoded** in `ct_eversource_charge_decisions.json`. Only the **Renewable Energy Charge** auto-label is flagged for a likely flip — the charge-by-charge notes below give the reasoning, but it isn't re-encoded yet.
+16 Genability rates. Sample rates are from discovery effective **2025-01-01** (illustrative; replace with monthly_rates YAML after fetch). **All 16 are decided and encoded** in `ct_eversource_charge_decisions.json`.
 
-| Charge (Genability)                  | tariffRateId | Unit  | Sample rate | Decision status                                  | My recommendation                                                                                  |
-| ------------------------------------ | ------------ | ----- | ----------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| Customer Charge                      | 20448095     | $/mo  | 9.62        | ✅ decided: `already_in_drr`                     | (no change)                                                                                        |
-| Energy Charge                        | 20448096     | $/kWh | 0.05844     | ✅ decided: `already_in_drr`                     | (no change)                                                                                        |
-| Electric System Improvements         | 20448097     | $/kWh | 0.01967     | ✅ decided: `add_to_drr`                         | (no change)                                                                                        |
-| Revenue Adjustment Mechanism         | 20448098     | $/kWh | 0.00195     | ✅ decided: `exclude_trueup`                     | (no change)                                                                                        |
-| Transmission Service Charge          | 20448099     | $/kWh | 0.03401     | ✅ decided: `add_to_drr`                         | (no change)                                                                                        |
-| Systems Benefits Charge              | 20448100     | $/kWh | 0.03326     | ✅ decided: `exclude_eligibility`                | (no change)                                                                                        |
-| Competitive Transition Assessment    | 20448101     | $/kWh | 0.00038     | ✅ decided: `add_to_drr`                         | (no change)                                                                                        |
-| Conservation Charge                  | 20448102     | $/kWh | 0.00        | ✅ decided: `add_to_drr`                         | lumped with CAM below — see [§ below](#conservation-charge--conservation-adjustment-mechanism-cam) |
-| Conservation Adjustment Mechanism    | 20448103     | $/kWh | 0.006       | ✅ decided: `add_to_drr`                         | (no change)                                                                                        |
-| Renewable Energy Charge              | 20448104     | $/kWh | 0.001       | decided (auto): `add_to_srr` — **I'd flip this** | `add_to_drr` — see [§ below](#renewable-energy-charge)                                             |
-| FMCC Delivery Charge                 | 20448105     | $/kWh | 0.04791     | ✅ decided: `add_to_drr`                         | (no change)                                                                                        |
-| Generation Service Charge (Jan–June) | 20448107     | $/kWh | 0.1129      | ✅ decided: `add_to_srr`                         | (no change)                                                                                        |
-| FMCC Generation Charge (Jan–June)    | 20448108     | $/kWh | −0.001      | ✅ decided: `add_to_srr`                         | (no change)                                                                                        |
-| Minimum Charge                       | 20448111     | $/mo  | 9.62        | ✅ decided: `exclude_redundant`                  | (no change)                                                                                        |
-| Generation Service Charge (July–Dec) | 20800838     | $/kWh | 0.09115     | ✅ decided: `add_to_srr`                         | (no change)                                                                                        |
-| FMCC Generation Charge (July–Dec)    | 20800839     | $/kWh | −0.0012     | ✅ decided: `add_to_srr`                         | (no change)                                                                                        |
+| Charge (Genability)                  | tariffRateId | Unit  | Sample rate | Decision status                   | My recommendation                                                                                  |
+| ------------------------------------ | ------------ | ----- | ----------- | --------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Customer Charge                      | 20448095     | $/mo  | 9.62        | ✅ decided: `already_in_drr`      | (no change)                                                                                        |
+| Energy Charge                        | 20448096     | $/kWh | 0.05844     | ✅ decided: `already_in_drr`      | (no change)                                                                                        |
+| Electric System Improvements         | 20448097     | $/kWh | 0.01967     | ✅ decided: `add_to_drr`          | (no change)                                                                                        |
+| Revenue Adjustment Mechanism         | 20448098     | $/kWh | 0.00195     | ✅ decided: `exclude_trueup`      | (no change)                                                                                        |
+| Transmission Service Charge          | 20448099     | $/kWh | 0.03401     | ✅ decided: `add_to_drr`          | (no change)                                                                                        |
+| Systems Benefits Charge              | 20448100     | $/kWh | 0.03326     | ✅ decided: `exclude_eligibility` | (no change)                                                                                        |
+| Competitive Transition Assessment    | 20448101     | $/kWh | 0.00038     | ✅ decided: `add_to_drr`          | (no change)                                                                                        |
+| Conservation Charge                  | 20448102     | $/kWh | 0.00        | ✅ decided: `add_to_drr`          | lumped with CAM below — see [§ below](#conservation-charge--conservation-adjustment-mechanism-cam) |
+| Conservation Adjustment Mechanism    | 20448103     | $/kWh | 0.006       | ✅ decided: `add_to_drr`          | (no change)                                                                                        |
+| Renewable Energy Charge              | 20448104     | $/kWh | 0.001       | ✅ decided: `add_to_drr`          | (no change)                                                                                        |
+| FMCC Delivery Charge                 | 20448105     | $/kWh | 0.04791     | ✅ decided: `add_to_drr`          | (no change)                                                                                        |
+| Generation Service Charge (Jan–June) | 20448107     | $/kWh | 0.1129      | ✅ decided: `add_to_srr`          | (no change)                                                                                        |
+| FMCC Generation Charge (Jan–June)    | 20448108     | $/kWh | −0.001      | ✅ decided: `add_to_srr`          | (no change)                                                                                        |
+| Minimum Charge                       | 20448111     | $/mo  | 9.62        | ✅ decided: `exclude_redundant`   | (no change)                                                                                        |
+| Generation Service Charge (July–Dec) | 20800838     | $/kWh | 0.09115     | ✅ decided: `add_to_srr`          | (no change)                                                                                        |
+| FMCC Generation Charge (July–Dec)    | 20800839     | $/kWh | −0.0012     | ✅ decided: `add_to_srr`          | (no change)                                                                                        |
 
 ### Eversource — charge-by-charge notes
 
@@ -129,11 +136,13 @@ OCC: "This charge is to support energy efficiency programs. The CAM Charge inclu
 
 Decision for both: **`add_to_drr`**, `master_charge`: "Conservation Adjustment Mechanism (CAM)", `master_type`: "Program surcharge" — same `master_charge` label for both so they aggregate together in downstream processing, mirroring how OCC itself reports them as a single "CAM Charge" line.
 
-#### Renewable Energy Charge — recommendation to flip the existing decision
+#### Renewable Energy Charge — ✅ decided, encoded in `ct_eversource_charge_decisions.json`
 
 OCC: "The payments to the Renewable Energy Investment Fund, which promotes the growth, development and sale of renewable energy sources. The renewables charge is a 0.1 cent per kWh charge to support renewable energy programs. It is the primary funding source for the Connecticut Clean Energy Fund, administered by the Connecticut Green Bank."
 
-My read: this is currently auto-classified `add_to_srr` / "RES supply" in the JSON, which assumes it's a per-MWh REC-compliance obligation that scales with a customer's own load (like an RPS alternative-compliance-payment pass-through, which would get a flat MC 8760 like other RES supply charges). OCC's description doesn't support that — it's a fixed-rate contribution to a fund (Clean Energy Fund / Green Bank) that finances incentive _programs_, not a REC purchase tied 1:1 to the customer's own consumption. **I'd flip this to `add_to_drr`** (program surcharge), same bucket as CAM above, rather than leaving it as a supply-side RES charge with a flat marginal-cost signal.
+**Why we flipped this from the auto-label.** This charge was originally auto-classified `add_to_srr` / "RES supply" by `classify_charges.py`'s generic name-based rule `Renewable (Standard )?Energy` → `add_to_srr`. That rule was written for **RI's** Renewable Standard Energy Charge, a genuine per-MWh REC-compliance obligation — the utility must buy a certain number of RECs per MWh sold, so it scales 1:1 with a customer's own consumption and gets a flat supply-side marginal-cost signal like other RES/supply commodity charges. Because CT's charge happens to share the name "Renewable Energy," the same regex matched it and carried over RI's `add_to_srr` label — a name coincidence, not a CT-specific decision.
+
+OCC's description of what CT's charge actually is doesn't match a REC-compliance obligation at all: it's a fixed `$0.001/kWh` contribution to a state incentive-**program** fund (the Clean Energy Fund, administered by the Connecticut Green Bank) that finances renewable-energy programs — not a REC purchased against the customer's own load. That's the same economic shape as CAM above (a fixed program budget ÷ kWh), not a supply commodity. Decision: **`add_to_drr`**, `master_charge`: "Renewable Energy Investment (Clean Energy Fund)", `master_type`: "Program surcharge". Applied identically across all three Eversource tariffs — Rate 1's "Renewable Energy Charge," Rate 5's "Renewable Energy Charge," and Rate 7's "Renewable Charge" (same underlying charge, Rate 7 just uses a shorter Genability display label).
 
 #### FMCC Delivery Charge (NBFMCC) — ✅ decided, encoded in `ct_eversource_charge_decisions.json`
 
@@ -169,6 +178,36 @@ Reasoning for `add_to_srr`:
 4. **It doesn't fit `exclude_trueup`.** Unlike RAM/RDM (which reconcile actual vs. approved _revenue_ against a rate-case-set target), FMCC-Generation is a cost-recovery/settlement mechanism tied to ISO-NE congestion and "financial instruments" on the generation side — there's no revenue-requirement target it's reconciling against.
 
 `master_charge`: "Supply commodity (bundled)", `master_type`: "Supply commodity" — same as Generation Service Charge, so the two aggregate together in downstream processing (matching the netted "GSC Charge" treatment OCC describes, and the naming convention already used for bundled Standard Service commodity charges in NY/MD).
+
+---
+
+## Eversource Rate 5 / Rate 7 (residential alternative tariffs)
+
+Rate 1 (`ct_eversource`, `masterTariffId` 614) is the residential **default** tariff. Eversource CT also has two other active residential tariffs, discovered under the same Genability LSE (`lse_id` 2250, "Eversource Energy (Formerly Connecticut Light & Power Co)"):
+
+- **Rate 5 — Residential Electric Heating Service** (`ct_eversource_elecheat`, `masterTariffId` 616, Genability `tariff_code` "5"): closed to new applicants since December 21, 2006, but still carries active accounts; requires electric space heat as the primary heating source. See [`exhibit_clp_rates_3_residential_tariffs.md` § Rate 5](../../sources/exhibit_clp_rates_3_residential_tariffs.md).
+- **Rate 7 — Residential Time-of-Day Electric Service** (`ct_eversource_tou`, `masterTariffId` 615, Genability `tariff_code` "7"): the platform's TOU alternative; on-peak = weekdays 12 p.m.–8 p.m. Eastern Prevailing Time, off-peak = all other hours. See [`exhibit_clp_rates_3_residential_tariffs.md` § Rate 7](../../sources/exhibit_clp_rates_3_residential_tariffs.md).
+
+**Independent public confirmation that 616 = Rate 5 and 615 = Rate 7** (Genability/Arcadia's own API is closed/authenticated, so its `tariff_name`/`tariff_code` fields aren't independently checkable — these are third-party sources that corroborate them):
+
+- **Eversource's own tariff-book page** lists exactly these three residential rate names side by side: "Rate 1 Residential Electric Service (Non-Heating)," "Rate 5 Residential Electric Heating Service," "Rate 7 Residential Time-of-Day Service" — <https://www.eversource.com/residential/about/doing-business-with-us/interconnections/connecticut/connecticut-tariffs-rules>, linking to the current filed tariff PDFs directly: [Rate 5 PDF](https://www.eversource.com/docs/default-source/rates-tariffs/ct-electric/rate-5-ct.pdf), [Rate 7 PDF](https://www.eversource.com/docs/default-source/rates-tariffs/ct-electric/rate-7-ct.pdf).
+- **NREL/OpenEI's U.S. Utility Rate Database (URDB)** has independently-catalogued entries for the same two rates, sourced from those same Eversource PDFs: [URDB Rate 5 — Residential Electric Heating Service](https://apps.openei.org/USURDB/rate/view/696938431bf1b1f57709a6dd), [URDB Rate 7 — Residential Time-Of-Day Electric Service](https://apps.openei.org/USURDB/rate/view/6969389492370159da017a0d). URDB's Rate 5 fixed charge ("Fixed Charge (First Meter)") is `$23.75/month` — an exact match to the `$23.75` Customer Charge our Genability discovery returned for `masterTariffId` 616, which is strong independent confirmation (the two data sources don't reference each other).
+- **Eversource's consumer-facing Rate 7 explainer page** confirms the on-peak window as "noon to 8 p.m. on weekdays," matching the `from_hour: 12, to_hour: 20, weekdays_only: true` TOU definition Genability returned for `masterTariffId` 615 — <https://www.eversource.com/residential/account-billing/manage-bill/about-your-bill/rates-tariffs/connecticut-time-of-day-rate-7>.
+
+Both pseudo-utilities were added to `UTILITY_MASTER_TARIFF_IDS` in `fetch_monthly_rates.py` and discovered the same way as any other utility:
+
+```bash
+cd rate_design/hp_rates
+UTILITY=ct_eversource_elecheat just s ct discover-charges 2025-01-01
+UTILITY=ct_eversource_tou just s ct discover-charges 2025-01-01
+```
+
+**Charge classification: carried over from Rate 1, not re-derived.** Discovery shows every charge in Rate 5 (14 rate entries) and Rate 7 (17 rate entries) has a Genability `rate_group_name` that matches one of Rate 1's already-decided charges — these are the same statutory/regulatory charges applied on top of a different base distribution rate design, not economically distinct charges requiring their own classification. Two wrinkles surfaced while matching:
+
+1. **Rate 7 splits three charges into On-Peak/Off-Peak pairs**: Transmission Service Charge, FMCC Delivery Charge, and Generation Service Charge each appear twice (once per TOU period) instead of once. All other charges (ESI, RAM, SBC, CTA, Conservation Charge, CAM, Renewable Charge, FMCC Generation Charge, Minimum Charge, Customer Charge, base Distribution/Energy Charge) are **not** TOU-differentiated in Rate 7 — consistent with `exhibit_clp_rates_3_residential_tariffs.md`'s Rate 7 tariff table, which shows the same non-TOU treatment for those line items.
+2. **Rate 7's Generation Service Charge is mislabeled by `rate_name`.** Genability's `rate_name` for the two Rate 7 supply entries is "Energy Charge - On-Peak" / "Energy Charge - Off-Peak" (easily confused with the base distribution Energy Charge), but their `rate_group_name` ("Generation Service Charge") and `charge_class` (`SUPPLY,CONTRACTED`, vs. `DISTRIBUTION` for the real Energy Charge) correctly identify them as the Standard Service generation commodity charge, TOU-differentiated. Matching was done on `rate_group_name` (plus `charge_unit` to split "Distribution Service Charge" into its Customer Charge vs. base Energy/Distribution Charge components), not `rate_name`, specifically because of this mislabeling — `rate_name` is Genability's display label, `rate_group_name` is the more reliable identifier of what the charge economically is.
+
+Both new decision files (`ct_eversource_elecheat_charge_decisions.json`, `ct_eversource_tou_charge_decisions.json`) now have **all charges decided**, inheriting the exact same `decision` / `master_charge` / `master_type` as the matching Rate 1 charge (see the Eversource summary table and charge-by-charge notes above for the reasoning behind each) — including the Renewable Energy Charge flip to `add_to_drr` (see [§ above](#renewable-energy-charge--decided-encoded-in-ct_eversource_charge_decisionsjson)), which applies identically to Rate 5's "Renewable Energy Charge" and Rate 7's "Renewable Charge" (same charge, different Genability display name for the same `rate_group_name`).
 
 ---
 
@@ -234,7 +273,7 @@ To **finalize every top-up decision** and populate `delivery_rev_requirements_fr
 | 5 | **Bypassable vs non-bypassable FMCC** exhibit / Standard Service reconciliation                                                                 | Distinguish FMCC Delivery (NBFMCC → delivery top-up) from FMCC Generation / Bypassable FMCC (supply).                                                                                                                                                                  | High     |
 | 6 | **Transmission / TAC annual filing** (Eversource + UI)                                                                                          | Confirm Transmission Service Charge / UI Summer–Winter TX are OATT pass-throughs vs anything inside base DRR.                                                                                                                                                          | Medium   |
 | 7 | **Exhibit CLP-RATES-1** (Rates Panel, Docket 26-05-10)                                                                                          | Decoupling / RDM mechanics (already strong from REVREQ; this seals RAM carrying-charge tweak).                                                                                                                                                                         | Medium   |
-| 8 | **Renewable Energy Investment / CEF statute or CEFIA budget**                                                                                   | Flip Eversource Renewable Energy Charge and UI Renewable Energy Investment from auto-`add_to_srr` to program `add_to_drr` if confirmed.                                                                                                                                | Medium   |
+| 8 | **Renewable Energy Investment / CEF statute or CEFIA budget**                                                                                   | Confirm UI Renewable Energy Investment should flip from auto-`add_to_srr` to program `add_to_drr`, same as the already-decided Eversource Renewable Energy Charge (see [§ above](#renewable-energy-charge--decided-encoded-in-ct_eversource_charge_decisionsjson)).    | Medium   |
 | 9 | **CTA remaining-balance / RAM schedule**                                                                                                        | Decide `exclude_trueup` vs residual stranded-cost `add_to_drr`.                                                                                                                                                                                                        | Low      |
 
 ### B. Delivery revenue requirement dollars (for `compute-rr`)
@@ -254,12 +293,11 @@ To **finalize every top-up decision** and populate `delivery_rev_requirements_fr
 
 ## Open questions
 
-Eversource: all 16 charges are now decided and encoded (see charge-by-charge notes above). One Eversource item remains open, plus the UI items below:
+Eversource: all 16 charges are now decided and encoded (see charge-by-charge notes above), across Rate 1, Rate 5, and Rate 7. Remaining open items are all on the UI side:
 
-1. **Renewable Energy Charge vs RES:** Recommend flipping from auto-`add_to_srr` to `add_to_drr` (OCC describes it as funding the Clean Energy Fund / Green Bank, not a REC obligation) — not yet encoded, pending sign-off.
-2. **UI Energy Assistance Costs:** Confirm `exclude_eligibility` (UI has no in-repo REVREQ or OCC-level SBC breakout to confirm against).
-3. **UI Summer/Winter Transmission:** Confirm not inside base DRR (fix auto-label).
-4. **Residential-class DRR:** Which SFR/class schedules in 26-05-10 (and UI dockets) give Rate 1 / Rate R allocated delivery RR?
+1. **UI Energy Assistance Costs:** Confirm `exclude_eligibility` (UI has no in-repo REVREQ or OCC-level SBC breakout to confirm against).
+2. **UI Summer/Winter Transmission:** Confirm not inside base DRR (fix auto-label).
+3. **Residential-class DRR:** Which SFR/class schedules in 26-05-10 (and UI dockets) give Rate 1 / Rate R allocated delivery RR?
 
 ---
 
@@ -269,14 +307,24 @@ Eversource: all 16 charges are now decided and encoded (see charge-by-charge not
 cd rate_design/hp_rates
 
 # Already done
-UTILITY=ct_eversource just s ct discover-charges 2025-01-01
-UTILITY=ct_ui        just s ct discover-charges 2025-01-01
-UTILITY=ct_eversource just s ct classify-charges
-UTILITY=ct_ui        just s ct classify-charges
+UTILITY=ct_eversource    just s ct discover-charges 2025-01-01
+UTILITY=ct_eversource_elecheat just s ct discover-charges 2025-01-01
+UTILITY=ct_eversource_tou just s ct discover-charges 2025-01-01
+UTILITY=ct_ui            just s ct discover-charges 2025-01-01
+UTILITY=ct_eversource    just s ct classify-charges
+UTILITY=ct_ui            just s ct classify-charges
+# ct_eversource_elecheat / ct_eversource_tou were NOT run through classify-charges
+# (the generic name-based classifier would mis-fire on Rate 7's TOU splits and
+# the "Energy Charge" mislabeling -- see the Rate 5/7 section above). Instead,
+# decisions were carried over from ct_eversource_charge_decisions.json by
+# matching rate_group_name (dev/carry_over_ct_elecheat_tou_decisions.py, gitignored
+# one-off script).
 
 # After editing *_charge_decisions.json
-UTILITY=ct_eversource just s ct fetch-monthly-rates 2025-01 2025-12
-UTILITY=ct_ui        just s ct fetch-monthly-rates 2025-01 2025-12
+UTILITY=ct_eversource    just s ct fetch-monthly-rates 2025-01 2025-12
+UTILITY=ct_eversource_elecheat just s ct fetch-monthly-rates 2025-01 2025-12
+UTILITY=ct_eversource_tou just s ct fetch-monthly-rates 2025-01 2025-12
+UTILITY=ct_ui            just s ct fetch-monthly-rates 2025-01 2025-12
 
 # After delivery_rev_requirements_from_rate_cases.yaml exists
 UTILITY=ct_eversource just s ct compute-rr

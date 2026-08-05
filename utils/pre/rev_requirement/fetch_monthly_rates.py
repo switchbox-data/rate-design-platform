@@ -51,7 +51,9 @@ UTILITY_MASTER_TARIFF_IDS: dict[str, int] = {
     "cenhud": 85880,
     "rie": 859,
     "bge": 674,
-    "ct_eversource": 614,  # Genability masterTariffId (EIA 4176 / historical CL&P)
+    "ct_eversource": 614,  # Genability masterTariffId (EIA 4176 / historical CL&P), Rate 1 (Residential, DEFAULT)
+    "ct_eversource_elecheat": 616,  # Rate 5, Residential Electric Heating Service (ALTERNATIVE, tariff_code "5"), lse_id 2250
+    "ct_eversource_tou": 615,  # Rate 7, Residential Time-of-Day Electric Service (ALTERNATIVE, tariff_code "7"), lse_id 2250
     "ct_ui": 3153052,  # Genability masterTariffId (EIA 19497 / United Illuminating)
 }
 

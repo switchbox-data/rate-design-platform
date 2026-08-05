@@ -1,5 +1,5 @@
 {
-  "20448095": {
+  "20448856": {
     "rate_name": "Customer Charge",
     "charge_type": "FIXED_PRICE",
     "charge_class": "DISTRIBUTION",
@@ -7,14 +7,14 @@
     "variable_rate_key": null,
     "rate_group_name": "Distribution Service Charge",
     "rider_tariff_id": null,
-    "master_tariff_rate_id": 16959923,
+    "master_tariff_rate_id": 16959935,
     "charge_unit": "$/month",
-    "sample_rate": 9.62,
+    "sample_rate": 23.75,
     "is_credit": false,
     "is_tiered": false,
     "rate_bands": [
       {
-        "rate_amount": 9.62,
+        "rate_amount": 23.75,
         "upper_limit": null
       }
     ],
@@ -25,7 +25,7 @@
     "master_charge": "Customer Charge",
     "master_type": "Base delivery"
   },
-  "20448096": {
+  "20448857": {
     "rate_name": "Energy Charge",
     "charge_type": "CONSUMPTION_BASED",
     "charge_class": "DISTRIBUTION",
@@ -33,30 +33,30 @@
     "variable_rate_key": null,
     "rate_group_name": "Distribution Service Charge",
     "rider_tariff_id": null,
-    "master_tariff_rate_id": 16959924,
+    "master_tariff_rate_id": 16959936,
     "charge_unit": "$/kWh",
-    "sample_rate": 0.05844,
+    "sample_rate": 0.03847,
     "is_credit": false,
     "is_tiered": true,
     "rate_bands": [
       {
-        "rate_amount": 0.05844,
+        "rate_amount": 0.03847,
         "upper_limit": null
       },
       {
-        "rate_amount": 0.05844,
-        "upper_limit": 800.0
+        "rate_amount": 0.03847,
+        "upper_limit": 1200.0
       },
       {
-        "rate_amount": 0.05844,
+        "rate_amount": 0.03847,
         "upper_limit": null
       },
       {
-        "rate_amount": 0.05844,
-        "upper_limit": 800.0
+        "rate_amount": 0.03847,
+        "upper_limit": 1200.0
       },
       {
-        "rate_amount": 0.05844,
+        "rate_amount": 0.03847,
         "upper_limit": null
       }
     ],
@@ -67,38 +67,38 @@
     "master_charge": "Core Delivery Rate",
     "master_type": "Base delivery"
   },
-  "20448097": {
+  "20448858": {
     "rate_name": "Electric System Improvements",
     "charge_type": "CONSUMPTION_BASED",
-    "charge_class": "DISTRIBUTION",
+    "charge_class": null,
     "charge_period": "MONTHLY",
     "variable_rate_key": null,
     "rate_group_name": "Electric System Improvements",
     "rider_tariff_id": null,
-    "master_tariff_rate_id": 18131108,
+    "master_tariff_rate_id": 18131055,
     "charge_unit": "$/kWh",
-    "sample_rate": 0.01967,
+    "sample_rate": 0.01664,
     "is_credit": false,
     "is_tiered": true,
     "rate_bands": [
       {
-        "rate_amount": 0.01967,
+        "rate_amount": 0.01664,
         "upper_limit": null
       },
       {
-        "rate_amount": 0.01967,
-        "upper_limit": 800.0
+        "rate_amount": 0.01664,
+        "upper_limit": 1200.0
       },
       {
-        "rate_amount": 0.01967,
+        "rate_amount": 0.01664,
         "upper_limit": null
       },
       {
-        "rate_amount": 0.01967,
-        "upper_limit": 800.0
+        "rate_amount": 0.01664,
+        "upper_limit": 1200.0
       },
       {
-        "rate_amount": 0.01967,
+        "rate_amount": 0.01664,
         "upper_limit": null
       }
     ],
@@ -109,7 +109,7 @@
     "master_charge": "Electric System Improvements (ESI)",
     "master_type": "Base delivery"
   },
-  "20448098": {
+  "20448859": {
     "rate_name": "Revenue Adjustment Mechanism",
     "charge_type": "CONSUMPTION_BASED",
     "charge_class": "DISTRIBUTION",
@@ -117,7 +117,7 @@
     "variable_rate_key": null,
     "rate_group_name": "Revenue Adjustment Mechanism",
     "rider_tariff_id": null,
-    "master_tariff_rate_id": 17577518,
+    "master_tariff_rate_id": 17578088,
     "charge_unit": "$/kWh",
     "sample_rate": 0.00195,
     "is_credit": false,
@@ -129,7 +129,7 @@
       },
       {
         "rate_amount": 0.00195,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": 0.00195,
@@ -137,7 +137,7 @@
       },
       {
         "rate_amount": 0.00195,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": 0.00195,
@@ -151,7 +151,7 @@
     "master_charge": "Revenue Decoupling (RDM)",
     "master_type": "Revenue true-up"
   },
-  "20448099": {
+  "20448860": {
     "rate_name": "Transmission Service Charge",
     "charge_type": "CONSUMPTION_BASED",
     "charge_class": "TRANSMISSION",
@@ -159,30 +159,30 @@
     "variable_rate_key": null,
     "rate_group_name": "Transmission Service Charge",
     "rider_tariff_id": null,
-    "master_tariff_rate_id": 16993240,
+    "master_tariff_rate_id": 16993253,
     "charge_unit": "$/kWh",
-    "sample_rate": 0.03401,
+    "sample_rate": 0.03301,
     "is_credit": false,
     "is_tiered": true,
     "rate_bands": [
       {
-        "rate_amount": 0.03401,
+        "rate_amount": 0.03301,
         "upper_limit": null
       },
       {
-        "rate_amount": 0.03401,
-        "upper_limit": 800.0
+        "rate_amount": 0.03301,
+        "upper_limit": 1200.0
       },
       {
-        "rate_amount": 0.03401,
+        "rate_amount": 0.03301,
         "upper_limit": null
       },
       {
-        "rate_amount": 0.03401,
-        "upper_limit": 800.0
+        "rate_amount": 0.03301,
+        "upper_limit": 1200.0
       },
       {
-        "rate_amount": 0.03401,
+        "rate_amount": 0.03301,
         "upper_limit": null
       }
     ],
@@ -193,7 +193,7 @@
     "master_charge": "Transmission Charge",
     "master_type": "Base delivery"
   },
-  "20448100": {
+  "20448861": {
     "rate_name": "Systems Benefits Charge",
     "charge_type": "CONSUMPTION_BASED",
     "charge_class": "DISTRIBUTION",
@@ -201,7 +201,7 @@
     "variable_rate_key": null,
     "rate_group_name": "Systems Benefits Charge",
     "rider_tariff_id": null,
-    "master_tariff_rate_id": 16959926,
+    "master_tariff_rate_id": 16959938,
     "charge_unit": "$/kWh",
     "sample_rate": 0.03326,
     "is_credit": false,
@@ -213,7 +213,7 @@
       },
       {
         "rate_amount": 0.03326,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": 0.03326,
@@ -221,7 +221,7 @@
       },
       {
         "rate_amount": 0.03326,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": 0.03326,
@@ -235,7 +235,7 @@
     "master_charge": "Systems Benefits Charge (SBC)",
     "master_type": "LMI cost recovery"
   },
-  "20448101": {
+  "20448862": {
     "rate_name": "Competitive Transition Assessment",
     "charge_type": "CONSUMPTION_BASED",
     "charge_class": "DISTRIBUTION",
@@ -243,7 +243,7 @@
     "variable_rate_key": null,
     "rate_group_name": "Competitive Transition Assessment",
     "rider_tariff_id": null,
-    "master_tariff_rate_id": 16959927,
+    "master_tariff_rate_id": 16959939,
     "charge_unit": "$/kWh",
     "sample_rate": 0.00038,
     "is_credit": false,
@@ -255,7 +255,7 @@
       },
       {
         "rate_amount": 0.00038,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": 0.00038,
@@ -263,7 +263,7 @@
       },
       {
         "rate_amount": 0.00038,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": 0.00038,
@@ -277,7 +277,7 @@
     "master_charge": "Competitive Transition Assessment (CTA)",
     "master_type": "Sunk-cost recovery"
   },
-  "20448102": {
+  "20448863": {
     "rate_name": "Conservation Charge",
     "charge_type": "CONSUMPTION_BASED",
     "charge_class": "DISTRIBUTION",
@@ -285,7 +285,7 @@
     "variable_rate_key": null,
     "rate_group_name": "Conservation Charge",
     "rider_tariff_id": null,
-    "master_tariff_rate_id": 16959929,
+    "master_tariff_rate_id": 16959941,
     "charge_unit": "$/kWh",
     "sample_rate": 0.0,
     "is_credit": false,
@@ -297,7 +297,7 @@
       },
       {
         "rate_amount": 0.0,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": 0.0,
@@ -305,7 +305,7 @@
       },
       {
         "rate_amount": 0.0,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": 0.0,
@@ -319,7 +319,7 @@
     "master_charge": "Conservation Adjustment Mechanism (CAM)",
     "master_type": "Program surcharge"
   },
-  "20448103": {
+  "20448864": {
     "rate_name": "Conservation Adjustment Mechanism",
     "charge_type": "CONSUMPTION_BASED",
     "charge_class": "DISTRIBUTION",
@@ -327,7 +327,7 @@
     "variable_rate_key": null,
     "rate_group_name": "Conservation Adjustment Mechanism",
     "rider_tariff_id": null,
-    "master_tariff_rate_id": 17114276,
+    "master_tariff_rate_id": 17114288,
     "charge_unit": "$/kWh",
     "sample_rate": 0.006,
     "is_credit": false,
@@ -339,7 +339,7 @@
       },
       {
         "rate_amount": 0.006,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": 0.006,
@@ -347,7 +347,7 @@
       },
       {
         "rate_amount": 0.006,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": 0.006,
@@ -361,7 +361,7 @@
     "master_charge": "Conservation Adjustment Mechanism (CAM)",
     "master_type": "Program surcharge"
   },
-  "20448104": {
+  "20448865": {
     "rate_name": "Renewable Energy Charge",
     "charge_type": "CONSUMPTION_BASED",
     "charge_class": "DISTRIBUTION",
@@ -369,7 +369,7 @@
     "variable_rate_key": null,
     "rate_group_name": "Renewable Energy Charge",
     "rider_tariff_id": null,
-    "master_tariff_rate_id": 16959930,
+    "master_tariff_rate_id": 16959942,
     "charge_unit": "$/kWh",
     "sample_rate": 0.001,
     "is_credit": false,
@@ -381,7 +381,7 @@
       },
       {
         "rate_amount": 0.001,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": 0.001,
@@ -389,7 +389,7 @@
       },
       {
         "rate_amount": 0.001,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": 0.001,
@@ -403,7 +403,7 @@
     "master_charge": "Renewable Energy Investment (Clean Energy Fund)",
     "master_type": "Program surcharge"
   },
-  "20448105": {
+  "20448866": {
     "rate_name": "FMCC Delivery Charge",
     "charge_type": "CONSUMPTION_BASED",
     "charge_class": "DISTRIBUTION",
@@ -411,30 +411,30 @@
     "variable_rate_key": null,
     "rate_group_name": "FMCC Delivery Charge",
     "rider_tariff_id": null,
-    "master_tariff_rate_id": 16993241,
+    "master_tariff_rate_id": 16993254,
     "charge_unit": "$/kWh",
-    "sample_rate": 0.04791,
+    "sample_rate": 0.04614,
     "is_credit": false,
     "is_tiered": true,
     "rate_bands": [
       {
-        "rate_amount": 0.04791,
+        "rate_amount": 0.04614,
         "upper_limit": null
       },
       {
-        "rate_amount": 0.04791,
-        "upper_limit": 800.0
+        "rate_amount": 0.04614,
+        "upper_limit": 1200.0
       },
       {
-        "rate_amount": 0.04791,
+        "rate_amount": 0.04614,
         "upper_limit": null
       },
       {
-        "rate_amount": 0.04791,
-        "upper_limit": 800.0
+        "rate_amount": 0.04614,
+        "upper_limit": 1200.0
       },
       {
-        "rate_amount": 0.04791,
+        "rate_amount": 0.04614,
         "upper_limit": null
       }
     ],
@@ -445,15 +445,15 @@
     "master_charge": "Non-Bypassable FMCC (NBFMCC)",
     "master_type": "Program surcharge"
   },
-  "20448107": {
-    "rate_name": "Generation Service Charge (Jan - June)",
+  "20448868": {
+    "rate_name": "Generation Service Charge",
     "charge_type": "CONSUMPTION_BASED",
     "charge_class": "SUPPLY,CONTRACTED",
     "charge_period": "MONTHLY",
     "variable_rate_key": null,
     "rate_group_name": "Generation Service Charge",
     "rider_tariff_id": null,
-    "master_tariff_rate_id": 20023038,
+    "master_tariff_rate_id": 20024014,
     "charge_unit": "$/kWh",
     "sample_rate": 0.1129,
     "is_credit": false,
@@ -465,7 +465,7 @@
       },
       {
         "rate_amount": 0.1129,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": 0.1129,
@@ -473,35 +473,29 @@
       },
       {
         "rate_amount": 0.1129,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": 0.1129,
         "upper_limit": null
       }
     ],
-    "season": {
-      "name": "Winter",
-      "from_month": 1,
-      "from_day": 1,
-      "to_month": 6,
-      "to_day": 30
-    },
+    "season": null,
     "time_of_use": null,
     "source": "base_tariff",
     "decision": "add_to_srr",
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity"
   },
-  "20448108": {
-    "rate_name": "FMCC Generation Charge (Jan - June)",
+  "20448869": {
+    "rate_name": "FMCC Generation Charge",
     "charge_type": "CONSUMPTION_BASED",
     "charge_class": "SUPPLY,CONTRACTED",
     "charge_period": "MONTHLY",
     "variable_rate_key": null,
     "rate_group_name": "FMCC Generation Charge",
     "rider_tariff_id": null,
-    "master_tariff_rate_id": 16959934,
+    "master_tariff_rate_id": 16959946,
     "charge_unit": "$/kWh",
     "sample_rate": -0.001,
     "is_credit": true,
@@ -513,7 +507,7 @@
       },
       {
         "rate_amount": -0.001,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": -0.001,
@@ -521,27 +515,21 @@
       },
       {
         "rate_amount": -0.001,
-        "upper_limit": 800.0
+        "upper_limit": 1200.0
       },
       {
         "rate_amount": -0.001,
         "upper_limit": null
       }
     ],
-    "season": {
-      "name": "Winter",
-      "from_month": 1,
-      "from_day": 1,
-      "to_month": 6,
-      "to_day": 30
-    },
+    "season": null,
     "time_of_use": null,
     "source": "base_tariff",
     "decision": "add_to_srr",
     "master_charge": "Supply commodity (bundled)",
     "master_type": "Supply commodity"
   },
-  "20448111": {
+  "20448871": {
     "rate_name": "Minimum Charge",
     "charge_type": "MINIMUM",
     "charge_class": null,
@@ -549,14 +537,14 @@
     "variable_rate_key": null,
     "rate_group_name": "Minimum Charge",
     "rider_tariff_id": null,
-    "master_tariff_rate_id": 20379649,
+    "master_tariff_rate_id": 16959945,
     "charge_unit": "$/month",
-    "sample_rate": 9.62,
+    "sample_rate": 23.75,
     "is_credit": false,
     "is_tiered": false,
     "rate_bands": [
       {
-        "rate_amount": 9.62,
+        "rate_amount": 23.75,
         "upper_limit": null
       }
     ],
@@ -566,101 +554,5 @@
     "decision": "exclude_redundant",
     "master_charge": "Minimum Charge",
     "master_type": "Bill floor (rarely binds)"
-  },
-  "20800838": {
-    "rate_name": "Generation Service Charge (July - Dec)",
-    "charge_type": "CONSUMPTION_BASED",
-    "charge_class": "SUPPLY,CONTRACTED",
-    "charge_period": "MONTHLY",
-    "variable_rate_key": null,
-    "rate_group_name": "Generation Service Charge",
-    "rider_tariff_id": null,
-    "master_tariff_rate_id": 20800474,
-    "charge_unit": "$/kWh",
-    "sample_rate": 0.09115,
-    "is_credit": false,
-    "is_tiered": true,
-    "rate_bands": [
-      {
-        "rate_amount": 0.09115,
-        "upper_limit": null
-      },
-      {
-        "rate_amount": 0.09115,
-        "upper_limit": 800.0
-      },
-      {
-        "rate_amount": 0.09115,
-        "upper_limit": null
-      },
-      {
-        "rate_amount": 0.09115,
-        "upper_limit": 800.0
-      },
-      {
-        "rate_amount": 0.09115,
-        "upper_limit": null
-      }
-    ],
-    "season": {
-      "name": "Summer",
-      "from_month": 7,
-      "from_day": 1,
-      "to_month": 12,
-      "to_day": 31
-    },
-    "time_of_use": null,
-    "source": "base_tariff",
-    "decision": "add_to_srr",
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity"
-  },
-  "20800839": {
-    "rate_name": "FMCC Generation Charge (July - Dec)",
-    "charge_type": "CONSUMPTION_BASED",
-    "charge_class": "SUPPLY,CONTRACTED",
-    "charge_period": "MONTHLY",
-    "variable_rate_key": null,
-    "rate_group_name": "FMCC Generation Charge",
-    "rider_tariff_id": null,
-    "master_tariff_rate_id": 20800475,
-    "charge_unit": "$/kWh",
-    "sample_rate": -0.0012,
-    "is_credit": true,
-    "is_tiered": true,
-    "rate_bands": [
-      {
-        "rate_amount": -0.0012,
-        "upper_limit": null
-      },
-      {
-        "rate_amount": -0.0012,
-        "upper_limit": 800.0
-      },
-      {
-        "rate_amount": -0.0012,
-        "upper_limit": null
-      },
-      {
-        "rate_amount": -0.0012,
-        "upper_limit": 800.0
-      },
-      {
-        "rate_amount": -0.0012,
-        "upper_limit": null
-      }
-    ],
-    "season": {
-      "name": "Summer",
-      "from_month": 7,
-      "from_day": 1,
-      "to_month": 12,
-      "to_day": 31
-    },
-    "time_of_use": null,
-    "source": "base_tariff",
-    "decision": "add_to_srr",
-    "master_charge": "Supply commodity (bundled)",
-    "master_type": "Supply commodity"
   }
 }
