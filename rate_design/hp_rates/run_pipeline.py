@@ -50,6 +50,7 @@ from utils.mid.copy_calibrated_tariff_from_run import (
     copy_calibrated_tariff_from_run_dir,
 )
 from utils.pre.season_config import load_winter_months_from_periods
+from utils.scenario_config import _parse_resstock_overrides
 
 from rate_design.hp_rates.pipeline_derive import DeriveContext, derive_subgroup_tariff
 
@@ -280,8 +281,7 @@ def _compute_subclass_rr(
         raise ValueError(
             f"Missing 'total_delivery_and_supply_revenue_requirement' in {base_rr_path}"
         )
-    customer_count = base_rr.get("test_year_customer_count")
-    kwh_scale_factor = base_rr.get("resstock_kwh_scale_factor")
+    overrides = _parse_resstock_overrides(base_rr)
 
     out_path = config.state_config_dir / multi_rate_rr_path(config, scenario)
     gv2s = _group_value_to_subclass(scenario)
@@ -298,8 +298,8 @@ def _compute_subclass_rr(
         total_breakdowns=total_breakdowns,
         total_delivery_rr=total_delivery_rr,
         total_delivery_and_supply_rr=total_delivery_and_supply_rr,
-        customer_count_override=customer_count,
-        kwh_scale_factor=kwh_scale_factor,
+        customer_count_override=overrides.customer_count_override,
+        kwh_scale_factor=overrides.kwh_scale_factor,
     )
     log.info("compute_subclass_rr: wrote %s", differentiated_yaml_path)
     return differentiated_yaml_path
