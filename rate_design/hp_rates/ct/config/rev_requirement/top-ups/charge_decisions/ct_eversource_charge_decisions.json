@@ -231,9 +231,9 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": null,
-    "master_charge": null,
-    "master_type": null
+    "decision": "exclude_eligibility",
+    "master_charge": "Systems Benefits Charge (SBC)",
+    "master_type": "LMI cost recovery"
   },
   "20448101": {
     "rate_name": "Competitive Transition Assessment",
@@ -273,9 +273,9 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": null,
-    "master_charge": null,
-    "master_type": null
+    "decision": "add_to_drr",
+    "master_charge": "Competitive Transition Assessment (CTA)",
+    "master_type": "Sunk-cost recovery"
   },
   "20448102": {
     "rate_name": "Conservation Charge",
@@ -315,9 +315,9 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": null,
-    "master_charge": null,
-    "master_type": null
+    "decision": "add_to_drr",
+    "master_charge": "Conservation Adjustment Mechanism (CAM)",
+    "master_type": "Program surcharge"
   },
   "20448103": {
     "rate_name": "Conservation Adjustment Mechanism",
@@ -357,9 +357,9 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": null,
-    "master_charge": null,
-    "master_type": null
+    "decision": "add_to_drr",
+    "master_charge": "Conservation Adjustment Mechanism (CAM)",
+    "master_type": "Program surcharge"
   },
   "20448104": {
     "rate_name": "Renewable Energy Charge",
@@ -441,9 +441,9 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": null,
-    "master_charge": null,
-    "master_type": null
+    "decision": "add_to_drr",
+    "master_charge": "Non-Bypassable FMCC (NBFMCC)",
+    "master_type": "Program surcharge"
   },
   "20448107": {
     "rate_name": "Generation Service Charge (Jan - June)",
