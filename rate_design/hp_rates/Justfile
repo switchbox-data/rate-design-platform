@@ -765,6 +765,13 @@ run-scenario-from path_scenario_config run_num *extra_args:
     #!/usr/bin/env bash
     set -euo pipefail
     : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
+    # Pre-flight: outputs go under /data.sb, which must be the s3fs mount, not
+    # a local dir. If unmounted, CAIRO would silently write to local disk.
+    if ! mountpoint -q /data.sb; then
+        echo "ERROR: /data.sb is not a mountpoint. Outputs would land on local disk, not S3." >&2
+        echo "Fix: sudo mount /data.sb (if that fails with 'not empty', clear local contents first)." >&2
+        exit 1
+    fi
     log_dir="${HOME}/rdp_run_logs"
     mkdir -p "${log_dir}"
     log_file="${log_dir}/{{ utility }}_run{{ run_num }}_${RDP_BATCH}.log"
@@ -786,6 +793,13 @@ run-scenario run_num *extra_args:
     #!/usr/bin/env bash
     set -euo pipefail
     : "${RDP_BATCH:?Set RDP_BATCH before running (e.g. ny_20260305c_r1-8)}"
+    # Pre-flight: outputs go under /data.sb, which must be the s3fs mount, not
+    # a local dir. If unmounted, CAIRO would silently write to local disk.
+    if ! mountpoint -q /data.sb; then
+        echo "ERROR: /data.sb is not a mountpoint. Outputs would land on local disk, not S3." >&2
+        echo "Fix: sudo mount /data.sb (if that fails with 'not empty', clear local contents first)." >&2
+        exit 1
+    fi
     # Pre-flight: abort if this utility+run combo already exists under the batch
     s3_batch_dir="s3://data.sb/switchbox/cairo/outputs/hp_rates/{{ state }}/{{ utility }}/${RDP_BATCH}/"
     existing=$(aws s3 ls "${s3_batch_dir}" 2>/dev/null | grep -i "_run{{ run_num }}_" || true)

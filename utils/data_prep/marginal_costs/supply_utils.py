@@ -47,15 +47,16 @@ DEFAULT_ISONE_ANCILLARY_S3_BASE = "s3://data.sb/isone/ancillary/"
 DEFAULT_ISONE_ZONE_LOADS_S3_BASE = "s3://data.sb/isone/hourly_demand/zones/"
 DEFAULT_ISONE_FCA_S3_PATH = "s3://data.sb/isone/capacity/fca/data.parquet"
 DEFAULT_ISONE_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/ri/supply/"
-DEFAULT_ISONE_BULK_TX_OUTPUT_S3_BASE = (
-    "s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/"
-)
 
-VALID_ISONE_UTILITIES = frozenset({"rie"})
+VALID_ISONE_UTILITIES = frozenset({"rie", "ct_eversource", "ct_ui"})
 
 # Maps each ISO-NE utility to its single load zone. ISO-NE utilities are
 # single-zone, so no load-weighting is needed (unlike NYISO multi-zone).
-ISONE_UTILITY_ZONES: dict[str, str] = {"rie": "RI"}
+ISONE_UTILITY_ZONES: dict[str, str] = {
+    "rie": "RI",
+    "ct_eversource": "CT",
+    "ct_ui": "CT",
+}
 
 # ISO-NE FCA (Forward Capacity Auction) capacity zone mappings.
 # Maps each ISO-NE utility to its capacity zone ID for FCA price resolution.
