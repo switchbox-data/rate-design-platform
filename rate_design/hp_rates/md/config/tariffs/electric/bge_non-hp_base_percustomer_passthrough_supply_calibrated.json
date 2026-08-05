@@ -1,9 +1,14 @@
 {
   "items": [
     {
-      "label": "bge_default_supply",
+      "label": "bge_non-hp_base_percustomer_passthrough_supply",
+      "name": "bge_non-hp_base_percustomer_passthrough_supply",
       "uri": "",
       "sector": "Residential",
+      "servicetype": "Bundled",
+      "dgrules": "Net Metering",
+      "utility": "GenericUtility",
+      "country": "USA",
       "energyweekdayschedule": [
         [
           5,
@@ -635,56 +640,56 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.17873,
+            "rate": 0.18542551730384002,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.18363,
+            "rate": 0.19050617647796525,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.21612,
+            "rate": 0.22421653552380336,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.22437,
+            "rate": 0.23278319442324077,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.19187,
+            "rate": 0.19905429282567225,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.19577,
+            "rate": 0.20309656910289597,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.19621,
+            "rate": 0.2035601328961556,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.22871,
+            "rate": 0.2372704919419937,
             "adj": 0.0,
             "unit": "kWh"
           }
@@ -693,14 +698,7 @@
       "fixedchargefirstmeter": 10.0,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
-      "minchargeunits": "$/month",
-      "utility": "bge",
-      "servicetype": "Bundled",
-      "name": "bge_default_supply",
-      "is_default": false,
-      "country": "USA",
-      "demandunits": "kW",
-      "demandrateunit": "kW"
+      "minchargeunits": "$/month"
     }
   ]
 }

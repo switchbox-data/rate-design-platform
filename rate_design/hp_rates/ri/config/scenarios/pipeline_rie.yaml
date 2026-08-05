@@ -1,0 +1,45 @@
+state: ri
+utility: rie
+year: 2025
+output_base: /data.sb/switchbox/cairo/outputs/hp_rates
+solar_pv_compensation: net_metering
+process_workers: 8
+max_concurrent_cairo_runs: 2
+# true overlaps each stage's delivery + supply runs (each gets half the workers);
+# only enable with headroom for two concurrent CAIRO processes
+concurrent_variants: true
+resstock:
+  base: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb
+  upgrade_precalc: "00"
+  upgrade_calibrated: "02"
+marginal_costs:
+  dist_and_sub_tx: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/utility=rie/year=2025/data.parquet
+  bulk_tx: s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year=2025/data.parquet
+  supply_energy: s3://data.sb/switchbox/marginal_costs/ri/supply/energy/utility=rie/year=2025/data.parquet
+  supply_capacity: s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year=2025/data.parquet
+  supply_ancillary: "" # TODO: populate when RI ancillary MC is available
+revenue_requirement:
+  single_rate: rev_requirement/rie_rate_case_test_year.yaml
+  single_rate_calibrated: rev_requirement/rie_large_number_rate_case_test_year.yaml
+  # multi_rate: DERIVED from utility + subgroup aliases (e.g. rie_hp_vs_nonhp.yaml)
+  multi_rate_calibrated: rev_requirement/rie_large_number_rate_case_test_year.yaml
+scenarios:
+  default:
+    quartet: single_rate
+    tariff_base: default
+  hp_seasonal_percustomer_passthrough:
+    quartet: multi_rate_collapsed
+    depends_on: default
+    promote: hp
+    residual_allocation:
+      delivery: percustomer
+      supply: percustomer
+    subclass_config:
+      group_col: has_hp
+      subgroups:
+        hp:
+          values: ["true"]
+          structure: seasonal
+        non-hp:
+          values: ["false"]
+          structure: base
