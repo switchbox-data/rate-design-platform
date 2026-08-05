@@ -73,7 +73,7 @@ outputs/
 site/
 validation_outputs/
 rate_design/hp_rates/*/validation_outputs/
-
+logs/
 # Python packaging/build artifacts
 *.pyc
 *.pyo
