@@ -41,7 +41,7 @@ NYISO **ICAP Spot** auction (`s3://data.sb/nyiso/icap/year={Y}/month={M}/data.pa
 Spot prices are set each month and reflect contemporaneous supply/demand conditions
 — they vary month-to-month and are the most granular signal NYISO offers.
 
-This is a deliberate choice to answer: *"what does capacity cost right now?"*
+This is a deliberate choice to answer: _"what does capacity cost right now?"_
 rather than what was contracted. See trade-offs in
 `capacity_market_comparison_nyiso_isone.md`.
 
@@ -119,7 +119,7 @@ ISO-NE **Forward Capacity Auction (FCA)** clearing price for the **SENE zone**
 
 FCA prices are locked in three years ahead of the Capacity Commitment Period
 (CCP) and never change — they reflect committed procurement cost, not the
-current marginal cost of capacity. This answers: *"what did we contract to pay?"*
+current marginal cost of capacity. This answers: _"what did we contract to pay?"_
 
 The YAML config (`rate_design/hp_rates/ri/config/marginal_costs/isone_fca_assumptions.yaml`)
 stores the `payment_rate_per_kw_month` (raw FCA clearing price) and RI winter CSO
@@ -131,10 +131,10 @@ not total supplier revenue.
 
 A calendar year always spans two ISO-NE CCPs (each runs June 1 – May 31):
 
-| Segment | CCP | Calendar-year months covered |
-| ------- | --- | ---------------------------- |
-| CCP1    | Jun (year−1) – May (year) | Jan–May = **5 months** |
-| CCP2    | Jun (year) – May (year+1) | Jun–Dec = **7 months** |
+| Segment | CCP                       | Calendar-year months covered |
+| ------- | ------------------------- | ---------------------------- |
+| CCP1    | Jun (year−1) – May (year) | Jan–May = **5 months**       |
+| CCP2    | Jun (year) – May (year+1) | Jun–Dec = **7 months**       |
 
 ```
 capacity_cost_kw_year = price_CCP1 × 5 + price_CCP2 × 7
@@ -204,19 +204,19 @@ The curated RPM parquet is **one row per (delivery_year, zone)** — not a
 timeseries. There are ~20 zones × 9 delivery years ≈ 180 rows. It is a small
 lookup table, not hourly data. Schema:
 
-| Column | Type | Example | Meaning |
-| ------ | ---- | ------- | ------- |
-| `delivery_year` | String | `"2025/26"` | PJM delivery year label |
-| `dy_start` | Date | `2025-06-01` | Start of the DY |
-| `dy_end` | Date | `2026-05-31` | End of the DY |
-| `zone` | String | `"BGE"` | PJM zone (= EDC territory) |
-| `lda` | String | `"BGE"` or `"RTO"` | Most-specific LDA that cleared separately that DY |
-| `bra_price_per_mw_day` | Float | `466.35` | BRA clearing price for the zone's LDA |
-| `final_zonal_capacity_price_per_mw_day` | Float | `471.33` | Final price after IAs settle (what LSEs pay) |
-| `source_url` | String | (PJM XLS link) | Final Zonal price provenance |
-| `bra_source_url` | String | (PJM XLS link) | BRA price provenance |
-| `final_price_as_of` | Date | `2025-03-11` | When the final zonal price was last updated |
-| `notes` | String | `"BGE constrained…"` | Editorial notes |
+| Column                                  | Type   | Example              | Meaning                                           |
+| --------------------------------------- | ------ | -------------------- | ------------------------------------------------- |
+| `delivery_year`                         | String | `"2025/26"`          | PJM delivery year label                           |
+| `dy_start`                              | Date   | `2025-06-01`         | Start of the DY                                   |
+| `dy_end`                                | Date   | `2026-05-31`         | End of the DY                                     |
+| `zone`                                  | String | `"BGE"`              | PJM zone (= EDC territory)                        |
+| `lda`                                   | String | `"BGE"` or `"RTO"`   | Most-specific LDA that cleared separately that DY |
+| `bra_price_per_mw_day`                  | Float  | `466.35`             | BRA clearing price for the zone's LDA             |
+| `final_zonal_capacity_price_per_mw_day` | Float  | `471.33`             | Final price after IAs settle (what LSEs pay)      |
+| `source_url`                            | String | (PJM XLS link)       | Final Zonal price provenance                      |
+| `bra_source_url`                        | String | (PJM XLS link)       | BRA price provenance                              |
+| `final_price_as_of`                     | Date   | `2025-03-11`         | When the final zonal price was last updated       |
+| `notes`                                 | String | `"BGE constrained…"` | Editorial notes                                   |
 
 **BRA (Base Residual Auction)** — PJM's primary capacity procurement auction.
 Runs once per delivery year, ~3 years in advance. Generators bid to supply
@@ -225,7 +225,7 @@ initial price set at this auction.
 
 **Final Zonal Capacity Price** — the blended result of the BRA plus all
 subsequent Incremental Auctions (IAs). This is what Load Serving Entities
-*actually* pay per MW-day during the delivery year.
+_actually_ pay per MW-day during the delivery year.
 `final_zonal_capacity_price_per_mw_day` is the number the pipeline uses.
 
 Both columns exist to show how much the price moved after the BRA. For BGE DY
@@ -240,12 +240,12 @@ system level.
 
 BGE's LDA status flips between constrained and unconstrained across years:
 
-| DY | lda | Final Zonal price | RTO price | Spread |
-| -- | --- | ----------------- | --------- | ------ |
-| 2023/24 | BGE | `$72.15` | `$34.18` | +`$37.97` |
-| 2024/25 | BGE | `$76.76` | `$29.50` | +`$47.26` |
-| 2025/26 | BGE | `$471.33` | `$270.43` | +`$200.90` |
-| 2026/27 | RTO | `$329.08` | `$329.08` | `$0` (unconstrained) |
+| DY      | lda | Final Zonal price | RTO price | Spread               |
+| ------- | --- | ----------------- | --------- | -------------------- |
+| 2023/24 | BGE | `$72.15`          | `$34.18`  | +`$37.97`            |
+| 2024/25 | BGE | `$76.76`          | `$29.50`  | +`$47.26`            |
+| 2025/26 | BGE | `$471.33`         | `$270.43` | +`$200.90`           |
+| 2026/27 | RTO | `$329.08`         | `$329.08` | `$0` (unconstrained) |
 
 ### How the pipeline consumes this data
 
@@ -261,10 +261,10 @@ PJM delivery years also run June 1 – May 31 (same boundary as ISO-NE CCPs).
 Because the native price unit is `$/MW-day`, blending uses **exact day counts**
 rather than whole months:
 
-| Segment | DY | Calendar-year days covered |
-| ------- | -- | -------------------------- |
+| Segment | DY                        | Calendar-year days covered                       |
+| ------- | ------------------------- | ------------------------------------------------ |
 | DY1     | Jun (year−1) – May (year) | Jan 1 – May 31 = **151 days** (152 in leap year) |
-| DY2     | Jun (year) – May (year+1) | Jun 1 – Dec 31 = **214 days** |
+| DY2     | Jun (year) – May (year+1) | Jun 1 – Dec 31 = **214 days**                    |
 
 ```
 capacity_cost_kw_year = (P_DY1 × 151 + P_DY2 × 214) / 1000
@@ -297,7 +297,7 @@ these timestamps. The pipeline:
 3. `capacity_cost_h = capacity_cost_kw_year / 5` on each of the five hours.
 
 Equal weighting (F1) is the **definitionally correct** PJM analog: PLC is defined
-as the *average* of a customer's reconciled load over the five hours (PJM Manual
+as the _average_ of a customer's reconciled load over the five hours (PJM Manual
 19 §4.3), which is mathematically equivalent to giving each hour weight 1/5.
 Exceedance weighting (used by NYISO and ISO-NE) is not appropriate here because
 it re-introduces a within-peak load signal that the PLC average deliberately
@@ -321,22 +321,22 @@ Sum of all hourly `capacity_cost_per_kw` = `capacity_cost_kw_year` within 0.01%.
 
 ## Cross-ISO comparison
 
-| Dimension | NYISO (NY) | ISO-NE (RI) | PJM (MD/BGE) |
-| --------- | ---------- | ----------- | ------------ |
-| **Market** | ICAP Spot (monthly) | FCM FCA (annual, 3-yr forward) | RPM BRA (annual delivery year) |
-| **Price philosophy** | Contemporaneous marginal cost | Committed procurement cost | Committed procurement cost |
-| **Native price unit** | `$/kW-month` | `$/kW-month` | `$/MW-day` |
-| **Period boundary** | Monthly capability periods | Jun–May CCP | Jun–May DY |
-| **Blending** | None (prices already monthly) | 5 mo × CCP1 + 7 mo × CCP2 | 151 d × DY1 + 214 d × DY2 (÷ 1000) |
-| **Peak window** | Monthly (all months) | Annual (full calendar year) | Summer only (Jun–Sep) |
-| **Peak selection** | Top 8 hours per month per locality | Top 100 hours across year | PJM-published 5CP timestamps |
-| **Peak weighting** | Exceedance | Exceedance | Equal 1/5 (PLC-average analog) |
-| **Nonzero hours** | **96** (single-locality); **≤ 192** (ConEd) | **100** | **5** |
-| **Zone-to-utility** | Component-by-component, up to 2 localities + weights | Single SENE zone, all RI utilities share it | One zone row per utility from RPM |
-| **LDA pricing** | Partitioned localities (ROS/LHV/NYC/LI) | SENE zone with RoP fallback | BGE zone row (includes LDA adder) |
-| **Price data source** | `s3://data.sb/nyiso/icap/` | `s3://data.sb/isone/capacity/fca/` | `s3://data.sb/pjm/capacity/rpm/` |
-| **Load data source** | NYISO zone hourly demand | ISO-NE zone hourly demand (RI + SEMA) | Not used (equal weighting needs no load) |
-| **Zone mapping source** | `data/nyiso/zone_mapping/` | `supply_utils.py` constants | `data/pjm/zone_mapping/` |
+| Dimension               | NYISO (NY)                                           | ISO-NE (RI)                                 | PJM (MD/BGE)                             |
+| ----------------------- | ---------------------------------------------------- | ------------------------------------------- | ---------------------------------------- |
+| **Market**              | ICAP Spot (monthly)                                  | FCM FCA (annual, 3-yr forward)              | RPM BRA (annual delivery year)           |
+| **Price philosophy**    | Contemporaneous marginal cost                        | Committed procurement cost                  | Committed procurement cost               |
+| **Native price unit**   | `$/kW-month`                                         | `$/kW-month`                                | `$/MW-day`                               |
+| **Period boundary**     | Monthly capability periods                           | Jun–May CCP                                 | Jun–May DY                               |
+| **Blending**            | None (prices already monthly)                        | 5 mo × CCP1 + 7 mo × CCP2                   | 151 d × DY1 + 214 d × DY2 (÷ 1000)       |
+| **Peak window**         | Monthly (all months)                                 | Annual (full calendar year)                 | Summer only (Jun–Sep)                    |
+| **Peak selection**      | Top 8 hours per month per locality                   | Top 100 hours across year                   | PJM-published 5CP timestamps             |
+| **Peak weighting**      | Exceedance                                           | Exceedance                                  | Equal 1/5 (PLC-average analog)           |
+| **Nonzero hours**       | **96** (single-locality); **≤ 192** (ConEd)          | **100**                                     | **5**                                    |
+| **Zone-to-utility**     | Component-by-component, up to 2 localities + weights | Single SENE zone, all RI utilities share it | One zone row per utility from RPM        |
+| **LDA pricing**         | Partitioned localities (ROS/LHV/NYC/LI)              | SENE zone with RoP fallback                 | BGE zone row (includes LDA adder)        |
+| **Price data source**   | `s3://data.sb/nyiso/icap/`                           | `s3://data.sb/isone/capacity/fca/`          | `s3://data.sb/pjm/capacity/rpm/`         |
+| **Load data source**    | NYISO zone hourly demand                             | ISO-NE zone hourly demand (RI + SEMA)       | Not used (equal weighting needs no load) |
+| **Zone mapping source** | `data/nyiso/zone_mapping/`                           | `supply_utils.py` constants                 | `data/pjm/zone_mapping/`                 |
 
 ### Why the methodologies differ
 
@@ -379,13 +379,13 @@ zone.
 
 All three pipelines use shared helpers from `utils/data_prep/marginal_costs/supply_utils.py`:
 
-| Helper | Used by |
-| ------ | ------- |
-| `allocate_annual_exceedance_to_hours` | ISO-NE; available as sensitivity for PJM (C3) |
-| `build_cairo_8760_timestamps` | All three (reference grid, leap-year / DST normalization) |
-| `prepare_component_output(scale=1000)` | All three (`$/kW` → `$/MWh`) |
-| `PJM_UTILITY_ZONES` | PJM zone lookup |
-| `ISONE_UTILITY_CAPACITY_ZONES` / `ISONE_CAPACITY_ZONE_LOAD_ZONES` | ISO-NE zone lookup |
+| Helper                                                            | Used by                                                   |
+| ----------------------------------------------------------------- | --------------------------------------------------------- |
+| `allocate_annual_exceedance_to_hours`                             | ISO-NE; available as sensitivity for PJM (C3)             |
+| `build_cairo_8760_timestamps`                                     | All three (reference grid, leap-year / DST normalization) |
+| `prepare_component_output(scale=1000)`                            | All three (`$/kW` → `$/MWh`)                              |
+| `PJM_UTILITY_ZONES`                                               | PJM zone lookup                                           |
+| `ISONE_UTILITY_CAPACITY_ZONES` / `ISONE_CAPACITY_ZONE_LOAD_ZONES` | ISO-NE zone lookup                                        |
 
 All pipelines validate that the sum of `capacity_cost_per_kw` over all nonzero
 hours equals the annualized `$/kW-year` within 0.01%.
