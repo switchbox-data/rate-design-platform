@@ -183,11 +183,14 @@ scenarios:
     residual_allocation:
       delivery: percustomer
       supply: passthrough
-    subclass_config:
-      group_col: has_hp
-      subgroups:
-        hp:   { values: ["true"],  structure: seasonal }
+      subclass_config:
+        group_col: has_hp
+        subgroups:
+          hp:   { values: ["true"],  structure: seasonal }
         non-hp: { values: ["false"], structure: base }
+bill_change_baseline:
+  scenario: default
+  stage: precalc
 ```
 
 ### Key config fields
@@ -197,6 +200,7 @@ scenarios:
 - `periods_yaml` — utility periods config (winter months); defaults to `periods/{utility}.yaml`
 - `depends_on` — names the dependency scenario whose outputs feed `derive_tariffs`
 - `promote` — which subgroup's calibrated tariff to promote for `multi_rate_collapsed`
+- `bill_change_baseline` — the one `(scenario, stage)` every run's bills are compared against. Read only by post-processing, so the pipeline runs without it; the master-table builders raise if it is missing. It is a single stage, not a quartet: usually `default` + `precalc`, i.e. today's rates on the pre-upgrade population.
 
 ## Invocation
 
@@ -236,6 +240,59 @@ uv run python -m rate_design.hp_rates.run_pipeline \
 ```
 
 The `--scenarios` filter restricts which scenarios run (preflight is also scoped). Omit for all.
+
+## Post-processing: master tables
+
+Once a batch finishes, two builders consolidate its CAIRO outputs into the master tables that notebooks and reports read. They are plain CLIs driven by Just — not Prefect flows — and one invocation covers a whole batch:
+
+```bash
+cd rate_design/hp_rates
+just s md build-all-master-prefect md_20260803_a
+```
+
+That runs bills then BAT (in that order, because BAT joins the baseline bills). Either can be run alone with `build-master-bills-prefect` / `build-master-bat-prefect`, and both accept `--scenarios` to narrow the work.
+
+| Script                                     | Output                            | Grain             |
+| ------------------------------------------ | --------------------------------- | ----------------- |
+| `utils/post/build_master_bills_prefect.py` | `comb_bills_year_target/`         | building × month  |
+| `utils/post/build_master_bat_prefect.py`   | `cross_subsidization_BAT_values/` | building (annual) |
+
+### One master table per segment
+
+A **segment** is one `{scenario}_{stage}` pair — `default_precalc`, `hp_seasonal_percustomer_passthrough_calibrated`, and so on. Each becomes its own master table, written twice: once per utility and once for the batch:
+
+```
+{output_base}/{state}/{utility}/{batch}/{segment}/{table}/
+{output_base}/{state}/all_utilities/{batch}/{segment}/{table}/
+```
+
+The `all_utilities` copy is Hive-partitioned by `sb.electric_utility` and is what analysis reads. This replaces the legacy Justfile layout, which keyed tables by `run_{delivery}+{supply}` and needed one invocation per run pair.
+
+The delivery and supply runs of a segment are **joined**, not kept separate: the delivery-only run supplies electric delivery (and gas/oil/propane) figures, the delivery+supply run supplies electric supply, and supply-only BAT is derived as `total − delivery`.
+
+### Run discovery
+
+Builders never take run numbers. For each utility they load `{state}/config/scenarios/pipeline_{utility}.yaml` by convention, expand its scenarios into segments, and look up each run's output directory in the batch's run index (`{batch_dir}/.runs/{canonical_run_name}.path`). Index files hold FUSE paths, which `utils/post/pipeline_runs.py` maps to `s3://` URIs.
+
+A segment whose **both** variants are missing is skipped with a log line, so a partially-run batch still post-processes. A segment with **one** variant missing raises: that table can never be built, and skipping it would hide a failed CAIRO run.
+
+### Baseline bill columns
+
+Every row in both tables carries the baseline segment's annual electric bill, so bill changes can be computed without a second read:
+
+`baseline_elec_fixed_charge`, `baseline_elec_delivery_bill`, `baseline_elec_supply_bill`
+
+The baseline segment comes from `bill_change_baseline` in the pipeline YAML, and its table is built first so the others can join it. On the baseline segment itself, the columns are copies of its own `elec_*` values. The builders assert that the baseline table's `upgrade` matches the upgrade its configured stage implies, so a mismatched or stale baseline fails loudly instead of silently attaching the wrong bills.
+
+Building BAT without the baseline bills raises with the path to build first — hence `build-all-master-prefect`.
+
+### Building attributes come from upgrade 00
+
+`postprocess_group.has_hp`, `postprocess_group.heating_type`, the `heats_with_*` flags, income, and cooling are read from the **baseline** upgrade's `metadata-sb.parquet` on every segment, joined to `utility_assignment.parquet` for the utility mapping. ResStock marks every building in the heat-pump upgrade as a heat pump, so a calibrated segment's own metadata would erase what the home heated with before the retrofit — the dimension most analyses slice on. The `upgrade` column identifies the stage instead.
+
+### Reading the BAT tables
+
+BAT metrics in **calibrated** segments are dominated by the deliberately large revenue requirement those runs use (`residual_share_total` lands in the hundreds of thousands per customer, versus roughly a thousand in precalc). Bills in calibrated segments are unaffected and correct. The builders write what CAIRO produced without special-casing; interpret cross-subsidy metrics from precalc segments.
 
 ## Derived path anatomy
 

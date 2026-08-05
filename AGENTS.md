@@ -39,28 +39,36 @@ The main outputs are calibrated tariffs (when CAIRO is run in pre-calc mode), cu
 
 ### Master tables (cross-utility, post-processed)
 
-After individual CAIRO runs complete, post-processing scripts consolidate results across all utilities in a batch into **master tables** at `s3://data.sb/switchbox/cairo/outputs/hp_rates/<state>/all_utilities/<batch>/run_<delivery>+<supply>/`. These are Hive-partitioned Parquet datasets (partitioned by `sb.electric_utility`) and are the primary data source for analysis notebooks and reports.
+After individual CAIRO runs complete, post-processing scripts consolidate results across all utilities in a batch into **master tables** at `s3://data.sb/switchbox/cairo/outputs/hp_rates/<state>/all_utilities/<batch>/<segment>/`. These are Hive-partitioned Parquet datasets (partitioned by `sb.electric_utility`) and are the primary data source for analysis notebooks and reports.
 
-**Master bills** (`comb_bills_year_target/`) — one row per building per month (Jan–Dec + Annual). Created by `utils/post/build_master_bills.py`, invoked via `just build-master-bills <batch> <run_delivery> <run_supply>`. Combines the delivery-only run's `comb_bills_year_target.csv` (for electric delivery and gas/propane/oil bills) with the delivery+supply run's electric supply bills. Joins ResStock metadata (`metadata_sb`, `utility_assignment`) for building attributes.
+`<segment>` identifies which runs the table came from, and depends on which orchestrator produced the batch:
 
-| Column                                                                        | Description                                     |
-| ----------------------------------------------------------------------------- | ----------------------------------------------- |
-| bldg_id                                                                       | ResStock building identifier                    |
-| sb.electric_utility, sb.gas_utility                                           | Utility assignments                             |
-| upgrade                                                                       | ResStock upgrade ID (0 = baseline, 2 = HP)      |
-| postprocess_group.has_hp, postprocess_group.heating_type                      | HP status and heating classification            |
-| heats_with_electricity, heats_with_natgas, heats_with_oil, heats_with_propane | Fuel flags                                      |
-| month                                                                         | "Jan"–"Dec" or "Annual"                         |
-| weight                                                                        | CAIRO sample weight                             |
-| elec_fixed_charge                                                             | Electric fixed charge component                 |
-| elec_delivery_bill                                                            | Electric delivery volumetric bill               |
-| elec_supply_bill                                                              | Electric supply bill (from supply run)          |
-| elec_total_bill                                                               | Total electric bill (fixed + delivery + supply) |
-| gas_total_bill                                                                | Total gas bill                                  |
-| propane_total_bill, oil_total_bill                                            | Delivered fuel bills                            |
-| energy_total_bill                                                             | Sum of all fuel bills                           |
+- **Prefect pipeline** (current): `<scenario>_<stage>`, e.g. `default_precalc`, `hp_seasonal_percustomer_passthrough_calibrated`. One `just s <state> build-all-master-prefect <batch>` builds every segment in the batch, via `utils/post/build_master_bills_prefect.py` and `utils/post/build_master_bat_prefect.py`. See `context/code/orchestration/prefect_pipeline.md` for run discovery, the `baseline_elec_*` columns, and why calibrated-segment BAT should not be read as cross-subsidy.
+- **Legacy Justfile** (older batches): `run_<delivery>+<supply>`, one invocation per run pair.
 
-**Master BAT** (`cross_subsidization_BAT_values/`) — one row per building (annual). Created by `utils/post/build_master_bat.py`, invoked via `just build-master-bat <batch> <run_delivery> <run_supply>`. Computes delivery, supply, and total bill alignment by taking the delivery-only run's BAT values as delivery, the delivery+supply run's values as total, and deriving supply = total − delivery.
+Either way, a segment joins a **delivery** run with its paired **supply** run: electric delivery (and gas/oil/propane) figures come from the delivery-only run, electric supply from the delivery+supply run.
+
+**Master bills** (`comb_bills_year_target/`) — one row per building per month (Jan–Dec + Annual). Combines the delivery-only run's `comb_bills_year_target.csv` (for electric delivery and gas/propane/oil bills) with the delivery+supply run's electric supply bills. Joins ResStock metadata (`metadata_sb`, `utility_assignment`) for building attributes; the Prefect builder always takes those attributes from the baseline upgrade, so pre-retrofit heating type stays sliceable. Legacy invocation: `just build-master-bills <batch> <run_delivery> <run_supply>`.
+
+| Column                                                                             | Description                                                                         |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| bldg_id                                                                            | ResStock building identifier                                                        |
+| sb.electric_utility, sb.gas_utility                                                | Utility assignments                                                                 |
+| upgrade                                                                            | ResStock upgrade ID (0 = baseline, 2 = HP)                                          |
+| postprocess_group.has_hp, postprocess_group.heating_type                           | HP status and heating classification                                                |
+| heats_with_electricity, heats_with_natgas, heats_with_oil, heats_with_propane      | Fuel flags                                                                          |
+| month                                                                              | "Jan"–"Dec" or "Annual"                                                             |
+| weight                                                                             | CAIRO sample weight                                                                 |
+| elec_fixed_charge                                                                  | Electric fixed charge component                                                     |
+| elec_delivery_bill                                                                 | Electric delivery volumetric bill                                                   |
+| elec_supply_bill                                                                   | Electric supply bill (from supply run)                                              |
+| elec_total_bill                                                                    | Total electric bill (fixed + delivery + supply)                                     |
+| baseline_elec_fixed_charge, baseline_elec_delivery_bill, baseline_elec_supply_bill | Same components under the baseline segment (Prefect batches only), for bill changes |
+| gas_total_bill                                                                     | Total gas bill                                                                      |
+| propane_total_bill, oil_total_bill                                                 | Delivered fuel bills                                                                |
+| energy_total_bill                                                                  | Sum of all fuel bills                                                               |
+
+**Master BAT** (`cross_subsidization_BAT_values/`) — one row per building (annual). Computes delivery, supply, and total bill alignment by taking the delivery-only run's BAT values as delivery, the delivery+supply run's values as total, and deriving supply = total − delivery. Also carries the cost-allocation components BAT is derived from (`annual_bill_*`, `economic_burden_*`, `residual_share_*`) and the same `baseline_elec_*` columns as master bills, which it reads from the baseline segment's master bills — so build bills first. Legacy invocation: `just build-master-bat <batch> <run_delivery> <run_supply>`.
 
 | Column                                                                        | Description                                           |
 | ----------------------------------------------------------------------------- | ----------------------------------------------------- |
