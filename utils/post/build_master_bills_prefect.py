@@ -79,6 +79,13 @@ from utils.post.io import (
     scan,
     scan_load_curves_for_utility,
 )
+from utils.post.master_metadata import (
+    ATTR_COLS,
+    METADATA_UPGRADE,
+    UTILITY_COLS,
+    heating_type_v2,
+    load_metadata,
+)
 from utils.post.pipeline_runs import (
     RunPair,
     baseline_segment,
@@ -93,24 +100,7 @@ from utils.post.pipeline_runs import (
 
 ELEC_BILLS_CSV = "bills/elec_bills_year_target.csv"
 
-# Building attributes are read from the baseline upgrade on every segment, so a
-# home's pre-retrofit heating type stays sliceable on calibrated segments (where
-# ResStock marks every building as a heat pump).  The ``upgrade`` column is set
-# from the segment's own stage, not from here.
-METADATA_UPGRADE = "00"
-
-ATTR_COLS = [
-    "postprocess_group.has_hp",
-    "postprocess_group.heating_type",
-    "heats_with_electricity",
-    "heats_with_natgas",
-    "heats_with_oil",
-    "heats_with_propane",
-    "in.representative_income",
-    "in.hvac_cooling_partial_space_conditioning",
-]
-
-META_COLS = [BLDG_ID, "sb.electric_utility", "sb.gas_utility", *ATTR_COLS]
+META_COLS = [BLDG_ID, *UTILITY_COLS, *ATTR_COLS]
 
 OUTPUT_COLS = [
     BLDG_ID,
@@ -177,27 +167,6 @@ def _read_utilities(state: str) -> list[str]:
         if line.startswith("UTILITIES="):
             return line.split("=", 1)[1].split(",")
     raise ValueError(f"UTILITIES not found in {env_file}")
-
-
-def _load_metadata(path_resstock_base: str, state_upper: str) -> pl.DataFrame:
-    """Utility assignment joined to baseline building attributes.
-
-    ``utility_assignment.parquet`` carries only the electric/gas utility mapping
-    in newer ResStock releases, so attributes come from the baseline upgrade's
-    ``metadata-sb.parquet``.  Older releases have those attributes on the
-    assignment table too; they are ignored in favour of one code path.
-    """
-    base = path_resstock_base.rstrip("/")
-    assignment = pl.scan_parquet(
-        f"{base}/metadata_utility/state={state_upper}/utility_assignment.parquet"
-    ).select(BLDG_ID, "sb.electric_utility", "sb.gas_utility")
-    attributes = pl.scan_parquet(
-        f"{base}/metadata/state={state_upper}/upgrade={METADATA_UPGRADE}/metadata-sb.parquet"
-    ).select(BLDG_ID, *ATTR_COLS)
-    return cast(
-        pl.DataFrame,
-        assignment.join(attributes, on=BLDG_ID, how="inner").collect(),
-    )
 
 
 def _s3_get_json(uri: str) -> dict:
@@ -735,18 +704,7 @@ def _process_utility(
             ).alias("energy_total_bill"),
             pl.lit(int(upgrade)).alias("upgrade"),
         )
-        .with_columns(
-            pl.when(pl.col("postprocess_group.has_hp"))
-            .then(pl.lit("heat_pump"))
-            .when(pl.col("heats_with_electricity"))
-            .then(pl.lit("electrical_resistance"))
-            .when(pl.col("heats_with_natgas"))
-            .then(pl.lit("natgas"))
-            .when(pl.col("heats_with_oil") | pl.col("heats_with_propane"))
-            .then(pl.lit("delivered_fuels"))
-            .otherwise(pl.lit("other"))
-            .alias("postprocess_group.heating_type_v2"),
-        )
+        .with_columns(heating_type_v2())
     )
     joined = _attach_baseline_columns(
         joined_pre,
@@ -976,7 +934,7 @@ def main() -> None:
         if base in metadata_by_base:
             continue
         t = _log(f"Loading metadata from {base} (upgrade {METADATA_UPGRADE})...")
-        metadata_by_base[base] = _load_metadata(base, state_upper)
+        metadata_by_base[base] = load_metadata(base, state_upper)
         _log_done("Loading metadata", t, f"{metadata_by_base[base].height} rows")
 
     bldgs_per_utility: dict[str, int] = {}
