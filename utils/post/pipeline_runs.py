@@ -199,7 +199,18 @@ def read_run_dir(batch_dir_path: str, run_name: str) -> str | None:
     local = Path(batch_dir_path) / relative
     if local.is_file():
         return local.read_text().strip()
-    return _s3_read_text(f"{s3_uri(batch_dir_path).rstrip('/')}/{relative}")
+    remote = _maybe_s3_uri(batch_dir_path)
+    if remote is None:
+        return None
+    return _s3_read_text(f"{remote.rstrip('/')}/{relative}")
+
+
+def _maybe_s3_uri(path: str | Path) -> str | None:
+    """``s3_uri`` for paths that live on S3, None for purely local ones."""
+    try:
+        return s3_uri(path)
+    except ValueError:
+        return None
 
 
 def _s3_read_text(uri: str) -> str | None:
