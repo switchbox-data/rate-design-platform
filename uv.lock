@@ -354,7 +354,7 @@ wheels = [
 
 [[package]]
 name = "buildstock-fetch"
-version = "1.6.5"
+version = "1.6.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aioboto3" },
@@ -379,9 +379,9 @@ dependencies = [
     { name = "useful-types" },
     { name = "xmltodict" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ff/c8/acdc32a67d719d9c15dc4c50ed88a12a51e21a4fc035209f05488b7c0239/buildstock_fetch-1.6.5.tar.gz", hash = "sha256:f5a60c47a8f4681915f81e0fa6ed5bc9dfa25eb6e257b588190c4efd5bb1a143", size = 80073848, upload-time = "2026-02-12T05:08:55.974Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ab/c0/9eb18ea330b0391437a03ff0294b4d3d9adb95390589f057033f69bd4854/buildstock_fetch-1.6.6.tar.gz", hash = "sha256:9c608f37dd9d0a6706b8ced9c3e075dc051060462a2e3cdffe9e1b7089cf4f4f", size = 80080404, upload-time = "2026-07-28T14:24:18.11Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/17/4b/0380c0f4cb9473f35434e5a7a1142fdff6093fac6bb724fdac05a357900f/buildstock_fetch-1.6.5-py3-none-any.whl", hash = "sha256:8840b52452c01314dc15713cd8db93d69fe078ea50dd4afff23fd3bb5a98ae1b", size = 80540260, upload-time = "2026-02-12T05:08:47.513Z" },
+    { url = "https://files.pythonhosted.org/packages/69/08/82221b6949d289bf9561583754504c84907b33b4d2d4bd3ee032dbd4e6c3/buildstock_fetch-1.6.6-py3-none-any.whl", hash = "sha256:36eb929db14c89c7a63e4c7655d26cf888ece1f4b74a42fcaa424fe602efc183", size = 80545275, upload-time = "2026-07-28T14:24:11.95Z" },
 ]
 
 [[package]]
@@ -3100,7 +3100,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "buildstock-fetch", specifier = ">=1.6.1" },
+    { name = "buildstock-fetch", specifier = ">=1.6.6" },
     { name = "cairo", git = "https://github.com/natlabrockies/cairo?rev=09a4d7f" },
     { name = "cloudpathlib", specifier = ">=0.23.0" },
     { name = "cloudpathlib", extras = ["s3"], specifier = ">=0.23.0" },

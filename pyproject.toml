@@ -18,7 +18,7 @@ classifiers = [
     "Topic :: Office/Business :: Financial",
 ]
 dependencies = [
-    "buildstock-fetch>=1.6.1",
+    "buildstock-fetch>=1.6.6",
     "cairo",
     "google-auth>=2.0.0",
     "gspread>=6.0.0",

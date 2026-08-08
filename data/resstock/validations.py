@@ -178,78 +178,75 @@ def validate_utility_assignment_args(
         )
 
 
-def validate_no_stale_monthly_loads(
+def validate_no_stale_aggregate_loads(
     state: list[str],
     upgrade_ids: list[str],
     file_types: list[str],
     add_monthly_loads: bool,
+    add_annual_loads: bool,
     path_sb: Path,
 ) -> None:
-    """Raise RuntimeError if fetching hourly load curves would leave monthly files stale.
+    """Raise RuntimeError if fetching hourly would leave monthly/annual files stale.
 
-    Monthly load curve files in the _sb release are derived directly from the _sb
-    hourly load curves (by ``--add-monthly-loads``). If hourly files are re-fetched
-    without also updating the corresponding monthly files, the two datasets become
-    inconsistent — the monthly files would still be aggregated from the old hourly data.
+    ``load_curve_monthly`` and ``_sb`` ``load_curve_annual`` are derived from
+    ``_sb`` hourly by the aggregation step. If hourly is re-fetched (and then
+    modified by non-HP approx / MF adj), any existing aggregate outputs that
+    are NOT being regenerated would become inconsistent.
 
-    This check fires when all of the following are true:
+    Note: having ``load_curve_monthly`` in ``--file-types`` does NOT help —
+    that clones raw NREL monthly into ``_sb``, which still disagrees with
+    modified ``_sb`` hourly. The only fix is enabling the aggregation flag.
 
-    - ``load_curve_hourly`` is in ``file_types`` (hourly will be overwritten)
-    - ``load_curve_monthly`` is NOT in ``file_types`` (raw monthly not being re-fetched)
-    - ``add_monthly_loads`` is False (pipeline will not regenerate monthly from hourly)
-    - Existing ``load_curve_monthly`` parquet files are found in the _sb release for
-      at least one (state, upgrade) combination in the current request
+    Fires when:
 
-    The fix is to either pass ``--add-monthly-loads True`` (recommended — regenerates
-    monthly from the freshly modified _sb hourly) or add ``load_curve_monthly`` to
-    ``--file-types`` so raw monthly files are re-fetched alongside hourly.
+    - ``load_curve_hourly`` is in ``file_types`` (hourly will be refreshed)
+    - Existing monthly or annual parquets are found for a requested
+      (state, upgrade) whose corresponding aggregation flag is NOT enabled
     """
     if "load_curve_hourly" not in file_types:
         return
-    if "load_curve_monthly" in file_types:
-        return
-    if add_monthly_loads:
+
+    checks: list[str] = []
+    if not add_monthly_loads:
+        checks.append("load_curve_monthly")
+    if not add_annual_loads:
+        checks.append("load_curve_annual")
+
+    if not checks:
         return
 
     stale: list[str] = []
     for s in state:
         for uid in upgrade_ids:
             upgrade_id_padded = uid.zfill(2)
-            monthly_dir = (
-                path_sb
-                / "load_curve_monthly"
-                / f"state={s}"
-                / f"upgrade={upgrade_id_padded}"
-            )
-            if monthly_dir.is_dir():
-                existing = list(monthly_dir.glob("*.parquet"))
-                if existing:
-                    stale.append(
-                        f"  load_curve_monthly/state={s}/upgrade={upgrade_id_padded}:"
-                        f" {len(existing):,} file(s) at {monthly_dir}"
-                    )
+            for file_type in checks:
+                out_dir = (
+                    path_sb / file_type / f"state={s}" / f"upgrade={upgrade_id_padded}"
+                )
+                if out_dir.is_dir():
+                    existing = list(out_dir.glob("*.parquet"))
+                    if existing:
+                        stale.append(
+                            f"  {file_type}/state={s}/upgrade={upgrade_id_padded}:"
+                            f" {len(existing):,} file(s) at {out_dir}"
+                        )
 
     if not stale:
         return
 
     stale_list = "\n".join(stale)
     raise RuntimeError(
-        f"Stale load_curve_monthly conflict detected.\n"
+        f"Stale aggregate load curve conflict detected.\n"
         f"\n"
-        f"You requested load_curve_hourly without updating load_curve_monthly. "
-        f"The following existing monthly files in the _sb release were built from the "
-        f"current hourly data and would become inconsistent with the new hourly files:\n"
+        f"You requested load_curve_hourly without regenerating all existing "
+        f"aggregate outputs. The following files in the _sb release would become "
+        f"inconsistent with the new hourly files:\n"
         f"\n"
         f"{stale_list}\n"
         f"\n"
-        f"Monthly files in the _sb release are derived directly from _sb hourly files "
-        f"and must be kept in sync. Resubmit with ONE of the following:\n"
+        f"Monthly and annual files in the _sb release are derived from modified "
+        f"_sb hourly and must be kept in sync. Enable the corresponding "
+        f"aggregation flags:\n"
         f"\n"
-        f"  Option 1 (recommended): enable --add-monthly-loads True so the pipeline "
-        f"regenerates monthly files from the freshly modified _sb hourly data:\n"
-        f"      --add-monthly-loads True\n"
-        f"\n"
-        f"  Option 2: add load_curve_monthly to --file-types so monthly files are "
-        f"re-fetched from the raw NREL release alongside hourly:\n"
-        f"      --file-types ... load_curve_hourly load_curve_monthly ...\n"
+        f"    --add-monthly-loads True --add-annual-loads True\n"
     )

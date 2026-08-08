@@ -262,13 +262,26 @@ adjust-mf-electricity state input_release output_release upgrade_ids:
 
 # Aggregate _sb hourly load curves into monthly for a state.
 add-monthly-loads state upgrade_ids:
-    uv run python "{{ path_local_repo }}/data/resstock/load_curve/add_monthly_loads.py" \
+    uv run python "{{ path_local_repo }}/data/resstock/load_curve/aggregate_loads.py" \
         --path-input "{{ path_local_parquet }}/{{ resstock_release_sb }}" \
         --path-output "{{ path_local_parquet }}/{{ resstock_release_sb }}" \
         --state "{{ state }}" \
         --upgrade-ids "{{ upgrade_ids }}" \
         --bsf-release "{{ resstock_release }}" \
-        --workers 50
+        --workers 50 \
+        --add-monthly
+
+# Aggregate _sb hourly load curves into annual for a state.
+add-annual-loads state upgrade_ids:
+    uv run python "{{ path_local_repo }}/data/resstock/load_curve/aggregate_loads.py" \
+        --path-input "{{ path_local_parquet }}/{{ resstock_release_sb }}" \
+        --path-output "{{ path_local_parquet }}/{{ resstock_release_sb }}" \
+        --path-annual-raw "{{ path_local_parquet }}/{{ resstock_release }}" \
+        --state "{{ state }}" \
+        --upgrade-ids "{{ upgrade_ids }}" \
+        --bsf-release "{{ resstock_release }}" \
+        --workers 50 \
+        --add-annual
 
 # Upload monthly load curves for a state to S3.
 upload-monthly-loads state upgrade_ids:

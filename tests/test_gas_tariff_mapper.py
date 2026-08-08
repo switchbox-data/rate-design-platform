@@ -8,7 +8,11 @@ import polars as pl
 import pytest
 
 from utils.pre.fetch_gas_tariffs_rateacuity import load_config
-from utils.pre.gas_tariff_mapper import EXCLUDED_GAS_UTILITIES, map_gas_tariff
+from utils.pre.gas_tariff_mapper import (
+    EXCLUDED_GAS_UTILITIES,
+    _default_path_load_curve_annual,
+    map_gas_tariff,
+)
 
 
 def test_excluded_gas_utilities_compiled_from_state_configs():
@@ -492,6 +496,37 @@ def test_load_annual_gas_therms_converts_kwh(tmp_path: Path):
     df = cast(pl.DataFrame, load_annual_gas_therms(path).collect())
     assert abs(df.filter(pl.col("bldg_id") == 1)["annual_gas_therms"][0] - 150.0) < 1e-9
     assert abs(df.filter(pl.col("bldg_id") == 2)["annual_gas_therms"][0] - 300.0) < 1e-9
+
+
+def test_default_annual_load_path_uses_sb_release(tmp_path: Path) -> None:
+    """The default annual loads come from the same _sb release as metadata."""
+    release_sb = tmp_path / "res_2024_amy2018_2_sb"
+    annual_dir = release_sb / "load_curve_annual" / "state=MD" / "upgrade=02"
+    annual_dir.mkdir(parents=True)
+
+    result = _default_path_load_curve_annual(release_sb / "metadata", "MD", "02")
+
+    assert result == annual_dir
+
+
+def test_default_annual_load_path_does_not_fall_back_to_raw(
+    tmp_path: Path,
+) -> None:
+    """Missing _sb annual loads must not silently use stale raw annual loads."""
+    release_sb = tmp_path / "res_2024_amy2018_2_sb"
+    (release_sb / "metadata").mkdir(parents=True)
+    raw_annual_dir = (
+        tmp_path
+        / "res_2024_amy2018_2"
+        / "load_curve_annual"
+        / "state=MD"
+        / "upgrade=02"
+    )
+    raw_annual_dir.mkdir(parents=True)
+
+    result = _default_path_load_curve_annual(release_sb / "metadata", "MD", "02")
+
+    assert result is None
 
 
 def _md_metadata(

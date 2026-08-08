@@ -41,12 +41,11 @@ from data.resstock.constants import (
     HEATING_TYPE_COLS,
     HP_CUSTOMERS_COLS,
     NATGAS_CONNECTION_COLS,
-    SB_EXCLUDED_FILE_TYPES,
+    SB_CLONE_EXCLUDED_FILE_TYPES,
     VULNERABILITY_COLS,
 )
 from data.resstock.nrel.copy_resstock_data import clone_release
-from data.resstock.load_curve.add_monthly_loads import (
-    load_aggregation_rules,
+from data.resstock.load_curve.aggregate_loads import (
     process_upgrade,
 )
 from data.resstock.load_curve.adjust_mf_electricity import (
@@ -91,7 +90,7 @@ from data.resstock.validations import (
     validate_metadata_columns,
     validate_metadata_output,
     validate_metadata_readable,
-    validate_no_stale_monthly_loads,
+    validate_no_stale_aggregate_loads,
     validate_s3_objects,
     validate_utility_assignment_args,
 )
@@ -490,37 +489,52 @@ def _assign_utility(
         gc.collect()
 
 
-def _add_monthly_loads(
+def _add_aggregate_loads(
     *,
     states: list[str],
     path_sb: Path,
+    path_raw: Path,
     upgrade_ids: list[str],
     release: str,
     s3_base_sb: str,
     sample: int,
     workers: int,
+    add_monthly: bool,
+    add_annual: bool,
 ) -> list[str]:
-    """Aggregate _sb hourly load curves into monthly load curves and upload them.
+    """Aggregate _sb hourly load curves into requested time resolutions and upload.
 
-    Reads per-building hourly parquets from ``path_sb/load_curve_hourly/`` and
-    writes one monthly parquet per building to ``path_sb/load_curve_monthly/``.
-    Aggregation rules (sum vs mean vs first) come from bsf's column-aggregation
-    CSV for ``release`` (the raw release name, not the _sb variant).
+    Reads each hourly parquet once per building in a ThreadPoolExecutor, then
+    conditionally performs:
+    - Monthly aggregation (when *add_monthly* is True): writes one monthly
+      parquet per building.
+    - Annual aggregation (when *add_annual* is True): accumulates one row per
+      building, then writes one consolidated annual parquet per upgrade (joined
+      to raw NREL annual params from ``path_raw``).
 
-    After each state is processed, the ``load_curve_monthly/state=<s>/``
-    directory is synced to S3 via ``aws s3 sync``.
+    Aggregation rules come from bsf's column-aggregation CSV for ``release``.
+    After each state is processed, the output directories are synced to S3.
 
-    When ``--sample > 0`` only N hourly files exist locally.  The aggregation
-    proceeds on whatever files are present and N monthly files are written.
-    This is expected behaviour for development/testing; run without ``--sample``
-    for production.
-
-    Returns the list of (state, upgrade) pairs that were actually processed,
-    in ``"state=<s> upgrade=<uid>"`` format, for manifest recording.
+    Returns the list of (state, upgrade) pairs processed, as
+    ``"state=<s> upgrade=<uid>"``, for manifest recording.
     """
+    from data.resstock.load_curve.aggregate_loads import (
+        is_annual_metric_column,
+        load_bsf_aggregation_map,
+    )
+
+    outputs_label = " + ".join(
+        name
+        for name, flag in [("monthly", add_monthly), ("annual", add_annual)]
+        if flag
+    )
     print(f"  Loading bsf aggregation rules for release '{release}'...", flush=True)
-    agg_rules = load_aggregation_rules(release)
-    print(f"    {len(agg_rules)} column rules loaded.", flush=True)
+    rules = load_bsf_aggregation_map(release)
+    annual_n = sum(1 for c in rules if is_annual_metric_column(c))
+    print(
+        f"    {len(rules)} column rules loaded ({annual_n} used for annual subset).",
+        flush=True,
+    )
 
     processed: list[str] = []
 
@@ -528,8 +542,8 @@ def _add_monthly_loads(
         if sample > 0:
             print(
                 f"  NOTE: --sample active for state={s}. "
-                f"Monthly load curves will be generated only for the sampled buildings. "
-                f"Run without --sample for production.",
+                f"Aggregated load curves will be generated only for the sampled "
+                f"buildings. Run without --sample for production.",
                 flush=True,
             )
 
@@ -554,7 +568,7 @@ def _add_monthly_loads(
                 continue
 
             print(
-                f"  Aggregating {n_files:,} hourly files → monthly for {loc}...",
+                f"  Aggregating {n_files:,} hourly files → {outputs_label} for {loc}...",
                 flush=True,
             )
             process_upgrade(
@@ -562,39 +576,45 @@ def _add_monthly_loads(
                 path_output=path_sb,
                 state=s,
                 upgrade=uid,
-                agg_rules=agg_rules,
+                rules=rules,
                 workers=workers,
+                add_monthly=add_monthly,
+                add_annual=add_annual,
+                path_annual_raw=path_raw if add_annual else None,
             )
             processed.append(loc)
 
-        # Upload the full load_curve_monthly/state=<s>/ tree for this state once
-        # all upgrades are done.
-        monthly_state_dir = path_sb / "load_curve_monthly" / f"state={s}"
-        if monthly_state_dir.exists():
-            n_monthly = sum(1 for _ in monthly_state_dir.rglob("*") if _.is_file())
-            s3_dest = f"{s3_base_sb.rstrip('/')}/load_curve_monthly/state={s}/"
-            print(
-                f"  Uploading load_curve_monthly/state={s} "
-                f"({n_monthly:,} files) → {s3_dest}",
-                flush=True,
-            )
-            upload_rc = subprocess.run(
-                ["aws", "s3", "sync", str(monthly_state_dir), s3_dest, "--quiet"],
-                check=False,
-            ).returncode
-            if upload_rc != 0:
-                raise RuntimeError(
-                    f"aws s3 sync failed (exit {upload_rc}): "
-                    f"load_curve_monthly/state={s}/ → {s3_dest}"
+        file_types_to_upload: list[str] = []
+        if add_monthly:
+            file_types_to_upload.append("load_curve_monthly")
+        if add_annual:
+            file_types_to_upload.append("load_curve_annual")
+
+        for file_type in file_types_to_upload:
+            state_dir = path_sb / file_type / f"state={s}"
+            if state_dir.exists():
+                n_out = sum(1 for _ in state_dir.rglob("*") if _.is_file())
+                s3_dest = f"{s3_base_sb.rstrip('/')}/{file_type}/state={s}/"
+                print(
+                    f"  Uploading {file_type}/state={s} ({n_out:,} files) → {s3_dest}",
+                    flush=True,
                 )
-            else:
+                upload_rc = subprocess.run(
+                    ["aws", "s3", "sync", str(state_dir), s3_dest, "--quiet"],
+                    check=False,
+                ).returncode
+                if upload_rc != 0:
+                    raise RuntimeError(
+                        f"aws s3 sync failed (exit {upload_rc}): "
+                        f"{file_type}/state={s}/ → {s3_dest}"
+                    )
                 print("    Done.", flush=True)
-        else:
-            print(
-                f"  WARNING: No monthly output directory found for state={s} — "
-                f"nothing to upload.",
-                flush=True,
-            )
+            else:
+                print(
+                    f"  WARNING: No {file_type} output directory for state={s} — "
+                    f"nothing to upload.",
+                    flush=True,
+                )
 
     return processed
 
@@ -833,7 +853,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=True,
         metavar="BOOL",
         help=(
-            "Aggregate _sb hourly load curves into monthly load curves and upload to S3 "
+            "Aggregate _sb hourly load curves into monthly load curves "
+            "(default: True). Only runs when load_curve_hourly is in --file-types."
+        ),
+    )
+    parser.add_argument(
+        "--add-annual-loads",
+        type=parse_bool,
+        default=True,
+        metavar="BOOL",
+        help=(
+            "Aggregate _sb hourly load curves into annual load curves "
             "(default: True). Only runs when load_curve_hourly is in --file-types."
         ),
     )
@@ -874,11 +904,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     ## Other misc values
     parser.add_argument(
-        "--monthly-workers",
+        "--aggregation-workers",
         type=int,
         default=50,
         metavar="N",
-        help="Number of parallel workers for monthly aggregation (default: 50).",
+        help="Number of parallel workers for load curve aggregation (default: 50).",
     )
     return parser.parse_args(argv)
 
@@ -900,7 +930,9 @@ def main(argv: list[str] | None = None) -> None:
     s3_base_sb = f"{args.path_s3_dir.rstrip('/')}/{release_sb}"
 
     # File types that will actually appear in _sb (excludes raw-only types).
-    sb_file_types = [ft for ft in args.file_types if ft not in SB_EXCLUDED_FILE_TYPES]
+    sb_file_types = [
+        ft for ft in args.file_types if ft not in SB_CLONE_EXCLUDED_FILE_TYPES
+    ]
 
     # ── Manifest: start a run record ──────────────────────────────────────────
     # Ensure _sb directory and manifest exist before any I/O so that even a
@@ -927,7 +959,8 @@ def main(argv: list[str] | None = None) -> None:
             "adjust_mf_electricity": args.adjust_mf_electricity,
             "assign_utility": args.assign_utility,
             "add_monthly_loads": args.add_monthly_loads,
-            "monthly_workers": args.monthly_workers,
+            "add_annual_loads": args.add_annual_loads,
+            "aggregation_workers": args.aggregation_workers,
             "sample": args.sample,
         },
     )
@@ -957,14 +990,16 @@ def main(argv: list[str] | None = None) -> None:
             mf_adj_upgrades=_MF_ADJ_UPGRADES,
             assign_utility=args.assign_utility,
             add_monthly_loads=args.add_monthly_loads,
+            add_annual_loads=args.add_annual_loads,
         )
         if run_warnings:
             run["warnings"] = run_warnings
-        validate_no_stale_monthly_loads(
+        validate_no_stale_aggregate_loads(
             state=args.state,
             upgrade_ids=args.upgrade_ids,
             file_types=args.file_types,
             add_monthly_loads=args.add_monthly_loads,
+            add_annual_loads=args.add_annual_loads,
             path_sb=path_sb,
         )
         validate_utility_assignment_args(
@@ -1163,25 +1198,39 @@ def main(argv: list[str] | None = None) -> None:
             upsert_run(path_sb, run)
             gc.collect()
 
-        # ── 2d. Add monthly load curves ────────────────────────────────────────
-        if args.add_monthly_loads and "load_curve_hourly" in args.file_types:
-            print("Adding monthly load curves...", flush=True)
+        # ── 2d. Aggregate load curves (monthly / annual) ────────────────────
+        _wants_aggregation = (
+            args.add_monthly_loads or args.add_annual_loads
+        ) and "load_curve_hourly" in args.file_types
+        if _wants_aggregation:
+            agg_label = " + ".join(
+                name
+                for name, flag in [
+                    ("monthly", args.add_monthly_loads),
+                    ("annual", args.add_annual_loads),
+                ]
+                if flag
+            )
+            print(f"Aggregating load curves ({agg_label})...", flush=True)
             try:
-                processed_monthly = _add_monthly_loads(
+                processed_agg = _add_aggregate_loads(
                     states=args.state,
                     path_sb=path_sb,
+                    path_raw=path_raw,
                     upgrade_ids=args.upgrade_ids,
                     release=release,
                     s3_base_sb=s3_base_sb,
                     sample=args.sample,
-                    workers=args.monthly_workers,
+                    workers=args.aggregation_workers,
+                    add_monthly=args.add_monthly_loads,
+                    add_annual=args.add_annual_loads,
                 )
-                record_step(run, "add_monthly_loads", processed=processed_monthly)
+                record_step(run, "add_aggregate_loads", processed=processed_agg)
                 upsert_run(path_sb, run)
                 upload_manifest(path_sb, s3_base_sb)
             except Exception as exc:
                 run.setdefault("warnings", []).append(
-                    f"add_monthly_loads S3 upload failed: {exc}"
+                    f"add_aggregate_loads failed: {exc}"
                 )
                 upsert_run(path_sb, run)
                 try:
