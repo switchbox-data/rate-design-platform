@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import polars as pl
+import pytest
 
 from data.resstock.load_curve.aggregate_loads import (
     aggregate_hourly_df_to_annual_row,
@@ -14,6 +15,7 @@ from data.resstock.load_curve.aggregate_loads import (
     is_annual_metric_column,
     join_aggregated_energy_to_annual,
     monthly_aggregation_exprs,
+    process_upgrade,
     select_annual_params_weight_upgrade,
     write_consolidated_annual,
 )
@@ -201,6 +203,103 @@ def test_write_consolidated_annual(tmp_path: Path) -> None:
     by_id = {r["bldg_id"]: r for r in result.to_dicts()}
     assert by_id[1]["out.electricity.heating.energy_consumption.kwh"] == 100.0
     assert by_id[2]["out.load.heating.energy_delivered.kbtu"] == 75.0
+
+
+def test_process_upgrade_raises_when_input_dir_missing(tmp_path: Path) -> None:
+    """Missing hourly input must fail loudly rather than silently no-op."""
+    with pytest.raises(FileNotFoundError, match="does not exist"):
+        process_upgrade(
+            path_input=tmp_path / "sb",
+            path_output=tmp_path / "sb",
+            state="CT",
+            upgrade="00",
+            rules={"bldg_id": "first"},
+            workers=1,
+            add_monthly=True,
+            add_annual=False,
+        )
+
+
+def test_process_upgrade_raises_when_no_hourly_files(tmp_path: Path) -> None:
+    """Empty hourly input dir must fail loudly rather than silently no-op."""
+    hourly_dir = tmp_path / "sb" / "load_curve_hourly" / "state=CT" / "upgrade=00"
+    hourly_dir.mkdir(parents=True)
+
+    with pytest.raises(FileNotFoundError, match="No hourly parquet files found"):
+        process_upgrade(
+            path_input=tmp_path / "sb",
+            path_output=tmp_path / "sb",
+            state="CT",
+            upgrade="00",
+            rules={"bldg_id": "first"},
+            workers=1,
+            add_monthly=True,
+            add_annual=False,
+        )
+
+
+def test_process_upgrade_raises_when_all_buildings_fail(tmp_path: Path) -> None:
+    """All-invalid hourly input must fail so aws sync cannot upload stale annual data."""
+    hourly_dir = tmp_path / "sb" / "load_curve_hourly" / "state=CT" / "upgrade=00"
+    hourly_dir.mkdir(parents=True)
+    # Invalid parquet → per-building error → no annual frames accumulated.
+    (hourly_dir / "1-0.parquet").write_text("not a parquet")
+
+    raw_dir = tmp_path / "raw" / "load_curve_annual" / "state=CT" / "upgrade=00"
+    raw_dir.mkdir(parents=True)
+    pl.DataFrame({"bldg_id": [1], "upgrade": [0], "weight": [1.0]}).write_parquet(
+        raw_dir / "annual.parquet"
+    )
+
+    with pytest.raises(RuntimeError, match="1 of 1 hourly files failed to aggregate"):
+        process_upgrade(
+            path_input=tmp_path / "sb",
+            path_output=tmp_path / "sb",
+            state="CT",
+            upgrade="00",
+            rules={
+                "out.electricity.heating.energy_consumption": "sum",
+                "bldg_id": "first",
+            },
+            workers=1,
+            add_monthly=False,
+            add_annual=True,
+            path_annual_raw=tmp_path / "raw",
+        )
+
+
+def test_process_upgrade_raises_on_partial_building_failure(tmp_path: Path) -> None:
+    """One bad building among many good ones must still fail, not write partial output.
+
+    This is the dangerous case: without this check, the run would "succeed"
+    with a non-empty annual/monthly output that silently drops the failed
+    building, and a caller's aws sync would upload it as if it were complete.
+    """
+    hourly_dir = tmp_path / "sb" / "load_curve_hourly" / "state=CT" / "upgrade=00"
+    hourly_dir.mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "bldg_id": [1],
+            "out.electricity.heating.energy_consumption": [10.0],
+        }
+    ).write_parquet(hourly_dir / "1-0.parquet")
+    (hourly_dir / "2-0.parquet").write_text("not a parquet")
+
+    with pytest.raises(RuntimeError, match="1 of 2 hourly files failed to aggregate"):
+        process_upgrade(
+            path_input=tmp_path / "sb",
+            path_output=tmp_path / "sb",
+            state="CT",
+            upgrade="00",
+            rules={
+                "out.electricity.heating.energy_consumption": "sum",
+                "bldg_id": "first",
+            },
+            workers=1,
+            add_monthly=False,
+            add_annual=True,
+            path_annual_raw=tmp_path / "raw",
+        )
 
 
 def test_join_left_keeps_energy_when_params_missing() -> None:

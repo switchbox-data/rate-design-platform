@@ -344,6 +344,14 @@ def process_upgrade(
     - Writes monthly aggregation (when *add_monthly* is True)
     - Accumulates annual rows and writes a consolidated annual parquet
       (when *add_annual* is True; requires *path_annual_raw*)
+
+    Raises rather than silently skipping or writing partial output whenever
+    that could leave a caller's ``aws s3 sync`` uploading missing, stale, or
+    incomplete monthly/annual data: missing/empty *input_dir*, any per-building
+    processing failure, or (when *add_annual*) zero successfully aggregated
+    annual rows. Callers that want to legitimately skip a (state, upgrade)
+    with no hourly data (e.g. an upgrade not applicable to a state) must check
+    for that themselves before calling, as ``main.py`` does.
     """
     if not add_monthly and not add_annual:
         raise ValueError("At least one of add_monthly or add_annual must be True")
@@ -353,15 +361,22 @@ def process_upgrade(
     input_dir = path_input / f"load_curve_hourly/state={state}/upgrade={upgrade}"
     monthly_dir = path_output / f"load_curve_monthly/state={state}/upgrade={upgrade}"
 
+    # Fail hard rather than silently skip: a soft skip here would return without
+    # writing anything, leaving any pre-existing monthly/annual output in place
+    # for aws sync to silently re-upload as if it were current.
     if not input_dir.exists():
-        print(f"  Input directory does not exist, skipping: {input_dir}")
-        return
+        raise FileNotFoundError(
+            f"Hourly input directory does not exist: {input_dir} "
+            f"(state={state} upgrade={upgrade})."
+        )
 
     files = sorted(input_dir.glob("*.parquet"))
     n_files = len(files)
     if n_files == 0:
-        print(f"  No parquet files found in {input_dir}")
-        return
+        raise FileNotFoundError(
+            f"No hourly parquet files found in {input_dir} "
+            f"(state={state} upgrade={upgrade})."
+        )
 
     monthly_exprs = monthly_aggregation_exprs(rules) if add_monthly else None
 
@@ -385,6 +400,7 @@ def process_upgrade(
     annual_frames: list[pl.DataFrame] = []
     done = 0
     errors = 0
+    error_messages: list[str] = []
 
     def _process(src: Path) -> pl.DataFrame | str | None:
         try:
@@ -406,6 +422,7 @@ def process_upgrade(
             done += 1
             if isinstance(result, str):
                 errors += 1
+                error_messages.append(result)
                 print(f"  ERROR {result}")
             elif isinstance(result, pl.DataFrame):
                 annual_frames.append(result)
@@ -416,15 +433,34 @@ def process_upgrade(
                     f"  {done:,}/{n_files:,} ({rate:.0f} files/s, {elapsed:.1f}s elapsed)"
                 )
 
+    if errors:
+        # Fail hard rather than write/sync partial output: a monthly or annual
+        # file that silently drops the failed buildings would look complete but
+        # isn't, and aws sync would happily upload it.
+        shown = "\n".join(f"  {m}" for m in error_messages[:20])
+        more = f"\n  ... and {errors - 20} more" if errors > 20 else ""
+        raise RuntimeError(
+            f"{errors:,} of {n_files:,} hourly files failed to aggregate for "
+            f"state={state} upgrade={upgrade}. Refusing to write/sync partial "
+            f"monthly/annual output.\n{shown}{more}"
+        )
+
     if add_annual:
         assert path_annual_raw is not None
+        # Fail hard: a soft skip would leave any pre-existing annual parquet in
+        # place, and the caller's aws s3 sync would silently re-upload stale data.
+        if not annual_frames:
+            raise RuntimeError(
+                f"add_annual=True but no annual rows were produced for "
+                f"state={state} upgrade={upgrade} "
+                f"(processed={done}, errors={errors}). Refusing to continue so "
+                f"aws sync cannot upload stale load_curve_annual data."
+            )
         out_path = write_consolidated_annual(
             annual_frames, path_annual_raw, path_output, state, upgrade
         )
-        if out_path is not None:
-            print(f"  Wrote annual: {out_path} ({len(annual_frames):,} buildings)")
-        else:
-            print(f"  WARNING: no annual rows to write for upgrade={upgrade}")
+        assert out_path is not None
+        print(f"  Wrote annual: {out_path} ({len(annual_frames):,} buildings)")
 
     elapsed = time.time() - t0
     print(f"  Done: {done:,} files in {elapsed:.1f}s ({errors} errors)")
