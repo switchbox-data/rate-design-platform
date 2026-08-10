@@ -458,6 +458,8 @@ UTILITIES: list[UtilityRecord] = [
         # Electric HIFLD: CITY OF NORWICH - (CT); gas HIFLD: NORWICH PUB UTILITIES
         "hifld_names": ["CITY OF NORWICH - (CT)", "NORWICH PUB UTILITIES"],
         "eia_utility_ids": [13831],
+        "gas_tariff_key": "norwich_muni",
+        "rate_acuity_utility_names": ["Norwich Public Utilities"],
     },
     # Electric-only municipals
     {
@@ -516,14 +518,16 @@ UTILITIES: list[UtilityRecord] = [
         "hifld_names": ["TOWN OF WALLINGFORD - (CT)"],
         "eia_utility_ids": [20038],
     },
-    # Gas-only utilities (Eversource CT gas brands)
+    # Gas-only utilities (Eversource / Avangrid CT gas brands)
     {
         "std_name": "ct_natural_gas",
         "state": "CT",
         "fuels": ["gas"],
-        "display_name": "Connecticut Natural Gas (Eversource)",
+        "display_name": "Connecticut Natural Gas (Avangrid)",
         # Note: HIFLD has a typo — "CONNETICUT" (missing 'c')
         "hifld_names": ["CONNETICUT NATURAL GAS CORP"],
+        "gas_tariff_key": "ct_natural_gas",
+        "rate_acuity_utility_names": ["Connecticut Natural Gas"],
     },
     {
         "std_name": "yankee_gas",
@@ -531,6 +535,8 @@ UTILITIES: list[UtilityRecord] = [
         "fuels": ["gas"],
         "display_name": "Yankee Gas (Eversource)",
         "hifld_names": ["YANKEE GAS SERVICE CO."],
+        "gas_tariff_key": "yankee_gas",
+        "rate_acuity_utility_names": ["Yankee Gas Services (Eversource)"],
     },
     {
         "std_name": "southern_ct_gas",
@@ -538,6 +544,8 @@ UTILITIES: list[UtilityRecord] = [
         "fuels": ["gas"],
         "display_name": "Southern Connecticut Gas (Avangrid)",
         "hifld_names": ["SOUTHERN CONNECTICUT GAS"],
+        "gas_tariff_key": "southern_ct_gas",
+        "rate_acuity_utility_names": ["Southern Connecticut Gas"],
     },
     # ── Rhode Island ──────────────────────────────────────────────────────────
     {
