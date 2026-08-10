@@ -229,6 +229,37 @@ below for the one real gap in the output.
 
 ## Known limitation: demand charges silently dropped for MF tariffs
 
+**What these "demand charges" are (and why only the MF class has them).** This is
+not a naming artifact of the unit string — the utilities themselves call it a
+**Demand Charge** on the filed rate sheet. It is a **peak-capacity charge**, not
+a volumetric (per-Ccf-used) charge. It bills on the customer's _billing demand_
+— their peak-day gas draw — rather than total gas consumed, and it recovers the
+cost of sizing the distribution system (and, for the "Sales Services Demand
+Charge", the LNG/supply assets) to serve that peak. From Eversource's Rate 03
+(Residential Multi-Dwelling) summary:
+
+> Rate 03 customers have a Demand Charge on their bill which takes into account
+> individual customer peak demands – or what is required by Yankee Gas dba
+> Eversource Energy's distribution system to serve them. In addition, the
+> customer is billed a demand based rate called the Sales Services Demand Charge
+> … which recovers gas supply-related costs associated with … [the] Liquefied
+> Natural Gas ("LNG") facility.
+
+Source: [Summary of Residential Gas Rates (CT), Eversource](https://www.eversource.com/content/docs/default-source/rates-tariffs/ct-gas/ct-residential-gas-rates.pdf?sfvrsn=7281e8d4_9).
+CNG/SCG express the same thing as `Demand Charge/MDQ` (MDQ = Maximum Daily
+Quantity, the max daily volume the company agrees to deliver); see the
+[CNG rate schedule](https://www.cngcorp.com/documents/d/cng/cng_2025_rateschedule_rev-10-28-25).
+
+Only the multi-dwelling class (Rate 03 / RMDS, 6+ units on a single meter) has
+it: the ≤5-unit residential classes (Rate 01/02, RSG/RSH) bill on volume plus a
+flat customer charge, whereas one master meter serving 6+ units can place a large
+peak-day load on the distribution system, so those costs are recovered through a
+demand charge instead of being folded into a higher volumetric `$/Ccf` rate. The
+related MF-only riders we also drop — **SER** (System Expansion Reconciliation),
+**DIMP** (Distribution Integrity Management Program), and the **Sales/Transportation
+Services Demand Charge** — are likewise billed per unit of billing demand / MDQ,
+not per Ccf used.
+
 The fetch script logs `WARNING: Validation: {...}` for rows it can't parse.
 These aren't cosmetic — `tariff_fetch`'s `HistoryData.rows()` (the method that
 actually builds the URDB JSON) silently drops any row that fails validation
