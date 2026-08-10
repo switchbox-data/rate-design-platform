@@ -88,3 +88,17 @@ create-dist-mc-data year_arg *extra_args:
       --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \
       --n-hours {{ upstream_hours }} \
       {{ extra_args }}
+
+# =============================================================================
+# CT-only: gas tariff fetch
+#
+# Fetches URDB v7 JSONs for all CT gas LDCs (CNG, Yankee, SCG, Norwich muni)
+# from RateAcuity per rateacuity_tariffs.yaml. See
+# context/code/data/ct_tariff_fetch.md for scope, schedule coverage, and
+# evidence. Ticket scope is fetch only — null_gas_tariff.json must still be
+# copied in manually and ensure-gas-tariff-envelope run afterward.
+# =============================================================================
+
+# just -f ct/Justfile fetch-gas-tariffs
+fetch-gas-tariffs:
+    uv run python {{ path_repo }}/utils/pre/fetch_gas_tariffs_rateacuity.py "{{ path_rateacuity_yaml }}" "{{ path_tariffs_gas }}"

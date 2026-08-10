@@ -198,25 +198,106 @@ unit buildings → `norwich_muni_mf`.
    directory has the CAIRO URDB wrapper shape.
 
 ```bash
-# From rate_design/hp_rates/ (after adding a CT fetch-gas-tariffs recipe, or):
-uv run python utils/pre/fetch_gas_tariffs_rateacuity.py \
-  rate_design/hp_rates/ct/config/tariffs/gas/rateacuity_tariffs.yaml \
-  rate_design/hp_rates/ct/config/tariffs/gas
+# From rate_design/hp_rates/:
+just -f ct/Justfile fetch-gas-tariffs
+# or via dispatch: just s ct fetch-gas-tariffs
 
 # Copy null_gas_tariff.json from another state (e.g. RI or MD), then:
 just s ct ensure-gas-tariff-envelope
 # or: just -f ct/Justfile ensure-gas-tariff-envelope  (if env already loaded)
 ```
 
-Requires `RATEACUITY_USERNAME` and `RATEACUITY_PASSWORD`. Writes one
-`{tariff_key}.json` + `.csv` per schedule row above. `utils/utility_codes.py`
-must include `gas_tariff_key` and `rate_acuity_utility_names` for each shortcode
-(set for `ct_natural_gas`, `yankee_gas`, `southern_ct_gas`, `norwich_muni`).
+Requires `RATEACUITY_USERNAME` and `RATEACUITY_PASSWORD` (already set in the
+repo-root `.env`, loaded automatically by the fetch script via `dotenv`).
+Writes one `{tariff_key}.json` + `.csv` per schedule row above.
+`utils/utility_codes.py` must include `gas_tariff_key` and
+`rate_acuity_utility_names` for each shortcode (set for `ct_natural_gas`,
+`yankee_gas`, `southern_ct_gas`, `norwich_muni`).
+
+**Fetch run:** completed successfully — wrote all 11 tariff files. See
+[Known limitation: demand charges](#known-limitation-demand-charges-silently-dropped-for-mf-tariffs)
+below for the one real gap in the output.
 
 ### Out of scope for this ticket
 
 - CT `gas_tariff_mapper.py` branches / `EXPECTED_GAS_UTILITIES`
 - `create-gas-tariff-maps-all` / tariff-map CSVs
 - `validate-config` against assigned `sb.gas_utility` values
-- Adding a CT `fetch-gas-tariffs` Justfile recipe (nice-to-have wiring; not
-  required if the fetch script is invoked directly as above)
+- Fixing the demand-charge gap below (library/engine work, not a fetch step)
+
+---
+
+## Known limitation: demand charges silently dropped for MF tariffs
+
+The fetch script logs `WARNING: Validation: {...}` for rows it can't parse.
+These aren't cosmetic — `tariff_fetch`'s `HistoryData.rows()` (the method that
+actually builds the URDB JSON) silently drops any row that fails validation
+(`contextlib.suppress(RowValidationError)` in
+`tariff_fetch/urdb/rateacuity_history_gas/history_data.py`). Verified directly
+against the written JSONs (not just the log) — four files are affected:
+
+| File                        | Rows silently dropped                                                              | Real charge?                                                                                                                                                           |
+| --------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ct_natural_gas_mf.json`    | Demand charge, SER charge, DIMP                                                    | Yes — filed, substantial                                                                                                                                               |
+| `yankee_gas_mf.json`        | Demand charge, system expansion reconciliation, sales services demand charge, DIMP | Yes — filed, substantial (confirmed verbatim against the Eversource rate summary: e.g. "Demand Charge (per Ccf of billing demand): $0.7107")                           |
+| `southern_ct_gas_mf.json`   | Demand charge, DIMP, system expansion reconciliation                               | Yes — filed, substantial                                                                                                                                               |
+| `norwich_muni_general.json` | One "demand added" row                                                             | No — `min_psig: 123456`, `max_psig: 32165`, `charge_type: 'charge type'` are nonsensical placeholder values, not a real filed field. RateAcuity data-quality artifact. |
+
+**Root cause:** `tariff_fetch`'s `RateDeterminant` enum
+(`tariff_fetch/urdb/rateacuity_history_gas/types.py`) only recognizes `per ccf`,
+`per therm`, `per month(*)`, and `percent`. It has no case for demand-based
+determinants like `"per ccf of maximum daily demand"` (CNG/SCG) or `"per
+billing demand ccf"` (Yankee), so those rows fail Pydantic validation and get
+dropped before ever reaching the URDB output.
+
+**Not a pre-existing, accepted gap — genuinely new territory.** Checked every
+other state:
+
+- RI: no multi-dwelling/demand-metered gas class fetched at all.
+- MD: no multi-dwelling gas class fetched either (all single residential
+  schedules).
+- NY: does fetch MF gas classes (`kedli_mf`, `kedny_mf`), but their raw
+  RateAcuity data only contains `percent`/`per month`/`per therm` — those
+  tariffs simply don't bill via demand charges.
+
+CT's IOU RMDS/Rate-03 tariffs are the first demand-metered gas class this
+pipeline has ever fetched, so there's no established pattern of intentionally
+excluding gas demand charges — they've just never come up before.
+
+**Why we're not patching them in manually.** Checked CAIRO's URDB parser
+(`cairo/rates_tool/tariffs.py`, `try_get_demand_structure`): it hardcodes a
+unit check —
+
+```python
+if "unit" in entry.keys():
+    if entry["unit"].lower() != "kW".lower():
+        raise RuntimeError(
+            "UtilityRateDatabase error: unrecognized unit in rate structure"
+        )
+```
+
+CAIRO bills gas the same way as electricity, through PySAM's `UtilityRate5`
+engine (there is no separate gas code path in `customer_bill_calculation.py` or
+`tariffs.py` — it's why volumetric gas charges are already stored as
+`unit: "kWh"` in `energyratestructure`). A manually-added gas demand charge
+would have to be either:
+
+1. Labeled with a real unit (e.g. `"Ccf"`) → hits the check above → CAIRO
+   raises `RuntimeError` and the run fails.
+2. Labeled `"kW"` (or given no `unit` key) without actually converting "Ccf of
+   maximum daily demand" into a kW-equivalent magnitude → CAIRO runs fine and
+   silently computes a wrong bill component — worse than dropping the charge.
+
+Correctly supporting this would require `tariff_fetch` to convert the gas
+demand determinant into a kWh/day-equivalent capacity value (analogous to the
+existing `KWH_PER_THERM` conversion for volumetric charges) before CAIRO ever
+sees it — real library/engine work, out of scope for a fetch-only ticket.
+
+**Disposition:** demand charges omitted from all four affected tariffs (same
+treatment as Norwich's junk row, but for a different reason — these are real
+filed charges we can't safely represent yet, not artifacts). `_mf` tariffs for
+CNG, Yankee, and SCG currently understate multi-dwelling building bills by the
+value of their (dropped) demand charge. Follow-up work needed before these
+tariffs are used for any analysis sensitive to MF-building bill accuracy:
+extend `tariff_fetch`'s rate-determinant handling for gas demand charges, with
+a kWh/day-equivalent conversion, then re-fetch.
