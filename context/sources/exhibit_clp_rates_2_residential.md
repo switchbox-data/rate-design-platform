@@ -4,7 +4,7 @@
 **Docket**: Connecticut PURA Docket No. 26-05-10 — Application of The Connecticut Light and Power Company d/b/a Eversource Energy to Amend Its Rate Schedules
 **Exhibit**: CLP-RATES-2 (Rate Design and Revenue), sub-exhibits CLP-RATES-2.1, 2.3, 2.4, 2.13
 
-**Extraction method**: Read directly via `openpyxl` (`data_only=True`, i.e. cached calculated values, not formulas). This is a **scoped extract**: the full workbook covers all rate classes (Rate 1 through Rate 119, EV classes, street lighting) across 14 sub-exhibits (`CLP-RATES-2.1` through `2.14`); only the tabs and rows relevant to the **residential classes** (Rate 1 — Residential Electric Service, Rate 5 — Residential Electric Heating, Rate 7 — Residential Time-of-Day) and the Maximum Residential Customer Charge (MRCC, `Exhibit CLP-RATES-2.13`) were transcribed. Rate 6 (new Optional Residential Space Heating rate) has no workpaper in `CLP-RATES-2.4` because it is a new rate with no current-rate billing history; its tariff structure is captured separately in `exhibit_clp_rates_3_residential_tariffs.md`. Dollar figures below are in `$(000)'s` unless noted; per-unit rates are `$` (customer charge) or `$/kWh`.
+**Extraction method**: Read directly via `openpyxl` (`data_only=True`, i.e. cached calculated values, not formulas) from `dev/Exhibit CLP-RATES-2.xlsx` (the PDF at `dev/Exhibit CLP-RATES-2.pdf` is the same workbook printed to PDF). This is a **scoped extract**: the full workbook covers all rate classes (Rate 1 through Rate 119, EV classes, street lighting) across 14 sub-exhibits (`CLP-RATES-2.1` through `2.14`); only the tabs and rows relevant to the **residential classes** (Rate 1 — Residential Electric Service, Rate 5 — Residential Electric Heating, Rate 7 — Residential Time-of-Day) and the Maximum Residential Customer Charge (MRCC, `Exhibit CLP-RATES-2.13`) were transcribed, plus the residential rows of `Exhibit CLP-RATES-2.10` (Schedule E-2.1). Rate 6 (new Optional Residential Space Heating rate) has no workpaper in `CLP-RATES-2.4` because it is a new rate with no current-rate billing history; its tariff structure is captured separately in `exhibit_clp_rates_3_residential_tariffs.md`. Dollar figures below are in `$(000)'s` unless noted; per-unit rates are `$` (customer charge) or `$/kWh`.
 
 ---
 
@@ -31,7 +31,39 @@ Each rate has 3 tabs: (1) Billing Determinants Workpaper, (2) Test Year Ending 2
 
 ### 2a. Rate 1 — Residential Electric Service (tabs `Exh 2.4, R1 1–3 of 75`)
 
-**Billing determinants** (Rate Year): Average # Bills Rendered = `1,076,695.40`; Billed Sales = `8,716,958.14` MWh; Primary Metering Credit = `12.70` MWh; Total Sales = `8,716,970.84` MWh.
+**Billing determinants** (tab 1, `Page 1 of 75`):
+
+| Determinant                   | Sample       | Actual        | Weather Adj. | Normalized (TY) | Rate Year     |
+| ----------------------------- | ------------ | ------------- | ------------ | --------------- | ------------- |
+| Average # Bills Rendered      | 999,650.92   | 1,046,314.60  | —            | 1,046,314.60    | 1,076,695.40  |
+| Billing Months (annual bills) | 11,995,811   | 12,555,775.20 | —            | 12,555,775.20   | 12,920,344.76 |
+| Billed Sales (MWh)            | 8,063,979.64 | 8,460,121.48  | −19,338.47   | 8,440,783.01    | 8,716,958.14  |
+| Primary Metering Credit (MWh) | 15.54        | 12.30         | 0            | 12.30           | 12.70         |
+| Total Sales (MWh)             | 8,063,995.18 | 8,460,133.78  | −19,338.47   | 8,440,795.31    | 8,716,970.84  |
+
+Normalized TY Average # Bills = Actual (no weather adjustment on bills). Normalized TY Total Sales = Billed Sales + Primary Metering Credit. `Exh 2.10` uses **Total Sales**; volumetric Distribution revenue in this workpaper is computed on **Billed Sales** (`0.05844 × 8,440,783.01 = 493,279.36` in `$000`).
+
+**Test Year Ending 2025 current vs. proposed rate build** (tab 2, `Page 2 of 75`) — Normalized columns:
+
+| Price block                       | Units (Normalized)  | Current Rate `$` | Current Rev (`$000`) | Proposed Rate `$` | Proposed Rev (`$000`) | GET Adj. (6.8%) Rate `$` | GET Rev (`$000`) |
+| --------------------------------- | ------------------- | ---------------- | -------------------- | ----------------- | --------------------- | ------------------------ | ---------------- |
+| Customer Charge                   | 12,555,775.20 bills | 9.62             | 120,786.56           | 11.52             | 144,642.53            | 0.8405                   | 10,553.32        |
+| Distribution (per kWh)            | 8,440,783.01 MWh    | 0.05844          | 493,279.36           | 0.11367           | 959,463.80            | 0.00829                  | 70,003.80        |
+| Electric System Improvements      | "                   | 0.02031          | 171,432.30           | 0                 | 0                     | —                        | —                |
+| Revenue Decoupling Mechanism      | "                   | 0.00011          | 928.49               | 0                 | 0                     | —                        | —                |
+| Transmission                      | "                   | 0.0505           | 426,260.14           | 0.0505            | 426,260.14            | —                        | —                |
+| Conservation Adjustment Mech.     | "                   | 0.006            | 50,644.70            | 0.006             | 50,644.70             | —                        | —                |
+| Renewable Energy                  | "                   | 0.001            | 8,440.78             | 0.001             | 8,440.78              | —                        | —                |
+| Systems Benefits Charge           | "                   | −0.00196         | −16,543.93           | −0.00196          | −16,543.93            | —                        | —                |
+| Competitive Transition Assessment | "                   | 0.00496          | 41,866.34            | 0.00496           | 41,866.34             | —                        | —                |
+| FMCC-Delivery                     | "                   | −0.01911         | −161,303.36          | −0.01911          | −161,303.36           | —                        | —                |
+| FMCC-Generation                   | "                   | −0.0015          | −12,661.17           | −0.0015           | −12,661.17            | —                        | —                |
+| Generation Services               | "                   | 0.12791          | 1,079,662.25         | 0.12791           | 1,079,662.25          | —                        | —                |
+| **Total (Normalized)**            |                     |                  | **2,202,789.70**     |                   | **2,520,469.01**      |                          | **80,556.35**    |
+
+**By functional category, Test Year (Normalized Current)**: Distribution = `614,065.52` (`$000`) = Customer Charge `120,786.56` + Distribution energy `493,279.36` (within workbook rounding of the functional rollup). This Distribution functional total is the Rate 1 **base delivery** revenue at current rates — the natural input for Track 2 `delivery_revenue_requirement_from_rate_case` when using Genability's current `$9.62` / `$0.05844` rates. Proposed Distribution functional (pre-GET) = `1,104,105.62` (`$000`).
+
+**Billing determinants** (Rate Year, for cross-check with earlier extract): Average # Bills Rendered = `1,076,695.40`; Billed Sales = `8,716,958.14` MWh; Primary Metering Credit = `12.70` MWh; Total Sales = `8,716,970.84` MWh.
 
 **Rate Year current vs. proposed rate build** (tab 3, `Page 3 of 75`):
 
@@ -153,6 +185,38 @@ Footnotes on this tab: (a) Number of Customers used for this calculation = `1,05
 
 ---
 
+## 4. Exhibit CLP-RATES-2.10 — Test Year and Rate Year Revenues at Current Rates (Schedule E-2.1)
+
+Cover tab: `Cover Exh 2.10`. Body tabs: `Exh 2.10, 1 of 2` (Test Year Ending 2025) and `Exh 2.10, 2 of 2` (Rate Year Ending 6/30/2028). Columns: Average Number of Customer Bills Rendered; Weather Normalized / RY Forecasted Sales (MWh); Average Current Rates (¢/kWh); Base Revenue (`$000`); Fuel Adjustment Revenue (`$000`); Total Revenue (`$000`). Data reference for each rate points back to the matching `Exh 2.4` pages.
+
+**Important for Track 2:** Total Revenue here is **all-in** (distribution + transmission + public benefits + supply) at current rates — **not** the base delivery RR. Use `Exh 2.4` Test Year Distribution functional revenue for `delivery_revenue_requirement_from_rate_case`. The Bills / Sales columns below are the right sources for `test_year_customer_count` and `test_year_residential_kwh`.
+
+"Average Number of Customer Bills Rendered" is an **average monthly** bill count (matches `Exh 2.4` "Average # Bills Rendered"), not annual bills. Annual bills = this figure × 12 (see Billing Months on `Exh 2.4` tab 1).
+
+### 4a. Page 1 — Test Year Ending 2025 Revenues at Current Rates (residential rows)
+
+| Rate | Schedule/Description                 | Avg # Customer Bills Rendered | Weather Normalized Sales (MWh) | Avg Current Rate (¢/kWh) | Base Revenue (`$000`) | Fuel Adj. (`$000`) | Total Revenue (`$000`) | Data Reference                        |
+| ---- | ------------------------------------ | ----------------------------- | ------------------------------ | ------------------------ | --------------------- | ------------------ | ---------------------- | ------------------------------------- |
+| 1    | Residential - Regular                | 1,046,314.60                  | 8,440,795.31                   | 26.0969                  | 2,202,789.70          | 0                  | 2,202,789.70           | Exhibit CLP-RATES-2.4, Page 1–3 of 75 |
+| 5    | Residential - Electric Heat Regular  | 135,073.20                    | 1,593,009.92                   | 24.6935                  | 393,370.30            | 0                  | 393,370.30             | Exhibit CLP-RATES-2.4, Page 4–6 of 75 |
+| 7    | Residential - Time-Of-Day            | 731.30                        | 8,854.21                       | 24.9704                  | 2,210.93              | 0                  | 2,210.93               | Exhibit CLP-RATES-2.4, Page 7–9 of 75 |
+| —    | **Company-wide Total (all classes)** | **1,309,474.37**              | **20,245,506.39**              | **22.1548**              | **4,485,342.77**      | **0**              | **4,485,342.77**       | —                                     |
+
+Sales on this schedule are **Total Sales** (Billed + Primary Metering Credit). Rate 1 billed-only sales = `8,440,783.01` MWh (`Exh 2.4`); the `12.30` MWh primary-metering difference is immaterial for most scaling uses (~0.00015%).
+
+### 4b. Page 2 — Rate Year Ending 6/30/2028 Revenues at Current Rates (residential rows)
+
+| Rate | Schedule/Description                 | Avg # Customer Bills Rendered | RY Forecasted Sales (MWh) | Avg Current Rate (¢/kWh) | Base Revenue (`$000`) | Fuel Adj. (`$000`) | Total Revenue (`$000`) |
+| ---- | ------------------------------------ | ----------------------------- | ------------------------- | ------------------------ | --------------------- | ------------------ | ---------------------- |
+| 1    | Residential - Regular                | 1,076,695.40                  | 8,716,970.84              | 26.0919                  | 2,274,421.44          | 0                  | 2,274,421.44           |
+| 5    | Residential - Electric Heat Regular  | 135,073.20[^r5bills]          | 1,593,009.92              | 24.6935                  | 393,370.33            | 0                  | 393,370.33             |
+| 7    | Residential - Time-Of-Day            | 752.35                        | 9,126.89                  | 24.9694                  | 2,278.93              | 0                  | 2,278.93               |
+| —    | **Company-wide Total (all classes)** | **1,194,733.19**              | **20,485,893.58**         | **22.2646**              | **4,561,099.95**      | **0**              | **4,561,099.95**       |
+
+[^r5bills]: The xlsx cell for Rate 5 "Avg # Customer Bills Rendered" on page 2 is corrupted (contains the string `EXHIBIT CLP-RATES-2.10` instead of a number). Value shown is taken from `Exh 2.4, R5` billing determinants / page 1 of Exh 2.10 (Rate 5 bills are unchanged TY→RY at `135,073.20`).
+
+---
+
 ## Notes on scope
 
-This is a **residential-only** extract. Not transcribed here (available in the source workbook if needed): `Exh 2.2` (current vs. proposed rate comparison, all classes), `Exh 2.4` for all other rate classes (5 non-residential + EV classes + street lighting + Rate 119), `Exh 2.5` (typical bills, 23 tabs), `Exh 2.6` (Last Resort typical bills), `Exh 2.7` (street lighting), `Exh 2.8` (Rate 7 TOD calculations — note: this may contain the actual on/off-peak period definitions and could be worth pulling if TOU period boundaries are needed), `Exh 2.9`–`2.12` (test year actual revenue, current/proposed rate revenue schedules E-2.1/E-2.0, decoupling targets), `Exh 2.13` pages 2–19 (MRCC backup detail), `Exh 2.14` (pole attachment).
+This is a **residential-only** extract. Not transcribed here (available in the source workbook if needed): `Exh 2.2` (current vs. proposed rate comparison, all classes), `Exh 2.4` for all other rate classes (5 non-residential + EV classes + street lighting + Rate 119), `Exh 2.5` (typical bills, 23 tabs), `Exh 2.6` (Last Resort typical bills), `Exh 2.7` (street lighting), `Exh 2.8` (Rate 7 TOD calculations — note: this may contain the actual on/off-peak period definitions and could be worth pulling if TOU period boundaries are needed), `Exh 2.9` / `2.11` / `2.12` (test year actual revenue, proposed-rate revenue schedule E-2.0, decoupling targets), non-residential rows of `Exh 2.10`, `Exh 2.13` pages 2–19 (MRCC backup detail), `Exh 2.14` (pole attachment).
