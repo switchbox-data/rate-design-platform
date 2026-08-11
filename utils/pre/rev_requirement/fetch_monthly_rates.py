@@ -397,6 +397,50 @@ def _discover_rider_rates(
 # ---------------------------------------------------------------------------
 
 
+def _collapse_redundant_bands(entries: list[dict]) -> None:
+    """Collapse duplicate rate bands when a charge has no real tier structure.
+
+    Genability sometimes models a flat-within-season charge as multi-band with
+    repeated identical amounts (e.g. CT Rate 1 Generation Service: 5 bands at
+    the same $/kWh with alternating null/800 upper limits). Emitting those as
+    tiers produces a malformed tier list (an unlimited tier before a bounded
+    one) even though the charge is flat within each season.
+
+    Only collapses when *no* entry in the group varies rate across its bands.
+    A single entry with genuinely differing bands (e.g. ConEd's summer
+    250 kWh boundary) proves the tier structure is real, so the whole group is
+    left untouched -- including sibling entries whose rates happen to be equal
+    across tiers (ConEd's winter rate is the same above and below 250 kWh).
+
+    Mutates entries in-place, and keeps a one-band ``band_monthly_rates`` so
+    ``_determine_rate_structure`` still classifies the group as seasonal.
+    """
+    multi_band = [e for e in entries if len(e.get("band_monthly_rates") or []) > 1]
+    if not multi_band:
+        return
+
+    def _bands_are_uniform(entry: dict) -> bool:
+        bands = entry["band_monthly_rates"]
+        first = bands[0].get("monthly_rates", {})
+        return all(b.get("monthly_rates", {}) == first for b in bands[1:])
+
+    if not all(_bands_are_uniform(e) for e in multi_band):
+        return
+
+    for e in multi_band:
+        bands = e["band_monthly_rates"]
+        log.warning(
+            "Collapsing %d duplicate rate bands for %r (master_charge %r) — all "
+            "bands carry identical rates, so this is not a real tier structure.",
+            len(bands),
+            e.get("rate_name", "?"),
+            e.get("master_charge", "?"),
+        )
+        e["band_monthly_rates"] = [
+            {"upper_limit": None, "monthly_rates": bands[0].get("monthly_rates", {})}
+        ]
+
+
 def _determine_rate_structure(
     entries: list[dict],
 ) -> str:
@@ -410,8 +454,14 @@ def _determine_rate_structure(
     if has_tou:
         return "seasonal_tou"
     has_season = any(e.get("season_meta") for e in entries)
-    has_tiers = any(e.get("band_monthly_rates") for e in entries)
-    if has_season and has_tiers:
+    # Only a surviving multi-band entry counts as a real tier structure.
+    # _collapse_redundant_bands must run first: it reduces duplicate-band
+    # charges (CT Rate 1 generation) to one band while leaving genuine tier
+    # structures (ConEd's 250 kWh boundary) untouched. A seasonal charge with
+    # no real tiers is expressed as flat month-keyed rates instead -- see
+    # _build_flat_charge's season resolution.
+    has_real_tiers = any(len(e.get("band_monthly_rates") or []) > 1 for e in entries)
+    if has_season and has_real_tiers:
         return "seasonal_tiered"
     return "flat"
 
@@ -466,12 +516,48 @@ def _tou_label(entry: dict) -> str:
     return ""
 
 
+def _sum_monthly_rates(
+    existing: dict[str, float], incoming: dict[str, float]
+) -> dict[str, float]:
+    """Sum two monthly-rate dicts month-by-month."""
+    merged = dict(existing)
+    for mo, val in incoming.items():
+        merged[mo] = merged.get(mo, 0.0) + val
+    return merged
+
+
+def _season_contains_month(season_meta: dict, month: int) -> bool:
+    """Whether a season's month window covers the given 1-indexed month.
+
+    Handles windows that wrap the year end (e.g. winter Oct-May).
+    """
+    from_month = season_meta.get("from_month")
+    to_month = season_meta.get("to_month")
+    if from_month is None or to_month is None:
+        return True
+    if from_month <= to_month:
+        return from_month <= month <= to_month
+    return month >= from_month or month <= to_month
+
+
 def _build_flat_charge(entries: list[dict]) -> dict:
     """Build a flat charge entry (single monthly_rates dict).
 
     If multiple entries share the same master_charge, they are additive
     (e.g. two components of the same conceptual charge). Sum them per
     month and warn when more than one entry contributes.
+
+    When the entries span **different seasons**, they are not additive across
+    seasons -- they are alternatives that each apply in their own months. The
+    API returns a rate for every queried month regardless of whether that
+    month is in the rate's season, so blindly summing would double-count
+    (e.g. CT Rate 1 generation: a Jan-Jun rate and a Jul-Dec rate both
+    resolve in all 12 months). Each month therefore takes only the entries
+    whose season window covers it; entries with no season apply in all
+    months. Because monthly_rates is already keyed by month, this preserves
+    the seasonal shape without needing a seasonal rate_structure -- the
+    downstream tariff builder re-derives period boundaries from the monthly
+    series.
     """
     base = entries[0]
     if len(entries) == 1:
@@ -479,16 +565,38 @@ def _build_flat_charge(entries: list[dict]) -> dict:
             "charge_unit": base["charge_unit"],
             "monthly_rates": base["monthly_rates"],
         }
+
+    distinct_seasons = {_season_label(e) for e in entries if e.get("season_meta")}
+    if len(distinct_seasons) > 1:
+        log.warning(
+            "Flat merge: %d entries for master_charge %r span seasons %s — "
+            "selecting per month by season window, summing within each month.",
+            len(entries),
+            base.get("master_charge", "?"),
+            sorted(distinct_seasons),
+        )
+        all_months = sorted({mo for e in entries for mo in e["monthly_rates"]})
+        merged: dict[str, float] = {}
+        for month_key in all_months:
+            month_num = int(month_key.split("-")[1])
+            for e in entries:
+                season_meta = e.get("season_meta")
+                if season_meta and not _season_contains_month(season_meta, month_num):
+                    continue
+                val = e["monthly_rates"].get(month_key)
+                if val is not None:
+                    merged[month_key] = merged.get(month_key, 0.0) + val
+        return {"charge_unit": base["charge_unit"], "monthly_rates": merged}
+
     log.warning(
         "Flat merge: %d entries for master_charge %r — summing per month. "
         "If these should NOT be additive, give them different master_charges.",
         len(entries),
         base.get("master_charge", "?"),
     )
-    merged: dict[str, float] = {}
+    merged = {}
     for e in entries:
-        for mo, val in e["monthly_rates"].items():
-            merged[mo] = merged.get(mo, 0.0) + val
+        merged = _sum_monthly_rates(merged, e["monthly_rates"])
     return {"charge_unit": base["charge_unit"], "monthly_rates": merged}
 
 
@@ -496,12 +604,31 @@ def _build_seasonal_tiered_charge(entries: list[dict]) -> dict:
     """Build a seasonal-tiered charge entry.
 
     Entries are grouped by season; each has band_monthly_rates with
-    per-tier monthly rates.  Output shape:
+    per-tier monthly rates.  When multiple entries map to the same
+    season slot (e.g. GSC + FMCC both tagged "winter"), their rates
+    are summed month-by-month — consistent with the flat-merge rule
+    that same master_charge = additive.
+
+    Output shape:
         tiers: [{upper_limit_kwh, monthly_rates: {season: {month: rate}}}]
     """
     base = entries[0]
     bmr = base.get("band_monthly_rates") or []
     num_bands = max(len(e.get("band_monthly_rates") or []) for e in entries)
+
+    # Detect whether multiple entries land in the same season (additive case)
+    season_counts: dict[str, int] = {}
+    for e in entries:
+        s = _season_label(e) or "all"
+        season_counts[s] = season_counts.get(s, 0) + 1
+    has_collision = any(c > 1 for c in season_counts.values())
+    if has_collision:
+        log.warning(
+            "Seasonal-tiered merge: %d entries for master_charge %r share a "
+            "season slot — summing per month (same rule as flat merge).",
+            len(entries),
+            base.get("master_charge", "?"),
+        )
 
     tiers: list[dict] = []
     for band_idx in range(num_bands):
@@ -513,28 +640,85 @@ def _build_seasonal_tiered_charge(entries: list[dict]) -> dict:
             season = _season_label(e) or "all"
             ebmr = e.get("band_monthly_rates") or []
             if band_idx < len(ebmr):
-                per_season[season] = ebmr[band_idx]["monthly_rates"]
+                rates = ebmr[band_idx]["monthly_rates"]
             else:
-                per_season[season] = e["monthly_rates"]
+                rates = e["monthly_rates"]
+            if season in per_season:
+                per_season[season] = _sum_monthly_rates(per_season[season], rates)
+            else:
+                per_season[season] = dict(rates)
         tiers.append({"upper_limit_kwh": upper, "monthly_rates": per_season})
 
     return {"charge_unit": base["charge_unit"], "tiers": tiers}
+
+
+def _tou_slot_label(entry: dict) -> str:
+    """Return the '{season}_{tou}' slot label for an entry ('all' if neither)."""
+    season = _season_label(entry) or "all"
+    tou = _tou_label(entry) or "all"
+    return f"{season}_{tou}" if season != "all" or tou != "all" else "all"
 
 
 def _build_seasonal_tou_charge(entries: list[dict]) -> dict:
     """Build a seasonal-TOU charge entry.
 
     Entries represent different season x TOU combinations for the same
-    conceptual charge.  Output shape:
+    conceptual charge. Two merge rules apply, both following from
+    "same master_charge = additive":
+
+    1. Entries landing in the same slot are summed month-by-month (e.g. two
+       components both tagged summer/on-peak).
+    2. Entries with **no** TOU period of their own are broadcast into every
+       TOU slot. A non-TOU component of a TOU charge applies in all hours,
+       so it must be added to each slot rather than emitted as a separate
+       "all" key -- downstream (`_extract_tou_supply_monthly`) would treat a
+       stray "all" inside a per-slot mapping as a phantom TOU slot and drop
+       or mis-apply it. Example: CT Rate 7 splits Generation Service into
+       on/off-peak while the FMCC Generation credit has no TOU split.
+
+    Output shape:
         monthly_rates: {season_tou_label: {month: rate}}
     """
     base = entries[0]
+    tou_entries = [e for e in entries if e.get("tou_meta")]
+    non_tou_entries = [e for e in entries if not e.get("tou_meta")]
+
     per_period: dict[str, dict] = {}
-    for e in entries:
-        season = _season_label(e) or "all"
-        tou = _tou_label(e) or "all"
-        label = f"{season}_{tou}" if season != "all" or tou != "all" else "all"
-        per_period[label] = e["monthly_rates"]
+    for e in tou_entries:
+        label = _tou_slot_label(e)
+        if label in per_period:
+            log.warning(
+                "Seasonal-TOU merge: master_charge %r has multiple entries in "
+                "slot %r — summing per month.",
+                base.get("master_charge", "?"),
+                label,
+            )
+            per_period[label] = _sum_monthly_rates(
+                per_period[label], e["monthly_rates"]
+            )
+        else:
+            per_period[label] = dict(e["monthly_rates"])
+
+    for e in non_tou_entries:
+        if not per_period:
+            # No TOU slots in this group at all; keep a single unsplit series.
+            label = _tou_slot_label(e)
+            per_period[label] = _sum_monthly_rates(
+                per_period.get(label, {}), e["monthly_rates"]
+            )
+            continue
+        log.warning(
+            "Seasonal-TOU merge: %r (master_charge %r) has no TOU period — "
+            "broadcasting it into all %d TOU slot(s).",
+            e.get("rate_name", "?"),
+            base.get("master_charge", "?"),
+            len(per_period),
+        )
+        for label in per_period:
+            per_period[label] = _sum_monthly_rates(
+                per_period[label], e["monthly_rates"]
+            )
+
     return {"charge_unit": base["charge_unit"], "monthly_rates": per_period}
 
 
@@ -573,6 +757,8 @@ def _build_grouped_output(
             continue
 
         all_entries = [e for grp in entry_groups for e in grp]
+        for grp in entry_groups:
+            _collapse_redundant_bands(grp)
         rate_structure = _determine_rate_structure(all_entries)
 
         section: dict = {"rate_structure": rate_structure}
