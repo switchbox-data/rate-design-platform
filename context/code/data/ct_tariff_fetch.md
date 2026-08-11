@@ -53,20 +53,10 @@ Each IOU’s PURA-approved tariff book defines **three** residential classes:
 
 ### Evidence (filed / PURA-approved sources)
 
-**Verification note:** `eversource.com`, `portal.ct.gov`, and
-`norwichpublicutilities.com` load fine for a direct fetch (confirmed live in
-this session). `cngcorp.com` and `soconngas.com` (both Avangrid) time out on
-every direct fetch attempt — the bare domain, not just these deep PDF links —
-which looks like bot/crawler protection on Avangrid's side rather than a dead
-link. If these links don't load in your browser either, that's consistent with
-what we're seeing here, not a problem specific to you. The CNG/SCG quotes below
-are corroborated via search-engine-indexed snippets of the actual filed PDFs
-(verbatim text, consistent across independent hits) rather than a direct fetch
-by us — open them in a normal browser (not an automated tool) if you need to
-inspect the PDFs yourself.
-
-**Yankee Gas (Eversource)** — [Summary of Residential Gas Rates (CT)](https://www.eversource.com/content/docs/default-source/rates-tariffs/ct-gas/ct-residential-gas-rates.pdf?sfvrsn=7281e8d4_9)
-(PURA-approved summary, last updated April 1, 2026; fetched directly):
+**Yankee Gas (Eversource)** —
+[Summary of Residential Gas Rates (CT) (Zotero)](https://www.zotero.org/groups/5319234/switchbox/collections/4GJTUQRF/items/PQV37J4T/attachment/23A9H449/reader)
+(PURA-approved summary; also on
+[eversource.com](https://www.eversource.com/content/docs/default-source/rates-tariffs/ct-gas/ct-residential-gas-rates.pdf?sfvrsn=7281e8d4_9)):
 
 - **01 – Residential Non-Heating Service:** “all single family residential
   dwellings, and multi-family residential dwellings serving five or less units
@@ -77,10 +67,11 @@ inspect the PDFs yourself.
 - **03 – Residential Multi-Dwelling Firm Service:** “property owners of all
   multi-dwellings with six or more units served through a single meter.”
 
-**Connecticut Natural Gas** — CNG 2025 rate brochure and Rate RSG tariff
-([CNG rates](https://www.cngcorp.com/documents/d/cng/cng_2025_rateschedule_rev-10-28-25);
-[Rate RSG PDF](https://www.cngcorp.com/documents/40122/29053211/CNG+01-RSG+%28Residential+Service+General%29+doc.pdf/a3919d4d-91bf-5d5f-646c-b58e23f4ab55?t=1743616748465);
-not directly fetchable, see verification note above):
+**Connecticut Natural Gas** — 2025 rate brochure (three residential rates:
+RSG / RSH / RMDS) and filed Rate RSG tariff
+([CNG Rate RSG — Residential Service General (Zotero)](https://www.zotero.org/groups/5319234/switchbox/collections/4GJTUQRF/items/BXCDI38X/reader);
+brochure also in Zotero as
+[CNG An Avangrid Company 2025 Rate Schedule](https://www.zotero.org/groups/5319234/switchbox/collections/4GJTUQRF/items/YR8QTXQ3/reader)):
 
 - Brochure: “Residential customers have **three** separate rates: RSG … RSH …
   RMDS …”
@@ -92,15 +83,18 @@ not directly fetchable, see verification note above):
   be served under the Company’s Rate RSH.” RMDS is the 6+ single-meter
   multi-dwelling class.
 
-**Southern Connecticut Gas** — [SCG Pricing](https://www.soconngas.com/account/understandyourbill/pricing)
-lists RATE RSG, RATE RSH, and RATE RMDS as distinct residential tariffs
-(not directly fetchable, see verification note above); the
-[Rate RSG PDF](https://www.soconngas.com/documents/40142/28538985/SCG+01-RSG.pdf/703d2714-f840-2a9a-5e09-d74f84d899bb?t=1746539159747)
-mirrors CNG almost verbatim: “Available every day of the year to residential
-Customers for all uses other than space heating where the number of dwelling
-units supplied through one meter is five or less. Residential customers …
-that use natural gas for space heating will be served under the Company’s …
-Rate RSH.” CNG and SCG share the Avangrid rate redesign (PURA Docket 23-11-02).
+**Southern Connecticut Gas** — filed Rate RSG and Rate RSH tariffs
+([SCG Rate RSG — Residential Service General (Zotero)](https://www.zotero.org/groups/5319234/switchbox/collections/4GJTUQRF/items/WCBLJQFG/reader);
+[SCG Rate RSH — Residential Service Heating (Zotero)](https://www.zotero.org/groups/5319234/switchbox/collections/4GJTUQRF/items/AYU63JWP/reader)):
+
+- Rate RSG mirrors CNG almost verbatim: “Available every day of the year to
+  residential Customers for all uses other than space heating where the number
+  of dwelling units supplied through one meter is five or less. Residential
+  customers … that use natural gas for space heating will be served under the
+  Company’s … Rate RSH.”
+- Rate RSH is the ≤5-unit space-heating companion class; RMDS (6+ units, single
+  meter) is the third residential class on SCG’s pricing page. CNG and SCG share
+  the Avangrid rate redesign (PURA Docket 23-11-02).
 
 ### Mapping to ResStock / CAIRO (follow-up; not this ticket)
 
@@ -137,17 +131,31 @@ strings must match the RateAcuity gas-history dropdown.
 | `norwich_muni_general`       | `GRES-RESIDENTIAL---`                                                      |
 | `norwich_muni_mf`            | `GSHRES-RESIDENTIAL SPACE HEATING---`                                      |
 
-### Intentionally not fetched (same residential class, different variant)
+### Intentionally not fetched (kept for reference only)
 
-| Variant                                                      | Why omit                                                                                                                                                                                            |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `*-SE` / System Expansion (on-main / off-main)               | Applies to new service after the SE cutover date; existing ResStock stock is modeled on standard RSG/RSH/RMDS (or 01/02/03). Documented on Eversource Rate 02-SE / 03-SE and CNG/SCG SE brochures.  |
-| Third-party / Operator Gas Supply RMDS (or Rate 03) variants | Competitive supply path; residential single-family sales remain with the LDC under CT deregulation norms ([PURA Gas](https://portal.ct.gov/pura/gas/gas)). Company-supply RMDS/03 covers the class. |
-| Commercial/industrial (SGS, MGS, LGS, Rate 10/20/30, etc.)   | Out of residential scope.                                                                                                                                                                           |
+Not needed for ResStock / CAIRO baseline analysis — existing stock is modeled on
+standard firm residential classes (RSG / RSH / RMDS, or Yankee 01 / 02 / 03). The
+two "SE" labels below are **different products**; do not conflate them.
+
+| Variant                                                                                               | What it is                                                                                                                                                                                                                                                                    | Why omit from fetch / analysis                                                                                                                                             | Source (Zotero)                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Rate SE — Seasonal Gas Service** (CNG; also C/I SE)                                                 | Separate class under "Seasonal and Interruptible Customers," not RSG/RSH/RMDS. **Value-of-service** pricing tied to alternate-fuel prices: winter delivery is a filed `$/Ccf`; summer delivery is **"Market Conditions."** Distinct from year-round firm residential heating. | Not a standard firm residential class; not how ResStock gas-heated homes are modeled.                                                                                      | [CNG An Avangrid Company 2025 Rate Schedule](https://www.zotero.org/groups/5319234/switchbox/collections/4GJTUQRF/items/YR8QTXQ3/reader)                                                                                               |
+| **`*-SE` / System Expansion** (e.g. RSH-SE, RMDS-SE, Yankee 02-SE / 03-SE; often on-main vs off-main) | Higher rates for **new premises** added under the utility's gas system expansion program; customers typically remain on SE rates for **10 years**. Still firm residential heating / multi-dwelling — a surcharge path for expansion customers, not "seasonal" service.        | Applies to post-cutover new connects; existing ResStock buildings map to standard RSG/RSH/RMDS (or 01/02/03).                                                              | [Summary of Residential Gas Rates (CT)](https://www.zotero.org/groups/5319234/switchbox/collections/4GJTUQRF/items/PQV37J4T/attachment/23A9H449/reader) (Yankee/Eversource 02-SE / 03-SE); CNG/SCG SE brochures cover RSH-SE / RMDS-SE |
+| Third-party / Operator Gas Supply RMDS (or Rate 03) variants                                          | Competitive supply path                                                                                                                                                                                                                                                       | Residential single-family sales remain with the LDC under CT deregulation norms ([PURA Gas](https://portal.ct.gov/pura/gas/gas)). Company-supply RMDS/03 covers the class. | —                                                                                                                                                                                                                                      |
+| Commercial/industrial (SGS, MGS, LGS, Rate 10/20/30, etc.)                                            | Non-residential                                                                                                                                                                                                                                                               | Out of residential scope.                                                                                                                                                  | —                                                                                                                                                                                                                                      |
+
+**Note:** Existing firm residential customers still pay a **System Expansion
+Reconciliation (SER)** rider on standard RSG/RSH/RMDS — that is a separate
+volumetric (or MDQ-billed on MF) surcharge recovering expansion costs from the
+broader base, not the System Expansion rate class itself. SER appears in the
+fetched RateAcuity rows; on MF tariffs the MDQ-billed SER rows are among those
+dropped with demand charges (see Known limitation below).
 
 Together, the nine IOU schedules plus Norwich's two are the company-supply
-versions of every residential class published for the four modeled LDCs — so
-every residential customer maps to one of the fetched keys.
+versions of every **standard firm** residential class published for the four
+modeled LDCs — so every modeled residential customer maps to one of the fetched
+keys. Seasonal Rate SE and System Expansion `*-SE` are documented above for
+reference only.
 
 ---
 
