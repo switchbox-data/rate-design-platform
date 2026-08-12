@@ -98,6 +98,7 @@ build/
 !rate_design/hp_rates/ny/config/tariffs/**
 !rate_design/hp_rates/ri/config/tariffs/**
 !rate_design/hp_rates/md/config/tariffs/**
+!rate_design/hp_rates/ct/config/tariffs/**
 !rate_design/hp_rates/ny/config/tariff_maps/**
 !rate_design/hp_rates/ri/config/tariff_maps/**
 !rate_design/hp_rates/md/config/tariff_maps/**
