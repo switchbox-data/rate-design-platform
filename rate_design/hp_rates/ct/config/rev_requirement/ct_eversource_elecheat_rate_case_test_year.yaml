@@ -1,0 +1,28 @@
+# CT Eversource (CL&P) Rate 5 — Residential Electric Heating Service.
+#
+# After seeding, run:
+#   UTILITY=ct_eversource_elecheat just s ct build-rate-case-test-year
+#
+# That script reads this file + monthly_rates, recomputes top-ups / ResStock
+# scaling / totals, and overwrites this same path with the completed YAML.
+# Comments on keys you seed are preserved across re-runs.
+#
+# Source: PURA Docket 26-05-10, Exhibit CLP-RATES-2
+#   - Bills / kWh: Exhibit CLP-RATES-2.10 p.1 (Schedule E-2.1), Rate 5
+#   - Base DRR: Exhibit CLP-RATES-2.4 pp.4–6 of 75 (Rate 5),
+#     Distribution functional category at current rates
+#   - Extract: context/sources/exhibit_clp_rates_2_residential.md
+#
+# Note: Rate 5 billing determinants are unchanged Test Year → Rate Year
+# (footnote in Exh 2.10 p.2; customer count 135,073.2 constant).
+# Rate Year current-rate revenues therefore equal Test Year revenues.
+utility: ct_eversource_elecheat
+# --- Rate 5 base delivery RR at current rates (Customer Charge + Distribution) ---
+# Exh 2.4 R5 Rate Year (= TY), Distribution functional:
+#   Customer Charge: 1,620,878.4 bills × $23.75 = $38,495.86 ($000)
+#   Distribution:    1,593,008.20 MWh × $0.03847/kWh = $61,283.03 ($000)
+#   Total: $99,778.89 ($000)
+delivery_revenue_requirement_from_rate_case: 99778890 # Exh 2.4 R5 Dist. functional ($000 × 1000)
+test_year_residential_kwh: 1593009920 # Exh 2.10 p.1 Rate 5 Total Sales 1,593,009.92 MWh × 1000
+test_year_customer_count: 135073.2 # Exh 2.10 p.1 Rate 5 Avg # Customer Bills Rendered
+test_year_fixed_charge_from_rate_case: 23.75 # $/month — Exh 2.4 R5 Customer Charge current rate

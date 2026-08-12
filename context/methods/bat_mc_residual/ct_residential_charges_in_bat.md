@@ -183,6 +183,10 @@ Reasoning for `add_to_srr`:
 
 ## Eversource Rate 5 / Rate 7 (residential alternative tariffs)
 
+**Current modeling decision: all Eversource CT ResStock buildings are assigned to Rate 1.** Rate 5 (electric heating, closed since 2006) and Rate 7 (TOU) are small rate classes (135k and 731 customers respectively, vs. ~1.05M on Rate 1). For the initial CT BAT runs, all buildings use Rate 1's tariff and revenue requirement. Rate 5/7 seed YAMLs exist (`ct_eversource_elecheat_rate_case_test_year.yaml`, `ct_eversource_tou_rate_case_test_year.yaml`) with testimony values for future use, but the build script's ResStock lookup uses `ct_eversource` — which is the only utility assignment in the CT ResStock data. Splitting buildings by heating fuel to model Rate 5 separately, or offering Rate 7 as an alternative tariff, is future work.
+
+**Known limitation if Rate 7 seed YAML is ever built:** The TOU monthly_rates YAML (`ct_eversource_tou_monthly_rates_2025.yaml`) uses `all_on_peak`/`all_off_peak` sub-keys for transmission and NBFMCC charges, but `build_rate_case_test_year.py`'s `_day_weighted_avg_rate` expects flat `2025-01`, `2025-02`, … month keys. Flat charges (ESI, CAM, RE, CTA) will compute correctly; the TOU-differentiated ones (transmission, NBFMCC) will resolve to `$0` budgets. Running the build script for Rate 7 will require either manual top-up computation or a script enhancement to handle on/off-peak rate structures.
+
 Rate 1 (`ct_eversource`, `masterTariffId` 614) is the residential **default** tariff. Eversource CT also has two other active residential tariffs, discovered under the same Genability LSE (`lse_id` 2250, "Eversource Energy (Formerly Connecticut Light & Power Co)"):
 
 - **Rate 5 — Residential Electric Heating Service** (`ct_eversource_elecheat`, `masterTariffId` 616, Genability `tariff_code` "5"): closed to new applicants since December 21, 2006, but still carries active accounts; requires electric space heat as the primary heating source. See [`exhibit_clp_rates_3_residential_tariffs.md` § Rate 5](../../sources/exhibit_clp_rates_3_residential_tariffs.md).
