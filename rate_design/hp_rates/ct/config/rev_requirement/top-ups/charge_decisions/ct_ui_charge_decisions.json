@@ -217,9 +217,9 @@
     "season": null,
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "add_to_srr",
-    "master_charge": "Renewable Standard Energy Charge",
-    "master_type": "RES supply"
+    "decision": "add_to_drr",
+    "master_charge": "Renewable Energy Investment (Clean Energy Fund)",
+    "master_type": "Program surcharge"
   },
   "20451703": {
     "rate_name": "New England Grid Operator Cost - Summer",
@@ -649,9 +649,9 @@
     },
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "already_in_drr",
-    "master_charge": "Core Delivery Rate",
-    "master_type": "Base delivery"
+    "decision": "add_to_drr",
+    "master_charge": "Transmission Charge",
+    "master_type": "Transmission service"
   },
   "20451712": {
     "rate_name": "Winter Rate",
@@ -697,9 +697,9 @@
     },
     "time_of_use": null,
     "source": "base_tariff",
-    "decision": "already_in_drr",
-    "master_charge": "Core Delivery Rate",
-    "master_type": "Base delivery"
+    "decision": "add_to_drr",
+    "master_charge": "Transmission Charge",
+    "master_type": "Transmission service"
   },
   "20451713": {
     "rate_name": "Basic Service Charge",

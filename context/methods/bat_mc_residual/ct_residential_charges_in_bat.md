@@ -302,8 +302,9 @@ To **finalize every top-up decision** and populate `delivery_rev_requirements_fr
 Eversource: all 16 charges are now decided and encoded (see charge-by-charge notes above), across Rate 1, Rate 5, and Rate 7. Remaining open items are all on the UI side:
 
 1. **UI Energy Assistance Costs:** Confirm `exclude_eligibility` (UI has no in-repo REVREQ or OCC-level SBC breakout to confirm against).
-2. **UI Summer/Winter Transmission:** Confirm not inside base DRR (fix auto-label).
-3. **Residential-class DRR:** Which SFR/class schedules in 26-05-10 (and UI dockets) give Rate 1 / Rate R allocated delivery RR?
+2. **Residential-class DRR:** Which SFR/class schedules in 26-05-10 (and UI dockets) give Rate 1 / Rate R allocated delivery RR?
+
+**⚠️ `ct_ui_charge_decisions.json` is incomplete.** Current CT work focuses on Eversource; UI charge decisions have only a handful of labels filled in (Basic Service Charge, Energy Charge, Energy Efficiency, Renewable Energy, Minimum Charge, Transmission Summer/Winter). The remaining 14 charges — including Generation Charge (supply), Bypassable FMCC, Energy Assistance, Decoupling, Transmission Adjustment, and the entire "Public Benefits" cluster (New England Grid Operator, State Mandated Energy Purchases, Customer Produced Energy, Misc & Other Mandates) — are still `null`. **Do not run `fetch-monthly-rates` or `create-default-structure-tariffs` for `ct_ui` until decisions are complete** — the outputs will be wrong. The one cross-utility fix already applied: Renewable Energy Investment was corrected from `add_to_srr` to `add_to_drr` (same reasoning as Eversource — Green Bank program fund, not a REC obligation).
 
 ---
 
