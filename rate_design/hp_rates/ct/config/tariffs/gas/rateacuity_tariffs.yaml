@@ -1,0 +1,34 @@
+# Rate Acuity gas schedule names by utility shortcode (std_name).
+# Pass this file to fetch_gas_tariffs_rateacuity.py to fetch all CT gas tariffs.
+# Update schedule name values when Rate Acuity names change.
+#
+# Residential coverage (company supply only):
+#   - IOUs (CNG, Yankee, SCG) each have three PURA-approved residential classes:
+#     non-heating (≤5 units), heating (≤5 units), multi-dwelling (6+ units on a
+#     single meter). System-expansion (SE) and third-party/operator supply
+#     variants are omitted for baseline CAIRO runs.
+#   - Norwich Public Utilities (municipal) has two residential classes: GRES
+#     (SF + MF <=5 units, all household uses -- no heating/non-heating split) and
+#     GSHRES (MF 6+ units on a single meter). Included because RateAcuity carries
+#     its tariffs; not excluded. Despite the RateAcuity/filed name "RESIDENTIAL
+#     GAS SPACE HEATING SERVICE", GSHRES's filed availability clause has no
+#     heating-use restriction -- it qualifies purely on unit count (6+, single
+#     meter), so it is keyed `_mf` (multi-dwelling), not `_heating`.
+# See context/code/data/ct_tariff_fetch.md for evidence. Ticket scope is fetch
+# (+ null_gas_tariff + envelope); mapping rules in that doc are follow-up.
+state: CT
+ct_natural_gas:
+  ct_natural_gas_nonheating: "RSG-RESIDENTIAL SERVICE GENERAL---"
+  ct_natural_gas_heating: "RSH-RESIDENTIAL SERVICE HEATING---"
+  ct_natural_gas_mf: "RMDS-RESIDENTIAL MULTI-DWELLING SERVICE-Company Supply Service-5001-"
+yankee_gas:
+  yankee_gas_nonheating: "01-RESIDENTIAL NON-HEATING SERVICE---"
+  yankee_gas_heating: "02-RESIDENTIAL HEATING FIRM SERVICE---"
+  yankee_gas_mf: "03-RESIDENTIAL MULTI-DWELLING FIRM SERVICE-Company Standard Gas Supply--"
+southern_ct_gas:
+  southern_ct_gas_nonheating: "RSG-RESIDENTIAL SERVICE GENERAL---"
+  southern_ct_gas_heating: "RSH-RESIDENTIAL SERVICE HEATING---"
+  southern_ct_gas_mf: "RMDS-RESIDENTIAL MULTI-DWELLING SERVICE-Company Supply Service--"
+norwich_muni:
+  norwich_muni_general: "GRES-RESIDENTIAL---"
+  norwich_muni_mf: "GSHRES-RESIDENTIAL SPACE HEATING---"

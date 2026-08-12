@@ -500,6 +500,8 @@ _STEP_FILE_TYPES: dict[str, frozenset[str]] = {
     "approximate_non_hp_load": frozenset({"load_curve_hourly"}),
     "adjust_mf_electricity": frozenset({"load_curve_hourly"}),
     "add_monthly_loads": frozenset({"load_curve_monthly"}),
+    "add_annual_loads": frozenset({"load_curve_annual"}),
+    "add_aggregate_loads": frozenset({"load_curve_monthly", "load_curve_annual"}),
     "upload_raw": frozenset(),  # does not create new types
     "upload_sb": frozenset(),
 }
@@ -590,17 +592,19 @@ def _expected_file_types(runs: list[dict[str, Any]], *, is_sb: bool) -> set[str]
     **union** across every run that touched this state, not just the latest.
 
     For the raw release: union of ``args.file_types`` over all runs.
-    For the _sb release: the same union minus ``SB_EXCLUDED_FILE_TYPES``, plus
+    For the _sb release: the same union minus ``SB_CLONE_EXCLUDED_FILE_TYPES``, plus
     any types produced by completed steps (``metadata_utility``,
     ``load_curve_monthly``, etc.).
     """
-    from data.resstock.constants import SB_EXCLUDED_FILE_TYPES
+    from data.resstock.constants import SB_CLONE_EXCLUDED_FILE_TYPES
 
     expected: set[str] = set()
     for run in runs:
         base_types = set(run.get("args", {}).get("file_types", []))
         if is_sb:
-            expected |= {ft for ft in base_types if ft not in SB_EXCLUDED_FILE_TYPES}
+            expected |= {
+                ft for ft in base_types if ft not in SB_CLONE_EXCLUDED_FILE_TYPES
+            }
             for step in run.get("steps", []):
                 expected |= set(_STEP_FILE_TYPES.get(step.get("step", ""), frozenset()))
         else:
@@ -612,7 +616,7 @@ def _latest_step_times_by_file_type(
     runs: list[dict[str, Any]], *, is_sb: bool
 ) -> dict[str, datetime]:
     """Map each file type to the newest step ``completed_at`` across all runs."""
-    from data.resstock.constants import SB_EXCLUDED_FILE_TYPES
+    from data.resstock.constants import SB_CLONE_EXCLUDED_FILE_TYPES
 
     times: dict[str, datetime] = {}
 
@@ -620,7 +624,9 @@ def _latest_step_times_by_file_type(
         args = run.get("args", {})
         base_types = set(args.get("file_types", []))
         if is_sb:
-            base_types = {ft for ft in base_types if ft not in SB_EXCLUDED_FILE_TYPES}
+            base_types = {
+                ft for ft in base_types if ft not in SB_CLONE_EXCLUDED_FILE_TYPES
+            }
 
         for step in run.get("steps", []):
             name = step.get("step", "")
@@ -686,7 +692,7 @@ def check_integrity(
     1. **Expected file types** are the **union** across *all* matching
        manifest runs (not just the latest).  Pipeline runs are additive: a
        later run that only fetches load curves does not erase metadata from
-       an earlier run.  For ``_sb``, ``SB_EXCLUDED_FILE_TYPES`` are dropped
+       an earlier run.  For ``_sb``, ``SB_CLONE_EXCLUDED_FILE_TYPES`` are dropped
        and step-produced types (``metadata_utility``, ``load_curve_monthly``)
        are included.
     2. **Actual file types** are the top-level directories under the release that

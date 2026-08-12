@@ -364,13 +364,7 @@ def _parse_utility_revenue_requirement(
             residual_allocation_supply=residual_allocation_supply,
         )
 
-    customer_count_override: float | None = None
-    if "test_year_customer_count" in rr_data:
-        customer_count_override = float(rr_data["test_year_customer_count"])
-
-    kwh_scale_factor: float | None = None
-    if "resstock_kwh_scale_factor" in rr_data:
-        kwh_scale_factor = float(rr_data["resstock_kwh_scale_factor"])
+    overrides = _parse_resstock_overrides(rr_data)
 
     return RevenueRequirementConfig(
         rr_total=rr_total,
@@ -378,9 +372,45 @@ def _parse_utility_revenue_requirement(
         run_includes_subclasses=run_includes_subclasses,
         residual_allocation_delivery=residual_allocation_delivery,
         residual_allocation_supply=residual_allocation_supply,
-        customer_count_override=customer_count_override,
-        kwh_scale_factor=kwh_scale_factor,
+        customer_count_override=overrides.customer_count_override,
+        kwh_scale_factor=overrides.kwh_scale_factor,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class ResstockOverrides:
+    """Optional Track-2 (RI/MD) testimony-scaling fields from a RR YAML.
+
+    Both fields are None for Track 1 (NY): CAIRO falls back to the EIA-861
+    customer count and applies no kWh scaling. See
+    ``utils/pre/rev_requirement/README.md`` for the two-track distinction.
+    """
+
+    customer_count_override: float | None = None
+    kwh_scale_factor: float | None = None
+
+
+def _parse_resstock_overrides(rr_data: dict[str, Any]) -> ResstockOverrides:
+    """Read optional test_year_customer_count / resstock_kwh_scale_factor.
+
+    Shared by ``_parse_utility_revenue_requirement`` (CAIRO run config) and
+    the subclass-RR mid-step (Just CLI in ``utils/mid/compute_subclass_rr.py``
+    and the Prefect pipeline in ``rate_design/hp_rates/run_pipeline.py``), so
+    the two Track-2 field names are defined and parsed in exactly one place.
+    """
+    customer_count_override: float | None = None
+    if "test_year_customer_count" in rr_data:
+        customer_count_override = _parse_float(
+            rr_data["test_year_customer_count"], "test_year_customer_count"
+        )
+
+    kwh_scale_factor: float | None = None
+    if "resstock_kwh_scale_factor" in rr_data:
+        kwh_scale_factor = _parse_float(
+            rr_data["resstock_kwh_scale_factor"], "resstock_kwh_scale_factor"
+        )
+
+    return ResstockOverrides(customer_count_override, kwh_scale_factor)
 
 
 # Tariff parsing

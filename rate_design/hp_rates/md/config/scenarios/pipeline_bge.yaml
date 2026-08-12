@@ -1,0 +1,47 @@
+state: md
+utility: bge
+year: 2025
+output_base: /data.sb/switchbox/cairo/outputs/hp_rates
+solar_pv_compensation: net_metering
+process_workers: 8
+max_concurrent_cairo_runs: 2
+# true overlaps each stage's delivery + supply runs (each gets half the workers);
+# only enable with headroom for two concurrent CAIRO processes
+concurrent_variants: false
+# sample_size: 200  # optional, limits buildings for smoke testing
+
+resstock:
+  base: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb
+  upgrade_precalc: "00"
+  upgrade_calibrated: "02"
+marginal_costs:
+  dist_and_sub_tx: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/utility=bge/year=2025/data.parquet
+  bulk_tx: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/utility=bge/year=2025/data.parquet
+  supply_energy: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/data.parquet
+  supply_capacity: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/data.parquet
+  # supply_ancillary omitted:
+revenue_requirement:
+  single_rate: rev_requirement/bge_rate_case_test_year.yaml
+  single_rate_calibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
+  # multi_rate: DERIVED from utility + subgroup aliases (e.g. bge_hp_vs_nonhp.yaml)
+  multi_rate_calibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
+scenarios:
+  default:
+    quartet: single_rate
+    tariff_base: default
+  hp_seasonal_percustomer_passthrough:
+    quartet: multi_rate_collapsed
+    depends_on: default
+    promote: hp
+    residual_allocation:
+      delivery: percustomer
+      supply: passthrough
+    subclass_config:
+      group_col: has_hp
+      subgroups:
+        hp:
+          values: ["true"]
+          structure: seasonal
+        non-hp:
+          values: ["false"]
+          structure: base

@@ -30,6 +30,7 @@ from utils.pre.season_config import (
     get_utility_periods_yaml_path,
     load_winter_months_from_periods,
 )
+from utils.scenario_config import _parse_resstock_overrides
 
 # CAIRO output column names
 BLDG_ID_COL = "bldg_id"
@@ -1249,10 +1250,9 @@ def main() -> None:
         total_delivery_and_supply_rr = float(
             base_rr_data["total_delivery_and_supply_revenue_requirement"]
         )
-        if "test_year_customer_count" in base_rr_data:
-            base_rr_customer_count = float(base_rr_data["test_year_customer_count"])
-        if "resstock_kwh_scale_factor" in base_rr_data:
-            base_rr_kwh_scale_factor = float(base_rr_data["resstock_kwh_scale_factor"])
+        overrides = _parse_resstock_overrides(base_rr_data)
+        base_rr_customer_count = overrides.customer_count_override
+        base_rr_kwh_scale_factor = overrides.kwh_scale_factor
 
     total_breakdowns: dict[str, pl.DataFrame] | None = None
     if args.run_dir_supply:

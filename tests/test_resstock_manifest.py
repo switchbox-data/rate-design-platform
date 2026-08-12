@@ -398,7 +398,7 @@ def test_check_integrity_file_type_bijection_passes(tmp_path: Path) -> None:
 
 
 def test_check_integrity_flags_unexpected_file_type_on_sb(tmp_path: Path) -> None:
-    """load_curve_annual on _sb must fail: excluded from _sb and not in expected set."""
+    """Raw-cloned load_curve_annual on _sb must fail when add_monthly_loads did not run."""
     from data.resstock.manifest import check_integrity
 
     ebs_base = str(tmp_path)

@@ -263,8 +263,12 @@ def map_gas_tariff(
         raise ValueError(
             "Chesapeake-territory gas utilities "
             f"({sorted(distinct_gas_vals & CHESAPEAKE_GAS_UTILITIES)}) require "
-            "annual_gas_therms (from load_curve_annual) for RES-1/RES-2 mapping. "
-            "Pass --path_load_curve_annual or annual_gas_therms=..."
+            "annual_gas_therms from the _sb load_curve_annual for RES-1/RES-2 "
+            "mapping, but no annual loads were found. Re-run the ResStock "
+            "_sb pipeline with --add-annual-loads True (default) so "
+            "load_curve_annual is generated from modified hourly, then "
+            "point --path_load_curve_annual at "
+            ".../res_*_sb/load_curve_annual/state=<ST>/upgrade=<id>/."
         )
 
     selected = utility_metadata.select(
@@ -295,7 +299,10 @@ def map_gas_tariff(
         if missing > 0:
             raise ValueError(
                 f"{missing} Chesapeake-territory building(s) lack annual_gas_therms "
-                "after joining load_curve_annual; check path and upgrade_id."
+                "after joining load_curve_annual. Confirm --path_load_curve_annual "
+                "points at the _sb release annual directory for this state/upgrade "
+                "(not raw NREL). If that directory is missing or incomplete, "
+                "re-run the ResStock _sb pipeline with --add-annual-loads True."
             )
 
     gas_tariff_mapping_df = selected.with_columns(_tariff_key_expr()).drop(
@@ -311,25 +318,19 @@ def map_gas_tariff(
 def _default_path_load_curve_annual(
     metadata_path: str | Path, state: str, upgrade_id: str
 ) -> Path | None:
-    """Prefer raw-release annual loads next to an ``*_sb`` metadata root.
+    """Use annual loads from the same release as the metadata.
 
-    ``load_curve_annual`` is often incomplete under ``*_sb`` (sample-sized);
-    the full population lives under the matching raw release directory.
+    Gas tariff subclasses must reflect Switchbox load modifications, so an
+    ``*_sb`` metadata root resolves to that release's generated
+    ``load_curve_annual`` rather than the raw NREL sibling.
     """
     meta = Path(metadata_path)
     # metadata_path is typically .../res_..._sb/metadata
     release = meta.parent if meta.name == "metadata" else meta
-    candidates: list[Path] = []
-    if release.name.endswith("_sb"):
-        candidates.append(Path(str(release)[: -len("_sb")]))
-    candidates.append(release)
-    for root in candidates:
-        annual_dir = (
-            root / "load_curve_annual" / f"state={state}" / f"upgrade={upgrade_id}"
-        )
-        if annual_dir.exists():
-            return annual_dir
-    return None
+    annual_dir = (
+        release / "load_curve_annual" / f"state={state}" / f"upgrade={upgrade_id}"
+    )
+    return annual_dir if annual_dir.exists() else None
 
 
 if __name__ == "__main__":
@@ -364,10 +365,12 @@ if __name__ == "__main__":
         "--path_load_curve_annual",
         default=None,
         help=(
-            "Path to ResStock load_curve_annual parquet file or directory "
+            "Path to ResStock _sb load_curve_annual parquet file or directory "
             "(state=/upgrade= hive folder). Required for Chesapeake RES-1/RES-2 "
-            "mapping when those gas utilities appear. If omitted, tries the raw "
-            "release sibling of an *_sb metadata root."
+            "mapping when those gas utilities appear. If omitted, uses "
+            "load_curve_annual from the same release as --metadata_path "
+            "(expected to be the _sb release). Missing _sb annual loads raise "
+            "an error; re-run the ResStock pipeline with --add-annual-loads."
         ),
     )
     args = parser.parse_args()
@@ -533,14 +536,17 @@ if __name__ == "__main__":
         except ValueError:
             use_s3_annual = False
             annual_path_resolved = Path(annual_path_arg)
+        missing_annual_msg = (
+            f"load_curve_annual path {annual_path_resolved} does not exist. "
+            "Chesapeake RES-1/RES-2 mapping requires the generated _sb annual "
+            "loads. Re-run the ResStock _sb pipeline with --add-annual-loads "
+            "True (default), e.g. "
+            "`just -f data/resstock/Justfile run-pipeline MD`."
+        )
         if use_s3_annual and not annual_path_resolved.exists():
-            raise FileNotFoundError(
-                f"load_curve_annual path {annual_path_resolved} does not exist"
-            )
+            raise FileNotFoundError(missing_annual_msg)
         if not use_s3_annual and not Path(annual_path_resolved).exists():
-            raise FileNotFoundError(
-                f"load_curve_annual path {annual_path_resolved} does not exist"
-            )
+            raise FileNotFoundError(missing_annual_msg)
         annual_gas_therms_lf = load_annual_gas_therms(
             annual_path_resolved,
             storage_options=STORAGE_OPTIONS if use_s3_annual else None,

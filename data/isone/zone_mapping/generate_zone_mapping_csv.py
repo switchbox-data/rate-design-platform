@@ -33,6 +33,10 @@ _MAPPING_ROWS: list[tuple[str, str, str, int]] = [
     # RI Electric (National Grid / Narragansett Electric)
     # RI is a single-zone state; all RI load is in the RI load zone.
     ("rie", "ri", "RI", 4005),
+    # CT is a single-zone state; both CT utilities share the CT load zone
+    # (there is no sub-CT zonal split in ISO-NE's load-zone model).
+    ("ct_eversource", "ct", "CT", 4004),
+    ("ct_ui", "ct", "CT", 4004),
 ]
 
 VALID_ISO_ZONES: dict[str, int] = {

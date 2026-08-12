@@ -74,7 +74,7 @@ outputs/
 site/
 validation_outputs/
 rate_design/hp_rates/*/validation_outputs/
-
+logs/
 # Python packaging/build artifacts
 *.pyc
 *.pyo
@@ -105,6 +105,7 @@ build/
 !rate_design/hp_rates/ny/config/marginal_costs/**
 !rate_design/hp_rates/ri/config/marginal_costs/**
 !rate_design/hp_rates/md/config/marginal_costs/**
+!rate_design/hp_rates/ct/config/marginal_costs/**
 !rate_design/hp_rates/ny/config/rev_requirement/top-ups/charge_decisions/**
 !rate_design/hp_rates/ri/config/rev_requirement/top-ups/charge_decisions/**
 !rate_design/hp_rates/md/config/rev_requirement/top-ups/charge_decisions/**
