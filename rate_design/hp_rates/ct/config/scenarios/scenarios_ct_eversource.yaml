@@ -1,0 +1,242 @@
+runs:
+  ct_ct_eversource_default_precalc_delivery:
+    run_name: ct_ct_eversource_default_precalc_delivery
+    state: CT
+    utility: ct_eversource
+    run_type: precalc
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=CT/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=CT/upgrade=00/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=CT/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/ct_eversource_default.csv
+    path_tariff_maps_gas: tariff_maps/gas/ct_eversource_u00.csv
+    path_tariffs_electric:
+      all: tariffs/electric/ct_eversource_default.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20260812_a/ct_ct_eversource_default_precalc_delivery
+    utility_revenue_requirement: rev_requirement/ct_eversource_rate_case_test_year.yaml
+    run_includes_supply: false
+    run_includes_subclasses: false
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=CT/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  ct_ct_eversource_default_precalc_supply:
+    run_name: ct_ct_eversource_default_precalc_supply
+    state: CT
+    utility: ct_eversource
+    run_type: precalc
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=CT/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=CT/upgrade=00/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=CT/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/ct_eversource_default_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/ct_eversource_u00.csv
+    path_tariffs_electric:
+      all: tariffs/electric/ct_eversource_default_supply.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20260812_a/ct_ct_eversource_default_precalc_supply
+    utility_revenue_requirement: rev_requirement/ct_eversource_rate_case_test_year.yaml
+    run_includes_supply: true
+    run_includes_subclasses: false
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=CT/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  ct_ct_eversource_default_calibrated_delivery:
+    run_name: ct_ct_eversource_default_calibrated_delivery
+    state: CT
+    utility: ct_eversource
+    run_type: default
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=CT/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=CT/upgrade=02/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=CT/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/ct_eversource_default_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/ct_eversource_u02.csv
+    path_tariffs_electric:
+      all: tariffs/electric/ct_eversource_default_calibrated.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20260812_a/ct_ct_eversource_default_calibrated_delivery
+    utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_test_year.yaml
+    run_includes_supply: false
+    run_includes_subclasses: false
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=CT/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  ct_ct_eversource_default_calibrated_supply:
+    run_name: ct_ct_eversource_default_calibrated_supply
+    state: CT
+    utility: ct_eversource
+    run_type: default
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=CT/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=CT/upgrade=02/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=CT/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/ct_eversource_default_supply_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/ct_eversource_u02.csv
+    path_tariffs_electric:
+      all: tariffs/electric/ct_eversource_default_supply_calibrated.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20260812_a/ct_ct_eversource_default_calibrated_supply
+    utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_test_year.yaml
+    run_includes_supply: true
+    run_includes_subclasses: false
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=CT/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+  ct_ct_eversource_hp_seasonal_percustomer_passthrough_precalc_delivery:
+    run_name: ct_ct_eversource_hp_seasonal_percustomer_passthrough_precalc_delivery
+    state: CT
+    utility: ct_eversource
+    run_type: precalc
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=CT/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=CT/upgrade=00/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=CT/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/ct_eversource_hp_seasonal_vs_non-hp_base.csv
+    path_tariff_maps_gas: tariff_maps/gas/ct_eversource_u00.csv
+    path_tariffs_electric:
+      hp: tariffs/electric/ct_eversource_hp_seasonal_percustomer_passthrough.json
+      non-hp: tariffs/electric/ct_eversource_non-hp_base_percustomer_passthrough.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20260812_a/ct_ct_eversource_hp_seasonal_percustomer_passthrough_precalc_delivery
+    utility_revenue_requirement: rev_requirement/ct_eversource_hp_vs_non-hp.yaml
+    run_includes_supply: false
+    run_includes_subclasses: true
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=CT/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: percustomer
+    residual_allocation_supply: passthrough
+    subclass_config:
+      group_col: has_hp
+      selectors:
+        hp: 'true'
+        non-hp: 'false'
+  ct_ct_eversource_hp_seasonal_percustomer_passthrough_precalc_supply:
+    run_name: ct_ct_eversource_hp_seasonal_percustomer_passthrough_precalc_supply
+    state: CT
+    utility: ct_eversource
+    run_type: precalc
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=CT/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=CT/upgrade=00/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=CT/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/ct_eversource_hp_seasonal_vs_non-hp_base_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/ct_eversource_u00.csv
+    path_tariffs_electric:
+      hp: tariffs/electric/ct_eversource_hp_seasonal_percustomer_passthrough_supply.json
+      non-hp: tariffs/electric/ct_eversource_non-hp_base_percustomer_passthrough_supply.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20260812_a/ct_ct_eversource_hp_seasonal_percustomer_passthrough_precalc_supply
+    utility_revenue_requirement: rev_requirement/ct_eversource_hp_vs_non-hp.yaml
+    run_includes_supply: true
+    run_includes_subclasses: true
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=CT/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: percustomer
+    residual_allocation_supply: passthrough
+    subclass_config:
+      group_col: has_hp
+      selectors:
+        hp: 'true'
+        non-hp: 'false'
+  ct_ct_eversource_hp_seasonal_percustomer_passthrough_calibrated_delivery:
+    run_name: ct_ct_eversource_hp_seasonal_percustomer_passthrough_calibrated_delivery
+    state: CT
+    utility: ct_eversource
+    run_type: default
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=CT/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=CT/upgrade=02/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=CT/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/ct_eversource_hp_seasonal_vs_non-hp_base_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/ct_eversource_u02.csv
+    path_tariffs_electric:
+      all: tariffs/electric/ct_eversource_hp_seasonal_percustomer_passthrough_calibrated.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20260812_a/ct_ct_eversource_hp_seasonal_percustomer_passthrough_calibrated_delivery
+    utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_test_year.yaml
+    run_includes_supply: false
+    run_includes_subclasses: false
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=CT/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: percustomer
+    residual_allocation_supply: passthrough
+  ct_ct_eversource_hp_seasonal_percustomer_passthrough_calibrated_supply:
+    run_name: ct_ct_eversource_hp_seasonal_percustomer_passthrough_calibrated_supply
+    state: CT
+    utility: ct_eversource
+    run_type: default
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=CT/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=CT/upgrade=02/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=CT/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/ct_eversource_hp_seasonal_vs_non-hp_base_supply_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/ct_eversource_u02.csv
+    path_tariffs_electric:
+      all: tariffs/electric/ct_eversource_hp_seasonal_percustomer_passthrough_supply_calibrated.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20260812_a/ct_ct_eversource_hp_seasonal_percustomer_passthrough_calibrated_supply
+    utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_test_year.yaml
+    run_includes_supply: true
+    run_includes_subclasses: false
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=CT/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: percustomer
+    residual_allocation_supply: passthrough
+subclass_config:
+  group_col: has_hp
+  selectors:
+    hp: 'true'
+    non-hp: 'false'

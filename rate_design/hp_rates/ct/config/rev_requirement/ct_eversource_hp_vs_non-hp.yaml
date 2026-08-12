@@ -1,0 +1,31 @@
+utility: ct_eversource
+group_col: has_hp
+source_run_dir: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20260812_a/20260812_181025_ct_ct_eversource_default_precalc_delivery
+test_year_customer_count: 1046314.6
+resstock_kwh_scale_factor: 0.9434543138570481
+total_delivery_revenue_requirement: 1433688020.83
+total_delivery_and_supply_revenue_requirement: 2318468090.05
+subclass_revenue_requirements:
+  delivery:
+    percustomer:
+      non-hp: 1386132488.2845025
+      hp: 47555532.54549779
+    epmc:
+      non-hp: 1374292404.5153837
+      hp: 59395616.31461647
+    volumetric:
+      non-hp: 1353983324.0948274
+      hp: 79704696.7351733
+    passthrough:
+      non-hp: 1354597659.5181632
+      hp: 79090361.31183618
+  supply:
+    passthrough:
+      non-hp: 834242315.9752908
+      hp: 50537753.24470751
+    percustomer:
+      non-hp: 856029092.1190395
+      hp: 28750977.100960746
+    volumetric:
+      non-hp: 834567019.8945668
+      hp: 50213049.32543334
