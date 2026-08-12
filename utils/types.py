@@ -9,8 +9,9 @@ ElectricUtility = Literal[
     "cenhud",
     "chautauqua",
     "choptank",
-    "clp",
     "coned",
+    "ct_eversource",
+    "ct_ui",
     "dpl",
     "easton_muni",
     "frp",
@@ -31,7 +32,6 @@ ElectricUtility = Literal[
     "smeco",
     "somerset_rec",
     "south_norwalk_muni",
-    "ui",
     "wallingford_muni",
 ]
 GasUtility = Literal[

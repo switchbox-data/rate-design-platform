@@ -1,0 +1,36 @@
+# CT Eversource (CL&P) Rate 7 — Residential Time-of-Day Electric Service.
+#
+# After seeding, run:
+#   UTILITY=ct_eversource_tou just s ct build-rate-case-test-year
+#
+# That script reads this file + monthly_rates, recomputes top-ups / ResStock
+# scaling / totals, and overwrites this same path with the completed YAML.
+# Comments on keys you seed are preserved across re-runs.
+#
+# Source: PURA Docket 26-05-10, Exhibit CLP-RATES-2
+#   - Bills / kWh: Exhibit CLP-RATES-2.10 p.1 (Schedule E-2.1), Rate 7
+#   - Base DRR: computed from Exh 2.10 p.1 TY determinants × Exh 2.4 R7
+#     current rates (Customer Charge + Distribution functional)
+#   - Extract: context/sources/exhibit_clp_rates_2_residential.md
+#
+# Note: Rate 7 TY and RY billing determinants differ (731.3 vs 752.35 bills;
+# 8,854.21 vs 9,126.89 MWh). DRR is computed at TY determinants.
+# RY functional Distribution = $590.02 ($000) for cross-check.
+#
+# TOU structure: On-Peak 12:00–20:00 weekdays, Off-Peak all other hours.
+# Core delivery rate is the same on/off-peak ($0.05513); TOU differentiation
+# is in top-up charges (transmission, NBFMCC) and supply.
+# The build script handles flat charges correctly; TOU-split top-ups
+# (transmission, NBFMCC with all_on_peak/all_off_peak keys) may need
+# manual computation or script adaptation.
+utility: ct_eversource_tou
+# --- Rate 7 base delivery RR at current rates (Customer Charge + Distribution) ---
+# Exh 2.10 p.1 TY determinants × Exh 2.4 R7 current rates:
+#   Customer Charge: 731.3 × 12 × $9.62 = $84,421.27
+#   Distribution:    8,854,210 kWh × $0.05513 = $488,132.60
+#     (on-peak and off-peak Distribution rates are both $0.05513)
+#   Total: $572,553.87
+delivery_revenue_requirement_from_rate_case: 572553.87 # TY Dist. functional (Customer + Distribution)
+test_year_residential_kwh: 8854210 # Exh 2.10 p.1 Rate 7 Total Sales 8,854.21 MWh × 1000
+test_year_customer_count: 731.3 # Exh 2.10 p.1 Rate 7 Avg # Customer Bills Rendered
+test_year_fixed_charge_from_rate_case: 9.62 # $/month — Exh 2.4 R7 Customer Charge current rate (same as Rate 1)

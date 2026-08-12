@@ -1,0 +1,113 @@
+# CT Eversource (CL&P) Rate 1 — partial rate-case test-year YAML (Track 2).
+#
+# After seeding, run:
+#   UTILITY=ct_eversource just s ct build-rate-case-test-year
+#
+# That script reads this file + monthly_rates, recomputes top-ups / ResStock
+# scaling / totals, and overwrites this same path with the completed YAML.
+# Comments on keys you seed are preserved across re-runs.
+#
+# Source: PURA Docket 26-05-10, Exhibit CLP-RATES-2
+#   - Bills / kWh: Exhibit CLP-RATES-2.10 p.1 (Schedule E-2.1), Rate 1
+#   - Base DRR: Exhibit CLP-RATES-2.4 p.2 (Rate 1 Test Year Ending 2025),
+#     Distribution functional category at current normalized rates
+#   - Extract: context/sources/exhibit_clp_rates_2_residential.md
+utility: ct_eversource
+# --- Rate 1 base delivery RR at current rates (Customer Charge + Distribution) ---
+# Exh 2.4, R1 Test Year Ending 2025, functional category "Distribution",
+# Current Normalized Revenue = $614,065.52 thousand.
+# (= Customer Charge $120,786.56k + Distribution energy $493,279.36k).
+# Do NOT use Exh 2.10 Total Revenue (~$2.203B) — that is all-in (TX + supply +
+# riders). Do NOT use company-wide REVREQ deficiency (~$451M / ~$727M).
+# Alternative if calibrating to proposed rates: Proposed Distribution functional
+# pre-GET = $1,104,105.62 thousand (same Exh 2.4 tab).
+delivery_revenue_requirement_from_rate_case: 614065520.87 # Exh 2.4 R1 TY Dist. functional, current normalized ($000 × 1000)
+delivery_revenue_requirement_topups: 819622499.96 # sum(delivery_top_ups.total_budget)
+total_delivery_revenue_requirement: 1433688020.83 # delivery_revenue_requirement_from_rate_case + delivery_revenue_requirement_topups
+supply_revenue_requirement_topups: 884780069.22 # sum(supply_top_ups.total_budget)
+total_delivery_and_supply_revenue_requirement: 2318468090.05 # total_delivery_revenue_requirement + supply_revenue_requirement_topups
+delivery_revenue_requirement:
+  customer_charge:
+    charge_unit: $/month
+    budget_method: rate_case
+    total_budget: 120786557.42
+  core_delivery_rate:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 493280077.87
+delivery_top_ups:
+  electric_system_improvements_esi:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 162857629.71
+  transmission_charge:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 345541878.22
+  competitive_transition_assessment_cta:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: -588543.12
+  conservation_adjustment_mechanism_cam:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 50644771.86
+  renewable_energy_investment_clean_energy_fund:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 8440795.31
+  non_bypassable_fmcc_nbfmcc:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 252725967.98
+supply_top_ups:
+  supply_commodity_bundled:
+    charge_unit: $/kWh
+    budget_method: resstock
+    total_budget: 884780069.22
+# --- Rate 1 test-year weather-normalized total sales ---
+# Exh 2.10 p.1 Rate 1: 8,440,795.31 MWh Total Sales × 1000 = kWh.
+# (Billed-only from Exh 2.4 is 8,440,783.01 MWh; difference is 12.30 MWh
+# primary metering credit.)
+test_year_residential_kwh: 8440795309.21 # Exh 2.10 p.1 Rate 1 Total Sales MWh × 1000
+# --- Rate 1 average monthly customer bills ---
+# Exh 2.10 p.1 / Exh 2.4 billing dets: Average # Bills Rendered (normalized).
+# Annual bills = 12,555,775.20 (= this × 12).
+test_year_customer_count: 1046314.6 # Exh 2.10 p.1 Rate 1 Avg # Customer Bills Rendered
+# --- Optional durable testimony references (preserved across re-runs) ---
+# Genability / tariff current customer charge matches the rate-case current rate.
+test_year_fixed_charge_from_rate_case: 9.62 # $/month — Exh 2.4 R1 TY Customer Charge current rate
+resstock_total_residential_kwh: 7634855865.62 # sum(grid_cons * weight) where utility = ct_eversource
+resstock_customer_count: 892895.5 # sum(weight) where utility = ct_eversource
+resstock_customer_scale_factor: 1.171822011226765 # test_year_customer_count / resstock_customer_count
+resstock_total_residential_kwh_scaled_customer: 8946692155.87 # resstock_total_residential_kwh * resstock_customer_scale_factor
+resstock_kwh_scale_factor: 0.9434543138570481 # test_year_residential_kwh / resstock_total_residential_kwh_scaled_customer
+resstock_total_residential_kwh_scaled_customer_kwh: 8440795309.21 # = test_year_residential_kwh (sanity check)
+resstock_monthly_kwh_scaled_customer_kwh:
+  1: 1030736507.34
+  2: 756756341.83
+  3: 767757739.92
+  4: 625744100.16
+  5: 549011103.88
+  6: 567590772.53
+  7: 744816404.08
+  8: 740142788.07
+  9: 569765898.27
+  10: 564387462.62
+  11: 692491511.76
+  12: 831594678.74
+supply_commodity_bundled_rates:
+  charge_unit: $/kWh
+  monthly_rates:
+    2025-01: 0.1119
+    2025-02: 0.1119
+    2025-03: 0.1119
+    2025-04: 0.1119
+    2025-05: 0.1119
+    2025-06: 0.1119
+    2025-07: 0.09748000000000001
+    2025-08: 0.09748000000000001
+    2025-09: 0.09748000000000001
+    2025-10: 0.09748000000000001
+    2025-11: 0.09748000000000001
+    2025-12: 0.09748000000000001

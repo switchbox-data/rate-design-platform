@@ -426,20 +426,24 @@ UTILITIES: list[UtilityRecord] = [
     # ── Connecticut ───────────────────────────────────────────────────────────
     # Electric IOUs
     {
-        "std_name": "clp",
+        "std_name": "ct_eversource",
         "state": "CT",
         "fuels": ["electric"],
-        "display_name": "Connecticut Light & Power (Eversource)",
+        "display_name": "Eversource Energy CT (formerly Connecticut Light & Power)",
+        # HIFLD / EIA still use the historical CL&P legal name and EIA ID 4176.
         "hifld_names": ["CONNECTICUT LIGHT & POWER CO"],
         "eia_utility_ids": [4176],
+        "electric_tariff_key": "ct_eversource",
     },
     {
-        "std_name": "ui",
+        "std_name": "ct_ui",
         "state": "CT",
         "fuels": ["electric"],
         "display_name": "United Illuminating (Avangrid)",
+        # HIFLD / EIA still use the short "United Illuminating" legal name and EIA ID 19497.
         "hifld_names": ["UNITED ILLUMINATING CO"],
         "eia_utility_ids": [19497],
+        "electric_tariff_key": "ct_ui",
     },
     {
         "std_name": "frp",

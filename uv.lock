@@ -354,7 +354,7 @@ wheels = [
 
 [[package]]
 name = "buildstock-fetch"
-version = "1.6.6"
+version = "1.6.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aioboto3" },
@@ -379,9 +379,9 @@ dependencies = [
     { name = "useful-types" },
     { name = "xmltodict" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ab/c0/9eb18ea330b0391437a03ff0294b4d3d9adb95390589f057033f69bd4854/buildstock_fetch-1.6.6.tar.gz", hash = "sha256:9c608f37dd9d0a6706b8ced9c3e075dc051060462a2e3cdffe9e1b7089cf4f4f", size = 80080404, upload-time = "2026-07-28T14:24:18.11Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6d/18/995b4aa5947df14fa45434288311cb893226f093d141b8acdaa405a80db3/buildstock_fetch-1.6.7.tar.gz", hash = "sha256:3a3ce2cfe616e7da93cbf3a3e80d10c9b3322892816d9703e2b77bfb9210f6a9", size = 80081325, upload-time = "2026-08-06T13:28:20.899Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/69/08/82221b6949d289bf9561583754504c84907b33b4d2d4bd3ee032dbd4e6c3/buildstock_fetch-1.6.6-py3-none-any.whl", hash = "sha256:36eb929db14c89c7a63e4c7655d26cf888ece1f4b74a42fcaa424fe602efc183", size = 80545275, upload-time = "2026-07-28T14:24:11.95Z" },
+    { url = "https://files.pythonhosted.org/packages/93/93/aa4b40763ad717678d16ca3c193002fd59db09ac0a35a42268a2e22036e2/buildstock_fetch-1.6.7-py3-none-any.whl", hash = "sha256:79528a6882d7b7bf2e23316dc47715b8d303af567799522d0d11c68129f0b1b2", size = 80545359, upload-time = "2026-08-06T13:28:15.233Z" },
 ]
 
 [[package]]
@@ -3100,7 +3100,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "buildstock-fetch", specifier = ">=1.6.6" },
+    { name = "buildstock-fetch", specifier = ">=1.6.7" },
     { name = "cairo", git = "https://github.com/natlabrockies/cairo?rev=09a4d7f" },
     { name = "cloudpathlib", specifier = ">=0.23.0" },
     { name = "cloudpathlib", extras = ["s3"], specifier = ">=0.23.0" },
@@ -3141,7 +3141,7 @@ dev = [
     { name = "plotnine", specifier = ">=0.14.0" },
     { name = "pytest", specifier = ">=7.2.0" },
     { name = "ruff", specifier = ">=0.11.5" },
-    { name = "ty", specifier = ">=0.0.1a21" },
+    { name = "ty", specifier = "==0.0.21" },
 ]
 
 [[package]]

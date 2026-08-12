@@ -18,7 +18,7 @@ classifiers = [
     "Topic :: Office/Business :: Financial",
 ]
 dependencies = [
-    "buildstock-fetch>=1.6.6",
+    "buildstock-fetch>=1.6.7",
     "cairo",
     "google-auth>=2.0.0",
     "gspread>=6.0.0",
@@ -60,7 +60,7 @@ Changelog = "https://github.com/switchbox-data/rate-design-platform/blob/main/CH
 dev = [
     "pytest>=7.2.0",
     "ruff>=0.11.5",
-    "ty>=0.0.1a21",
+    "ty==0.0.21",
     "deptry>=0.20.0",
     "ipykernel>=7.1.0",
     "plotnine>=0.14.0",

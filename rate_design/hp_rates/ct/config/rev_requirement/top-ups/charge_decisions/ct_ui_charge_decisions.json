@@ -1,0 +1,962 @@
+{
+  "20451698": {
+    "rate_name": "Generation Charge((July- Dec)",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Generation Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17026517,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.119101,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.119101,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.119101,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.119101,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.119101,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.119101,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Summer",
+      "from_month": 7,
+      "from_day": 1,
+      "to_month": 12,
+      "to_day": 31
+    },
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": null,
+    "master_charge": null,
+    "master_type": null
+  },
+  "20451699": {
+    "rate_name": "Bypassable FMCC(July - Dec)",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Generation Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17086501,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.0,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.0,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Summer",
+      "from_month": 7,
+      "from_day": 1,
+      "to_month": 12,
+      "to_day": 31
+    },
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": null,
+    "master_charge": null,
+    "master_type": null
+  },
+  "20451700": {
+    "rate_name": "Energy Assistance Costs",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Public Benefits",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17026518,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.027419,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.027419,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.027419,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.027419,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.027419,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.027419,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": null,
+    "master_charge": null,
+    "master_type": null
+  },
+  "20451701": {
+    "rate_name": "Energy Efficiency Programs",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Public Benefits",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17026520,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.006,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.006,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.006,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.006,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.006,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.006,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "Energy Efficiency Programs Charge",
+    "master_type": "Program surcharge"
+  },
+  "20451702": {
+    "rate_name": "Renewable Energy Investment",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Public Benefits",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17026522,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.001,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.001,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.001,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.001,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.001,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.001,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "Renewable Energy Investment (Clean Energy Fund)",
+    "master_type": "Program surcharge"
+  },
+  "20451703": {
+    "rate_name": "New England Grid Operator Cost - Summer",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Public Benefits",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17026528,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.002039,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.002039,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.002039,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.002039,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.002039,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.002039,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Summer",
+      "from_month": 6,
+      "from_day": 1,
+      "to_month": 9,
+      "to_day": 30
+    },
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": null,
+    "master_charge": null,
+    "master_type": null
+  },
+  "20451704": {
+    "rate_name": "New England Grid Operator Cost - Winter",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Public Benefits",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17026525,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.002039,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.002039,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.002039,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.002039,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.002039,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.002039,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Winter",
+      "from_month": 10,
+      "from_day": 1,
+      "to_month": 5,
+      "to_day": 31
+    },
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": null,
+    "master_charge": null,
+    "master_type": null
+  },
+  "20451705": {
+    "rate_name": "State Mandated Energy Purchases - Summer",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Public Benefits",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 20235501,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.017584,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.017584,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.017584,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.017584,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.017584,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.017584,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Summer",
+      "from_month": 6,
+      "from_day": 1,
+      "to_month": 9,
+      "to_day": 30
+    },
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": null,
+    "master_charge": null,
+    "master_type": null
+  },
+  "20451706": {
+    "rate_name": "State Mandated Energy Purchases - Winter",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Public Benefits",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 20235502,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.017584,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.017584,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.017584,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.017584,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.017584,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.017584,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Winter",
+      "from_month": 10,
+      "from_day": 1,
+      "to_month": 5,
+      "to_day": 31
+    },
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": null,
+    "master_charge": null,
+    "master_type": null
+  },
+  "20451707": {
+    "rate_name": "Customer Produced Energy - Summer",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Public Benefits",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 20235503,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00434,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00434,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.00434,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.00434,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.00434,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.00434,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Summer",
+      "from_month": 6,
+      "from_day": 1,
+      "to_month": 9,
+      "to_day": 30
+    },
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": null,
+    "master_charge": null,
+    "master_type": null
+  },
+  "20451708": {
+    "rate_name": "Customer Produced Energy - Winter",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Public Benefits",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 20235504,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.00434,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.00434,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.00434,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.00434,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.00434,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.00434,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Winter",
+      "from_month": 10,
+      "from_day": 1,
+      "to_month": 5,
+      "to_day": 31
+    },
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": null,
+    "master_charge": null,
+    "master_type": null
+  },
+  "20451709": {
+    "rate_name": "Misc. & Other Mandates - Summer",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Public Benefits",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 20235505,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.008948,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.008948,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.008948,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.008948,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.008948,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.008948,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Summer",
+      "from_month": 6,
+      "from_day": 1,
+      "to_month": 9,
+      "to_day": 30
+    },
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": null,
+    "master_charge": null,
+    "master_type": null
+  },
+  "20451710": {
+    "rate_name": "Misc. & Other Mandates - Winter",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Public Benefits",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 20235506,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.008948,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.008948,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.008948,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.008948,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.008948,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.008948,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Winter",
+      "from_month": 10,
+      "from_day": 1,
+      "to_month": 5,
+      "to_day": 31
+    },
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": null,
+    "master_charge": null,
+    "master_type": null
+  },
+  "20451711": {
+    "rate_name": "Summer Rate",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "TRANSMISSION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Transmission Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17026527,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.046888,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.046888,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.046888,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.046888,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.046888,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.046888,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Summer",
+      "from_month": 6,
+      "from_day": 1,
+      "to_month": 9,
+      "to_day": 30
+    },
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "Transmission Charge",
+    "master_type": "Transmission service"
+  },
+  "20451712": {
+    "rate_name": "Winter Rate",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "TRANSMISSION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Transmission Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17026526,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.046888,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.046888,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.046888,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.046888,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.046888,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.046888,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Winter",
+      "from_month": 10,
+      "from_day": 1,
+      "to_month": 5,
+      "to_day": 31
+    },
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "add_to_drr",
+    "master_charge": "Transmission Charge",
+    "master_type": "Transmission service"
+  },
+  "20451713": {
+    "rate_name": "Basic Service Charge",
+    "charge_type": "FIXED_PRICE",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Distribution Charges",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17026519,
+    "charge_unit": "$/month",
+    "sample_rate": 11.34,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 11.34,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Customer Charge",
+    "master_type": "Base delivery"
+  },
+  "20451714": {
+    "rate_name": "Energy Charge",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Distribution Charges",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17026530,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.100714,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.100714,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.100714,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.100714,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.100714,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.100714,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "already_in_drr",
+    "master_charge": "Core Delivery Rate",
+    "master_type": "Base delivery"
+  },
+  "20451715": {
+    "rate_name": "Decoupling Adjustment",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "DISTRIBUTION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Decoupling Adjustment",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17026523,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.000518,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.000518,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.000518,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.000518,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.000518,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.000518,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": null,
+    "master_charge": null,
+    "master_type": null
+  },
+  "20451716": {
+    "rate_name": "Transmission Adjustment",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "TRANSMISSION",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": "transmissionAdjustmentClauseResidential",
+    "rate_group_name": "Transmission Adjustment",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17026524,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": null,
+    "master_charge": null,
+    "master_type": null
+  },
+  "20451717": {
+    "rate_name": "Minimum Charge",
+    "charge_type": "MINIMUM",
+    "charge_class": null,
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Minimum Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 17026521,
+    "charge_unit": "$/month",
+    "sample_rate": 11.34,
+    "is_credit": false,
+    "is_tiered": false,
+    "rate_bands": [
+      {
+        "rate_amount": 11.34,
+        "upper_limit": null
+      }
+    ],
+    "season": null,
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": "exclude_redundant",
+    "master_charge": "Minimum Charge",
+    "master_type": "Bill floor (rarely binds)"
+  },
+  "20797083": {
+    "rate_name": "Generation Charge(Jan- June)",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Generation Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 20796211,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.135683,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.135683,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.135683,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.135683,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.135683,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.135683,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Winter",
+      "from_month": 1,
+      "from_day": 1,
+      "to_month": 6,
+      "to_day": 30
+    },
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": null,
+    "master_charge": null,
+    "master_type": null
+  },
+  "20797084": {
+    "rate_name": "Bypassable FMCC(Jan - June)",
+    "charge_type": "CONSUMPTION_BASED",
+    "charge_class": "SUPPLY,CONTRACTED",
+    "charge_period": "MONTHLY",
+    "variable_rate_key": null,
+    "rate_group_name": "Generation Charge",
+    "rider_tariff_id": null,
+    "master_tariff_rate_id": 20796212,
+    "charge_unit": "$/kWh",
+    "sample_rate": 0.0,
+    "is_credit": false,
+    "is_tiered": true,
+    "rate_bands": [
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.0,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      },
+      {
+        "rate_amount": 0.0,
+        "upper_limit": 800.0
+      },
+      {
+        "rate_amount": 0.0,
+        "upper_limit": null
+      }
+    ],
+    "season": {
+      "name": "Winter",
+      "from_month": 1,
+      "from_day": 1,
+      "to_month": 6,
+      "to_day": 30
+    },
+    "time_of_use": null,
+    "source": "base_tariff",
+    "decision": null,
+    "master_charge": null,
+    "master_type": null
+  }
+}
