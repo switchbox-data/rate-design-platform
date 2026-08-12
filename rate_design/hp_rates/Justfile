@@ -1451,6 +1451,39 @@ build-master-bat batch run_delivery run_supply *batch_overrides:
 # per-utility batch overrides (for example, --batch-override cenhud=ny_20260306_r1-8)
 # and optional LMI flags (for example, --calculate-lmi --lmi-participation-rate 0.4).
 
+# =============================================================================
+# POST-PROCESSING: master tables for Prefect pipeline batches
+#
+# One command covers a whole batch: every scenario/stage in each utility's
+# pipeline YAML becomes its own master table under {scenario}_{stage}/.
+# Runs are discovered from the batch's .runs/ index, so no run numbers.
+#
+#   just s md build-master-bills-prefect md_20260803_a
+#   just s md build-all-master-prefect md_20260803_a
+# =============================================================================
+
+# Build master bills for every completed scenario/stage in a Prefect batch.
+build-master-bills-prefect batch *script_args:
+    uv run python {{ path_repo }}/utils/post/build_master_bills_prefect.py \
+        --state "{{ state }}" \
+        --batch "{{ batch }}" \
+        --utilities "{{ utilities }}" \
+        --path-heating-fuel-prices "{{ path_heating_fuel_prices }}" \
+        --price-year "{{ price_year }}" \
+        {{ script_args }}
+
+# Build master BAT for a Prefect batch (needs the baseline segment's master bills).
+build-master-bat-prefect batch *script_args:
+    uv run python {{ path_repo }}/utils/post/build_master_bat_prefect.py \
+        --state "{{ state }}" \
+        --batch "{{ batch }}" \
+        --utilities "{{ utilities }}" \
+        {{ script_args }}
+
+# Both master tables for a batch, bills first (BAT joins the baseline bills).
+build-all-master-prefect batch: (build-master-bills-prefect batch) (build-master-bat-prefect batch)
+    @echo ">> Master bills and BAT complete for batch {{ batch }}" >&2
+
 validate-master-bills batch filter *batch_overrides:
     uv run python {{ path_repo }}/utils/post/validate_master_bills.py \
         --state "{{ state }}" \
