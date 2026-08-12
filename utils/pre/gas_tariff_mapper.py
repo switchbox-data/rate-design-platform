@@ -47,6 +47,11 @@ EXPECTED_GAS_UTILITIES = EXCLUDED_GAS_UTILITIES | {
     "elkton_gas",
     "sandpiper",
     "easton_muni",
+    # CT
+    "ct_natural_gas",
+    "southern_ct_gas",
+    "yankee_gas",
+    "norwich_muni",
 }
 
 # Post-merger Chesapeake territory: county group from sb.gas_utility, RES-1/RES-2 from
@@ -197,6 +202,33 @@ def _tariff_key_expr() -> pl.Expr:
         .when((gas_utility_col == "sandpiper") & chesapeake_is_res2)
         .then(pl.lit("chesapeake_worcester_res2"))
         #### MD: Chesapeake territory ####
+        #### CT: CNG / SCG / Yankee (3-class IOUs: nonheating / heating / mf) ####
+        # MF threshold is 6+ units on one meter; ResStock's "5+" bucket is the
+        # closest proxy (same approach as kedny/kedli above).
+        .when(
+            gas_utility_col.is_in(["ct_natural_gas", "southern_ct_gas", "yankee_gas"])
+            & is_mf
+        )
+        .then(pl.concat_str([gas_utility_col, pl.lit("_mf")]))
+        .when(
+            gas_utility_col.is_in(["ct_natural_gas", "southern_ct_gas", "yankee_gas"])
+            & ~is_mf
+            & heats_with_natgas_column.eq(True)
+        )
+        .then(pl.concat_str([gas_utility_col, pl.lit("_heating")]))
+        .when(
+            gas_utility_col.is_in(["ct_natural_gas", "southern_ct_gas", "yankee_gas"])
+            & ~is_mf
+            & heats_with_natgas_column.eq(False)
+        )
+        .then(pl.concat_str([gas_utility_col, pl.lit("_nonheating")]))
+        #### CT: CNG / SCG / Yankee ####
+        #### CT: Norwich (2-class: general / mf; no heating split) ####
+        .when((gas_utility_col == "norwich_muni") & is_mf)
+        .then(pl.lit("norwich_muni_mf"))
+        .when((gas_utility_col == "norwich_muni") & ~is_mf)
+        .then(pl.lit("norwich_muni_general"))
+        #### CT: Norwich ####
         ### Null value in the gas_utility column gets assigned to "null_gas_tariff" ####
         .when(gas_utility_col.is_null())
         .then(pl.lit("null_gas_tariff"))

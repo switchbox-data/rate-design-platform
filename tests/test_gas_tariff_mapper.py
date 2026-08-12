@@ -737,3 +737,206 @@ def test_map_gas_tariff_md_keys_match_tariff_json_files() -> None:
     assert not missing, (
         f"Mapper produced MD tariff_key(s) with no matching JSON file: {missing}"
     )
+
+
+# ── CT gas tariff mapper tests ────────────────────────────────────────────────
+
+
+def _ct_metadata(
+    bldg_ids: list[int],
+    gas_utilities: Sequence[str | None],
+    building_types: list[str],
+    heats_with_natgas: list[bool],
+    electric_utility: str = "clp",
+) -> pl.LazyFrame:
+    return pl.LazyFrame(
+        {
+            "bldg_id": bldg_ids,
+            "sb.electric_utility": [electric_utility] * len(bldg_ids),
+            "sb.gas_utility": gas_utilities,
+            "in.geometry_building_type_recs": building_types,
+            "heats_with_natgas": heats_with_natgas,
+        }
+    )
+
+
+def test_map_gas_tariff_ct_iou_three_classes():
+    """CT IOUs (CNG, SCG, Yankee) map to nonheating / heating / mf."""
+    metadata = _ct_metadata(
+        bldg_ids=[1, 2, 3, 4, 5, 6, 7, 8, 9],
+        gas_utilities=[
+            "ct_natural_gas",
+            "ct_natural_gas",
+            "ct_natural_gas",
+            "southern_ct_gas",
+            "southern_ct_gas",
+            "southern_ct_gas",
+            "yankee_gas",
+            "yankee_gas",
+            "yankee_gas",
+        ],
+        building_types=[
+            "Single-Family Detached",
+            "Single-Family Attached",
+            "Multi-Family with 5+ units",
+            "Multi-Family with 2 - 4 Units",
+            "Single-Family Detached",
+            "Multi-Family with 5+ units",
+            "Single-Family Detached",
+            "Multi-Family with 5+ units",
+            "Multi-Family with 2 - 4 Units",
+        ],
+        heats_with_natgas=[
+            False,
+            True,
+            True,
+            True,
+            False,
+            False,
+            True,
+            False,
+            False,
+        ],
+    )
+    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="clp")
+    df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
+    assert df["tariff_key"].to_list() == [
+        "ct_natural_gas_nonheating",
+        "ct_natural_gas_heating",
+        "ct_natural_gas_mf",
+        "southern_ct_gas_heating",
+        "southern_ct_gas_nonheating",
+        "southern_ct_gas_mf",
+        "yankee_gas_heating",
+        "yankee_gas_mf",
+        "yankee_gas_nonheating",
+    ]
+
+
+def test_map_gas_tariff_ct_norwich_two_classes():
+    """Norwich maps to general (≤5 units, any heating status) / mf (5+)."""
+    metadata = _ct_metadata(
+        bldg_ids=[1, 2, 3, 4],
+        gas_utilities=["norwich_muni"] * 4,
+        building_types=[
+            "Single-Family Detached",
+            "Single-Family Attached",
+            "Multi-Family with 2 - 4 Units",
+            "Multi-Family with 5+ units",
+        ],
+        heats_with_natgas=[True, False, True, False],
+    )
+    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="clp")
+    df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
+    assert df["tariff_key"].to_list() == [
+        "norwich_muni_general",
+        "norwich_muni_general",
+        "norwich_muni_general",
+        "norwich_muni_mf",
+    ]
+
+
+def test_map_gas_tariff_ct_null_gas_utility():
+    """CT buildings with no gas utility → null_gas_tariff."""
+    metadata = _ct_metadata(
+        bldg_ids=[1, 2],
+        gas_utilities=[None, "yankee_gas"],
+        building_types=["Single-Family Detached", "Single-Family Detached"],
+        heats_with_natgas=[False, True],
+    )
+    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="clp")
+    df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
+    assert df["tariff_key"].to_list() == [
+        "null_gas_tariff",
+        "yankee_gas_heating",
+    ]
+
+
+def test_map_gas_tariff_ct_no_unexpected_warning(caplog):
+    """No 'unexpected gas_utility' warning for any CT gas utility."""
+    ct_gas_utilities: list[str | None] = [
+        "ct_natural_gas",
+        "southern_ct_gas",
+        "yankee_gas",
+        "norwich_muni",
+        None,
+    ]
+    metadata = _ct_metadata(
+        bldg_ids=list(range(len(ct_gas_utilities))),
+        gas_utilities=ct_gas_utilities,
+        building_types=["Single-Family Detached"] * len(ct_gas_utilities),
+        heats_with_natgas=[True] * len(ct_gas_utilities),
+    )
+    with caplog.at_level("WARNING"):
+        map_gas_tariff(
+            SB_metadata=metadata,
+            electric_utility_name="clp",
+        ).collect()
+    assert "unexpected gas_utility" not in caplog.text
+
+
+def test_map_gas_tariff_ct_keys_match_tariff_json_files() -> None:
+    """Every non-null tariff_key the mapper produces for CT has a matching JSON."""
+    project_root = Path(__file__).resolve().parents[1]
+    tariffs_dir = project_root / "rate_design/hp_rates/ct/config/tariffs/gas"
+    available_stems = {p.stem for p in tariffs_dir.glob("*.json")}
+
+    # Exercise every CT gas utility in all relevant variants.
+    metadata = _ct_metadata(
+        bldg_ids=list(range(14)),
+        gas_utilities=[
+            "ct_natural_gas",
+            "ct_natural_gas",
+            "ct_natural_gas",
+            "southern_ct_gas",
+            "southern_ct_gas",
+            "southern_ct_gas",
+            "yankee_gas",
+            "yankee_gas",
+            "yankee_gas",
+            "norwich_muni",
+            "norwich_muni",
+            None,
+            None,
+            None,
+        ],
+        building_types=[
+            "Single-Family Detached",
+            "Single-Family Detached",
+            "Multi-Family with 5+ units",
+            "Single-Family Detached",
+            "Single-Family Detached",
+            "Multi-Family with 5+ units",
+            "Single-Family Detached",
+            "Single-Family Detached",
+            "Multi-Family with 5+ units",
+            "Single-Family Detached",
+            "Multi-Family with 5+ units",
+            "Single-Family Detached",
+            "Single-Family Detached",
+            "Single-Family Detached",
+        ],
+        heats_with_natgas=[
+            False,
+            True,
+            True,
+            False,
+            True,
+            True,
+            False,
+            True,
+            True,
+            True,
+            False,
+            True,
+            False,
+            True,
+        ],
+    )
+    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="clp")
+    df = cast(pl.DataFrame, result.collect())
+    produced_keys = set(df["tariff_key"].to_list()) - {"null_gas_tariff"}
+    missing = produced_keys - available_stems
+    assert not missing, (
+        f"Mapper produced CT tariff_key(s) with no matching JSON file: {missing}"
+    )
