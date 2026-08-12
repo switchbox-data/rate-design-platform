@@ -96,19 +96,36 @@ brochure also in Zotero as
   meter) is the third residential class on SCG’s pricing page. CNG and SCG share
   the Avangrid rate redesign (PURA Docket 23-11-02).
 
-### Mapping to ResStock / CAIRO (follow-up; not this ticket)
+### Mapping to ResStock / CAIRO
 
-These rules are the intended assignment once tariff maps are built. This ticket
-only fetches the URDB keys below; mapper / map generation is separate work.
+These rules are implemented in `gas_tariff_mapper.py` (`_tariff_key_expr`).
 
-| ResStock situation                                  | Tariff key suffix | Rationale      |
-| --------------------------------------------------- | ----------------- | -------------- |
-| `heats_with_natgas = False`, not master-metered 6+  | `_nonheating`     | RSG / Rate 01  |
-| `heats_with_natgas = True`, not master-metered 6+   | `_heating`        | RSH / Rate 02  |
-| Master-metered multi-dwelling (6+ units, one meter) | `_mf`             | RMDS / Rate 03 |
+**IOU mapping (CNG, SCG, Yankee — three classes each):**
 
-The fetch list in this doc is the complete residential URDB set those future
-mapper rules must resolve into.
+| ResStock situation                             | Tariff key suffix | Rationale      |
+| ---------------------------------------------- | ----------------- | -------------- |
+| `heats_with_natgas = False`, not MF 5+         | `_nonheating`     | RSG / Rate 01  |
+| `heats_with_natgas = True`, not MF 5+          | `_heating`        | RSH / Rate 02  |
+| `in.geometry_building_type_recs` contains "5+" | `_mf`             | RMDS / Rate 03 |
+
+**Norwich mapping (two classes, no heating split):**
+
+| ResStock situation                             | Tariff key             | Rationale                           |
+| ---------------------------------------------- | ---------------------- | ----------------------------------- |
+| Not MF 5+ (any heating status)                 | `norwich_muni_general` | GRES = all household uses, ≤5 units |
+| `in.geometry_building_type_recs` contains "5+" | `norwich_muni_mf`      | GSHRES = 6+ units on a single meter |
+
+**Known proxy mismatch (5+ vs 6+):** All four CT gas utilities define their
+multi-dwelling class at **6+ units** on a single meter, but ResStock's
+`in.geometry_building_type_recs` field only distinguishes "Multi-Family with 5+
+units" (i.e. 5 or more). There is no ResStock bucket that isolates exactly 6+.
+The mapper uses the "5+" bucket as a proxy for 6+, meaning 5-unit buildings are
+assigned the MF tariff when the utility's actual threshold would keep them in
+the ≤5-unit class. This is the same approach used for KEDNY/KEDLI in NY (whose
+SC 3 threshold is also 6+, not 5+; see
+`context/domain/charges/gas_heating_rates_in_ny.md`). The impact is small: the
+"MF 5+" bucket in ResStock represents a small fraction of the residential
+sample, and 5-unit buildings are a subset of that.
 
 ---
 
