@@ -808,16 +808,27 @@ def _scenario_map_stem(
 ) -> str:
     """Build the tariff map CSV stem for a multi-rate scenario.
 
-    Maps partition buildings by subgroup membership, which is independent of
-    residual allocation.  The stem is derived from each subgroup's alias and
-    structure: ``{utility}_{alias1}_{structure1}_vs_{alias2}_{structure2}[_supply][_calibrated]``.
+    Building-to-subgroup membership is independent of residual allocation, but
+    the ``tariff_key`` values ``write_tariff_maps_from_scenario.py`` writes into
+    the map are each subgroup's *resolved* tariff stem, which does depend on
+    residual allocation (see ``tariff_stem``).  Two scenarios that share the
+    same subgroup aliases/structures but differ in ``residual_allocation``
+    (e.g. a ``percustomer`` vs. an ``epmc`` variant of the same hp/non-hp
+    split) therefore need distinct map files, or the later-written one
+    silently overwrites the earlier one on disk.  The stem is derived from
+    each subgroup's alias and structure plus the residual allocation:
+    ``{utility}_{alias1}_{structure1}_vs_{alias2}_{structure2}_{delivery_alloc}_{supply_alloc}[_supply][_calibrated]``.
     ``_supply`` before ``_calibrated`` matches the tariff stem convention.
     """
     assert scenario.subclass_config is not None
     segments = "_vs_".join(
         f"{sg.alias}_{sg.structure}" for sg in scenario.subclass_config.subgroups
     )
-    name = f"{utility}_{segments}"
+    name = (
+        f"{utility}_{segments}"
+        f"_{scenario.residual_allocation_delivery}"
+        f"_{scenario.residual_allocation_supply}"
+    )
     if supply:
         name += "_supply"
     if calibrated:
