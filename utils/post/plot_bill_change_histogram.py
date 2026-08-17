@@ -152,22 +152,28 @@ def _plot_bill_change_histogram(df: pl.DataFrame) -> ggplot:
         .agg(pl.col("weight").sum().alias("weight_sum"))
     )
 
-    total_weight = df["weight"].sum()
+    total_weight = float(df["weight"].sum())
     pct_savings_gt1k = (
-        df.filter(pl.col("delta") < -1000)["weight"].sum() / total_weight * 100
+        float(df.filter(pl.col("delta") < -1000)["weight"].sum()) / total_weight * 100
     )
     pct_savings_0_1k = (
-        df.filter((pl.col("delta") >= -1000) & (pl.col("delta") < 0))["weight"].sum()
+        float(
+            df.filter((pl.col("delta") >= -1000) & (pl.col("delta") < 0))[
+                "weight"
+            ].sum()
+        )
         / total_weight
         * 100
     )
     pct_losses_0_1k = (
-        df.filter((pl.col("delta") >= 0) & (pl.col("delta") < 1000))["weight"].sum()
+        float(
+            df.filter((pl.col("delta") >= 0) & (pl.col("delta") < 1000))["weight"].sum()
+        )
         / total_weight
         * 100
     )
     pct_losses_gt1k = (
-        df.filter(pl.col("delta") >= 1000)["weight"].sum() / total_weight * 100
+        float(df.filter(pl.col("delta") >= 1000)["weight"].sum()) / total_weight * 100
     )
 
     quadrant_dtype = pl.Enum(QUADRANT_ORDER)

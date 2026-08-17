@@ -747,7 +747,7 @@ def _ct_metadata(
     gas_utilities: Sequence[str | None],
     building_types: list[str],
     heats_with_natgas: list[bool],
-    electric_utility: str = "clp",
+    electric_utility: str = "ct_eversource",
 ) -> pl.LazyFrame:
     return pl.LazyFrame(
         {
@@ -798,7 +798,7 @@ def test_map_gas_tariff_ct_iou_three_classes():
             False,
         ],
     )
-    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="clp")
+    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="ct_eversource")
     df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
     assert df["tariff_key"].to_list() == [
         "ct_natural_gas_nonheating",
@@ -826,7 +826,7 @@ def test_map_gas_tariff_ct_norwich_two_classes():
         ],
         heats_with_natgas=[True, False, True, False],
     )
-    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="clp")
+    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="ct_eversource")
     df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
     assert df["tariff_key"].to_list() == [
         "norwich_muni_general",
@@ -844,7 +844,7 @@ def test_map_gas_tariff_ct_null_gas_utility():
         building_types=["Single-Family Detached", "Single-Family Detached"],
         heats_with_natgas=[False, True],
     )
-    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="clp")
+    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="ct_eversource")
     df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
     assert df["tariff_key"].to_list() == [
         "null_gas_tariff",
@@ -870,7 +870,7 @@ def test_map_gas_tariff_ct_no_unexpected_warning(caplog):
     with caplog.at_level("WARNING"):
         map_gas_tariff(
             SB_metadata=metadata,
-            electric_utility_name="clp",
+            electric_utility_name="ct_eversource",
         ).collect()
     assert "unexpected gas_utility" not in caplog.text
 
@@ -933,7 +933,7 @@ def test_map_gas_tariff_ct_keys_match_tariff_json_files() -> None:
             True,
         ],
     )
-    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="clp")
+    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="ct_eversource")
     df = cast(pl.DataFrame, result.collect())
     produced_keys = set(df["tariff_key"].to_list()) - {"null_gas_tariff"}
     missing = produced_keys - available_stems

@@ -136,7 +136,7 @@ def _weighted_median_row(
     weight_col: str = "weight",
 ) -> pl.DataFrame:
     """Return single row at weighted median by sort_col."""
-    total_weight = df[weight_col].sum()
+    total_weight = float(df[weight_col].sum())
     sorted_df = df.sort(sort_col)
     cum = sorted_df[weight_col].cum_sum()
     median_idx = (cum >= 0.5 * total_weight).arg_max()

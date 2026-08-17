@@ -383,9 +383,9 @@ def calculate_prior_distributions(
     elec_prior = cast(
         pl.DataFrame,
         (
-            pl.LazyFrame(puma_elec_probs_df)
+            puma_elec_probs_df.lazy()
             .join(
-                pl.LazyFrame(puma_counts),
+                cast(pl.DataFrame, puma_counts).lazy(),
                 left_on="puma_id",
                 right_on="puma",
                 how="left",
@@ -396,25 +396,28 @@ def calculate_prior_distributions(
     )
     utility_cols_elec = [c for c in puma_elec_probs_df.columns if c != "puma_id"]
     elec_prior_weighted: dict[str, float] = {}
-    total_bldgs = elec_prior["count"].sum()
+    total_bldgs = float(elec_prior["count"].sum())
     for util in utility_cols_elec:
         weighted_prob = (
-            (elec_prior[util] * elec_prior["count"]).sum() / total_bldgs
+            float((elec_prior[util] * elec_prior["count"]).sum()) / total_bldgs
             if total_bldgs > 0
-            else 0
+            else 0.0
         )
         if weighted_prob > 0:
             elec_prior_weighted[util] = weighted_prob
 
     gas_bldgs = puma_and_heating_fuel.filter(pl.col("has_natgas_connection"))
-    gas_puma_counts = gas_bldgs.group_by("puma").agg(pl.len().alias("count")).collect()
+    gas_puma_counts = cast(
+        pl.DataFrame,
+        gas_bldgs.group_by("puma").agg(pl.len().alias("count")).collect(),
+    )
     puma_gas_probs_df = cast(pl.DataFrame, puma_gas_probs.collect())
     gas_prior = cast(
         pl.DataFrame,
         (
-            pl.LazyFrame(puma_gas_probs_df)
+            puma_gas_probs_df.lazy()
             .join(
-                pl.LazyFrame(gas_puma_counts),
+                gas_puma_counts.lazy(),
                 left_on="puma_id",
                 right_on="puma",
                 how="left",
@@ -425,12 +428,12 @@ def calculate_prior_distributions(
     )
     utility_cols_gas = [c for c in puma_gas_probs_df.columns if c != "puma_id"]
     gas_prior_weighted: dict[str, float] = {}
-    total_gas_bldgs = gas_prior["count"].sum()
+    total_gas_bldgs = float(gas_prior["count"].sum())
     for util in utility_cols_gas:
         weighted_prob = (
-            (gas_prior[util] * gas_prior["count"]).sum() / total_gas_bldgs
+            float((gas_prior[util] * gas_prior["count"]).sum()) / total_gas_bldgs
             if total_gas_bldgs > 0
-            else 0
+            else 0.0
         )
         if weighted_prob > 0:
             gas_prior_weighted[util] = weighted_prob

@@ -1323,10 +1323,10 @@ def check_weights_sum_to_n_customers(metadata: pl.LazyFrame) -> CheckResult:
     """
     meta_collected = _collect(metadata)
     total_buildings = len(meta_collected)
-    total_weighted = meta_collected[_WEIGHT_COL].sum()
+    total_weighted = float(meta_collected[_WEIGHT_COL].sum())
 
-    hp_weighted = meta_collected.filter(pl.col(_HP_COL))[_WEIGHT_COL].sum()
-    nonhp_weighted = meta_collected.filter(~pl.col(_HP_COL))[_WEIGHT_COL].sum()
+    hp_weighted = float(meta_collected.filter(pl.col(_HP_COL))[_WEIGHT_COL].sum())
+    nonhp_weighted = float(meta_collected.filter(~pl.col(_HP_COL))[_WEIGHT_COL].sum())
 
     sum_hp_nonhp = hp_weighted + nonhp_weighted
     diff = abs(sum_hp_nonhp - total_weighted)

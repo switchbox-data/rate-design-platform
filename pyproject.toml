@@ -27,7 +27,7 @@ dependencies = [
     "geopandas>=1.0.0",
     "numpy",
     "pandas",
-    "polars",
+    "polars>=1.43.2",
     "prek>=0.3.2",
     "pyarrow",
     "pygris>=0.2.1",

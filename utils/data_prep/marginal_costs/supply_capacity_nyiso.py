@@ -263,7 +263,7 @@ def allocate_icap_to_hours(
             )
         )
 
-        weight_sum = (month_result["exceedance"] / total_exceedance).sum()
+        weight_sum = float((month_result["exceedance"] / total_exceedance).sum())
         if abs(weight_sum - 1.0) > 1e-6:
             raise ValueError(
                 f"Month {month_num}: weights sum to {weight_sum:.6f}, expected 1.0"

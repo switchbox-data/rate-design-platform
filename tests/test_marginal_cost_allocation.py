@@ -73,7 +73,7 @@ def test_calculate_pop_weights_normalization():
 
     result_df = calculate_pop_weights(df, n_hours=100)
 
-    sum_w = result_df["w_sub_tx_and_dist"].sum()
+    sum_w = float(result_df["w_sub_tx_and_dist"].sum())
 
     assert abs(sum_w - 1.0) < 1e-6, f"Weights sum to {sum_w}, not 1.0"
 
@@ -134,7 +134,7 @@ def test_validation_1kw_constant_load():
     mc = 18.0  # $/kW-yr
 
     result_df = allocate_costs_to_hours(df, mc)
-    total_cost = result_df["mc_total_per_kwh"].sum()
+    total_cost = float(result_df["mc_total_per_kwh"].sum())
 
     assert abs(total_cost - mc) < 0.001, f"Total cost {total_cost} != {mc}"
 
@@ -177,7 +177,7 @@ def test_leap_year_handling():
     df = calculate_pop_weights(df, n_hours=100)
     df = allocate_costs_to_hours(df, 18.0)
 
-    total_cost = df["mc_total_per_kwh"].sum()
+    total_cost = float(df["mc_total_per_kwh"].sum())
     assert abs(total_cost - 18.0) < 0.001, (
         f"Leap year validation failed: {total_cost} != 18.0"
     )
@@ -191,7 +191,7 @@ def test_different_allocation_windows():
         result_df = calculate_pop_weights(df, n_hours=n_hours)
         result_df = allocate_costs_to_hours(result_df, 18.0)
 
-        total_cost = result_df["mc_total_per_kwh"].sum()
+        total_cost = float(result_df["mc_total_per_kwh"].sum())
         assert abs(total_cost - 18.0) < 0.001, (
             f"Validation failed for window {n_hours}: {total_cost}"
         )
