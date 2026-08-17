@@ -121,6 +121,25 @@ class ScenarioConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class BillChangeBaseline:
+    """The (scenario, stage) pair that bill changes are measured against.
+
+    Post-processing joins this run's electric bills onto every other run as
+    ``baseline_elec_*`` columns.  It is one stage of one scenario, not a whole
+    quartet: the usual choice is the ``default`` scenario's ``precalc`` stage,
+    i.e. today's rates applied to the pre-upgrade population.
+    """
+
+    scenario: str
+    stage: str
+
+    @property
+    def segment(self) -> str:
+        """The ``{scenario}_{stage}`` master-table folder holding the baseline."""
+        return f"{self.scenario}_{self.stage}"
+
+
+@dataclass(frozen=True, slots=True)
 class RunDefaults:
     """Batch-level fields passed through to the generated scenario YAML.
 
@@ -170,6 +189,10 @@ class PipelineConfig:
 
     scenarios: dict[str, ScenarioConfig]
     run_defaults: RunDefaults
+
+    # Read only by post-processing (master bills / master BAT), so the pipeline
+    # runs fine without it; the builders raise if it is missing.
+    bill_change_baseline: BillChangeBaseline | None = None
 
     @property
     def state_config_dir(self) -> Path:
@@ -338,6 +361,9 @@ def load_pipeline_config(yaml_path: Path) -> PipelineConfig:
         output_base=data["output_base"],
         scenarios=scenarios,
         run_defaults=run_defaults,
+        bill_change_baseline=_parse_bill_change_baseline(
+            data.get("bill_change_baseline"), scenarios
+        ),
     )
 
 
@@ -380,6 +406,36 @@ def _parse_subclass_config(raw: dict[str, Any] | None) -> SubclassConfig | None:
         for alias, spec in subgroups_raw.items()
     ]
     return SubclassConfig(group_col=str(raw["group_col"]), subgroups=subgroups)
+
+
+def _parse_bill_change_baseline(
+    raw: dict[str, Any] | None,
+    scenarios: dict[str, ScenarioConfig],
+) -> BillChangeBaseline | None:
+    """Parse and validate the optional ``bill_change_baseline`` block."""
+    if raw is None:
+        return None
+
+    missing = [key for key in ("scenario", "stage") if key not in raw]
+    if missing:
+        raise ValueError(
+            f"bill_change_baseline is missing required key(s): {', '.join(missing)}"
+        )
+
+    scenario = str(raw["scenario"])
+    if scenario not in scenarios:
+        raise ValueError(
+            f"bill_change_baseline.scenario {scenario!r} is not a declared "
+            f"scenario; available: {sorted(scenarios)}"
+        )
+
+    stage = str(raw["stage"])
+    if stage not in _STAGES:
+        raise ValueError(
+            f"bill_change_baseline.stage {stage!r} must be one of {list(_STAGES)}"
+        )
+
+    return BillChangeBaseline(scenario=scenario, stage=stage)
 
 
 def _validate_scenario(scenario: ScenarioConfig) -> None:
@@ -752,16 +808,27 @@ def _scenario_map_stem(
 ) -> str:
     """Build the tariff map CSV stem for a multi-rate scenario.
 
-    Maps partition buildings by subgroup membership, which is independent of
-    residual allocation.  The stem is derived from each subgroup's alias and
-    structure: ``{utility}_{alias1}_{structure1}_vs_{alias2}_{structure2}[_supply][_calibrated]``.
+    Building-to-subgroup membership is independent of residual allocation, but
+    the ``tariff_key`` values ``write_tariff_maps_from_scenario.py`` writes into
+    the map are each subgroup's *resolved* tariff stem, which does depend on
+    residual allocation (see ``tariff_stem``).  Two scenarios that share the
+    same subgroup aliases/structures but differ in ``residual_allocation``
+    (e.g. a ``percustomer`` vs. an ``epmc`` variant of the same hp/non-hp
+    split) therefore need distinct map files, or the later-written one
+    silently overwrites the earlier one on disk.  The stem is derived from
+    each subgroup's alias and structure plus the residual allocation:
+    ``{utility}_{alias1}_{structure1}_vs_{alias2}_{structure2}_{delivery_alloc}_{supply_alloc}[_supply][_calibrated]``.
     ``_supply`` before ``_calibrated`` matches the tariff stem convention.
     """
     assert scenario.subclass_config is not None
     segments = "_vs_".join(
         f"{sg.alias}_{sg.structure}" for sg in scenario.subclass_config.subgroups
     )
-    name = f"{utility}_{segments}"
+    name = (
+        f"{utility}_{segments}"
+        f"_{scenario.residual_allocation_delivery}"
+        f"_{scenario.residual_allocation_supply}"
+    )
     if supply:
         name += "_supply"
     if calibrated:

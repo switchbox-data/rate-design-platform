@@ -45,3 +45,8 @@ scenarios:
         non-hp:
           values: ["false"]
           structure: base
+# The one stage every other run's bills are compared against, joined onto the
+# master tables as baseline_elec_* columns by post-processing.
+bill_change_baseline:
+  scenario: default
+  stage: precalc
