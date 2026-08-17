@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "ct_eversource_hp_seasonal_percustomer_passthrough_supply",
-      "name": "ct_eversource_hp_seasonal_percustomer_passthrough_supply",
+      "label": "ct_eversource_hp_seasonal_epmc_passthrough",
+      "name": "ct_eversource_hp_seasonal_epmc_passthrough",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,14 +640,14 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.24585993061403894,
+            "rate": 0.15608992636115232,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.07776372498440134,
+            "rate": 0.09016805866856469,
             "adj": 0.0,
             "unit": "kWh"
           }
