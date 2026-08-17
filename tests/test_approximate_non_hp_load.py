@@ -2,7 +2,6 @@
 
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import cast
 from unittest.mock import patch
 
 import numpy as np
@@ -307,7 +306,7 @@ def test_replace_electricity_columns_constant() -> None:
     neighbor2 = _make_electricity_frame_constant(n_rows, 4.0, 2.0, 60.0, 0.6)
 
     out = _replace_electricity_columns(original, [neighbor1, neighbor2])
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     assert df.shape[0] == n_rows
     # Every heating column = (2 + 4) / 2 = 3
@@ -334,7 +333,7 @@ def test_replace_electricity_columns_single_neighbor() -> None:
     single = _make_electricity_frame_constant(n_rows, 2.0, 1.0, 50.0, 0.5)
 
     out = _replace_electricity_columns(original, [single])
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     for c in HEATING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS:
         assert df[c].to_list() == [2.0] * n_rows
@@ -377,7 +376,7 @@ def test_replace_electricity_columns_time_varying() -> None:
     )
 
     out = _replace_electricity_columns(original, [neighbor1, neighbor2])
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     expected_heating = [(a + b) / 2 for a, b in zip(n1_heating, n2_heating)]
     expected_cooling = [(a + b) / 2 for a, b in zip(n1_cooling, n2_cooling)]
@@ -443,7 +442,7 @@ def test_replace_heating_cooling_load_columns_single_neighbor() -> None:
     ).lazy()
 
     out = _replace_heating_cooling_load_columns(original, [single])
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     expected_h = (2.0 + 0.5 * np.sin(hour)).tolist()
     expected_c = (1.0 + 0.3 * np.cos(hour)).tolist()
@@ -488,7 +487,7 @@ def test_replace_heating_cooling_load_columns() -> None:
     out = _replace_heating_cooling_load_columns(
         original, [neighbor1, neighbor2, neighbor3]
     )
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     n1_h = (2.0 + 0.5 * np.sin(2 * np.pi * hour / 24)).tolist()
     n2_h = (4.0 + 1.0 * np.sin(2 * np.pi * hour / 24)).tolist()
@@ -548,7 +547,7 @@ def test_replace_natural_gas_columns() -> None:
     )
 
     out, _ = _replace_natural_gas_columns(original, [neighbor1, neighbor2])
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     # Heating: cols 0,2 are consumption (4 and 6 avg = 5); cols 1,3 are intensity (0.4 and 0.6 avg = 0.5)
     assert (
@@ -595,7 +594,7 @@ def test_replace_natural_gas_columns_single_neighbor() -> None:
     )
 
     out, _ = _replace_natural_gas_columns(original, [single])
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     # Single has col0=4, col1=0.4, col2=0, col3=0
     assert (
@@ -656,7 +655,7 @@ def test_replace_natural_gas_columns_time_varying() -> None:
     neighbor2 = frame_h(n2_h, n2_i, [40.0] * n_rows, [0.4] * n_rows)
 
     out, _ = _replace_natural_gas_columns(original, [neighbor1, neighbor2])
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     expected_h = [(a + b) / 2 for a, b in zip(n1_h, n2_h)]
     expected_i = [(a + b) / 2 for a, b in zip(n1_i, n2_i)]
@@ -724,7 +723,7 @@ def test_replace_fuel_oil_columns() -> None:
     )
 
     out = _replace_fuel_oil_columns(original, [neighbor1])
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     # Neighbor has (3, 0.3, 0, 0) for the 4 heating cols
     assert (
@@ -773,7 +772,7 @@ def test_replace_fuel_oil_columns_two_neighbors() -> None:
     )
 
     out = _replace_fuel_oil_columns(original, [neighbor1, neighbor2])
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     # Avg (2,0.2,0,0) and (6,0.6,0,0) = (4, 0.4, 0, 0)
     assert (
@@ -814,7 +813,7 @@ def test_replace_fuel_oil_columns_single_neighbor() -> None:
     )
 
     out = _replace_fuel_oil_columns(original, [single])
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     assert (
         df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [3.0] * n_rows
@@ -879,7 +878,7 @@ def test_replace_propane_columns() -> None:
     )
 
     out = _replace_propane_columns(original, [neighbor1, neighbor2])
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == pytest.approx(
         [3.0] * n_rows
@@ -916,7 +915,7 @@ def test_replace_propane_columns_single_neighbor() -> None:
     )
 
     out = _replace_propane_columns(original, [single])
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == [2.0] * n_rows
     assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]].to_list() == [0.2] * n_rows
@@ -1004,7 +1003,7 @@ def test_update_metadata_postprocess_has_hp() -> None:
     non_hp = _make_non_hp_bldg_metadata([1, 3])  # 1 and 3 are "non-HP" to be updated
 
     out = update_metadata(non_hp, input_meta)
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     # 1 and 3 in non_hp_bldg_ids → True; 2 not in list → keep True
     assert df.filter(pl.col("bldg_id") == 1)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
@@ -1027,7 +1026,7 @@ def test_update_metadata_postprocess_has_hp_others_unchanged() -> None:
     non_hp = _make_non_hp_bldg_metadata([20])  # only 20 is "non-HP" to update
 
     out = update_metadata(non_hp, input_meta)
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     assert df.filter(pl.col("bldg_id") == 10)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
         False
@@ -1052,7 +1051,7 @@ def test_update_metadata_heats_with_columns() -> None:
     non_hp = _make_non_hp_bldg_metadata([1, 3])
 
     out = update_metadata(non_hp, input_meta)
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     for col in HEATS_WITH_COLUMNS:
         if col == "heats_with_electricity":
@@ -1079,7 +1078,7 @@ def test_update_metadata_postprocess_heating_type() -> None:
     non_hp = _make_non_hp_bldg_metadata([1, 3])
 
     out = update_metadata(non_hp, input_meta)
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     assert df.filter(pl.col("bldg_id") == 1)[
         POSTPROCESS_HEATING_TYPE_COLUMN
@@ -1104,7 +1103,7 @@ def test_update_metadata_has_natgas_connection_when_natural_gas_usage_provided()
     natural_gas_usage = [1, 3]  # bldg_ids that use natural gas after approximation
 
     out = update_metadata(non_hp, input_meta, natural_gas_usage=natural_gas_usage)
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     assert df.filter(pl.col("bldg_id") == 1)[
         HAS_NATGAS_CONNECTION_COLUMN
@@ -1130,7 +1129,7 @@ def test_update_metadata_has_natgas_connection_others_unchanged() -> None:
     natural_gas_usage = [20]
 
     out = update_metadata(non_hp, input_meta, natural_gas_usage=natural_gas_usage)
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     assert df.filter(pl.col("bldg_id") == 10)[
         HAS_NATGAS_CONNECTION_COLUMN
@@ -1149,7 +1148,7 @@ def test_update_metadata_natural_gas_usage_none() -> None:
     non_hp = _make_non_hp_bldg_metadata([1, 2])
 
     out = update_metadata(non_hp, input_meta, natural_gas_usage=None)
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     # Without natural_gas_usage, the has_natgas_connection block is skipped — column stays as-is.
     # So 1 and 2 keep True and False (and they're still updated for has_hp, heats_with, etc.)
@@ -1170,7 +1169,7 @@ def test_update_metadata_upgrade_partial_conditioning() -> None:
     non_hp = _make_non_hp_bldg_metadata([1, 3])
 
     out = update_metadata(non_hp, input_meta)
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     assert df.filter(pl.col("bldg_id") == 1)[
         UPGRADE_PARTIAL_CONDITIONING_COLUMN
@@ -1194,7 +1193,7 @@ def test_update_metadata_empty_non_hp() -> None:
     non_hp = _make_non_hp_bldg_metadata([])
 
     out = update_metadata(non_hp, input_meta)
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     assert df[POSTPROCESS_HAS_HP_COLUMN].to_list() == [False, True]
     assert df[POSTPROCESS_HEATING_TYPE_COLUMN].to_list() == ["furnace", "heat_pump"]
@@ -1216,7 +1215,7 @@ def test_update_metadata_upgrade_hvac_by_heating_type() -> None:
     non_hp = _make_non_hp_bldg_metadata([1, 2, 3])
 
     out = update_metadata(non_hp, input_meta)
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     # Non-Ducted → MSHP / Non-Ducted Heat Pump; Ducted → ASHP / Ducted Heat Pump
     assert df.filter(pl.col("bldg_id") == 1)[
@@ -1248,7 +1247,7 @@ def test_update_metadata_mixed_comprehensive() -> None:
     natural_gas_usage = [101]  # only 101 uses natural gas after approximation
 
     out = update_metadata(non_hp, input_meta, natural_gas_usage=natural_gas_usage)
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
 
     # 101: non-HP, in natural_gas_usage
     assert df.filter(pl.col("bldg_id") == 101)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [

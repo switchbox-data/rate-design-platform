@@ -1,5 +1,3 @@
-from typing import cast
-
 import polars as pl
 import pytest
 
@@ -28,7 +26,7 @@ def test_identify_natgas_connection_happy_path():
     ).lazy()
 
     result = identify_natgas_connection(metadata, load_curve_annual)
-    result_df = cast(pl.DataFrame, result.collect())
+    result_df = result.collect()
 
     assert "has_natgas_connection" in result_df.columns
     assert result_df["has_natgas_connection"].to_list() == [
@@ -80,9 +78,7 @@ def test_identify_natgas_connection_missing_bldg_id_defaults_to_false():
         }
     ).lazy()
 
-    result = cast(
-        pl.DataFrame, identify_natgas_connection(metadata, load_curve_annual).collect()
-    )
+    result = identify_natgas_connection(metadata, load_curve_annual).collect()
     assert result["has_natgas_connection"].to_list() == [True, False, False]
 
 
@@ -146,7 +142,7 @@ def test_identify_natgas_connection_drops_existing_column():
     ).lazy()
 
     result = identify_natgas_connection(metadata, load_curve_annual)
-    result_df = cast(pl.DataFrame, result.collect())
+    result_df = result.collect()
 
     # Should have new values, not the old False values
     assert result_df["has_natgas_connection"].to_list() == [True, False]
@@ -169,7 +165,7 @@ def test_identify_natgas_connection_zero_consumption():
     ).lazy()
 
     result = identify_natgas_connection(metadata, load_curve_annual)
-    result_df = cast(pl.DataFrame, result.collect())
+    result_df = result.collect()
 
     assert result_df["has_natgas_connection"].to_list() == [False, False]
 
@@ -194,6 +190,6 @@ def test_identify_natgas_connection_positive_consumption():
     ).lazy()
 
     result = identify_natgas_connection(metadata, load_curve_annual)
-    result_df = cast(pl.DataFrame, result.collect())
+    result_df = result.collect()
 
     assert result_df["has_natgas_connection"].to_list() == [True, False]

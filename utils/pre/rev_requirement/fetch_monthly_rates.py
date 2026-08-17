@@ -739,9 +739,9 @@ def _build_grouped_output(
         groups[key].append(info)
 
     # Build per-decision sections
-    decision_sections: dict[str, dict] = {}
+    decision_sections: dict[str, list[list[dict]]] = defaultdict(list)
     for (decision, _mc), entries in groups.items():
-        decision_sections.setdefault(decision, []).append(entries)  # type: ignore[arg-type]
+        decision_sections[decision].append(entries)
 
     result: dict = {
         "utility": utility,
@@ -751,7 +751,7 @@ def _build_grouped_output(
     }
 
     for decision in ("add_to_drr", "add_to_srr", "already_in_drr"):
-        entry_groups: list[list[dict]] = decision_sections.get(decision, [])  # type: ignore[assignment]
+        entry_groups: list[list[dict]] = decision_sections.get(decision, [])
         if not entry_groups:
             result[decision] = {"rate_structure": "flat", "charges": {}}
             continue

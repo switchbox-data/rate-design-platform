@@ -11,6 +11,8 @@ Usage:
 
 from __future__ import annotations
 
+from utils.numeric import as_float
+
 import sys
 from pathlib import Path
 
@@ -136,9 +138,9 @@ def check_reg_price_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
         prices = df[col_name]
         n_nan = prices.is_nan().sum()
         n_inf = prices.is_infinite().sum()
-        pmin = float(prices.min())  # type: ignore[arg-type]
-        pmax = float(prices.max())  # type: ignore[arg-type]
-        pmean = float(prices.mean())  # type: ignore[arg-type]
+        pmin = as_float(prices.min())
+        pmax = as_float(prices.max())
+        pmean = as_float(prices.mean())
 
         if n_nan > 0:
             result.error(f"{col_label} integrity", f"{n_nan} NaN values")
@@ -171,9 +173,9 @@ def check_load_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
         ("ARD demand", "ard_demand_mw"),
     ]:
         vals = df[col_name]
-        vmin = float(vals.min())  # type: ignore[arg-type]
-        vmax = float(vals.max())  # type: ignore[arg-type]
-        vmean = float(vals.mean())  # type: ignore[arg-type]
+        vmin = as_float(vals.min())
+        vmax = as_float(vals.max())
+        vmean = as_float(vals.mean())
 
         if col_name == "system_load_mw":
             if vmin < LOAD_FLOOR:

@@ -11,6 +11,8 @@ Usage:
 
 from __future__ import annotations
 
+from utils.numeric import as_float
+
 import argparse
 from pathlib import Path
 
@@ -109,8 +111,8 @@ def plot_hourly_load(df: pl.DataFrame, n_sample: int) -> ggplot:
     year = df["timestamp"].dt.year()[0]
     breaks, labels = _month_breaks(year)
 
-    vmin = float(heatmap_df[LOAD_COL].min())  # type: ignore[arg-type]
-    vmax = float(heatmap_df[LOAD_COL].max())  # type: ignore[arg-type]
+    vmin = as_float(heatmap_df[LOAD_COL].min())
+    vmax = as_float(heatmap_df[LOAD_COL].max())
     n_intervals = 5
     step = (vmax - vmin) / n_intervals if vmax != vmin else 1.0
     fill_breaks = [vmin + i * step for i in range(n_intervals + 1)]

@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import cast
 
 import polars as pl
 
@@ -87,15 +86,14 @@ def _load_resstock_total_kwh_per_utility_from_annual(
             f"Annual parquet at {path_annual!r} is missing column {WEIGHT_COL!r} (sample weight)."
         )
 
-    annual_df = cast(
-        pl.DataFrame,
+    annual_df = (
         pl.scan_parquet(path_annual, storage_options=opts_annual)
         .select(
             pl.col(BLDG_ID_COL),
             pl.col(elec_col).alias("annual_kwh"),
             pl.col(WEIGHT_COL),
         )
-        .collect(),
+        .collect()
     )
 
     opts_ua = storage_options if _is_s3(path_utility_assignment) else None
@@ -106,10 +104,7 @@ def _load_resstock_total_kwh_per_utility_from_annual(
             f"Utility assignment at {path_utility_assignment!r} is missing "
             f"required column {ELECTRIC_UTILITY_COL!r}"
         )
-    ua_df = cast(
-        pl.DataFrame,
-        ua_lf.select([BLDG_ID_COL, ELECTRIC_UTILITY_COL]).collect(),
-    )
+    ua_df = ua_lf.select([BLDG_ID_COL, ELECTRIC_UTILITY_COL]).collect()
 
     joined = annual_df.join(ua_df, on=BLDG_ID_COL, how="inner")
     joined = joined.with_columns(
@@ -136,7 +131,7 @@ def _load_eia861_residential(
         )
         .collect()
     )
-    return cast(pl.DataFrame, out)
+    return out
 
 
 def compare_resstock_eia861(

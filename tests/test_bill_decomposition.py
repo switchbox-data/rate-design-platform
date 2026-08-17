@@ -5,11 +5,10 @@ Uses synthetic data — no S3, no real data, runs in milliseconds.
 
 from __future__ import annotations
 
-from typing import cast
-
 import polars as pl
 import pytest
 
+from utils.numeric import as_float
 from utils.post.delivered_fuel_bills import (
     KWH_PER_GAL_HEATING_OIL,
     KWH_PER_GAL_PROPANE,
@@ -77,10 +76,7 @@ class TestComputeFuelBills:
     def test_output_schema(
         self, load_curve_monthly_3bldgs: pl.LazyFrame, monthly_prices: pl.DataFrame
     ) -> None:
-        result = cast(
-            pl.DataFrame,
-            compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect(),
-        )
+        result = compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect()
         assert set(result.columns) == {
             BLDG_ID,
             "month",
@@ -91,10 +87,7 @@ class TestComputeFuelBills:
     def test_rows_per_building(
         self, load_curve_monthly_3bldgs: pl.LazyFrame, monthly_prices: pl.DataFrame
     ) -> None:
-        result = cast(
-            pl.DataFrame,
-            compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect(),
-        )
+        result = compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect()
         counts = result.group_by(BLDG_ID).agg(pl.len().alias("n"))
         assert counts["n"].to_list() == [13, 13, 13] or all(
             n == 13 for n in counts["n"].to_list()
@@ -103,10 +96,7 @@ class TestComputeFuelBills:
     def test_oil_bill_calculation(
         self, load_curve_monthly_3bldgs: pl.LazyFrame, monthly_prices: pl.DataFrame
     ) -> None:
-        result = cast(
-            pl.DataFrame,
-            compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect(),
-        )
+        result = compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect()
         bldg1_jan = result.filter((pl.col(BLDG_ID) == 1) & (pl.col("month") == "Jan"))
         expected_oil = 100.0 / KWH_PER_GAL_HEATING_OIL * 3.0
         actual = bldg1_jan["oil_total_bill"].item()
@@ -115,10 +105,7 @@ class TestComputeFuelBills:
     def test_propane_bill_calculation(
         self, load_curve_monthly_3bldgs: pl.LazyFrame, monthly_prices: pl.DataFrame
     ) -> None:
-        result = cast(
-            pl.DataFrame,
-            compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect(),
-        )
+        result = compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect()
         bldg2_feb = result.filter((pl.col(BLDG_ID) == 2) & (pl.col("month") == "Feb"))
         expected_propane = 50.0 / KWH_PER_GAL_PROPANE * 2.0
         actual = bldg2_feb["propane_total_bill"].item()
@@ -127,10 +114,7 @@ class TestComputeFuelBills:
     def test_zero_fuel_building(
         self, load_curve_monthly_3bldgs: pl.LazyFrame, monthly_prices: pl.DataFrame
     ) -> None:
-        result = cast(
-            pl.DataFrame,
-            compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect(),
-        )
+        result = compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect()
         bldg3 = result.filter(pl.col(BLDG_ID) == 3)
         assert bldg3["oil_total_bill"].sum() == 0.0
         assert bldg3["propane_total_bill"].sum() == 0.0
@@ -138,10 +122,7 @@ class TestComputeFuelBills:
     def test_annual_equals_sum_of_monthly(
         self, load_curve_monthly_3bldgs: pl.LazyFrame, monthly_prices: pl.DataFrame
     ) -> None:
-        result = cast(
-            pl.DataFrame,
-            compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect(),
-        )
+        result = compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect()
         for bldg in [1, 2, 3]:
             bldg_data = result.filter(pl.col(BLDG_ID) == bldg)
             monthly = bldg_data.filter(pl.col("month") != ANNUAL_MONTH)
@@ -161,10 +142,7 @@ class TestComputeFuelBills:
     def test_month_strings(
         self, load_curve_monthly_3bldgs: pl.LazyFrame, monthly_prices: pl.DataFrame
     ) -> None:
-        result = cast(
-            pl.DataFrame,
-            compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect(),
-        )
+        result = compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect()
         months = set(result["month"].unique().to_list())
         expected = set(MONTH_INT_TO_STR.values()) | {ANNUAL_MONTH}
         assert months == expected
@@ -172,10 +150,7 @@ class TestComputeFuelBills:
     def test_no_nulls(
         self, load_curve_monthly_3bldgs: pl.LazyFrame, monthly_prices: pl.DataFrame
     ) -> None:
-        result = cast(
-            pl.DataFrame,
-            compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect(),
-        )
+        result = compute_fuel_bills(load_curve_monthly_3bldgs, monthly_prices).collect()
         for col in result.columns:
             assert result[col].null_count() == 0, f"Column {col} has nulls"
 
@@ -245,7 +220,7 @@ class TestElectricDecomposition:
             df["elec_fixed_charge"] + df["elec_delivery_bill"] + df["elec_supply_bill"]
         )
         diff_elec = (df["elec_total_bill"] - elec_sum).abs()
-        assert diff_elec.max() < 1e-6  # type: ignore[operator]
+        assert as_float(diff_elec.max()) < 1e-6
 
         # Energy identity
         energy_sum = (
@@ -255,4 +230,4 @@ class TestElectricDecomposition:
             + df["propane_total_bill"]
         )
         diff_energy = (df["energy_total_bill"] - energy_sum).abs()
-        assert diff_energy.max() < 1e-6  # type: ignore[operator]
+        assert as_float(diff_energy.max()) < 1e-6

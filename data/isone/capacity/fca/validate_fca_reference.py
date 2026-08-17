@@ -10,6 +10,8 @@ Usage:
 
 from __future__ import annotations
 
+from utils.numeric import as_float
+
 import sys
 from datetime import date
 from pathlib import Path
@@ -177,9 +179,9 @@ def check_existing_new_pairs(df: pl.DataFrame, result: ValidationResult) -> None
 
 def check_price_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
     prices = df["clearing_price_per_kw_month"]
-    pmin = float(prices.min())  # type: ignore[arg-type]
-    pmax = float(prices.max())  # type: ignore[arg-type]
-    pmean = float(prices.mean())  # type: ignore[arg-type]
+    pmin = as_float(prices.min())
+    pmax = as_float(prices.max())
+    pmean = as_float(prices.mean())
 
     if pmin < PRICE_FLOOR:
         result.error("Price range", f"min ${pmin:.3f} is negative")

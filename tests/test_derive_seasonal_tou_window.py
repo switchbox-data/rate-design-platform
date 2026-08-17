@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from typing import Any, cast
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -38,7 +42,7 @@ def _spike_mc_profile(
     load_value: float = 100.0,
 ) -> tuple[pd.Series, pd.Series]:
     """MC profile with a sharp spike at specific hours-of-day."""
-    hours = np.asarray(index.hour)  # type: ignore[union-attr]
+    hours = np.asarray(cast(Any, index).hour)
     mc_values = np.where(np.isin(hours, spike_hours), spike_mc, base_mc)
     mc = pd.Series(mc_values, index=index, name="total_mc_per_kwh")
     load = pd.Series(load_value, index=index, name="load")
@@ -247,19 +251,19 @@ class TestSweepTouWindowHours:
 
 
 class TestUpdatePeriodsYaml:
-    def test_creates_file_if_missing(self, tmp_path: object) -> None:
+    def test_creates_file_if_missing(self, tmp_path: Path) -> None:
         import yaml as _yaml
 
-        p = tmp_path / "periods" / "test.yaml"  # type: ignore[operator]
+        p = tmp_path / "periods" / "test.yaml"
         update_periods_yaml(p, 5)
         assert p.exists()
         data = _yaml.safe_load(p.read_text())
         assert data["tou_window_hours"] == 5
 
-    def test_preserves_existing_keys(self, tmp_path: object) -> None:
+    def test_preserves_existing_keys(self, tmp_path: Path) -> None:
         import yaml as _yaml
 
-        p = tmp_path / "test.yaml"  # type: ignore[operator]
+        p = tmp_path / "test.yaml"
         p.write_text("winter_months: [10, 11, 12, 1, 2, 3]\ntou_window_hours: 4\n")
         update_periods_yaml(p, 7)
         data = _yaml.safe_load(p.read_text())

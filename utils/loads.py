@@ -7,7 +7,6 @@ specific building IDs for alignment with CAIRO sample runs.
 
 from __future__ import annotations
 
-from typing import cast
 
 import pandas as pd
 import polars as pl
@@ -190,7 +189,7 @@ def hourly_resstock_load_from_parquet(
         .agg(pl.col("_wload").sum().alias("load"))
         .sort("_ts")
     )
-    df = cast(pl.DataFrame, aggregated.collect())
+    df = aggregated.collect()
     index = df["_ts"].to_pandas()
     series = df["load"].to_pandas()
     series.index = index

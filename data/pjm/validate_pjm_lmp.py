@@ -20,6 +20,7 @@ import argparse
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import cast
 
 import polars as pl
 
@@ -173,8 +174,8 @@ def validate_zone_lmp(
             msgs.append(f"  ok  No null {price_col} values")
 
     # --- Date range coverage ---
-    actual_min: datetime | None = zone_df[ts_col].cast(pl.Datetime("us")).min()  # type: ignore[assignment]
-    actual_max: datetime | None = zone_df[ts_col].cast(pl.Datetime("us")).max()  # type: ignore[assignment]
+    actual_min = cast(datetime | None, zone_df[ts_col].cast(pl.Datetime("us")).min())
+    actual_max = cast(datetime | None, zone_df[ts_col].cast(pl.Datetime("us")).max())
     range_start = datetime(start.year, start.month, start.day)
     range_end = datetime(end.year, end.month, end.day, 23)
     msgs.append(f"      EPT range: {actual_min} → {actual_max}")

@@ -13,7 +13,7 @@ CAIRO output CSV column conventions (shared with :mod:`checks`):
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
 import polars as pl
 from utils.post.validate.subclasses import (
@@ -43,7 +43,7 @@ _BAT_COLS: tuple[str, ...] = ("BAT_percustomer", "BAT_vol", "BAT_peak", "BAT_epm
 
 
 def _collect(lf: pl.LazyFrame) -> pl.DataFrame:
-    return cast(pl.DataFrame, lf.collect())
+    return lf.collect()
 
 
 def _wavg(col: str) -> pl.Expr:

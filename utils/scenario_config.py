@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import polars as pl
 import yaml
@@ -46,7 +46,7 @@ def get_residential_customer_count_from_utility_stats(
         .filter(pl.col("utility_code") == utility)
         .select("residential_customers")
     )
-    df = cast(pl.DataFrame, lf.collect())
+    df = lf.collect()
     if df.height == 0:
         raise ValueError(
             f"No row with utility_code={utility!r} in {path_str}. "
@@ -85,7 +85,7 @@ def get_residential_sales_revenue_from_utility_stats(
         .filter(pl.col("utility_code") == utility)
         .select("residential_sales_revenue")
     )
-    df = cast(pl.DataFrame, lf.collect())
+    df = lf.collect()
     if df.height == 0:
         raise ValueError(
             f"No row with utility_code={utility!r} in {path_str}. "
@@ -132,7 +132,7 @@ def get_residential_sales_kwh_from_utility_stats(
             )
         )
     )
-    df = cast(pl.DataFrame, lf.collect())
+    df = lf.collect()
     if df.height == 0:
         raise ValueError(
             f"No row with utility_code={utility!r} in {path_str}. "

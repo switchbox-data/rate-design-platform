@@ -15,6 +15,8 @@ See `context/domain/charges/lmi_discounts_in_ny.md` for EAP/EEAP tier and credit
 
 from __future__ import annotations
 
+from utils.numeric import as_float
+
 import argparse
 from pathlib import Path
 
@@ -1112,7 +1114,7 @@ def _check_source_columns(
         if col in ("bldg_id", "month"):
             continue
         if staging_sub[col].dtype.is_float():
-            diff = float((staging_sub[col] - prod_sub[col]).abs().max())  # type: ignore[arg-type]
+            diff = as_float((staging_sub[col] - prod_sub[col]).abs().max())
             if diff > 1e-10:
                 print(f"  FAIL: {col} max diff = {diff}")
                 n_diffs += 1

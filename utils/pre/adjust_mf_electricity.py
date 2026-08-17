@@ -134,18 +134,13 @@ def _get_non_hvac_mf_to_sf_ratios(
     ]
     if not non_hvac_present:
         return ratios
-    merged = cast(
-        pl.DataFrame,
-        (
-            load_curve_annual.select(
-                [pl.col(BLDG_ID_COL)] + [pl.col(c) for c in non_hvac_present]
-            )
-            .join(meta, on=BLDG_ID_COL, how="inner")
-            .filter(
-                pl.col("floor_area_sqft").is_finite() & (pl.col("floor_area_sqft") > 0)
-            )
-            .collect()
-        ),
+    merged = (
+        load_curve_annual.select(
+            [pl.col(BLDG_ID_COL)] + [pl.col(c) for c in non_hvac_present]
+        )
+        .join(meta, on=BLDG_ID_COL, how="inner")
+        .filter(pl.col("floor_area_sqft").is_finite() & (pl.col("floor_area_sqft") > 0))
+        .collect()
     )
     sf_df = merged.filter(pl.col("_is_sf"))
     mf_df = merged.filter(pl.col("_is_mf"))
@@ -290,19 +285,16 @@ def adjust_mf_electricity_parquet(
     annual_for_ratio = input_load_curve_annual.select(
         [pl.col(BLDG_ID_COL)] + [pl.col(c) for c in non_hvac_present]
     )
-    bldg_ids_in_annual = (
-        cast(pl.DataFrame, annual_for_ratio.collect()).get_column(BLDG_ID_COL).to_list()
-    )
+    bldg_ids_in_annual = annual_for_ratio.collect().get_column(BLDG_ID_COL).to_list()
     meta_subset = metadata.filter(pl.col(BLDG_ID_COL).is_in(bldg_ids_in_annual))
-    meta_collected = cast(pl.DataFrame, meta_subset.collect())
+    meta_collected = meta_subset.collect()
     if meta_collected.height != len(bldg_ids_in_annual):
         raise ValueError(
             f"Number of metadata rows ({meta_collected.height}) does not match number of bldg_ids in the load curve annual ({len(bldg_ids_in_annual)})"
         )
     ratios = _get_non_hvac_mf_to_sf_ratios(annual_for_ratio, meta_subset)
     unadjusted_multifamily_bldg_ids = (
-        cast(
-            pl.DataFrame,
+        (
             meta_subset.filter(
                 pl.col(BUILDING_TYPE_RECS_COL).str.contains(
                     "Multi-Family", literal=True
@@ -310,7 +302,7 @@ def adjust_mf_electricity_parquet(
                 & ~pl.col(MF_NON_HVAC_ELECTRICITY_ADJUSTED_COL)
             )
             .select(pl.col(BLDG_ID_COL))
-            .collect(),
+            .collect()
         )
         .get_column(BLDG_ID_COL)
         .to_list()
@@ -322,7 +314,7 @@ def adjust_mf_electricity_parquet(
         adjusted = _adjust_mf_electricity_hourly_one_bldg(lf, ratios)
         # Collect before writing: source and sink are the same file, and
         # sink_parquet on an overlapping path triggers a Polars panic.
-        cast(pl.DataFrame, adjusted.collect()).write_parquet(
+        adjusted.collect().write_parquet(
             str(path_hourly), storage_options=opts if opts else None
         )
         return bldg_id
@@ -349,7 +341,7 @@ def adjust_mf_electricity_parquet(
     #
     # Collect before writing: writing a LazyFrame back to the same parquet path it scans
     # from can trigger a Polars panic when the source and sink overlap.
-    metadata_df = cast(pl.DataFrame, metadata.collect())
+    metadata_df = metadata.collect()
     metadata_df.write_parquet(str(path_metadata), storage_options=opts)
 
 

@@ -203,7 +203,7 @@ def fetch_gas_urdb(
                 _reraise_with_formatted_options(e)
             all_schedules = [
                 s
-                for s in scraping_state.get_schedules()  # type: ignore[union-attr]
+                for s in scraping_state.get_schedules()  # ty: ignore[unresolved-attribute]
                 if s
             ]
             schedule_names = list(tariff_map.values())
@@ -242,7 +242,7 @@ def fetch_gas_urdb(
                     tariff_key,
                 )
                 report = (
-                    scraping_state.select_schedule(schedule_name)  # type: ignore[union-attr]
+                    scraping_state.select_schedule(schedule_name)  # ty: ignore[unresolved-attribute]
                     .set_enddate(date(year, 12, 1))
                     .set_number_of_comparisons(12)
                     .set_frequency(1)

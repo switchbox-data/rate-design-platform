@@ -11,6 +11,8 @@ Usage:
 
 from __future__ import annotations
 
+from utils.numeric import as_float
+
 import argparse
 import math
 import sys
@@ -153,10 +155,10 @@ def check_positive_csos(df: pl.DataFrame, result: ValidationResult) -> None:
             f"zero Total CSOs: {zero_summer} summer, {zero_winter} winter",
         )
     else:
-        smin = float(totals["summer_cso_mw"].min())  # type: ignore[arg-type]
-        smax = float(totals["summer_cso_mw"].max())  # type: ignore[arg-type]
-        wmin = float(totals["winter_cso_mw"].min())  # type: ignore[arg-type]
-        wmax = float(totals["winter_cso_mw"].max())  # type: ignore[arg-type]
+        smin = as_float(totals["summer_cso_mw"].min())
+        smax = as_float(totals["summer_cso_mw"].max())
+        wmin = as_float(totals["winter_cso_mw"].min())
+        wmax = as_float(totals["winter_cso_mw"].max())
         result.passed(
             "Positive CSOs",
             f"Total summer: {smin:.1f}–{smax:.1f} MW, winter: {wmin:.1f}–{wmax:.1f} MW",

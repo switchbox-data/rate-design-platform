@@ -105,10 +105,7 @@ def _validate_stacked_bar(
     """Compare electric decomposition: old path vs master table."""
     _log("\n=== Stacked bar comparison (electric decomposition) ===")
 
-    master_df = cast(
-        pl.DataFrame,
-        pl.scan_parquet(master_parquet_path, hive_partitioning=True).collect(),
-    )
+    master_df = pl.scan_parquet(master_parquet_path, hive_partitioning=True).collect()
     s3_base = (
         f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/{utility}/{util_batch}"
     )
@@ -214,17 +211,15 @@ def _validate_histogram(
         comb_after, load_monthly_u02, monthly_prices
     )
 
-    annual_before = cast(
-        pl.DataFrame,
+    annual_before = (
         topped_before.filter(pl.col("month") == ANNUAL_MONTH)
         .select(BLDG_ID, "weight", pl.col(BILL_LEVEL).alias("bill_before"))
-        .collect(),
+        .collect()
     )
-    annual_after = cast(
-        pl.DataFrame,
+    annual_after = (
         topped_after.filter(pl.col("month") == ANNUAL_MONTH)
         .select(BLDG_ID, pl.col(BILL_LEVEL).alias("bill_after"))
-        .collect(),
+        .collect()
     )
 
     old_delta = annual_before.join(annual_after, on=BLDG_ID, how="inner").with_columns(
@@ -239,14 +234,8 @@ def _validate_histogram(
 
     # --- New path ---
     _log("  New path: reading master tables, computing delta...")
-    m12 = cast(
-        pl.DataFrame,
-        pl.scan_parquet(master_before_path, hive_partitioning=True).collect(),
-    )
-    m34 = cast(
-        pl.DataFrame,
-        pl.scan_parquet(master_after_path, hive_partitioning=True).collect(),
-    )
+    m12 = pl.scan_parquet(master_before_path, hive_partitioning=True).collect()
+    m34 = pl.scan_parquet(master_after_path, hive_partitioning=True).collect()
 
     new_before = m12.filter(
         (pl.col("sb.electric_utility") == utility) & (pl.col("month") == ANNUAL_MONTH)
@@ -371,10 +360,7 @@ def main() -> None:
         args.path_heating_fuel_prices, state.upper(), args.price_year
     )
     meta_path = f"{args.path_resstock_release.rstrip('/')}/metadata_utility/state={state.upper()}/utility_assignment.parquet"
-    metadata = cast(
-        pl.DataFrame,
-        pl.scan_parquet(meta_path).collect(),
-    )
+    metadata = pl.scan_parquet(meta_path).collect()
 
     results: list[tuple[str, bool]] = []
 

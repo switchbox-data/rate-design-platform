@@ -11,6 +11,8 @@ Usage:
 
 from __future__ import annotations
 
+from utils.numeric import as_float
+
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -160,9 +162,9 @@ def check_load_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
     loads = df["load_mw"]
     n_nan = loads.is_nan().sum()
     n_inf = loads.is_infinite().sum()
-    lmin = float(loads.min())  # type: ignore[arg-type]
-    lmax = float(loads.max())  # type: ignore[arg-type]
-    lmean = float(loads.mean())  # type: ignore[arg-type]
+    lmin = as_float(loads.min())
+    lmax = as_float(loads.max())
+    lmean = as_float(loads.mean())
 
     if n_nan > 0:
         result.error("Load integrity", f"{n_nan} NaN values")

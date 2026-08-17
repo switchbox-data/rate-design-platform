@@ -1064,7 +1064,7 @@ def main() -> None:
 
     with open(path_input) as f:
         reader = csv.DictReader(f)
-        old_fieldnames = list(reader.fieldnames)  # type: ignore[arg-type]
+        old_fieldnames = list(reader.fieldnames or [])
         rows = list(reader)
 
     # Build override index: map each row to its override (if any)

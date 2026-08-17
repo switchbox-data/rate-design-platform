@@ -562,8 +562,7 @@ def _load_kwh_totals_monthly(
         kwh_expr = pl.col(ELECTRIC_LOAD_COL).cast(pl.Float64).clip(lower_bound=0.0)
 
     t1 = perf_counter()
-    kwh = cast(
-        pl.DataFrame,
+    kwh = (
         lf.join(weights.lazy(), on=BLDG_ID_COL, how="inner")
         .select(
             pl.col("month").cast(pl.Int8),
@@ -589,7 +588,7 @@ def _load_kwh_totals_monthly(
             .sum()
             .alias("subclass_winter_kwh"),
         )
-        .collect(engine="streaming"),
+        .collect(engine="streaming")
     )
     LOGGER.info(
         "fair_default_inputs: collected monthly kWh totals in %.2fs",
@@ -1001,13 +1000,12 @@ def _load_metadata_and_cross_subsidy(
         subclass_value,
         group_value_to_subclass,
     )
-    metadata = cast(
-        pl.DataFrame,
+    metadata = (
         _load_group_values(run_dir, group_col, storage_options)
         .with_columns(
             pl.col(GROUP_VALUE_COL).is_in(raw_subclass_values).alias("_is_subclass")
         )
-        .collect(),
+        .collect()
     )
     if metadata.is_empty():
         raise ValueError("No customers found in customer_metadata.csv.")
@@ -1024,15 +1022,14 @@ def _load_bill_totals(
     metadata: pl.DataFrame,
     storage_options: dict[str, str] | None,
 ) -> tuple[float, float]:
-    bills = cast(
-        pl.DataFrame,
+    bills = (
         _load_annual_target_bills(run_dir, ANNUAL_MONTH_VALUE, storage_options)
         .join(
             metadata.select(BLDG_ID_COL, WEIGHT_COL, "_is_subclass").lazy(),
             on=BLDG_ID_COL,
             how="right",
         )
-        .collect(),
+        .collect()
     )
     missing_bills = bills.filter(pl.col("annual_bill").is_null()).height
     if missing_bills:
@@ -1081,8 +1078,7 @@ def _load_kwh_totals(
 
     weights = metadata.select(BLDG_ID_COL, WEIGHT_COL, "_is_subclass")
     t1 = perf_counter()
-    kwh = cast(
-        pl.DataFrame,
+    kwh = (
         loads.join(weights.lazy(), on=BLDG_ID_COL, how="inner")
         .select(
             pl.col("timestamp")
@@ -1115,7 +1111,7 @@ def _load_kwh_totals(
             .sum()
             .alias("subclass_winter_kwh"),
         )
-        .collect(engine="streaming"),
+        .collect(engine="streaming")
     )
     LOGGER.info(
         "fair_default_inputs: collected class and subclass load totals in %.2fs",

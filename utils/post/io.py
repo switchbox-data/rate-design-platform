@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 
 import polars as pl
 from cloudpathlib import S3Path
@@ -58,12 +58,11 @@ def scan_load_curves_for_utility(
     meta_path = f"{base}/metadata_utility/state={state}/utility_assignment.parquet"
 
     bldg_ids: list[int] = (
-        cast(
-            pl.DataFrame,
+        (
             pl.scan_parquet(meta_path)
             .filter(pl.col("sb.electric_utility") == utility)
             .select(BLDG_ID)
-            .collect(),
+            .collect()
         )
         .to_series()
         .to_list()

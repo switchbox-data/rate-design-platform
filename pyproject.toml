@@ -27,8 +27,11 @@ dependencies = [
     "geopandas>=1.0.0",
     "numpy",
     "pandas",
-    "polars>=1.43.2",
-    "prek>=0.4.12",
+    # Floor at the versions verified green with just check; upper caps stop an
+    # incidental uv.lock refresh from dragging these forward and breaking CI
+    # (see issue on freezing ty/polars/prek). Bump deliberately when upgrading.
+    "polars>=1.43.2,<2",
+    "prek>=0.4.12,<0.5",
     "pyarrow",
     "pygris>=0.2.1",
     "s3fs>=2026.2.0",
@@ -60,7 +63,8 @@ Changelog = "https://github.com/switchbox-data/rate-design-platform/blob/main/CH
 dev = [
     "pytest>=7.2.0",
     "ruff>=0.11.5",
-    "ty==0.0.21",
+    # 0.0.x still breaks often; keep a floor + <0.1 so lock refreshes stay in-band.
+    "ty>=0.0.69,<0.1",
     "deptry>=0.20.0",
     "ipykernel>=7.1.0",
     "plotnine>=0.14.0",

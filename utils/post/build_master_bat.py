@@ -409,11 +409,11 @@ def _process_utility(
 
     # --- Read BAT CSVs ---
     t = _log("  Reading BAT values (delivery run)...")
-    bat_delivery_df = cast(pl.DataFrame, scan(f"{dir_delivery}/{BAT_CSV}").collect())
+    bat_delivery_df = scan(f"{dir_delivery}/{BAT_CSV}").collect()
     _log_done("  Reading BAT delivery", t, f"{bat_delivery_df.height} rows")
 
     t = _log("  Reading BAT values (supply run)...")
-    bat_supply_df = cast(pl.DataFrame, scan(f"{dir_supply}/{BAT_CSV}").collect())
+    bat_supply_df = scan(f"{dir_supply}/{BAT_CSV}").collect()
     _log_done("  Reading BAT supply", t, f"{bat_supply_df.height} rows")
 
     # --- Validate building IDs ---
@@ -671,10 +671,7 @@ def main() -> None:
         f"{args.path_resstock_release.rstrip('/')}"
         f"/metadata_utility/state={state_upper}/utility_assignment.parquet"
     )
-    metadata = cast(
-        pl.DataFrame,
-        pl.scan_parquet(meta_path).collect(),
-    )
+    metadata = pl.scan_parquet(meta_path).collect()
     n_bldgs_total = metadata[BLDG_ID].n_unique()
     _log_done("Loading metadata", t, f"{n_bldgs_total} buildings")
 

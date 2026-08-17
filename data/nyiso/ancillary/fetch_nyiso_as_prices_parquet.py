@@ -55,6 +55,7 @@ import time
 from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import polars as pl
@@ -121,13 +122,22 @@ def _month_range(start: tuple[int, int], end: tuple[int, int]) -> list[tuple[int
 
 
 def _month_start_ts(iso: NYISO, year: int, month: int) -> pd.Timestamp:
-    return pd.Timestamp(year=year, month=month, day=1, tz=iso.default_timezone)
+    return cast(
+        pd.Timestamp,
+        pd.Timestamp(year=year, month=month, day=1, tz=iso.default_timezone),
+    )
 
 
 def _month_end_exclusive_ts(iso: NYISO, year: int, month: int) -> pd.Timestamp:
     if month == 12:
-        return pd.Timestamp(year=year + 1, month=1, day=1, tz=iso.default_timezone)
-    return pd.Timestamp(year=year, month=month + 1, day=1, tz=iso.default_timezone)
+        return cast(
+            pd.Timestamp,
+            pd.Timestamp(year=year + 1, month=1, day=1, tz=iso.default_timezone),
+        )
+    return cast(
+        pd.Timestamp,
+        pd.Timestamp(year=year, month=month + 1, day=1, tz=iso.default_timezone),
+    )
 
 
 def _apply_handle_as_prices_intervals(

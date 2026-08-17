@@ -6,7 +6,6 @@ Loading functions for PUDL tables and our own S3-hosted stats.  Imported by
 
 from __future__ import annotations
 
-from typing import cast
 
 import polars as pl
 
@@ -29,15 +28,14 @@ def load_pudl_service_territory(state: str, year: int) -> pl.DataFrame:
     Returns a DataFrame with columns ``county_id_fips``, ``county``,
     ``utility_id_eia``, and ``utility_name_eia``.
     """
-    return cast(
-        pl.DataFrame,
+    return (
         pl.scan_parquet(PUDL_SERVICE_TERRITORY_URL)
         .filter(
             (pl.col("state") == state.upper())
             & (pl.col("report_date").dt.year() == year)
         )
         .select(["county_id_fips", "county", "utility_id_eia", "utility_name_eia"])
-        .collect(),
+        .collect()
     )
 
 
@@ -49,9 +47,8 @@ def load_utility_stats(state: str, year: int) -> pl.DataFrame:
     """
     opts = _storage_options()
     path = f"{S3_UTILITY_STATS_BASE}year={year}/state={state.upper()}/data.parquet"
-    return cast(
-        pl.DataFrame,
+    return (
         pl.scan_parquet(path, storage_options=opts)
         .select(["utility_id_eia", "entity_type", "residential_customers"])
-        .collect(),
+        .collect()
     )

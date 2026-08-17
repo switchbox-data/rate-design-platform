@@ -12,6 +12,8 @@ Usage:
 
 from __future__ import annotations
 
+from utils.numeric import as_int
+
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -290,8 +292,8 @@ def check_distinct_days(df: pl.DataFrame, result: ValidationResult) -> None:
 
 def check_hour_ending(df: pl.DataFrame, result: ValidationResult) -> None:
     hours = df["hour_ending_ept"]
-    hmin = int(hours.min())  # type: ignore[arg-type]
-    hmax = int(hours.max())  # type: ignore[arg-type]
+    hmin = as_int(hours.min())
+    hmax = as_int(hours.max())
     if hmin < 1 or hmax > 24:
         result.error("Hour ending", f"hours outside 1-24: min {hmin}, max {hmax}")
     elif hmin < HOUR_PLAUSIBLE_MIN or hmax > HOUR_PLAUSIBLE_MAX:

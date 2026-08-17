@@ -27,7 +27,7 @@ import calendar
 import logging
 import re
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import polars as pl
 import yaml
@@ -133,11 +133,10 @@ def _load_utility_weights(
     base = path_resstock_release.rstrip("/")
     ua_path = f"{base}/metadata_utility/state={state}/utility_assignment.parquet"
 
-    ua_df = cast(
-        pl.DataFrame,
+    ua_df = (
         pl.scan_parquet(ua_path)
         .filter(pl.col("sb.electric_utility") == utility)
-        .collect(),
+        .collect()
     )
     if ua_df.is_empty():
         raise ValueError(f"No buildings for utility {utility!r} in {ua_path}.")
@@ -149,12 +148,11 @@ def _load_utility_weights(
     meta_path = (
         f"{base}/metadata/state={state}/upgrade={RESSTOCK_UPGRADE}/metadata-sb.parquet"
     )
-    weights_df = cast(
-        pl.DataFrame,
+    weights_df = (
         pl.scan_parquet(meta_path)
         .filter(pl.col(BLDG_ID_COL).is_in(bldg_ids))
         .select(BLDG_ID_COL, "weight")
-        .collect(),
+        .collect()
     )
     if weights_df.is_empty():
         raise ValueError(
@@ -202,8 +200,7 @@ def _aggregate_resstock_monthly_grid_cons(
         load_curve_type="monthly",
     )
 
-    monthly_df = cast(
-        pl.DataFrame,
+    monthly_df = (
         loads_lf.with_columns(
             grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL).alias("grid_cons")
         )
@@ -213,7 +210,7 @@ def _aggregate_resstock_monthly_grid_cons(
             (pl.col("grid_cons") * pl.col("weight")).sum().alias("weighted_kwh"),
         )
         .sort("month")
-        .collect(),
+        .collect()
     )
 
     if monthly_df.height != 12:

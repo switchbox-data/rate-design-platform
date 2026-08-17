@@ -11,6 +11,8 @@ Usage:
 
 from __future__ import annotations
 
+from utils.numeric import as_float
+
 import sys
 from pathlib import Path
 
@@ -116,9 +118,9 @@ def check_price_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
     prices = df["clearing_price_per_kw_month"]
     n_nan = prices.is_nan().sum()
     n_inf = prices.is_infinite().sum()
-    pmin = float(prices.min())  # type: ignore[arg-type]
-    pmax = float(prices.max())  # type: ignore[arg-type]
-    pmean = float(prices.mean())  # type: ignore[arg-type]
+    pmin = as_float(prices.min())
+    pmax = as_float(prices.max())
+    pmean = as_float(prices.mean())
 
     if n_nan > 0:
         result.error("Price integrity", f"{n_nan} NaN values")

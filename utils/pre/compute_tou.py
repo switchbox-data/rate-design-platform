@@ -24,6 +24,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -111,7 +112,7 @@ def load_season_specs(path: Path) -> list[SeasonTouSpec]:
 
 def season_mask(index: pd.DatetimeIndex, s: Season) -> np.ndarray:
     """Return a boolean array — ``True`` for timestamps in *s*'s months."""
-    months = np.asarray(index.month)  # type: ignore[union-attr]
+    months = np.asarray(cast(Any, index).month)
     return np.isin(months, s.months)
 
 
@@ -253,7 +254,7 @@ def compute_tou_fit_metric(
     windows. Lower values mean the two-period TOU approximation better matches
     the hourly MC profile for the class facing the tariff.
     """
-    hour_of_day = combined_mc.index.hour  # type: ignore[union-attr]
+    hour_of_day = cast(Any, pd.DatetimeIndex(combined_mc.index)).hour
     is_peak = np.isin(hour_of_day, peak_hours)
 
     peak_load = hourly_load[is_peak].sum()
@@ -332,7 +333,7 @@ def compute_tou_cost_causation_ratio(
     Returns:
         Peak-to-off-peak cost-causation ratio (always >= 1.0).
     """
-    hour_of_day = combined_mc.index.hour  # type: ignore[union-attr]
+    hour_of_day = cast(Any, pd.DatetimeIndex(combined_mc.index)).hour
     is_peak = np.isin(hour_of_day, peak_hours)
 
     peak_dw = (combined_mc[is_peak] * hourly_load[is_peak]).sum()

@@ -20,7 +20,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import TextIO, cast
+from typing import TextIO
 
 import polars as pl
 import yaml
@@ -92,8 +92,7 @@ def passthrough_totals_from_master(
     """Per subclass: Σ w·(fixed+delivery) and Σ w·supply (Annual, upgrade 0)."""
     util_col = "sb.electric_utility"
     sub = _subclass_expr(group_col, gv_pairs)
-    agg_df = cast(
-        pl.DataFrame,
+    agg_df = (
         lf.filter(
             pl.col(util_col) == pl.lit(utility),
             pl.col("month") == pl.lit("Annual"),
@@ -110,7 +109,7 @@ def passthrough_totals_from_master(
             .alias("del_pass"),
             (pl.col("weight") * pl.col("elec_supply_bill")).sum().alias("sup_pass"),
         )
-        .collect(),
+        .collect()
     )
     del_out = {str(r["_subclass"]): float(r["del_pass"]) for r in agg_df.to_dicts()}
     sup_out = {str(r["_subclass"]): float(r["sup_pass"]) for r in agg_df.to_dicts()}

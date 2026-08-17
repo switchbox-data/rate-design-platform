@@ -61,6 +61,7 @@ import csv
 import json
 import logging
 from pathlib import Path
+from typing import cast
 
 log = logging.getLogger(__name__)
 
@@ -128,11 +129,13 @@ def _fill_monthly(values: list[float | None]) -> list[float]:
         msg = "All 12 monthly values are None — cannot build rate"
         raise ValueError(msg)
     filled: list[float] = []
+    first_val = values[first]
+    assert first_val is not None
     for i, v in enumerate(values):
         if v is not None:
             filled.append(v)
         elif i < first:
-            filled.append(values[first])  # type: ignore[arg-type]
+            filled.append(first_val)
         else:
             filled.append(filled[-1])
     return filled
@@ -263,7 +266,7 @@ def _row_applies_to_group(row: RateRow, group_key: str) -> bool:
             return False
         return row.location == group["sir_location"]
 
-    location_matches: list[str] = group["location_matches"]  # type: ignore[assignment]
+    location_matches = cast(list[str], group["location_matches"])
     return row.location in location_matches
 
 
@@ -416,7 +419,7 @@ def split_chesapeake_tariffs(
             cecil_nfec = _compute_cecil_nfec_levelized(rows, phase2_rows)
 
         for group_key, group_def in COUNTY_GROUPS.items():
-            county_label: str = group_def["label"]  # type: ignore[assignment]
+            county_label = cast(str, group_def["label"])
 
             nfec_override = cecil_nfec if group_key == "cecil" else None
             monthly_rates, fixed_charge = _extract_rates_for_group(

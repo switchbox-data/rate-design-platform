@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import polars as pl
 
+from utils.numeric import as_float
 from utils.data_prep.marginal_costs.generate_utility_tx_dx_mc import (
     normalize_load_to_cairo_8760,
 )
@@ -245,7 +246,7 @@ def allocate_icap_to_hours(
         top_n = sorted_load.head(n_peak_hours)
         load_nth = float(top_n["load_mw"][-1])
         below = month_load.filter(pl.col("load_mw") < load_nth)["load_mw"]
-        threshold = float(below.max()) if not below.is_empty() else 0.0  # type: ignore[arg-type]
+        threshold = as_float(below.max()) if not below.is_empty() else 0.0
 
         month_result = top_n.with_columns(
             (pl.col("load_mw") - threshold).alias("exceedance")

@@ -66,6 +66,7 @@ from data.pjm import PJM_LMP_S3_BASE
 from data.pjm.validate_pjm_lmp import validate_zone_lmp
 from data.pjm.zone_mapping.generate_zone_mapping_csv import build_zone_mapping
 from utils.file_io import read_csv_from_s3, write_hive_partitioned_parquet_to_s3
+from utils.numeric import as_int
 
 # ---------------------------------------------------------------------------
 # Zone map helpers
@@ -103,7 +104,7 @@ def _pnode_id_for_zone_code(zone_code: str) -> int | None:
     if val is None:
         return None
     # match["pnode_id"] is Int64; .first() returns Python int for non-null values.
-    return val  # type: ignore[return-value]
+    return as_int(val)
 
 
 # ---------------------------------------------------------------------------

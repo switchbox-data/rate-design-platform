@@ -1,7 +1,7 @@
 import argparse
 import warnings
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import polars as pl
 from cloudpathlib import S3Path
@@ -63,7 +63,7 @@ def map_electric_tariff(
     )
 
     # Check if there are any rows in the filtered dataframe
-    test_sample = cast(pl.DataFrame, metadata_has_hp.head(1).collect())
+    test_sample = metadata_has_hp.head(1).collect()
     if test_sample.is_empty():
         raise ValueError(f"No rows found for electric utility {electric_utility}")
 

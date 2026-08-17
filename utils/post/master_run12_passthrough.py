@@ -9,7 +9,6 @@ validation and subclass RR generation.
 
 from __future__ import annotations
 
-from typing import cast
 
 import polars as pl
 
@@ -55,7 +54,7 @@ def load_passthrough_reference_monthly(
         ),
         pl.col("elec_supply_bill").alias("passthrough_supply"),
     )
-    return cast(pl.DataFrame, q.collect())
+    return q.collect()
 
 
 def load_passthrough_reference_annual(

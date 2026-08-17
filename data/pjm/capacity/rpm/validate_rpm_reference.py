@@ -12,6 +12,8 @@ Usage:
 
 from __future__ import annotations
 
+from utils.numeric import as_float
+
 import sys
 from datetime import date
 from pathlib import Path
@@ -339,9 +341,9 @@ def check_rto_lda_present(df: pl.DataFrame, result: ValidationResult) -> None:
 def check_price_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
     for col in ("bra_price_per_mw_day", "final_zonal_capacity_price_per_mw_day"):
         prices = df[col]
-        pmin = float(prices.min())  # type: ignore[arg-type]
-        pmax = float(prices.max())  # type: ignore[arg-type]
-        pmean = float(prices.mean())  # type: ignore[arg-type]
+        pmin = as_float(prices.min())
+        pmax = as_float(prices.max())
+        pmean = as_float(prices.mean())
         if pmin < PRICE_FLOOR:
             result.error("Price range", f"{col}: min ${pmin:.2f} is negative")
         elif pmax > PRICE_CEILING:

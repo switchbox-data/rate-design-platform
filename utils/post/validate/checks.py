@@ -22,7 +22,7 @@ Revenue requirement YAML conventions (from :func:`~utils.post.validate.load.load
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import boto3
 import polars as pl
@@ -98,7 +98,7 @@ class CheckResult:
 
 
 def _collect(lf: pl.LazyFrame) -> pl.DataFrame:
-    return cast(pl.DataFrame, lf.collect())
+    return lf.collect()
 
 
 def _rr_target(rr_config: dict[str, Any], cost_scope: str) -> float:

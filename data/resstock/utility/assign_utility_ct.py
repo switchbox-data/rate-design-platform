@@ -249,14 +249,13 @@ def assign_utility_ct(
         ["sb.electric_utility", "sb.gas_utility"], strict=False
     )
 
-    counts_df = cast(
-        pl.DataFrame,
+    counts_df = (
         input_metadata.select(pl.lit(1).sum().alias("input_count"))
         .join(
             building_utilities.select(pl.lit(1).sum().alias("building_count")),
             how="cross",
         )
-        .collect(),
+        .collect()
     )
     input_count = cast(int, counts_df["input_count"][0])
     building_count = cast(int, counts_df["building_count"][0])

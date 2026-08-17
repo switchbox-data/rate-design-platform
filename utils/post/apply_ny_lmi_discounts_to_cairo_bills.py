@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import cast as typecast
 
 import polars as pl
 from cloudpathlib import S3Path
@@ -197,12 +196,11 @@ def _build_tier_consumption(
         )
         meta = meta.with_columns(participates.alias("participates"))
     else:
-        eligible_df = typecast(
-            pl.DataFrame,
+        eligible_df = (
             meta.filter(eligible)
             .select(BLDG_ID_COL, fpl_pct, tier_col)
             .with_columns((1.0 / pl.col(fpl_pct).clip(1.0, None)).alias("weight"))
-            .collect(),
+            .collect()
         )
         part_df = select_participants_weighted(
             eligible_df, participation_rate, seed, "weight", BLDG_ID_COL
@@ -362,28 +360,22 @@ def _apply_discounts_to_bills(
     if rider:
         elec_annual_rows = elec_bills.filter(pl.col("month") == ANNUAL_MONTH_VALUE)
         gas_annual_rows = gas_bills.filter(pl.col("month") == ANNUAL_MONTH_VALUE)
-        elec_totals_df = typecast(
-            pl.DataFrame,
-            elec_annual_rows.select(
-                pl.col("discount_elec").sum().alias("total_discount_elec"),
-                pl.when(~pl.col("participates").fill_null(False))
-                .then(pl.col("elec_kwh"))
-                .otherwise(0)
-                .sum()
-                .alias("total_kwh_non"),
-            ).collect(),
-        )
-        gas_totals_df = typecast(
-            pl.DataFrame,
-            gas_annual_rows.select(
-                pl.col("discount_gas").sum().alias("total_discount_gas"),
-                pl.when(~pl.col("participates").fill_null(False))
-                .then(pl.col("gas_therms"))
-                .otherwise(0)
-                .sum()
-                .alias("total_gas_non"),
-            ).collect(),
-        )
+        elec_totals_df = elec_annual_rows.select(
+            pl.col("discount_elec").sum().alias("total_discount_elec"),
+            pl.when(~pl.col("participates").fill_null(False))
+            .then(pl.col("elec_kwh"))
+            .otherwise(0)
+            .sum()
+            .alias("total_kwh_non"),
+        ).collect()
+        gas_totals_df = gas_annual_rows.select(
+            pl.col("discount_gas").sum().alias("total_discount_gas"),
+            pl.when(~pl.col("participates").fill_null(False))
+            .then(pl.col("gas_therms"))
+            .otherwise(0)
+            .sum()
+            .alias("total_gas_non"),
+        ).collect()
         td_elec = float(elec_totals_df["total_discount_elec"][0] or 0.0)
         tk_non = float(elec_totals_df["total_kwh_non"][0] or 0.0)
         td_gas = float(gas_totals_df["total_discount_gas"][0] or 0.0)
