@@ -28,7 +28,7 @@ dependencies = [
     "numpy",
     "pandas",
     "polars>=1.43.2",
-    "prek>=0.3.2",
+    "prek>=0.4.12",
     "pyarrow",
     "pygris>=0.2.1",
     "s3fs>=2026.2.0",

@@ -245,11 +245,12 @@ def fetch_all_zones_from_eia(
                 print(f"API Error Response: {response.text}")
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 401:
+            status = e.response.status_code if e.response is not None else None
+            if status == 401:
                 raise ValueError(
                     "Invalid EIA API key. Register at https://www.eia.gov/opendata/"
                 )
-            elif e.response.status_code == 429:
+            elif status == 429:
                 raise ValueError("EIA API rate limit exceeded. Wait and retry.")
             else:
                 raise

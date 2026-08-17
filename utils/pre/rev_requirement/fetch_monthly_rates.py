@@ -852,7 +852,8 @@ def discover_charges(
         try:
             rider_entries = _discover_rider_rates(base_url, auth, rid, effective_date)
         except requests.HTTPError as exc:
-            log.warning("Rider %d returned %s; skipping", rid, exc.response.status_code)
+            status = exc.response.status_code if exc.response is not None else "?"
+            log.warning("Rider %d returned %s; skipping", rid, status)
             continue
         time.sleep(0.2)
         for trid, entry in rider_entries.items():
@@ -1172,9 +1173,10 @@ def main() -> None:
                 rider_rates, _ = _fetch_tariff_rates(base_url, auth, rid, from_dt)
             except requests.HTTPError as exc:
                 if first_month:
-                    log.warning(
-                        "Rider %d returned %s; skipping", rid, exc.response.status_code
+                    status = (
+                        exc.response.status_code if exc.response is not None else "?"
                     )
+                    log.warning("Rider %d returned %s; skipping", rid, status)
                 continue
             time.sleep(0.2)
             fetched_count += 1
