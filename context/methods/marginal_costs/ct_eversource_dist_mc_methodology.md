@@ -57,14 +57,15 @@ structural consequence of the platform's architecture.
 | ------------------------------------------------------ | ----------------------------: | --------------------------------: |
 | **Total annualized marginal station + trunkline cost** |            **`$20.17`/kW-yr** |                **`$86.58`/kW-yr** |
 
-- **Locational (`$86.58`)** = the actual per-kW cost of the specific substation/feeder capacity
-  additions planned 2026–2031 (the AIC-style figure for the capacity-constrained slice of the
-  system).
-- **System-wide (`$20.17`)** = the locational figure diluted by the share of total 2031 system peak
-  load that sits in areas requiring expansion — **~24% for substations, ~14% for feeders**
-  (MCOS-1 testimony). This dilution-by-load-share mechanic is the same structural move as NY's
-  diluted FLIC (see [dist_mc_definition_choice.md](dist_mc_definition_choice.md) §1). **CT is
-  therefore closer to NY's FLIC convention than to RI/BGE's published avoided-cost-scalar
+- **Locational (`$86.58`)** [DocumentCloud p. 7](https://www.documentcloud.org/documents/28540599-exhibit-clp-mcos-2/#document/p7/a2826757)
+  = the actual per-kW cost of the specific substation/feeder capacity additions planned
+  2026–2031 (the AIC-style figure for the capacity-constrained slice of the system).
+- **System-wide (`$20.17`)** [DocumentCloud p. 7](https://www.documentcloud.org/documents/28540599-exhibit-clp-mcos-2/#document/p7/a2826034)
+  = the locational figure diluted by the share of total 2031 system peak load that sits in
+  areas requiring expansion — **~24% for substations, ~14% for feeders** (MCOS-1 testimony) [DocumentCloud p. 13](https://www.documentcloud.org/documents/28540606-exhibit-clp-mcos-1/#document/p13/a2826758).
+  This dilution-by-load-share mechanic is the same structural move as NY's diluted FLIC
+  (see [dist_mc_definition_choice.md](dist_mc_definition_choice.md) §1). **CT is therefore
+  closer to NY's FLIC convention than to RI/BGE's published avoided-cost-scalar
   convention**, even though the dollar magnitude (`$20.17`) is roughly comparable to RI/BGE.
 
 ### 2.2 Recommendation: use the system-wide diluted figure (`$20.17/kW-yr`)
@@ -122,7 +123,7 @@ to the hours most likely to drive capacity investment, weighted by load magnitud
 
 ### 3.2 CL&P's own method (context)
 
-CL&P's MCOS used an hourly probability-of-peak analysis (MCOS-1, p. 12) with:
+CL&P's MCOS used an hourly probability-of-peak analysis (MCOS-1, p. 14)(https://www.documentcloud.org/documents/28540606-exhibit-clp-mcos-1/#document/p14/a2826761) with:
 
 - Substation-level hourly distribution load (2022–2025), normalized for customer-growth trend
 - Forward adjustments for BTM solar and heat-pump adoption through 2031
@@ -132,7 +133,7 @@ We don't have CL&P's underlying hourly PoP curve (the MCOS-2 back-up tables, inc
 "Probabilities of peak by month and time of day period," were listed in the table of contents but not
 included in the 17-page exhibit we have). However, the standard PoP method on CT zone load is a
 reasonable proxy — CT is summer-peaking (CL&P's testimony confirms ~80% of annual peak probability
-falls in July–August, ~20% in June/September, <1% winter), which our PoP allocator will naturally
+falls in July–August, ~20% in June/September, <1% winter) [DocumentCloud p. 20](https://www.documentcloud.org/documents/28540606-exhibit-clp-mcos-1/#document/p20/a2826759), which our PoP allocator will naturally
 reproduce from the load data.
 
 ### 3.3 Load data source
@@ -213,7 +214,7 @@ therefore takes an explicit year argument and always targets `ct_eversource`.
 ### 3.6 Primary vs. secondary voltage column (Table 2A reference values)
 
 Table 2A gives near-identical Primary and Secondary `$/kWh` columns (e.g. system-wide annual average
-is `$0.00241` primary vs `$0.00242` secondary). The difference is negligible (loss-adjustment). Since
+is `$0.00241` primary vs `$0.00242` secondary [DocumentCloud p. 5](https://www.documentcloud.org/documents/28540599-exhibit-clp-mcos-2/#document/p5/a2826760)). The difference is negligible (loss-adjustment). Since
 we're using the PoP method with the `$20.17/kW-yr` Table 3 figure directly (not the Table 2A `$/kWh`
 rates), the primary/secondary distinction doesn't affect the implementation. Table 2A's values remain
 useful as a cross-check: our PoP-allocated 8760 should produce similar seasonal concentration to
