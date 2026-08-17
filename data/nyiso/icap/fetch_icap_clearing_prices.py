@@ -32,6 +32,7 @@ import argparse
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import polars as pl
@@ -62,7 +63,7 @@ def _fetch_year_raw(
 ) -> pd.DataFrame | None:
     """Try the latest available month's report for the year, walking backwards."""
     for m in range(max_month, 0, -1):
-        date = pd.Timestamp(year=year, month=m, day=1)
+        date = cast(pd.Timestamp, pd.Timestamp(year=year, month=m, day=1))
         try:
             df = iso.get_capacity_prices(date=date, verbose=False)
             print(f"  {date.strftime('%B %Y')}: {len(df)} rows")

@@ -9,7 +9,7 @@ Covers both RI (LIDR+, FPL-only) and NY (EAP/EEAP, FPL + SMI/AMI).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 import polars as pl
@@ -64,11 +64,10 @@ def load_cpi_ratio(
     cpi_s3_path: str, inflation_year: int, opts: dict[str, str]
 ) -> float:
     """Load CPI parquet (year, value), return ratio for inflating income from 2019 to *inflation_year*."""
-    cpi_df = cast(
-        pl.DataFrame,
+    cpi_df = (
         pl.scan_parquet(cpi_s3_path, storage_options=opts)
         .filter(pl.col("year").is_in([RESSTOCK_INCOME_DOLLAR_YEAR, inflation_year]))
-        .collect(),
+        .collect()
     )
     cpi_2019 = cpi_df.filter(pl.col("year") == RESSTOCK_INCOME_DOLLAR_YEAR)
     cpi_target = cpi_df.filter(pl.col("year") == inflation_year)

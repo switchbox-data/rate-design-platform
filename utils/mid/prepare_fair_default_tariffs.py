@@ -16,7 +16,6 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
-from typing import cast
 
 import pandas as pd
 import polars as pl
@@ -170,12 +169,11 @@ def _load_utility_hourly_load(
     )
     LOGGER.info("Residential customer count for %s: %d", utility, customer_count)
 
-    ua_df = cast(
-        pl.DataFrame,
+    ua_df = (
         pl.scan_parquet(path_utility_assignment)
         .filter(pl.col("sb.electric_utility") == utility)
         .select("bldg_id", "weight")
-        .collect(),
+        .collect()
     )
     raw_weight_sum = float(ua_df["weight"].sum())
     if raw_weight_sum > 0:
@@ -235,17 +233,15 @@ def _compute_supply_mc_seasonal_ratio(
 
     Sums energy and capacity MC columns to get total supply MC per hour.
     """
-    energy_df = cast(
-        pl.DataFrame,
+    energy_df = (
         pl.scan_parquet(
             path_supply_energy_mc, storage_options=storage_options or {}
-        ).collect(),
+        ).collect()
     ).to_pandas()
-    cap_df = cast(
-        pl.DataFrame,
+    cap_df = (
         pl.scan_parquet(
             path_supply_capacity_mc, storage_options=storage_options or {}
-        ).collect(),
+        ).collect()
     ).to_pandas()
 
     for df in [energy_df, cap_df]:
@@ -383,8 +379,7 @@ def _load_kwh_totals_for_subclasses(
             ]
         )
 
-    kwh = cast(
-        pl.DataFrame,
+    kwh = (
         loads.join(weights_with_flags.lazy(), on=BLDG_ID_COL, how="inner")
         .select(
             pl.col("timestamp")
@@ -400,7 +395,7 @@ def _load_kwh_totals_for_subclasses(
         )
         .with_columns(pl.col("month_num").is_in(winter_months).alias("is_winter"))
         .select(*aggregate_exprs)
-        .collect(engine="streaming"),
+        .collect(engine="streaming")
     )
     LOGGER.info(
         "fair_default_inputs: collected all subclass load totals in %.2fs",

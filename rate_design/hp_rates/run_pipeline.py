@@ -516,7 +516,7 @@ def _run_stage(
     return d_future.result(), s_future.result()
 
 
-@flow(  # type: ignore[no-matching-overload]  # ty: ignore[no-matching-overload]
+@flow(  # ty: ignore[no-matching-overload]
     name="run-quartet",
     task_runner=ThreadPoolTaskRunner(max_workers=2),
 )

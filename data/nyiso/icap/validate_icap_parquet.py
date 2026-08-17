@@ -11,6 +11,8 @@ Usage:
 
 from __future__ import annotations
 
+from utils.numeric import as_float
+
 import sys
 from pathlib import Path
 
@@ -150,9 +152,9 @@ def check_price_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
     prices = df["price_per_kw_month"]
     n_nan = prices.is_nan().sum()
     n_inf = prices.is_infinite().sum()
-    pmin = float(prices.min())  # type: ignore[arg-type]
-    pmax = float(prices.max())  # type: ignore[arg-type]
-    pmean = float(prices.mean())  # type: ignore[arg-type]
+    pmin = as_float(prices.min())
+    pmax = as_float(prices.max())
+    pmean = as_float(prices.mean())
 
     if n_nan > 0:
         result.error("Price integrity", f"{n_nan} NaN values")
@@ -258,8 +260,8 @@ def check_seasonal_pattern(df: pl.DataFrame, result: ValidationResult) -> None:
         winter_mean_raw = winter["price_per_kw_month"].mean()
         if summer_mean_raw is None or winter_mean_raw is None:
             continue
-        summer_mean = float(summer_mean_raw)  # type: ignore[arg-type]
-        winter_mean = float(winter_mean_raw)  # type: ignore[arg-type]
+        summer_mean = as_float(summer_mean_raw)
+        winter_mean = as_float(winter_mean_raw)
         if summer_mean < winter_mean:
             anomalies.append(
                 f"{y}: summer ${summer_mean:.2f} < winter ${winter_mean:.2f}"

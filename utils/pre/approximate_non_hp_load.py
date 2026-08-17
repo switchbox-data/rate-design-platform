@@ -1,7 +1,6 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import cast
 import threading
 
 import numpy as np
@@ -125,17 +124,13 @@ def group_by_weather_station_id(metadata: pl.LazyFrame) -> dict[str, list[int]]:
     Group non-HP MF bldg_ids by weather_station_id.
     Single lazy pipeline: semi-join metadata to restrict to those bldg_ids, then group_by/agg; one collect.
     """
-    unique_df = cast(
-        pl.DataFrame,
-        metadata.select(WEATHER_FILE_CITY_COLUMN).unique().collect(),
-    )
+    unique_df = metadata.select(WEATHER_FILE_CITY_COLUMN).unique().collect()
     unique_weather_station_ids = unique_df[WEATHER_FILE_CITY_COLUMN].to_list()
     return {
-        weather_station_id: cast(
-            pl.DataFrame,
+        weather_station_id: (
             metadata.filter(pl.col(WEATHER_FILE_CITY_COLUMN) == weather_station_id)
             .select("bldg_id")
-            .collect(),
+            .collect()
         )["bldg_id"].to_list()
         for weather_station_id in unique_weather_station_ids
     }
@@ -163,13 +158,12 @@ def _load_one_total_building_load_curve(
         raise ValueError(
             f"Load curve for bldg_id: {bldg_id} from {path} is missing required columns: {HEATING_LOAD_COLUMN}, {COOLING_LOAD_COLUMN}"
         )
-    df = cast(
-        pl.DataFrame,
+    df = (
         lf.with_columns(
             (pl.col(HEATING_LOAD_COLUMN) + pl.col(COOLING_LOAD_COLUMN)).alias("_summed")
         )
         .select("_summed")
-        .collect(),
+        .collect()
     )
     vec = df["_summed"].to_numpy().astype(np.float64, copy=False)
     if len(vec) != 8760:
@@ -214,8 +208,7 @@ def _load_one_total_heating_cooling_energy_consumption_curve(
         for c in COOLING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS
         if "consumption_intensity" not in c
     ]
-    df = cast(
-        pl.DataFrame,
+    df = (
         lf.with_columns(
             pl.sum_horizontal([pl.col(c) for c in heating_consumption_cols]).alias(
                 "_heat"
@@ -226,7 +219,7 @@ def _load_one_total_heating_cooling_energy_consumption_curve(
         )
         .with_columns((pl.col("_heat") + pl.col("_cool")).alias("_summed"))
         .select("_summed")
-        .collect(),
+        .collect()
     )
     vec = df["_summed"].to_numpy().astype(np.float64, copy=False)
     if len(vec) != 8760:
@@ -255,10 +248,7 @@ def _load_one_heating_building_load_curve(
         raise ValueError(
             f"Load curve for bldg_id: {bldg_id} from {path} is missing column: {HEATING_LOAD_COLUMN}"
         )
-    df = cast(
-        pl.DataFrame,
-        lf.select(pl.col(HEATING_LOAD_COLUMN).alias("_summed")).collect(),
-    )
+    df = lf.select(pl.col(HEATING_LOAD_COLUMN).alias("_summed")).collect()
     vec = df["_summed"].to_numpy().astype(np.float64, copy=False)
     if len(vec) != 8760:
         raise ValueError(
@@ -286,10 +276,7 @@ def _load_one_cooling_building_load_curve(
         raise ValueError(
             f"Load curve for bldg_id: {bldg_id} from {path} is missing column: {COOLING_LOAD_COLUMN}"
         )
-    df = cast(
-        pl.DataFrame,
-        lf.select(pl.col(COOLING_LOAD_COLUMN).alias("_summed")).collect(),
-    )
+    df = lf.select(pl.col(COOLING_LOAD_COLUMN).alias("_summed")).collect()
     vec = df["_summed"].to_numpy().astype(np.float64, copy=False)
     if len(vec) != 8760:
         raise ValueError(
@@ -325,13 +312,12 @@ def _load_one_heating_energy_consumption_curve(
         for c in HEATING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS
         if "consumption_intensity" not in c
     ]
-    df = cast(
-        pl.DataFrame,
+    df = (
         lf.with_columns(
             pl.sum_horizontal([pl.col(c) for c in heating_cols]).alias("_summed")
         )
         .select("_summed")
-        .collect(),
+        .collect()
     )
     vec = df["_summed"].to_numpy().astype(np.float64, copy=False)
     if len(vec) != 8760:
@@ -368,13 +354,12 @@ def _load_one_cooling_energy_consumption_curve(
         for c in COOLING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS
         if "consumption_intensity" not in c
     ]
-    df = cast(
-        pl.DataFrame,
+    df = (
         lf.with_columns(
             pl.sum_horizontal([pl.col(c) for c in cooling_cols]).alias("_summed")
         )
         .select("_summed")
-        .collect(),
+        .collect()
     )
     vec = df["_summed"].to_numpy().astype(np.float64, copy=False)
     if len(vec) != 8760:
@@ -743,7 +728,7 @@ def _replace_natural_gas_columns(
     )
 
     drop_cols = [f"_n{i}_{c}" for i in range(n_neighbors) for c in heating_cols]
-    total_sum_df = cast(pl.DataFrame, out.select(new_total_consumption.sum()).collect())
+    total_sum_df = out.select(new_total_consumption.sum()).collect()
     total_sum = float(total_sum_df.to_series().item())
     if np.isclose(total_sum, 0.0, atol=1e-3):
         uses_natural_gas = False
@@ -982,10 +967,7 @@ def update_metadata(
     natural_gas_usage: list[int] | None = None,
 ) -> pl.LazyFrame:
     """Update metadata for non-HP bldg_id's."""
-    non_hp_df = cast(
-        pl.DataFrame,
-        non_hp_bldg_metadata.select("bldg_id").collect(),
-    )
+    non_hp_df = non_hp_bldg_metadata.select("bldg_id").collect()
     non_hp_bldg_ids = non_hp_df["bldg_id"].to_list()
     # Update postprocess_group.has_hp column
     replaced_metadata = input_metadata.with_columns(

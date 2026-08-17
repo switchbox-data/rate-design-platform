@@ -35,7 +35,6 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import cast
 
 import polars as pl
 
@@ -178,10 +177,7 @@ def main() -> None:
         utility_code_map = _utility_code_map_df()
         # Lazy pipeline; single collect then native partition write.
         # Polars writes 00000000.parquet per partition; rename to data.parquet for downstream.
-        result = cast(
-            pl.DataFrame,
-            _aggregated_lazy(_base_lazy(), utility_code_map).collect(),
-        )
+        result = _aggregated_lazy(_base_lazy(), utility_code_map).collect()
         result.write_parquet(output_dir, partition_by=["year", "state"], mkdir=True)
         for year_dir in output_dir.iterdir():
             if year_dir.is_dir():
@@ -200,13 +196,10 @@ def main() -> None:
         parser.error(f"Invalid state '{args.state}'. Use a two-letter US state or DC.")
 
     utility_code_map = _utility_code_map_df()
-    result = cast(
-        pl.DataFrame,
-        _aggregated_lazy(
-            _base_lazy().filter(pl.col("state") == state_raw),
-            utility_code_map,
-        ).collect(),
-    )
+    result = _aggregated_lazy(
+        _base_lazy().filter(pl.col("state") == state_raw),
+        utility_code_map,
+    ).collect()
     # CSV: drop state (partition col); keep year.
     result.select([c for c in result.columns if c != "state"]).write_csv(sys.stdout)
 

@@ -343,11 +343,10 @@ def _load_subclass_cross_subsidy_inputs(
         group_value_to_subclass,
     )
 
-    subclass_cross_subsidy = cast(
-        pl.DataFrame,
+    subclass_cross_subsidy = (
         metadata.filter(pl.col(GROUP_VALUE_COL).is_in(group_values))
         .join(cross_sub, on=BLDG_ID_COL, how="left")
-        .collect(),
+        .collect()
     )
     LOGGER.info(
         "%s [%s=%s]: loaded metadata + cross-subsidy in %.2fs",
@@ -390,8 +389,7 @@ def _compute_annual_energy_revenue(
     t1 = perf_counter()
     ids_weights = subclass_cross_subsidy.select(BLDG_ID_COL, WEIGHT_COL)
 
-    annual_energy_rev_row = cast(
-        pl.DataFrame,
+    annual_energy_rev_row = (
         _load_annual_target_bills(run_dir, ANNUAL_MONTH_VALUE, storage_options)
         .join(ids_weights.lazy(), on=BLDG_ID_COL, how="inner")
         .with_columns(
@@ -400,7 +398,7 @@ def _compute_annual_energy_revenue(
             )
         )
         .select(pl.col("weighted_energy_rev").sum().alias("annual_energy_rev"))
-        .collect(),
+        .collect()
     )
     annual_energy_rev = float(annual_energy_rev_row["annual_energy_rev"][0] or 0.0)
     LOGGER.info(
@@ -503,8 +501,7 @@ def compute_subclass_seasonal_discount_inputs(
         perf_counter() - t2,
     )
     t3 = perf_counter()
-    seasonal_kwh = cast(
-        pl.DataFrame,
+    seasonal_kwh = (
         loads.join(sub_weights.lazy(), on=BLDG_ID_COL, how="inner")
         .select(
             pl.col("timestamp")
@@ -529,7 +526,7 @@ def compute_subclass_seasonal_discount_inputs(
             .sum()
             .alias("winter_kwh"),
         )
-        .collect(engine="streaming"),
+        .collect(engine="streaming")
     )
     LOGGER.info(
         "seasonal_inputs [%s=%s]: collected seasonal kWh aggregates in %.2fs",
@@ -686,8 +683,7 @@ def compute_subclass_flat_discount_inputs(
         perf_counter() - t2,
     )
     t3 = perf_counter()
-    kwh_agg = cast(
-        pl.DataFrame,
+    kwh_agg = (
         loads.join(sub_weights.lazy(), on=BLDG_ID_COL, how="inner")
         .select(
             grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL).alias(
@@ -699,7 +695,7 @@ def compute_subclass_flat_discount_inputs(
             (pl.col("demand_kwh") * pl.col(WEIGHT_COL)).alias("weighted_kwh"),
         )
         .select(pl.col("weighted_kwh").sum().alias("annual_kwh"))
-        .collect(engine="streaming"),
+        .collect(engine="streaming")
     )
     LOGGER.info(
         "flat_inputs [%s=%s]: collected annual kWh aggregate in %.2fs",
@@ -785,11 +781,10 @@ def compute_subclass_rr(
         .agg([pl.col(col).sum() for col in cross_subsidy_cols])
     )
 
-    joined = cast(
-        pl.DataFrame,
+    joined = (
         group_values.join(bills, on=BLDG_ID_COL, how="left")
         .join(cross_sub_all, on=BLDG_ID_COL, how="left")
-        .collect(),
+        .collect()
     )
     if joined.is_empty():
         msg = "No customers found in customer_metadata.csv."

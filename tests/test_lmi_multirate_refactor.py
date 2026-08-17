@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import polars as pl
 
+from utils.numeric import as_float
 from utils.post.apply_ny_lmi_to_master_bills import (
     _apply_credits,
     _sample_participation,
@@ -435,8 +436,8 @@ def test_ri_master_bills_non_participants_bill_unchanged() -> None:
             .abs()
             .max()
         )
-        assert elec_diff < 1e-6  # type: ignore[operator]
-        assert gas_diff < 1e-6  # type: ignore[operator]
+        assert as_float(elec_diff) < 1e-6
+        assert as_float(gas_diff) < 1e-6
 
 
 def test_ri_master_bills_no_negative_bills() -> None:

@@ -739,9 +739,9 @@ def _build_grouped_output(
         groups[key].append(info)
 
     # Build per-decision sections
-    decision_sections: dict[str, dict] = {}
+    decision_sections: dict[str, list[list[dict]]] = defaultdict(list)
     for (decision, _mc), entries in groups.items():
-        decision_sections.setdefault(decision, []).append(entries)  # type: ignore[arg-type]
+        decision_sections[decision].append(entries)
 
     result: dict = {
         "utility": utility,
@@ -751,7 +751,7 @@ def _build_grouped_output(
     }
 
     for decision in ("add_to_drr", "add_to_srr", "already_in_drr"):
-        entry_groups: list[list[dict]] = decision_sections.get(decision, [])  # type: ignore[assignment]
+        entry_groups: list[list[dict]] = decision_sections.get(decision, [])
         if not entry_groups:
             result[decision] = {"rate_structure": "flat", "charges": {}}
             continue
@@ -852,7 +852,8 @@ def discover_charges(
         try:
             rider_entries = _discover_rider_rates(base_url, auth, rid, effective_date)
         except requests.HTTPError as exc:
-            log.warning("Rider %d returned %s; skipping", rid, exc.response.status_code)
+            status = exc.response.status_code if exc.response is not None else "?"
+            log.warning("Rider %d returned %s; skipping", rid, status)
             continue
         time.sleep(0.2)
         for trid, entry in rider_entries.items():
@@ -1172,9 +1173,10 @@ def main() -> None:
                 rider_rates, _ = _fetch_tariff_rates(base_url, auth, rid, from_dt)
             except requests.HTTPError as exc:
                 if first_month:
-                    log.warning(
-                        "Rider %d returned %s; skipping", rid, exc.response.status_code
+                    status = (
+                        exc.response.status_code if exc.response is not None else "?"
                     )
+                    log.warning("Rider %d returned %s; skipping", rid, status)
                 continue
             time.sleep(0.2)
             fetched_count += 1

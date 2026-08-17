@@ -43,7 +43,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import cast
 
 import polars as pl
 from buildstock_fetch.constants import LOAD_CURVE_COLUMN_AGGREGATION
@@ -232,14 +231,13 @@ def write_consolidated_annual(
     output_dir = path_output / f"load_curve_annual/state={state}/upgrade={upgrade}"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    aggregated = cast(pl.DataFrame, pl.concat(annual_rows, how="vertical_relaxed"))
+    aggregated = pl.concat(annual_rows, how="vertical_relaxed")
     annual_params_lf = select_annual_params_weight_upgrade(
         pl.scan_parquet(str(annual_raw_dir))
     )
-    joined = cast(
-        pl.DataFrame,
-        join_aggregated_energy_to_annual(aggregated.lazy(), annual_params_lf).collect(),
-    )
+    joined = join_aggregated_energy_to_annual(
+        aggregated.lazy(), annual_params_lf
+    ).collect()
 
     if len(annual_raw_files) == 1:
         out_name = annual_raw_files[0].name

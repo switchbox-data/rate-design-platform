@@ -194,7 +194,8 @@ def fetch_page(
             msg = body.get("message", "")
             errors = body.get("errors", [])
             spans_boundary = "spans over archived and standard" in msg or any(
-                "spans over archived and standard" in e.get("message", "")
+                "spans over archived and standard"
+                in (e.get("message", "") if isinstance(e, dict) else str(e))
                 for e in errors
             )
             if spans_boundary:

@@ -356,7 +356,7 @@ def calculate_utility_probabilities(
     if filter_none:
         probs = probs.filter(pl.col("utility") != "none")
 
-    probs_collected = cast(pl.DataFrame, probs.collect())
+    probs_collected = probs.collect()
     probs_pivoted = probs_collected.pivot(
         index="puma_id", on="utility", values="probability", aggregate_function=None
     )
@@ -379,58 +379,52 @@ def calculate_prior_distributions(
     puma_counts = (
         puma_and_heating_fuel.group_by("puma").agg(pl.len().alias("count")).collect()
     )
-    puma_elec_probs_df = cast(pl.DataFrame, puma_elec_probs.collect())
-    elec_prior = cast(
-        pl.DataFrame,
-        (
-            pl.LazyFrame(puma_elec_probs_df)
-            .join(
-                pl.LazyFrame(puma_counts),
-                left_on="puma_id",
-                right_on="puma",
-                how="left",
-            )
-            .with_columns(pl.col("count").fill_null(0))
-            .collect()
-        ),
+    puma_elec_probs_df = puma_elec_probs.collect()
+    elec_prior = (
+        puma_elec_probs_df.lazy()
+        .join(
+            puma_counts.lazy(),
+            left_on="puma_id",
+            right_on="puma",
+            how="left",
+        )
+        .with_columns(pl.col("count").fill_null(0))
+        .collect()
     )
     utility_cols_elec = [c for c in puma_elec_probs_df.columns if c != "puma_id"]
     elec_prior_weighted: dict[str, float] = {}
-    total_bldgs = elec_prior["count"].sum()
+    total_bldgs = float(elec_prior["count"].sum())
     for util in utility_cols_elec:
         weighted_prob = (
-            (elec_prior[util] * elec_prior["count"]).sum() / total_bldgs
+            float((elec_prior[util] * elec_prior["count"]).sum()) / total_bldgs
             if total_bldgs > 0
-            else 0
+            else 0.0
         )
         if weighted_prob > 0:
             elec_prior_weighted[util] = weighted_prob
 
     gas_bldgs = puma_and_heating_fuel.filter(pl.col("has_natgas_connection"))
     gas_puma_counts = gas_bldgs.group_by("puma").agg(pl.len().alias("count")).collect()
-    puma_gas_probs_df = cast(pl.DataFrame, puma_gas_probs.collect())
-    gas_prior = cast(
-        pl.DataFrame,
-        (
-            pl.LazyFrame(puma_gas_probs_df)
-            .join(
-                pl.LazyFrame(gas_puma_counts),
-                left_on="puma_id",
-                right_on="puma",
-                how="left",
-            )
-            .with_columns(pl.col("count").fill_null(0))
-            .collect()
-        ),
+    puma_gas_probs_df = puma_gas_probs.collect()
+    gas_prior = (
+        puma_gas_probs_df.lazy()
+        .join(
+            gas_puma_counts.lazy(),
+            left_on="puma_id",
+            right_on="puma",
+            how="left",
+        )
+        .with_columns(pl.col("count").fill_null(0))
+        .collect()
     )
     utility_cols_gas = [c for c in puma_gas_probs_df.columns if c != "puma_id"]
     gas_prior_weighted: dict[str, float] = {}
-    total_gas_bldgs = gas_prior["count"].sum()
+    total_gas_bldgs = float(gas_prior["count"].sum())
     for util in utility_cols_gas:
         weighted_prob = (
-            (gas_prior[util] * gas_prior["count"]).sum() / total_gas_bldgs
+            float((gas_prior[util] * gas_prior["count"]).sum()) / total_gas_bldgs
             if total_gas_bldgs > 0
-            else 0
+            else 0.0
         )
         if weighted_prob > 0:
             gas_prior_weighted[util] = weighted_prob
@@ -480,10 +474,10 @@ def sample_utility_per_building(
         puma_probs, left_on="puma", right_on="puma_id", how="left"
     )
 
-    puma_probs_df = cast(pl.DataFrame, puma_probs.collect())
+    puma_probs_df = puma_probs.collect()
     utility_cols = sorted([c for c in puma_probs_df.columns if c != "puma_id"])
 
-    bldgs_joined_df = cast(pl.DataFrame, bldgs_joined.collect())
+    bldgs_joined_df = bldgs_joined.collect()
     bldgs_pd = bldgs_joined_df.to_pandas()
 
     bldgs_pd = bldgs_pd.sort_values("bldg_id").reset_index(drop=True)
@@ -561,7 +555,7 @@ def print_comparison_summary(
         else:
             building_df_filtered = building_df
 
-        building_filtered_df = cast(pl.DataFrame, building_df_filtered.collect())
+        building_filtered_df = building_df_filtered.collect()
         posterior_df = (
             building_filtered_df.group_by(utility_col)
             .agg(pl.len().alias("count"))
@@ -729,7 +723,7 @@ def fill_missing_puma_probabilities(
     Returns:
         ``puma_probs`` augmented with rows for previously missing PUMAs.
     """
-    probs_df = cast(pl.DataFrame, puma_probs.collect())
+    probs_df = puma_probs.collect()
     covered_ids: set[str] = set(
         probs_df["puma_id"].cast(pl.Utf8).str.zfill(5).to_list()
     )
@@ -861,7 +855,7 @@ def zero_excluded_gas_utilities_and_renormalize(
         puma_and_heating_fuel: LazyFrame with ``bldg_id``, ``puma``,
             ``heating_fuel``, ``has_natgas_connection`` (for debug counts).
     """
-    gas_probs_df = cast(pl.DataFrame, puma_gas_probs.collect())
+    gas_probs_df = puma_gas_probs.collect()
     utility_cols = [c for c in gas_probs_df.columns if c != "puma_id"]
     excluded_cols = [c for c in utility_cols if c in excluded_utilities]
 
@@ -889,12 +883,11 @@ def zero_excluded_gas_utilities_and_renormalize(
 
         gas_bldg_counts: dict[str, int] = {}
         if puma_and_heating_fuel is not None:
-            counts_df = cast(
-                pl.DataFrame,
+            counts_df = (
                 puma_and_heating_fuel.filter(pl.col("has_natgas_connection"))
                 .group_by("puma")
                 .agg(pl.len().alias("n_bldgs"))
-                .collect(),
+                .collect()
             )
             for row in counts_df.iter_rows(named=True):
                 puma_val = row["puma"]

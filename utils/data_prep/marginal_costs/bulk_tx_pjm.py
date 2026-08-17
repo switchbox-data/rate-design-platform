@@ -157,12 +157,11 @@ def load_hourly_demand(
     if storage_options:
         kwargs["storage_options"] = storage_options
 
-    raw = cast(
-        pl.DataFrame,
+    raw = (
         pl.scan_parquet(base, hive_partitioning=True, **kwargs)
         .filter(pl.col("utility") == utility, pl.col("year") == year)
         .select("timestamp", "load_mw")
-        .collect(),
+        .collect()
     )
 
     if raw.is_empty():

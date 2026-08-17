@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import logging
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -425,10 +425,7 @@ def _fetch_prototype_ids_by_electric_util(
     utility_assignment = utility_assignment.filter(
         pl.col("sb.electric_utility") == electric_utility
     )
-    bldg_ids = cast(
-        pl.DataFrame,
-        utility_assignment.select("bldg_id").collect(),
-    )
+    bldg_ids = utility_assignment.select("bldg_id").collect()
     if bldg_ids.height == 0:
         raise ValueError(f"No buildings assigned to {electric_utility}")
     return cast(list[int], bldg_ids["bldg_id"].to_list())
@@ -454,7 +451,7 @@ def load_dist_and_sub_tx_marginal_costs(
     We load `mc_total_per_kwh` and pass it to CAIRO as the delivery-side MC trace.
     Bulk transmission is handled separately via `load_bulk_tx_marginal_costs`.
     """
-    df = cast(pl.DataFrame, _scan_parquet_pl(str(path)).collect()).to_pandas()
+    df = (_scan_parquet_pl(str(path)).collect()).to_pandas()
     required_cols = {"timestamp", "mc_total_per_kwh"}
     missing_cols = required_cols.difference(df.columns)
     if missing_cols:
@@ -495,7 +492,7 @@ def load_bulk_tx_marginal_costs(
         ValueError: If required columns are missing, data has nulls, or row count
             is not 8760.
     """
-    df = cast(pl.DataFrame, _scan_parquet_pl(str(path)).collect()).to_pandas()
+    df = (_scan_parquet_pl(str(path)).collect()).to_pandas()
 
     required_cols = {"timestamp", "bulk_tx_cost_enduse"}
     missing_cols = required_cols.difference(df.columns)
@@ -741,9 +738,9 @@ def assign_hourly_periods(
     weekday_schedule = np.array(tariff_item["energyweekdayschedule"])
     weekend_schedule = np.array(tariff_item["energyweekendschedule"])
 
-    months = np.asarray(hourly_index.month) - 1  # type: ignore[attr-defined]
-    hours = np.asarray(hourly_index.hour)  # type: ignore[attr-defined]
-    is_weekday = np.asarray(hourly_index.dayofweek) < 5  # type: ignore[attr-defined]
+    months = np.asarray(cast(Any, hourly_index).month) - 1
+    hours = np.asarray(cast(Any, hourly_index).hour)
+    is_weekday = np.asarray(cast(Any, hourly_index).dayofweek) < 5
 
     periods = np.where(
         is_weekday, weekday_schedule[months, hours], weekend_schedule[months, hours]
@@ -1118,7 +1115,9 @@ def apply_runtime_tou_demand_response(
 
     trackers: list[pd.DataFrame] = []
     time_level = pd.DatetimeIndex(shifted_load_elec.index.get_level_values("time"))
-    month_level = time_level.month  # type: ignore[attr-defined]
+    # Use DatetimeIndex.month (not to_series().dt) so the result stays positionally
+    # aligned with the MultiIndex rows for boolean indexing below.
+    month_level = cast(Any, time_level).month
     has_load_data = "load_data" in shifted_load_elec.columns
 
     def _shift_season(season_name: str, season_months: set[int]) -> None:

@@ -11,6 +11,8 @@ Usage:
 
 from __future__ import annotations
 
+from utils.numeric import as_float
+
 import calendar
 import sys
 from pathlib import Path
@@ -185,9 +187,9 @@ def check_row_counts(df: pl.DataFrame, result: ValidationResult) -> None:
 
 def check_value_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
     lmp = df["lmp_usd_per_mwh"]
-    pmin = float(lmp.min())  # type: ignore[arg-type]
-    pmax = float(lmp.max())  # type: ignore[arg-type]
-    pmean = float(lmp.mean())  # type: ignore[arg-type]
+    pmin = as_float(lmp.min())
+    pmax = as_float(lmp.max())
+    pmean = as_float(lmp.mean())
 
     n_inf = lmp.is_infinite().sum()
     if n_inf > 0:
@@ -212,7 +214,7 @@ def check_decomposition(df: pl.DataFrame, result: ValidationResult) -> None:
         - df["marginal_cost_congestion_usd_per_mwh"]
         - df["marginal_cost_losses_usd_per_mwh"]
     ).abs()
-    max_diff = float(diff.max())  # type: ignore[arg-type]
+    max_diff = as_float(diff.max())
     n_bad = diff.filter(diff > DECOMP_TOLERANCE).len()
     if n_bad > 0:
         result.error(

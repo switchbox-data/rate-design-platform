@@ -1,7 +1,5 @@
 """Tests for electric tariff mapper."""
 
-from typing import cast
-
 import polars as pl
 import pytest
 
@@ -28,7 +26,7 @@ def test_map_electric_tariff_filters_by_std_name():
         SB_scenario=sb_scenario,
         state="NY",
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
     assert df.height == 2
     assert set(df["bldg_id"].to_list()) == {1, 2}
     assert all(df["tariff_key"].str.starts_with("coned_"))
@@ -50,7 +48,7 @@ def test_map_electric_tariff_tariff_key_format():
         SB_scenario=sb_scenario,
         state="NY",
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
     assert df["tariff_key"][0] == "nyseg_seasonal_1_HP.csv"
 
 
@@ -70,7 +68,7 @@ def test_map_electric_tariff_seasonal_discount_tariff_key_format():
         SB_scenario=sb_scenario,
         state="NY",
     )
-    df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
+    df = (result.collect()).sort("bldg_id")
     assert df["tariff_key"].to_list() == [
         "nyseg_seasonal_discount_1_HP.csv",
         "nyseg_seasonal_discount_1_flat.csv",

@@ -6,7 +6,6 @@ Uses synthetic data — no S3, no real data, runs in milliseconds.
 from __future__ import annotations
 
 import math
-from typing import cast
 
 import polars as pl
 import pytest
@@ -198,7 +197,7 @@ class TestComputeGasBills:
         tariff_map = pl.DataFrame({BLDG_ID: [1], "tariff_key": ["two_tier"]})
         lc = _make_load_curves([1], monthly_kwh=150.0)
 
-        result = cast(pl.DataFrame, compute_gas_bills(lc, tariff_map, rt, fc).collect())
+        result = compute_gas_bills(lc, tariff_map, rt, fc).collect()
 
         assert result.height == 13  # 12 months + Annual
 
@@ -226,7 +225,7 @@ class TestComputeGasBills:
         tariff_map = pl.DataFrame({BLDG_ID: [1], "tariff_key": ["flat_gas"]})
         lc = _make_load_curves([1], monthly_kwh=200.0)
 
-        result = cast(pl.DataFrame, compute_gas_bills(lc, tariff_map, rt, fc).collect())
+        result = compute_gas_bills(lc, tariff_map, rt, fc).collect()
 
         jan = result.filter(pl.col("month") == "Jan")
         assert jan["gas_volumetric_bill"][0] == pytest.approx(16.0)
@@ -243,7 +242,7 @@ class TestComputeGasBills:
         tariff_map = pl.DataFrame({BLDG_ID: [1], "tariff_key": ["null_gas_tariff"]})
         lc = _make_load_curves([1], monthly_kwh=500.0)
 
-        result = cast(pl.DataFrame, compute_gas_bills(lc, tariff_map, rt, fc).collect())
+        result = compute_gas_bills(lc, tariff_map, rt, fc).collect()
 
         assert (result["gas_total_bill"] == 0.0).all()
         assert (result["gas_fixed_charge"] == 0.0).all()
@@ -258,7 +257,7 @@ class TestComputeGasBills:
         tariff_map = pl.DataFrame({BLDG_ID: [1], "tariff_key": ["two_tier"]})
         lc = _make_load_curves([1], monthly_kwh=50.0)
 
-        result = cast(pl.DataFrame, compute_gas_bills(lc, tariff_map, rt, fc).collect())
+        result = compute_gas_bills(lc, tariff_map, rt, fc).collect()
         jan = result.filter(pl.col("month") == "Jan")
         assert jan["gas_volumetric_bill"][0] == pytest.approx(2.5)
 
@@ -274,7 +273,7 @@ class TestComputeGasBills:
         )
         lc = _make_load_curves([1, 2], monthly_kwh=150.0)
 
-        result = cast(pl.DataFrame, compute_gas_bills(lc, tariff_map, rt, fc).collect())
+        result = compute_gas_bills(lc, tariff_map, rt, fc).collect()
         assert result.height == 26  # 2 buildings * 13 rows
 
         # Building 1 has real bills
@@ -294,7 +293,7 @@ class TestComputeGasBills:
         tariff_map = pl.DataFrame({BLDG_ID: [1], "tariff_key": ["flat_gas"]})
         lc = _make_load_curves([1], monthly_kwh=0.0)
 
-        result = cast(pl.DataFrame, compute_gas_bills(lc, tariff_map, rt, fc).collect())
+        result = compute_gas_bills(lc, tariff_map, rt, fc).collect()
         jan = result.filter(pl.col("month") == "Jan")
         assert jan["gas_volumetric_bill"][0] == pytest.approx(0.0)
         assert jan["gas_fixed_charge"][0] == pytest.approx(15.0)

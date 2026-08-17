@@ -84,9 +84,7 @@ def _check_source_round_trips(
 
     # elec_total_bill == bill_level from supply run elec_bills_year_target
     _log("  Round-trip: elec_total_bill vs supply run elec_bills_year_target...")
-    elec_supply_src = cast(
-        pl.DataFrame, scan(f"{dir_supply}/{ELEC_BILLS_CSV}").collect()
-    )
+    elec_supply_src = scan(f"{dir_supply}/{ELEC_BILLS_CSV}").collect()
     check = util_rows.select(BLDG_ID, "month", "elec_total_bill").join(
         elec_supply_src.select(BLDG_ID, "month", pl.col(BILL_LEVEL).alias("src")),
         on=[BLDG_ID, "month"],
@@ -106,7 +104,7 @@ def _check_source_round_trips(
 
     # gas_total_bill == bill_level from supply run gas_bills_year_target
     _log("  Round-trip: gas_total_bill vs supply run gas_bills_year_target...")
-    gas_src = cast(pl.DataFrame, scan(f"{dir_supply}/{GAS_BILLS_CSV}").collect())
+    gas_src = scan(f"{dir_supply}/{GAS_BILLS_CSV}").collect()
     check = util_rows.select(BLDG_ID, "month", "gas_total_bill").join(
         gas_src.select(BLDG_ID, "month", pl.col(BILL_LEVEL).alias("src")),
         on=[BLDG_ID, "month"],
@@ -126,9 +124,7 @@ def _check_source_round_trips(
 
     # elec_fixed_charge + elec_delivery_bill == bill_level from delivery run
     _log("  Round-trip: elec_fixed + elec_delivery vs delivery run elec src...")
-    elec_delivery_src = cast(
-        pl.DataFrame, scan(f"{dir_delivery}/{ELEC_BILLS_CSV}").collect()
-    )
+    elec_delivery_src = scan(f"{dir_delivery}/{ELEC_BILLS_CSV}").collect()
     check = (
         util_rows.select(BLDG_ID, "month", "elec_fixed_charge", "elec_delivery_bill")
         .join(
@@ -399,23 +395,20 @@ def _spot_check_report(
         master_row = annual.filter(pl.col(BLDG_ID) == bldg).to_dicts()[0]
 
         # Source values
-        elec_delivery_src = cast(
-            pl.DataFrame,
+        elec_delivery_src = (
             scan(f"{dir_delivery}/{ELEC_BILLS_CSV}")
             .filter((pl.col(BLDG_ID) == bldg) & (pl.col("month") == ANNUAL_MONTH))
-            .collect(),
+            .collect()
         )
-        elec_supply_src = cast(
-            pl.DataFrame,
+        elec_supply_src = (
             scan(f"{dir_supply}/{ELEC_BILLS_CSV}")
             .filter((pl.col(BLDG_ID) == bldg) & (pl.col("month") == ANNUAL_MONTH))
-            .collect(),
+            .collect()
         )
-        gas_src = cast(
-            pl.DataFrame,
+        gas_src = (
             scan(f"{dir_supply}/{GAS_BILLS_CSV}")
             .filter((pl.col(BLDG_ID) == bldg) & (pl.col("month") == ANNUAL_MONTH))
-            .collect(),
+            .collect()
         )
 
         d_bill = cast(float, elec_delivery_src[BILL_LEVEL].item())
@@ -501,10 +494,7 @@ def main() -> None:
     _log(f"  Master: {master_path}")
 
     _log("\nLoading master table...")
-    master = cast(
-        pl.DataFrame,
-        pl.scan_parquet(master_path, hive_partitioning=True).collect(),
-    )
+    master = pl.scan_parquet(master_path, hive_partitioning=True).collect()
     _log(f"  {master.height} rows, {master[BLDG_ID].n_unique()} buildings")
 
     all_results: list[tuple[str, bool, str]] = []
@@ -532,7 +522,7 @@ def main() -> None:
         f"{args.path_resstock_release.rstrip('/')}"
         f"/metadata_utility/state={state.upper()}/utility_assignment.parquet"
     )
-    ua = cast(pl.DataFrame, pl.scan_parquet(meta_path).collect())
+    ua = pl.scan_parquet(meta_path).collect()
     id_results = _check_building_ids_vs_utility_assignment(master, args.utility, ua)
     all_results.extend(id_results)
 

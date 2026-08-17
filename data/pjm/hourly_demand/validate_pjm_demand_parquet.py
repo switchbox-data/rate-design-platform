@@ -20,6 +20,8 @@ Usage:
 
 from __future__ import annotations
 
+from utils.numeric import as_float
+
 import argparse
 import sys
 from datetime import datetime, timedelta
@@ -111,7 +113,7 @@ def validate_zone_loads(
                     "(raw bad load-area value; interpolated at utility step)"
                 )
 
-        peak = float(zdf["load_mw"].max())  # type: ignore[arg-type]
+        peak = as_float(zdf["load_mw"].max())
         sanity = PEAK_SANITY.get(zone)
         if sanity is not None and not (sanity[0] <= peak <= sanity[1]):
             msgs.append(

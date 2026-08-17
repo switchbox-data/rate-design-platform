@@ -1,5 +1,3 @@
-from typing import cast
-
 import polars as pl
 
 from data.resstock.metadata.identify_heating_type import (
@@ -47,7 +45,7 @@ def test_identify_heating_type():
 
         test_input_metadata = pl.DataFrame(test_metadata).lazy()
         test_output_metadata = identify_heating_type(test_input_metadata, upgrade_id)
-        test_output_metadata_df = cast(pl.DataFrame, test_output_metadata.collect())
+        test_output_metadata_df = test_output_metadata.collect()
         assert "postprocess_group.heating_type" in test_output_metadata_df.columns
         if upgrade_id == "00":
             assert test_output_metadata_df[
@@ -95,10 +93,7 @@ def test_heating_fuel_boolean_columns_upgrade_00():
             "Electricity Baseboard",  # ER → electricity
         ],
     }
-    df = cast(
-        pl.DataFrame,
-        identify_heating_type(pl.DataFrame(test_metadata).lazy(), "00").collect(),
-    )
+    df = identify_heating_type(pl.DataFrame(test_metadata).lazy(), "00").collect()
     assert df["heats_with_electricity"].to_list() == [
         True,
         True,
@@ -154,10 +149,7 @@ def test_heating_fuel_boolean_columns_upgrade():
             None,  # null → fall back → electricity
         ],
     }
-    df = cast(
-        pl.DataFrame,
-        identify_heating_type(pl.DataFrame(test_metadata).lazy(), "01").collect(),
-    )
+    df = identify_heating_type(pl.DataFrame(test_metadata).lazy(), "01").collect()
     # bldg 1: upgraded to HP → electricity only
     assert df["heats_with_electricity"].to_list() == [True, False, True, True]
     # bldg 2: null upgrade, falls back to oil

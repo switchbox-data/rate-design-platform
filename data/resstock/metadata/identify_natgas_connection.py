@@ -1,5 +1,4 @@
 import argparse
-from typing import cast
 
 import polars as pl
 from cloudpathlib import S3Path
@@ -42,11 +41,10 @@ def identify_natgas_connection(
     # silently fan out metadata rows during the join below.  Missing bldg_ids are
     # intentional in sample-mode runs (only N buildings were downloaded) and are
     # handled correctly by the left join + fill_null(False) that follows.
-    n_lca_unique = cast(
-        pl.DataFrame,
-        natgas_from_load.select(pl.col("bldg_id").n_unique()).collect(),
+    n_lca_unique = (
+        natgas_from_load.select(pl.col("bldg_id").n_unique()).collect()
     ).item()
-    n_lca_total = cast(pl.DataFrame, natgas_from_load.select(pl.len()).collect()).item()
+    n_lca_total = (natgas_from_load.select(pl.len()).collect()).item()
     if n_lca_total != n_lca_unique:
         raise ValueError(
             f"Row count mismatch: load_curve_annual has {n_lca_total} rows but only "
@@ -59,15 +57,14 @@ def identify_natgas_connection(
 
     # Sanity check: among buildings that DO have load curve data (non-null),
     # any building that heats with natgas must have positive natgas consumption.
-    n_violations = cast(
-        pl.DataFrame,
+    n_violations = (
         result.filter(
             pl.col("has_natgas_connection").is_not_null()
             & pl.col("heats_with_natgas")
             & ~pl.col("has_natgas_connection")
         )
         .select(pl.len())
-        .collect(),
+        .collect()
     ).item()
     if n_violations > 0:
         raise ValueError(

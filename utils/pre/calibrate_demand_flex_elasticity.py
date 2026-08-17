@@ -30,7 +30,7 @@ import math
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -38,6 +38,7 @@ import polars as pl
 import yaml
 
 from utils.file_io import get_aws_storage_options
+from utils.numeric import as_float
 from utils.cairo import (
     _build_period_consumption,
     _build_period_shift_targets,
@@ -395,7 +396,7 @@ def diagnose_season(
     season_name = season_spec.season.name
 
     time_level = pd.DatetimeIndex(loads_df.index.get_level_values("time"))
-    season_mask = time_level.to_series().dt.month.isin(season_months).to_numpy()
+    season_mask = cast(Any, time_level).month.isin(season_months).to_numpy()
     season_df = loads_df.loc[season_mask, ["electricity_net"]].copy().reset_index()
 
     period_lookup = period_map.reset_index()
@@ -822,10 +823,7 @@ def _find_run_dir(batch_prefix: str, run_fragment: str) -> str | None:
 def _read_annual_bills(csv_path: str) -> pl.DataFrame | None:
     """Read a CAIRO bill CSV and return Annual rows only."""
     try:
-        return cast(
-            pl.DataFrame,
-            pl.scan_csv(csv_path).filter(pl.col("month") == "Annual").collect(),
-        )
+        return pl.scan_csv(csv_path).filter(pl.col("month") == "Annual").collect()
     except Exception as e:
         log.warning("  Failed to read %s: %s", csv_path, e)
         return None
@@ -941,8 +939,8 @@ def compare_batch_bills(
                     baseline_run=base_frag,
                     flex_run=flex_frag,
                     description=desc,
-                    mean_savings=float(joined["savings"].mean()),  # type: ignore[arg-type]
-                    median_savings=float(joined["savings"].median()),  # type: ignore[arg-type]
+                    mean_savings=as_float(joined["savings"].mean()),
+                    median_savings=as_float(joined["savings"].median()),
                     n_bldgs=joined.height,
                 )
             )

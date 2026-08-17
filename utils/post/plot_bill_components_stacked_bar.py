@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import cast
 
 import polars as pl
 from plotnine import (
@@ -106,16 +105,13 @@ def _join_bills_and_compute_components(
 
     Single collect per input LazyFrame (2 total). All validation runs on materialized data.
     """
-    delivery_df = cast(pl.DataFrame, delivery_bills.collect())
-    supply_df = cast(
-        pl.DataFrame,
-        supply_bills.select(
-            pl.col(BLDG_ID),
-            pl.col("month"),
-            pl.col(BILL_LEVEL).alias("bill_supply"),
-            pl.col("weight").alias("weight_supply"),
-        ).collect(),
-    )
+    delivery_df = delivery_bills.collect()
+    supply_df = supply_bills.select(
+        pl.col(BLDG_ID),
+        pl.col("month"),
+        pl.col(BILL_LEVEL).alias("bill_supply"),
+        pl.col("weight").alias("weight_supply"),
+    ).collect()
     join_keys = [BLDG_ID, "month"]
     joined = delivery_df.join(supply_df, on=join_keys, how="inner")
 
@@ -136,7 +132,7 @@ def _weighted_median_row(
     weight_col: str = "weight",
 ) -> pl.DataFrame:
     """Return single row at weighted median by sort_col."""
-    total_weight = df[weight_col].sum()
+    total_weight = float(df[weight_col].sum())
     sorted_df = df.sort(sort_col)
     cum = sorted_df[weight_col].cum_sum()
     median_idx = (cum >= 0.5 * total_weight).arg_max()
@@ -330,10 +326,7 @@ def main() -> None:
     args = _parse_args()
     annual_fixed = _read_fixed_charge_from_tariff(args.path_tariff_json) * 12
 
-    metadata = cast(
-        pl.DataFrame,
-        scan(args.path_metadata, "parquet").collect(),
-    )
+    metadata = scan(args.path_metadata, "parquet").collect()
 
     median_current = _median_customer_components(
         scan(args.run_dir_delivery + BILLS_CSV),

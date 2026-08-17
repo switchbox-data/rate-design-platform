@@ -119,8 +119,6 @@ def _compute_monthly_kwh_from_resstock(
 
     Returns (monthly_kwh dict {1: ..., 12: ...}, scale_factor).
     """
-    from typing import cast
-
     import polars as pl
 
     from utils.post.io import scan_load_curves_for_utility
@@ -128,12 +126,11 @@ def _compute_monthly_kwh_from_resstock(
     base = path_resstock_release.rstrip("/")
     meta_path = f"{base}/metadata_utility/state={state}/utility_assignment.parquet"
 
-    weights_df = cast(
-        pl.DataFrame,
+    weights_df = (
         pl.scan_parquet(meta_path)
         .filter(pl.col("sb.electric_utility") == utility)
         .select("bldg_id", "weight")
-        .collect(),
+        .collect()
     )
     if weights_df.is_empty():
         raise ValueError(f"No buildings for utility {utility!r} in {meta_path}.")
@@ -153,8 +150,7 @@ def _compute_monthly_kwh_from_resstock(
         load_curve_type="monthly",
     )
 
-    monthly_df = cast(
-        pl.DataFrame,
+    monthly_df = (
         loads_lf.join(weights_df.lazy(), on="bldg_id", how="inner")
         .group_by("month")
         .agg(
@@ -163,7 +159,7 @@ def _compute_monthly_kwh_from_resstock(
             .alias("weighted_kwh")
         )
         .sort("month")
-        .collect(),
+        .collect()
     )
 
     if monthly_df.height != 12:

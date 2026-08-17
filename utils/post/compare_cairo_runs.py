@@ -25,6 +25,8 @@ Usage::
 
 from __future__ import annotations
 
+from utils.numeric import as_float
+
 import argparse
 import json
 import sys
@@ -192,8 +194,8 @@ def compare_artifact(
 
         max_abs = abs_diff.max()
         max_rel = rel_diff.max()
-        max_abs_f: float = 0.0 if max_abs is None else float(max_abs)  # type: ignore[arg-type]
-        max_rel_f: float = 0.0 if max_rel is None else float(max_rel)  # type: ignore[arg-type]
+        max_abs_f: float = 0.0 if max_abs is None else as_float(max_abs)
+        max_rel_f: float = 0.0 if max_rel is None else as_float(max_rel)
 
         overall_max_abs = max(overall_max_abs, max_abs_f)
         overall_max_rel = max(overall_max_rel, max_rel_f)

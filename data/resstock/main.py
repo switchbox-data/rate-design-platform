@@ -30,7 +30,6 @@ import gc
 import subprocess
 import sys
 from pathlib import Path
-from typing import cast
 
 import polars as pl
 import yaml
@@ -202,7 +201,7 @@ def _approximate_non_hp_load(
                 pl.col("bldg_id").is_in(list(local_bldg_ids))
             )
 
-        n_targets = cast(pl.DataFrame, non_hp_bldg_metadata.collect()).height
+        n_targets = (non_hp_bldg_metadata.collect()).height
         if n_targets == 0:
             print("    No non-HP target buildings, skipping.", flush=True)
             continue
@@ -250,7 +249,7 @@ def _approximate_non_hp_load(
             metadata,
             natural_gas_usage=natural_gas_usage,
         )
-        cast(pl.DataFrame, updated_metadata.collect()).write_parquet(str(metadata_path))
+        (updated_metadata.collect()).write_parquet(str(metadata_path))
         print(
             f"    Done: updated {n_targets} buildings in {metadata_path.name}.",
             flush=True,
@@ -343,25 +342,23 @@ def _adjust_mf_electricity(
                     "Run without --sample for production use.",
                     flush=True,
                 )
-                n_mf = cast(
-                    pl.DataFrame,
+                n_mf = (
                     metadata.filter(
                         pl.col(BUILDING_TYPE_RECS_COL).str.contains(
                             "Multi-Family", literal=True
                         )
                     )
                     .select(pl.len())
-                    .collect(),
+                    .collect()
                 ).item()
-                n_sf = cast(
-                    pl.DataFrame,
+                n_sf = (
                     metadata.filter(
                         pl.col(BUILDING_TYPE_RECS_COL).str.contains(
                             "Single-Family", literal=True
                         )
                     )
                     .select(pl.len())
-                    .collect(),
+                    .collect()
                 ).item()
                 if n_mf == 0:
                     print(
@@ -444,7 +441,7 @@ def _assign_utility(
         metadata = pl.scan_parquet(str(metadata_path))
 
         if sample > 0:
-            n_bldgs = cast(pl.DataFrame, metadata.select(pl.len()).collect()).item()
+            n_bldgs = (metadata.select(pl.len()).collect()).item()
             print(
                 f"    NOTE: --sample active ({n_bldgs} buildings in local metadata). "
                 f"Utility assignment probabilities are derived from GIS data, not "
@@ -467,7 +464,7 @@ def _assign_utility(
         # Keep only the assignment columns — the full metadata belongs in
         # metadata-sb.parquet (per-upgrade), not in the utility assignment file.
         result_slim = result.select("bldg_id", "sb.electric_utility", "sb.gas_utility")
-        cast(pl.DataFrame, result_slim.collect()).write_parquet(str(out_path))
+        (result_slim.collect()).write_parquet(str(out_path))
         print(f"    Written: {out_path}", flush=True)
 
         # Upload immediately so the file is on S3 even if a later state fails.

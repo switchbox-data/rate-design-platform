@@ -2,7 +2,6 @@
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import cast
 
 import polars as pl
 import pytest
@@ -43,7 +42,7 @@ def test_map_gas_tariff_uses_crosswalk_for_tariff_key():
         SB_metadata=metadata,
         electric_utility_name="coned",
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
     assert df.height == 3
     # nimo -> nimo, nyseg -> nyseg_heating, coned MF 2-4 + heating -> coned_sf_heating (SF = 1-4 units)
     tariff_keys = df["tariff_key"].to_list()
@@ -71,7 +70,7 @@ def test_map_gas_tariff_coned_building_types():
         SB_metadata=metadata,
         electric_utility_name="coned",
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
     assert df.height == 3
     tariff_keys = df["tariff_key"].to_list()
     assert "coned_nonheating" in tariff_keys
@@ -98,7 +97,7 @@ def test_map_gas_tariff_kedny_heating_conditions():
         SB_metadata=metadata,
         electric_utility_name="coned",
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
     assert df.height == 3
     tariff_keys = df["tariff_key"].to_list()
     assert "kedny_sf_heating" in tariff_keys
@@ -126,7 +125,7 @@ def test_map_gas_tariff_kedli_all_conditions():
         SB_metadata=metadata,
         electric_utility_name="coned",
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
     assert df.height == 4
     tariff_keys = df["tariff_key"].to_list()
     assert "kedli_sf_heating" in tariff_keys
@@ -152,7 +151,7 @@ def test_map_gas_tariff_nyseg_heating_conditions():
         SB_metadata=metadata,
         electric_utility_name="nyseg",
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
     assert df.height == 2
     tariff_keys = df["tariff_key"].to_list()
     assert "nyseg_heating" in tariff_keys
@@ -180,7 +179,7 @@ def test_map_gas_tariff_simple_utilities_no_suffix():
         SB_metadata=metadata,
         electric_utility_name="coned",
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
     assert df.height == 5
     tariff_keys = df["tariff_key"].to_list()
     # All use utility code (std_name)
@@ -210,7 +209,7 @@ def test_map_gas_tariff_rie_heating_conditions():
         SB_metadata=metadata,
         electric_utility_name="rie",
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
     assert df.height == 3
     tariff_keys = df["tariff_key"].to_list()
     # rie with heats_with_natgas=True -> rie_heating
@@ -238,7 +237,7 @@ def test_map_gas_tariff_null_gas_utility():
         SB_metadata=metadata,
         electric_utility_name="coned",
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
     assert df.height == 2
     tariff_keys = df["tariff_key"].to_list()
     assert "null_gas_tariff" in tariff_keys
@@ -264,7 +263,7 @@ def test_map_gas_tariff_small_utilities_become_null():
         SB_metadata=metadata,
         electric_utility_name="nyseg",
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
     assert df.height == 3
     keys = df.sort("bldg_id")["tariff_key"].to_list()
     assert keys[0] == "null_gas_tariff"  # bath
@@ -345,7 +344,7 @@ def test_map_gas_tariff_ny_keys_match_yaml() -> None:
         SB_metadata=metadata,
         electric_utility_name="coned",
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
     produced_keys = set(df["tariff_key"].to_list())
     missing = produced_keys - valid_tariff_keys
     assert not missing, (
@@ -369,7 +368,7 @@ def test_map_gas_tariff_md_single_key_utilities():
         }
     )
     result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="bge")
-    df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
+    df = (result.collect()).sort("bldg_id")
     assert df["tariff_key"].to_list() == [
         "bge_residential",
         "columbia_gas_md_residential",
@@ -393,7 +392,7 @@ def test_map_gas_tariff_md_washington_gas_heating():
         }
     )
     result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="pepco")
-    df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
+    df = (result.collect()).sort("bldg_id")
     assert df["tariff_key"].to_list() == [
         "washington_gas_heating",
         "washington_gas_nonheating",
@@ -416,7 +415,7 @@ def test_map_gas_tariff_md_easton_muni_residential():
         }
     )
     result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="bge")
-    df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
+    df = (result.collect()).sort("bldg_id")
     assert df["tariff_key"].to_list() == [
         "easton_muni_residential",
         "bge_residential",
@@ -453,7 +452,7 @@ def test_map_gas_tariff_md_chesapeake_res1_res2():
         electric_utility_name="choptank",
         annual_gas_therms=annual,
     )
-    df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
+    df = (result.collect()).sort("bldg_id")
     assert df["tariff_key"].to_list() == [
         "chesapeake_main_res1",
         "chesapeake_main_res2",
@@ -493,7 +492,7 @@ def test_load_annual_gas_therms_converts_kwh(tmp_path: Path):
             ],
         }
     ).write_parquet(path)
-    df = cast(pl.DataFrame, load_annual_gas_therms(path).collect())
+    df = load_annual_gas_therms(path).collect()
     assert abs(df.filter(pl.col("bldg_id") == 1)["annual_gas_therms"][0] - 150.0) < 1e-9
     assert abs(df.filter(pl.col("bldg_id") == 2)["annual_gas_therms"][0] - 300.0) < 1e-9
 
@@ -566,7 +565,7 @@ def test_map_gas_tariff_md_chesapeake_res1_res2_boundary():
         electric_utility_name="choptank",
         annual_gas_therms=annual,
     )
-    df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
+    df = (result.collect()).sort("bldg_id")
     assert df["tariff_key"].to_list() == [
         "chesapeake_main_res1",
         "chesapeake_main_res1",
@@ -602,7 +601,7 @@ def test_map_gas_tariff_md_non_chesapeake_buildings_do_not_need_therms():
         [True, True, True, False],
     )
     result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="bge")
-    df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
+    df = (result.collect()).sort("bldg_id")
     assert df["tariff_key"].to_list() == [
         "bge_residential",
         "columbia_gas_md_residential",
@@ -627,7 +626,7 @@ def test_map_gas_tariff_md_mixed_chesapeake_and_non_chesapeake():
         electric_utility_name="choptank",
         annual_gas_therms=annual,
     )
-    df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
+    df = (result.collect()).sort("bldg_id")
     assert df["tariff_key"].to_list() == [
         "bge_residential",
         "chesapeake_worcester_res1",
@@ -731,7 +730,7 @@ def test_map_gas_tariff_md_keys_match_tariff_json_files() -> None:
         electric_utility_name="bge",
         annual_gas_therms=annual,
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
     produced_keys = set(df["tariff_key"].to_list()) - {"null_gas_tariff"}
     missing = produced_keys - available_stems
     assert not missing, (
@@ -747,7 +746,7 @@ def _ct_metadata(
     gas_utilities: Sequence[str | None],
     building_types: list[str],
     heats_with_natgas: list[bool],
-    electric_utility: str = "clp",
+    electric_utility: str = "ct_eversource",
 ) -> pl.LazyFrame:
     return pl.LazyFrame(
         {
@@ -798,8 +797,8 @@ def test_map_gas_tariff_ct_iou_three_classes():
             False,
         ],
     )
-    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="clp")
-    df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
+    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="ct_eversource")
+    df = (result.collect()).sort("bldg_id")
     assert df["tariff_key"].to_list() == [
         "ct_natural_gas_nonheating",
         "ct_natural_gas_heating",
@@ -826,8 +825,8 @@ def test_map_gas_tariff_ct_norwich_two_classes():
         ],
         heats_with_natgas=[True, False, True, False],
     )
-    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="clp")
-    df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
+    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="ct_eversource")
+    df = (result.collect()).sort("bldg_id")
     assert df["tariff_key"].to_list() == [
         "norwich_muni_general",
         "norwich_muni_general",
@@ -844,8 +843,8 @@ def test_map_gas_tariff_ct_null_gas_utility():
         building_types=["Single-Family Detached", "Single-Family Detached"],
         heats_with_natgas=[False, True],
     )
-    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="clp")
-    df = cast(pl.DataFrame, result.collect()).sort("bldg_id")
+    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="ct_eversource")
+    df = (result.collect()).sort("bldg_id")
     assert df["tariff_key"].to_list() == [
         "null_gas_tariff",
         "yankee_gas_heating",
@@ -870,7 +869,7 @@ def test_map_gas_tariff_ct_no_unexpected_warning(caplog):
     with caplog.at_level("WARNING"):
         map_gas_tariff(
             SB_metadata=metadata,
-            electric_utility_name="clp",
+            electric_utility_name="ct_eversource",
         ).collect()
     assert "unexpected gas_utility" not in caplog.text
 
@@ -933,8 +932,8 @@ def test_map_gas_tariff_ct_keys_match_tariff_json_files() -> None:
             True,
         ],
     )
-    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="clp")
-    df = cast(pl.DataFrame, result.collect())
+    result = map_gas_tariff(SB_metadata=metadata, electric_utility_name="ct_eversource")
+    df = result.collect()
     produced_keys = set(df["tariff_key"].to_list()) - {"null_gas_tariff"}
     missing = produced_keys - available_stems
     assert not missing, (

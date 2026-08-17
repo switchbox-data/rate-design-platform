@@ -2,7 +2,6 @@ import argparse
 import logging
 import warnings
 from pathlib import Path
-from typing import cast
 
 import polars as pl
 from cloudpathlib import S3Path
@@ -268,15 +267,12 @@ def map_gas_tariff(
     )
 
     # Check if there are any rows in the filtered dataframe
-    test_sample = cast(pl.DataFrame, utility_metadata.head(1).collect())
+    test_sample = utility_metadata.head(1).collect()
     if test_sample.is_empty():
         return pl.LazyFrame()
 
     # Log if we see any gas_utility not in expected set (IOUs + small + none/psegli)
-    distinct_gas = cast(
-        pl.DataFrame,
-        utility_metadata.select("sb.gas_utility").unique().collect(),
-    )
+    distinct_gas = utility_metadata.select("sb.gas_utility").unique().collect()
     distinct_gas_vals = {
         row["sb.gas_utility"] for row in distinct_gas.iter_rows(named=True)
     }
@@ -319,14 +315,13 @@ def map_gas_tariff(
         )
 
     if needs_chesapeake_therms:
-        missing = cast(
-            pl.DataFrame,
+        missing = (
             selected.filter(
                 pl.col("sb.gas_utility").is_in(list(CHESAPEAKE_GAS_UTILITIES))
                 & pl.col("annual_gas_therms").is_null()
             )
             .select(pl.len())
-            .collect(),
+            .collect()
         ).item()
         if missing > 0:
             raise ValueError(
@@ -485,16 +480,10 @@ if __name__ == "__main__":
         # (buildings without a valid HP scenario are dropped). Extra bldg_ids in the
         # assignment that have no matching metadata row are harmlessly filtered by
         # the inner join below.
-        metadata_bldg_ids_df = cast(
-            pl.DataFrame,
-            SB_metadata.select("bldg_id").unique().collect(),
-        )
+        metadata_bldg_ids_df = SB_metadata.select("bldg_id").unique().collect()
         metadata_bldg_ids = set(metadata_bldg_ids_df["bldg_id"].to_list())
 
-        utility_bldg_ids_df = cast(
-            pl.DataFrame,
-            utility_assignment.select("bldg_id").unique().collect(),
-        )
+        utility_bldg_ids_df = utility_assignment.select("bldg_id").unique().collect()
         utility_bldg_ids = set(utility_bldg_ids_df["bldg_id"].to_list())
 
         missing_from_assignment = metadata_bldg_ids - utility_bldg_ids
@@ -515,16 +504,10 @@ if __name__ == "__main__":
         )
 
         # Verify join preserved all rows (catches duplicates or other issues)
-        metadata_count_df = cast(
-            pl.DataFrame,
-            SB_metadata.select(pl.len()).collect(),
-        )
+        metadata_count_df = SB_metadata.select(pl.len()).collect()
         metadata_count = metadata_count_df.row(0)[0]
 
-        joined_count_df = cast(
-            pl.DataFrame,
-            SB_metadata_with_utilities.select(pl.len()).collect(),
-        )
+        joined_count_df = SB_metadata_with_utilities.select(pl.len()).collect()
         joined_count = joined_count_df.row(0)[0]
         if metadata_count != joined_count:
             raise ValueError(
@@ -590,10 +573,7 @@ if __name__ == "__main__":
         annual_gas_therms=annual_gas_therms_lf,
     )
     # Check if the result has any rows before writing. If there are no rows assigned to the electric utility, empty lazyframe is returned.
-    row_count_df = cast(
-        pl.DataFrame,
-        gas_tariff_mapping_df.select(pl.len()).collect(),
-    )
+    row_count_df = gas_tariff_mapping_df.select(pl.len()).collect()
     row_count = row_count_df.row(0)[0]
     if row_count == 0:
         warnings.warn(

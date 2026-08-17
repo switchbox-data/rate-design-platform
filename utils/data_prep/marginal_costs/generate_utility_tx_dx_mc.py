@@ -364,7 +364,7 @@ def calculate_pop_weights(load_df: pl.DataFrame, n_hours: int = 100) -> pl.DataF
         .alias("w_sub_tx_and_dist")
     )
 
-    sum_w = result_df["w_sub_tx_and_dist"].sum()
+    sum_w = float(result_df["w_sub_tx_and_dist"].sum())
 
     print("\nWeight Verification:")
     print(f"  Sum of w_sub_tx_and_dist: {sum_w:.6f} (should be 1.0)")
@@ -411,7 +411,7 @@ def validate_allocation(
     Returns:
         Dictionary with validation results
     """
-    total_cost = df["mc_total_per_kwh"].sum()
+    total_cost = float(df["mc_total_per_kwh"].sum())
 
     validation_results = {
         "expected_total": mc_sub_tx_and_dist,

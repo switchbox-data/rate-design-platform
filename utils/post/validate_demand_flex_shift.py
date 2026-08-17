@@ -55,7 +55,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -222,7 +222,7 @@ def reproduce_shift(
         if season_eps == 0.0:
             continue
 
-        season_mask = time_level.to_series().dt.month.isin(season_months).to_numpy()
+        season_mask = cast(Any, time_level).month.isin(season_months).to_numpy()
         season_df = loads_df.loc[season_mask].copy().reset_index()
 
         period_lookup = period_map.reset_index()

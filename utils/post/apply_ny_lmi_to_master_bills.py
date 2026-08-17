@@ -229,8 +229,7 @@ def _build_raw_tiers_for_utility(
         (pl.col(tier_col) >= 1).alias("is_lmi_gas"),
     )
 
-    return cast(
-        pl.DataFrame,
+    return (
         meta.select(
             BLDG_ID,
             "elec_lmi_tier",
@@ -240,7 +239,7 @@ def _build_raw_tiers_for_utility(
             fpl_pct,
         )
         .sort(BLDG_ID)
-        .collect(),
+        .collect()
     )
 
 
@@ -1088,10 +1087,7 @@ def main() -> None:
 
     # 1. Load master bills
     t = _log("Loading master bills...")
-    master = cast(
-        pl.DataFrame,
-        pl.scan_parquet(args.master_bills_path, hive_partitioning=True).collect(),
-    )
+    master = pl.scan_parquet(args.master_bills_path, hive_partitioning=True).collect()
     n_rows = master.height
     n_bldgs = master[BLDG_ID].n_unique()
     utilities = sorted(master["sb.electric_utility"].unique().to_list())

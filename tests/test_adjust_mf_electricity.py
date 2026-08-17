@@ -1,7 +1,6 @@
 """Tests for adjust_mf_electricity: MF non-HVAC column-by-column adjustment."""
 
 from pathlib import Path
-from typing import cast
 from unittest.mock import patch
 
 import polars as pl
@@ -235,7 +234,7 @@ def test_adjust_mf_electricity_hourly_one_bldg_scales_and_recomputes_total():
     )
     ratios = {annual_col: 2.0}
     out = _adjust_mf_electricity_hourly_one_bldg(lf, ratios)
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
     assert df.get_column(consumption_col).to_list() == [0.5, 0.5]
     assert df.get_column(intensity_col).to_list() == [0.0005, 0.0005]
     # total = 18 - 1*2 + 0.5*2 = 18 - 2 + 1 = 17 per row (one non-HVAC column, two rows: 1 each)
@@ -261,7 +260,7 @@ def test_adjust_mf_electricity_hourly_one_bldg_ratio_one_leaves_unchanged():
     lf = _minimal_hourly_df_one_non_hvac(consumption_col, intensity_col, n_rows=2)
     ratios = {annual_col: 1.0}
     out = _adjust_mf_electricity_hourly_one_bldg(lf, ratios)
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
     assert df.get_column(consumption_col).to_list() == [1.0, 1.0]
     assert df.get_column(HOURLY_TOTAL_ELECTRICITY_CONSUMPTION_COL).to_list() == [
         18.0,

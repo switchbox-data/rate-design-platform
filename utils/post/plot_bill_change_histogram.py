@@ -100,19 +100,17 @@ def _compute_bill_deltas(
         comb_bills_u02, load_curve_monthly_u02, monthly_prices
     )
 
-    annual_u00 = cast(
-        pl.DataFrame,
+    annual_u00 = (
         topped_u00.filter(pl.col("month") == ANNUAL_MONTH)
         .select(
             pl.col(BLDG_ID), pl.col("weight"), pl.col(BILL_LEVEL).alias("bill_before")
         )
-        .collect(),
+        .collect()
     )
-    annual_u02 = cast(
-        pl.DataFrame,
+    annual_u02 = (
         topped_u02.filter(pl.col("month") == ANNUAL_MONTH)
         .select(pl.col(BLDG_ID), pl.col(BILL_LEVEL).alias("bill_after"))
-        .collect(),
+        .collect()
     )
 
     delta_df = annual_u00.join(annual_u02, on=BLDG_ID, how="inner").with_columns(
@@ -152,22 +150,28 @@ def _plot_bill_change_histogram(df: pl.DataFrame) -> ggplot:
         .agg(pl.col("weight").sum().alias("weight_sum"))
     )
 
-    total_weight = df["weight"].sum()
+    total_weight = float(df["weight"].sum())
     pct_savings_gt1k = (
-        df.filter(pl.col("delta") < -1000)["weight"].sum() / total_weight * 100
+        float(df.filter(pl.col("delta") < -1000)["weight"].sum()) / total_weight * 100
     )
     pct_savings_0_1k = (
-        df.filter((pl.col("delta") >= -1000) & (pl.col("delta") < 0))["weight"].sum()
+        float(
+            df.filter((pl.col("delta") >= -1000) & (pl.col("delta") < 0))[
+                "weight"
+            ].sum()
+        )
         / total_weight
         * 100
     )
     pct_losses_0_1k = (
-        df.filter((pl.col("delta") >= 0) & (pl.col("delta") < 1000))["weight"].sum()
+        float(
+            df.filter((pl.col("delta") >= 0) & (pl.col("delta") < 1000))["weight"].sum()
+        )
         / total_weight
         * 100
     )
     pct_losses_gt1k = (
-        df.filter(pl.col("delta") >= 1000)["weight"].sum() / total_weight * 100
+        float(df.filter(pl.col("delta") >= 1000)["weight"].sum()) / total_weight * 100
     )
 
     quadrant_dtype = pl.Enum(QUADRANT_ORDER)
@@ -294,10 +298,7 @@ def main() -> None:
         args.price_year,
     )
 
-    metadata = cast(
-        pl.DataFrame,
-        scan(args.path_metadata, "parquet").collect(),
-    )
+    metadata = scan(args.path_metadata, "parquet").collect()
 
     def scan_monthly(upgrade: str) -> pl.LazyFrame:
         return scan_load_curves_for_utility(

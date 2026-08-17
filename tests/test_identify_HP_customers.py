@@ -1,5 +1,3 @@
-from typing import cast
-
 import polars as pl
 
 from data.resstock.metadata.identify_hp_customers import (
@@ -73,7 +71,7 @@ def test_identify_HP_customers():
 
         test_input_metadata = pl.DataFrame(test_metadata).lazy()
         test_output_metadata = identify_hp_customers(test_input_metadata, upgrade_id)
-        test_output_metadata_df = cast(pl.DataFrame, test_output_metadata.collect())
+        test_output_metadata_df = test_output_metadata.collect()
         assert "postprocess_group.has_hp" in test_output_metadata_df.columns
         if upgrade_id == "00":
             assert test_output_metadata_df["postprocess_group.has_hp"].to_list() == [

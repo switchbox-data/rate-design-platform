@@ -20,6 +20,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import polars as pl
@@ -77,7 +78,7 @@ def _fetch_single_month(iso: NYISO, year: int, month: int) -> pl.DataFrame | Non
     Returns a tidy Polars DataFrame with just the requested month's rows,
     or None if the report is not yet available.
     """
-    date = pd.Timestamp(year=year, month=month, day=1)
+    date = cast(pd.Timestamp, pd.Timestamp(year=year, month=month, day=1))
     try:
         raw = iso.get_capacity_prices(date=date, verbose=False)
     except Exception:

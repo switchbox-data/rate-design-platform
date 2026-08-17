@@ -22,7 +22,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import polars as pl
 import yaml
@@ -119,12 +119,11 @@ def _process_run(
     )
 
     # metadata filtered to utility buildings — only pull the columns we need
-    bldg_data = cast(
-        pl.DataFrame,
+    bldg_data = (
         _scan(path_meta)
         .select("bldg_id", meta_col)
         .join(bldg_ids, on="bldg_id")
-        .collect(),
+        .collect()
     )
 
     if bldg_data.is_empty():

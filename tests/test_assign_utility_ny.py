@@ -1,7 +1,6 @@
 """Tests for NY utility assignment helpers (deterministic)."""
 
 from pathlib import Path
-from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -55,7 +54,7 @@ def test_calculate_utility_probabilities_basic():
         handle_municipal=False,
         filter_none=True,
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
 
     assert "puma_id" in df.columns
     assert set(df.columns) >= {"puma_id", "coned", "nimo", "nyseg"}
@@ -86,7 +85,7 @@ def test_calculate_utility_probabilities_filter_none_false():
         handle_municipal=False,
         filter_none=False,
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
 
     assert "none" in df.columns
     row = df.filter(pl.col("puma_id") == "00100").to_dicts()[0]
@@ -111,7 +110,7 @@ def test_calculate_utility_probabilities_handle_municipal():
         filter_none=False,
         include_municipal=True,
     )
-    df = cast(pl.DataFrame, result.collect())
+    df = result.collect()
 
     assert "muni-some city" in df.columns
     assert "coned" in df.columns
@@ -206,18 +205,12 @@ def test_sample_utility_per_building_deterministic():
         }
     )
 
-    out1 = cast(
-        pl.DataFrame,
-        sample_utility_per_building(
-            bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
-        ).collect(),
-    )
-    out2 = cast(
-        pl.DataFrame,
-        sample_utility_per_building(
-            bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
-        ).collect(),
-    )
+    out1 = sample_utility_per_building(
+        bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
+    ).collect()
+    out2 = sample_utility_per_building(
+        bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
+    ).collect()
 
     assert out1.equals(out2)
     assert out1.columns == ["bldg_id", "sb.electric_utility"]
@@ -245,15 +238,12 @@ def test_sample_utility_per_building_only_when_fuel():
         }
     )
 
-    out = cast(
-        pl.DataFrame,
-        sample_utility_per_building(
-            bldgs,
-            puma_probs,
-            "sb.gas_utility",
-            only_when_fuel="Natural Gas",
-        ).collect(),
-    )
+    out = sample_utility_per_building(
+        bldgs,
+        puma_probs,
+        "sb.gas_utility",
+        only_when_fuel="Natural Gas",
+    ).collect()
 
     assert out.columns == ["bldg_id", "sb.gas_utility"]
     # Building 1 (has_natgas_connection) gets a utility; building 2 (no connection) gets null
@@ -279,12 +269,9 @@ def test_sample_utility_per_building_all_zero_probs_returns_none():
         }
     )
     # Building in 99999 has no row in puma_probs (left join) -> null probs -> null utility
-    out = cast(
-        pl.DataFrame,
-        sample_utility_per_building(
-            bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
-        ).collect(),
-    )
+    out = sample_utility_per_building(
+        bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
+    ).collect()
     assert out["sb.electric_utility"][0] is None
 
 
@@ -317,18 +304,12 @@ def test_sample_utility_per_building_exact_assignments():
         }
     )
 
-    elec = cast(
-        pl.DataFrame,
-        sample_utility_per_building(
-            bldgs, puma_elec, "sb.electric_utility", only_when_fuel=None
-        ).collect(),
-    )
-    gas = cast(
-        pl.DataFrame,
-        sample_utility_per_building(
-            bldgs, puma_gas, "sb.gas_utility", only_when_fuel="Natural Gas"
-        ).collect(),
-    )
+    elec = sample_utility_per_building(
+        bldgs, puma_elec, "sb.electric_utility", only_when_fuel=None
+    ).collect()
+    gas = sample_utility_per_building(
+        bldgs, puma_gas, "sb.gas_utility", only_when_fuel="Natural Gas"
+    ).collect()
 
     # Electric: every building gets the single utility for its PUMA
     elec_by_bldg = {
@@ -381,14 +362,11 @@ def test_sample_utility_per_building_deterministic_with_varying_probs():
     )
 
     # Perform assignment directly in test with seed 42 (same logic as sample_utility_per_building)
-    bldgs_joined_df = cast(
-        pl.DataFrame,
-        bldgs.join(
-            puma_probs, left_on="puma", right_on="puma_id", how="left"
-        ).collect(),
-    )
+    bldgs_joined_df = bldgs.join(
+        puma_probs, left_on="puma", right_on="puma_id", how="left"
+    ).collect()
     bldgs_pd = bldgs_joined_df.to_pandas().sort_values("bldg_id").reset_index(drop=True)
-    puma_probs_df = cast(pl.DataFrame, puma_probs.collect())
+    puma_probs_df = puma_probs.collect()
     utility_cols = sorted([c for c in puma_probs_df.columns if c != "puma_id"])
 
     np.random.seed(42)
@@ -405,12 +383,9 @@ def test_sample_utility_per_building_deterministic_with_varying_probs():
     expected = dict(zip(bldgs_pd["bldg_id"], expected_utility, strict=True))
 
     # Function uses the same seed 42 internally; result must match
-    out = cast(
-        pl.DataFrame,
-        sample_utility_per_building(
-            bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
-        ).collect(),
-    )
+    out = sample_utility_per_building(
+        bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
+    ).collect()
     actual = {
         row["bldg_id"]: row["sb.electric_utility"] for row in out.iter_rows(named=True)
     }
@@ -576,7 +551,7 @@ def test_zero_excluded_gas_utilities_no_excluded_cols_unchanged():
     out = zero_excluded_gas_utilities_and_renormalize(
         puma_gas_probs, excluded_utilities=EXCLUDED_GAS_UTILITIES
     )
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
     assert df.shape == (2, 3)
     assert df.filter(pl.col("puma_id") == "00100").to_dicts()[0]["coned"] == 0.5
     assert df.filter(pl.col("puma_id") == "00100").to_dicts()[0]["nyseg"] == 0.5
@@ -595,7 +570,7 @@ def test_zero_excluded_gas_utilities_renormalize():
     out = zero_excluded_gas_utilities_and_renormalize(
         puma_gas_probs, excluded_utilities=EXCLUDED_GAS_UTILITIES
     )
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
     # 00100: stlaw zeroed, nyseg+nimo renormalized from 0.4+0.2 to sum 1
     row1 = df.filter(pl.col("puma_id") == "00100").to_dicts()[0]
     assert row1["stlaw"] == 0.0
@@ -646,7 +621,7 @@ def test_zero_excluded_gas_utilities_bad_puma_uses_donor_with_pumas():
         pumas=pumas,
         puma_and_heating_fuel=None,
     )
-    df = cast(pl.DataFrame, out.collect())
+    df = out.collect()
     # 00100 should get donor 00200's row: stlaw=0, nyseg=1
     row_bad = df.filter(pl.col("puma_id") == "00100").to_dicts()[0]
     assert row_bad["stlaw"] == 0.0

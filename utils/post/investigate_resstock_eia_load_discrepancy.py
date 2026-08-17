@@ -138,17 +138,13 @@ def load_resstock_annual_by_utility(
     else:
         select_exprs.append(pl.lit(0.0).alias("total_non_hvac_related_electricity_kwh"))
 
-    annual_df = cast(
-        pl.DataFrame,
-        annual_lf.select(select_exprs).collect(),
-    )
+    annual_df = annual_lf.select(select_exprs).collect()
 
     opts_ua = storage_options if _is_s3(path_utility_assignment) else None
-    ua_df = cast(
-        pl.DataFrame,
+    ua_df = (
         pl.scan_parquet(path_utility_assignment, storage_options=opts_ua)
         .select(BLDG_ID_COL, ELECTRIC_UTILITY_COL)
-        .collect(),
+        .collect()
     )
     if ELECTRIC_UTILITY_COL not in ua_df.columns:
         raise ValueError(
@@ -204,13 +200,12 @@ def load_resstock_annual_building_level(
         )
     else:
         add_exprs.append(pl.lit(0.0).alias("total_non_hvac_related_electricity_kwh"))
-    annual_df = cast(pl.DataFrame, annual_lf.collect()).with_columns(add_exprs)
+    annual_df = annual_lf.collect().with_columns(add_exprs)
     opts_ua = storage_options if _is_s3(path_utility_assignment) else None
-    ua_df = cast(
-        pl.DataFrame,
+    ua_df = (
         pl.scan_parquet(path_utility_assignment, storage_options=opts_ua)
         .select(BLDG_ID_COL, ELECTRIC_UTILITY_COL)
-        .collect(),
+        .collect()
     )
     if ELECTRIC_UTILITY_COL not in ua_df.columns:
         raise ValueError(
@@ -242,18 +237,14 @@ def load_metadata_by_utility(
     opts_meta = storage_options if _is_s3(path_metadata) else None
     opts_ua = storage_options if _is_s3(path_utility_assignment) else None
 
-    meta_df = cast(
-        pl.DataFrame,
-        pl.scan_parquet(path_metadata, storage_options=opts_meta).collect(),
-    )
+    meta_df = pl.scan_parquet(path_metadata, storage_options=opts_meta).collect()
     if BLDG_ID_COL not in meta_df.columns:
         raise ValueError(f"Metadata at {path_metadata!r} missing {BLDG_ID_COL!r}")
 
-    ua_df = cast(
-        pl.DataFrame,
+    ua_df = (
         pl.scan_parquet(path_utility_assignment, storage_options=opts_ua)
         .select(BLDG_ID_COL, ELECTRIC_UTILITY_COL)
-        .collect(),
+        .collect()
     )
 
     metadata_with_utility = meta_df.join(ua_df, on=BLDG_ID_COL, how="inner").rename(
@@ -285,7 +276,7 @@ def load_eia_by_utility(
     if utility_codes is not None:
         lf = lf.filter(pl.col("utility_code").is_in(utility_codes))
     df = lf.collect()
-    return cast(pl.DataFrame, df)
+    return df
 
 
 def building_type_share_by_utility(

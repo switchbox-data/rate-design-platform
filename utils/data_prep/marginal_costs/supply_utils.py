@@ -11,6 +11,7 @@ import polars as pl
 from cloudpathlib import S3Path
 
 from data.pjm import PJM_LMP_S3_BASE
+from utils.numeric import as_float
 
 # ---------------------------------------------------------------------------
 # NYISO defaults
@@ -260,7 +261,7 @@ def allocate_annual_exceedance_to_hours(
 
     # Threshold = max load strictly below the Nth-highest (tie-safe)
     below = load_df.filter(pl.col("load_mw") < load_nth)["load_mw"]
-    threshold = float(below.max()) if not below.is_empty() else 0.0  # type: ignore[arg-type]
+    threshold = as_float(below.max()) if not below.is_empty() else 0.0
 
     result = top_n.with_columns((pl.col("load_mw") - threshold).alias("exceedance"))
     total_exceedance = float(result["exceedance"].sum())

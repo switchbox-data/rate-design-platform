@@ -11,6 +11,8 @@ Usage:
 
 from __future__ import annotations
 
+from utils.numeric import as_float
+
 import sys
 from pathlib import Path
 
@@ -111,9 +113,9 @@ def check_no_duplicates(df: pl.DataFrame, result: ValidationResult) -> None:
 
 def check_price_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
     prices = df["clearing_price_per_kw_month"]
-    pmin = float(prices.min())  # type: ignore[arg-type]
-    pmax = float(prices.max())  # type: ignore[arg-type]
-    pmean = float(prices.mean())  # type: ignore[arg-type]
+    pmin = as_float(prices.min())
+    pmax = as_float(prices.max())
+    pmean = as_float(prices.mean())
 
     n_nan = prices.is_nan().sum()
     n_inf = prices.is_infinite().sum()

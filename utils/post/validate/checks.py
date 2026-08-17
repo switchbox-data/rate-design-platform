@@ -22,7 +22,7 @@ Revenue requirement YAML conventions (from :func:`~utils.post.validate.load.load
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import boto3
 import polars as pl
@@ -98,7 +98,7 @@ class CheckResult:
 
 
 def _collect(lf: pl.LazyFrame) -> pl.DataFrame:
-    return cast(pl.DataFrame, lf.collect())
+    return lf.collect()
 
 
 def _rr_target(rr_config: dict[str, Any], cost_scope: str) -> float:
@@ -1323,10 +1323,10 @@ def check_weights_sum_to_n_customers(metadata: pl.LazyFrame) -> CheckResult:
     """
     meta_collected = _collect(metadata)
     total_buildings = len(meta_collected)
-    total_weighted = meta_collected[_WEIGHT_COL].sum()
+    total_weighted = float(meta_collected[_WEIGHT_COL].sum())
 
-    hp_weighted = meta_collected.filter(pl.col(_HP_COL))[_WEIGHT_COL].sum()
-    nonhp_weighted = meta_collected.filter(~pl.col(_HP_COL))[_WEIGHT_COL].sum()
+    hp_weighted = float(meta_collected.filter(pl.col(_HP_COL))[_WEIGHT_COL].sum())
+    nonhp_weighted = float(meta_collected.filter(~pl.col(_HP_COL))[_WEIGHT_COL].sum())
 
     sum_hp_nonhp = hp_weighted + nonhp_weighted
     diff = abs(sum_hp_nonhp - total_weighted)

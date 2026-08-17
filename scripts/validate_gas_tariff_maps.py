@@ -13,7 +13,6 @@ Reads from S3 (utility assignment, metadata). Run from project root:
 """
 
 from pathlib import Path
-from typing import cast
 
 import polars as pl
 
@@ -139,7 +138,7 @@ def load_joined(state: str) -> pl.DataFrame:
         "in.geometry_stories_low_rise",
     )
     joined = ua.join(meta, on="bldg_id", how="inner")
-    return cast(pl.DataFrame, joined.with_columns(expected_tariff_key_expr()).collect())
+    return joined.with_columns(expected_tariff_key_expr()).collect()
 
 
 def validate_one(

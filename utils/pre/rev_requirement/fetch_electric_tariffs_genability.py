@@ -32,7 +32,7 @@ import types as _types
 # xdrlib.ConversionError — stub it so the import chain works.
 if "xdrlib" not in sys.modules:
     _xdrlib = _types.ModuleType("xdrlib")
-    _xdrlib.ConversionError = type("ConversionError", (Exception,), {})  # type: ignore[attr-defined]
+    _xdrlib.ConversionError = type("ConversionError", (Exception,), {})  # ty: ignore[unresolved-attribute]
     sys.modules["xdrlib"] = _xdrlib
 
 import argparse
@@ -57,8 +57,8 @@ from tariff_fetch.urdb.arcadia.scenario import Scenario as _Scenario
 
 if "t" not in sys.modules:
     _t_mod = _types.ModuleType("t")
-    _t_mod.Library = _Library  # type: ignore[attr-defined]
-    _t_mod.Scenario = _Scenario  # type: ignore[attr-defined]
+    _t_mod.Library = _Library  # ty: ignore[unresolved-attribute]
+    _t_mod.Scenario = _Scenario  # ty: ignore[unresolved-attribute]
     sys.modules["t"] = _t_mod
 
 from tariff_fetch.urdb.arcadia.energyschedule import build_energy_schedule
@@ -77,7 +77,7 @@ from tariff_fetch.urdb.arcadia.metadata import build_metadata
 #
 # TypedDict inheritance copies parent annotations into child __annotations__,
 # so patches must target the leaf classes Pydantic actually validates against.
-from typing import Annotated, NotRequired
+from typing import Annotated, Any, Mapping, NotRequired, Sequence
 
 from pydantic import BeforeValidator
 
@@ -113,7 +113,7 @@ for _cls in (
     _tou_schema.TimeOfUseExtended,
     _tou_schema.TimeOfUseStandard,
 ):
-    _cls.__pydantic_config__ = {**_cls.__pydantic_config__, "extra": "allow"}  # type: ignore[attr-defined]
+    _cls.__pydantic_config__ = {**_cls.__pydantic_config__, "extra": "allow"}  # ty: ignore[unresolved-attribute, invalid-assignment]
 
 # ---------------------------------------------------------------------------
 # Use direct GET /tariffs/{id} instead of paginated search for riders
@@ -207,7 +207,7 @@ def _iter_rates_skip_forbidden(tariff, scenario, library, dt):
     return _iter_rates_dedup(tariff, scenario, library, dt)
 
 
-_ru_mod.tariff_iter_rates_for_dt = _iter_rates_skip_forbidden  # type: ignore[assignment]
+_ru_mod.tariff_iter_rates_for_dt = _iter_rates_skip_forbidden  # ty: ignore[invalid-assignment]
 
 # ---------------------------------------------------------------------------
 # Patch rate_filter_bands to fold calculation_factor into rate_amount
@@ -246,11 +246,11 @@ def _rate_filter_bands_fold_calc_factor(rate, scenario, library):
             band = {**band, "rate_amount": effective, "calculation_factor": None}
         folded_bands.append(band)
 
-    modified_rate: _TariffRateExtended = {**rate, "rate_bands": folded_bands}  # type: ignore[typeddict-unknown-key]
+    modified_rate: _TariffRateExtended = {**rate, "rate_bands": folded_bands}  # ty: ignore[invalid-argument-type]
     return _original_rate_filter_bands(modified_rate, scenario, library)
 
 
-_ru_mod.rate_filter_bands = _rate_filter_bands_fold_calc_factor  # type: ignore[assignment]
+_ru_mod.rate_filter_bands = _rate_filter_bands_fold_calc_factor  # ty: ignore[invalid-assignment]
 
 # ---------------------------------------------------------------------------
 # Patch get_rate_fixed_charge_at_dt to handle empty band lists (BGE)
@@ -274,7 +274,7 @@ def _get_rate_fixed_charge_at_dt_empty_bands_safe(scenario, library, rate, dt):
     return _original_get_rate_fixed_charge_at_dt(scenario, library, rate, dt)
 
 
-_fc_mod.get_rate_fixed_charge_at_dt = _get_rate_fixed_charge_at_dt_empty_bands_safe  # type: ignore[assignment]
+_fc_mod.get_rate_fixed_charge_at_dt = _get_rate_fixed_charge_at_dt_empty_bands_safe  # ty: ignore[invalid-assignment]
 
 # ---------------------------------------------------------------------------
 # CHOICE property opt-out heuristic
@@ -282,7 +282,7 @@ _fc_mod.get_rate_fixed_charge_at_dt = _get_rate_fixed_charge_at_dt_empty_bands_s
 _OPT_OUT_VALUES = {"none", "not applicable", "n/a", "non-participant", "no"}
 
 
-def _pick_choice_value(choices: list[dict]) -> list[str]:
+def _pick_choice_value(choices: Sequence[Mapping[str, Any]]) -> list[str]:
     """Pick the best default from a list of Arcadia CHOICE options.
 
     Prefers an opt-out / non-participant value over the first listed choice so
@@ -337,7 +337,7 @@ def _noninteractive_prompt_property(tariff_property):
     return _original_prompt_property(tariff_property)
 
 
-_lib_mod._prompt_property = _noninteractive_prompt_property  # type: ignore[attr-defined]
+_lib_mod._prompt_property = _noninteractive_prompt_property  # ty: ignore[invalid-assignment]
 
 # Load .env from project root (same as utils/__init__.py)
 _env_path = Path(__file__).resolve().parents[3] / ".env"
@@ -531,7 +531,7 @@ _DELIVERY_SUPPLY_CHARGE_CLASSES: set[RateChargeClass] = {
 
 
 def _extract_default_properties(
-    tariff_data: list[dict],
+    tariff_data: list[TariffExtended] | list[dict],
 ) -> dict[str, _PropertyValue]:
     """Extract default property values from fetched tariff data to avoid interactive prompts.
 

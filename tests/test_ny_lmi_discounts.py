@@ -9,7 +9,6 @@ Tests cover:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
 
 import polars as pl
 import pytest
@@ -130,7 +129,7 @@ def test_apply_discounts_elec_heat(tmp_path: Path) -> None:
         ["kedny"],
     )
     elec, _gas = _apply_discounts_to_bills(run_dir, tc, "coned", rider=False, opts={})
-    elec_df = cast(pl.DataFrame, elec.collect())
+    elec_df = elec.collect()
 
     jan = elec_df.filter(pl.col("month") == "Jan")
     assert jan["bill_level"][0] == pytest.approx(200.0 - 126.21)
@@ -157,7 +156,7 @@ def test_apply_discounts_nonheat(tmp_path: Path) -> None:
         ["kedny"],
     )
     elec, _gas = _apply_discounts_to_bills(run_dir, tc, "coned", rider=False, opts={})
-    elec_df = cast(pl.DataFrame, elec.collect())
+    elec_df = elec.collect()
 
     jan = elec_df.filter(pl.col("month") == "Jan")
     assert jan["bill_level"][0] == pytest.approx(200.0 - 73.47)
@@ -182,7 +181,7 @@ def test_apply_discounts_gas_by_gas_utility(tmp_path: Path) -> None:
         ["kedny"],
     )
     _elec, gas = _apply_discounts_to_bills(run_dir, tc, "coned", rider=False, opts={})
-    gas_df = cast(pl.DataFrame, gas.collect())
+    gas_df = gas.collect()
 
     # KEDNY Tier 3 gas_heat = $138.67
     jan = gas_df.filter(pl.col("month") == "Jan")
@@ -207,8 +206,8 @@ def test_apply_discounts_null_credit(tmp_path: Path) -> None:
         ["kedny"],
     )
     elec, gas = _apply_discounts_to_bills(run_dir, tc, "kedny", rider=False, opts={})
-    elec_df = cast(pl.DataFrame, elec.collect())
-    gas_df = cast(pl.DataFrame, gas.collect())
+    elec_df = elec.collect()
+    gas_df = gas.collect()
 
     # Null credits → $0 subtracted, bills unchanged
     jan_elec = elec_df.filter(pl.col("month") == "Jan")
@@ -237,7 +236,7 @@ def test_apply_discounts_psegli_flat(tmp_path: Path) -> None:
         ["psegli", "psegli"],
     )
     elec, _gas = _apply_discounts_to_bills(run_dir, tc, "psegli", rider=False, opts={})
-    elec_df = cast(pl.DataFrame, elec.collect())
+    elec_df = elec.collect()
 
     for bid in [1, 2]:
         jan = elec_df.filter((pl.col("bldg_id") == bid) & (pl.col("month") == "Jan"))
@@ -262,8 +261,8 @@ def test_apply_discounts_tier_zero_no_credit(tmp_path: Path) -> None:
         ["kedny"],
     )
     elec, gas = _apply_discounts_to_bills(run_dir, tc, "coned", rider=False, opts={})
-    elec_df = cast(pl.DataFrame, elec.collect())
-    gas_df = cast(pl.DataFrame, gas.collect())
+    elec_df = elec.collect()
+    gas_df = gas.collect()
 
     jan_elec = elec_df.filter(pl.col("month") == "Jan")
     assert jan_elec["bill_level"][0] == pytest.approx(200.0)
@@ -293,7 +292,7 @@ def test_apply_discounts_rider(tmp_path: Path) -> None:
         gas_therms=[500.0, 500.0],
     )
     elec, _gas = _apply_discounts_to_bills(run_dir, tc, "coned", rider=True, opts={})
-    elec_df = cast(pl.DataFrame, elec.collect())
+    elec_df = elec.collect()
 
     # On Annual rows: participant's discount should equal non-participant's rider surcharge
     annual = elec_df.filter(pl.col("month") == "Annual")

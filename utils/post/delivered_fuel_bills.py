@@ -8,7 +8,6 @@ heating fuel data on S3.
 
 from __future__ import annotations
 
-from typing import cast
 
 import polars as pl
 
@@ -75,8 +74,7 @@ def load_monthly_fuel_prices(
     Months without price data get 0 (buildings barely consume delivered fuels in summer).
     """
     root = path_heating_fuel_prices.rstrip("/") + "/"
-    df = cast(
-        pl.DataFrame,
+    df = (
         scan(root, "parquet")
         .filter(
             (pl.col("year") == year)
@@ -90,7 +88,7 @@ def load_monthly_fuel_prices(
             pl.col("product"),
             pl.col("price_per_gallon"),
         )
-        .collect(),
+        .collect()
     )
 
     pivoted = df.pivot(on="product", index="month", values="price_per_gallon")
@@ -110,10 +108,7 @@ def _assert_no_null_fuel_bills(
     fuel: pl.LazyFrame, col: str = "delivered_fuel_bill"
 ) -> None:
     """Raise if any rows have null in the given fuel bill column (price join failed)."""
-    null_count = cast(
-        pl.DataFrame,
-        fuel.filter(pl.col(col).is_null()).select(pl.len()).collect(),
-    ).item()
+    null_count = (fuel.filter(pl.col(col).is_null()).select(pl.len()).collect()).item()
     if null_count > 0:
         raise ValueError(
             f"{null_count} rows have null {col} after joining "
@@ -124,9 +119,8 @@ def _assert_no_null_fuel_bills(
 
 def _assert_fuel_join_complete(combined: pl.LazyFrame, col: str) -> None:
     """Raise if any bill rows lack a matching fuel record from load_curve_monthly."""
-    null_count = cast(
-        pl.DataFrame,
-        combined.filter(pl.col(col).is_null()).select(pl.len()).collect(),
+    null_count = (
+        combined.filter(pl.col(col).is_null()).select(pl.len()).collect()
     ).item()
     if null_count > 0:
         raise ValueError(
