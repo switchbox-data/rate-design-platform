@@ -131,7 +131,7 @@ $$
 MC^{\text{gen cap}}_h = w_h \times P_{\ell,m} \times \alpha_\ell
 $$
 
-where $P_{\ell,m}$ is the ICAP spot price (&#36;/kW-month) for locality $\ell$ in month $m$, and $\alpha_\ell$ is the capacity weight from the zone mapping (reflecting the fraction of the utility's load in that locality).
+where $P_{\ell,m}$ is the ICAP spot price (\$/kW-month) for locality $\ell$ in month $m$, and $\alpha_\ell$ is the capacity weight from the zone mapping (reflecting the fraction of the utility's load in that locality).
 
 
 For utilities spanning multiple ICAP localities, the signals are computed component-by-component and summed.
