@@ -187,14 +187,27 @@ def test_compute_revenue_sufficient_line_sweeps_winter_rate(
     assert isinstance(data, RevenueSufficientLineData)
 
     baseline_winter_rate = data.base_flat_rate
-    baseline_summer_rate = data.summer_rate_at(baseline_winter_rate)
+    baseline_summer_rate = data.summer_rate_at(
+        winter_rate=baseline_winter_rate,
+        fixed_charge=data.base_fixed_charge,
+    )
     assert baseline_winter_rate == pytest.approx(_BASE_RATE)
     assert baseline_summer_rate == pytest.approx(_BASE_RATE)
-    assert data.subclass_cross_subsidy_at(baseline_winter_rate) == pytest.approx(150.0)
+    assert data.subclass_cross_subsidy_at(
+        winter_rate=baseline_winter_rate,
+        fixed_charge=data.base_fixed_charge,
+    ) == pytest.approx(150.0)
 
     winter_floor_rate = 0.0
-    summer_at_floor = data.summer_rate_at(winter_floor_rate)
+    summer_at_floor = data.summer_rate_at(
+        winter_rate=winter_floor_rate,
+        fixed_charge=data.base_fixed_charge,
+    )
     assert summer_at_floor == pytest.approx(0.75)
+    assert data.summer_rate_at(
+        winter_rate=winter_floor_rate,
+        fixed_charge=2 * data.base_fixed_charge,
+    ) == pytest.approx(0.654)
 
     class_bill_at_floor = seasonal_bill(
         data.inputs.class_totals,
@@ -203,9 +216,18 @@ def test_compute_revenue_sufficient_line_sweeps_winter_rate(
         summer_at_floor,
     )
     assert class_bill_at_floor == pytest.approx(data.inputs.class_totals.current_bill)
-    assert data.subclass_cross_subsidy_at(winter_floor_rate) == pytest.approx(50.0)
-    assert data.subclass_cross_subsidy_at(winter_floor_rate) < (
-        data.subclass_cross_subsidy_at(baseline_winter_rate)
+    assert data.subclass_cross_subsidy_at(
+        winter_rate=winter_floor_rate,
+        fixed_charge=data.base_fixed_charge,
+    ) == pytest.approx(50.0)
+    assert data.subclass_cross_subsidy_at(
+        winter_rate=winter_floor_rate,
+        fixed_charge=data.base_fixed_charge,
+    ) < (
+        data.subclass_cross_subsidy_at(
+            winter_rate=baseline_winter_rate,
+            fixed_charge=data.base_fixed_charge,
+        )
     )
 
 
