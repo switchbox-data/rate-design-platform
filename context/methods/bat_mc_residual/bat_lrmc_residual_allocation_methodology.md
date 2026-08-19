@@ -131,7 +131,7 @@ $$
 MC^{\text{gen cap}}_h = w_h \times P_{\ell,m} \times \alpha_\ell
 $$
 
-where $P_{\ell,m}$ is the ICAP spot price (\$/kW-month) for locality $\ell$ in month $m$, and $\alpha_\ell$ is the capacity weight from the zone mapping (reflecting the fraction of the utility's load in that locality).
+where $P_{\ell,m}$ is the ICAP spot price (<span>$</span>/kW-month) for locality $\ell$ in month $m$, and $\alpha_\ell$ is the capacity weight from the zone mapping (reflecting the fraction of the utility's load in that locality).
 
 
 For utilities spanning multiple ICAP localities, the signals are computed component-by-component and summed.
@@ -146,7 +146,7 @@ ICAP spot prices and Forward Capacity Auction (FCA) clearing prices represent th
 - **Borenstein (2016)** includes generation capacity as a component of SMC, noting that the efficient price includes "the marginal investment cost of expanding system capacity."
 - **Pérez-Arriaga et al. (2017)** classify generation capacity costs as forward-looking and recommend they be recovered through cost-reflective charges rather than bundled into the residual.
 
-The exceedance-weighting method for allocating annual \$/kW-yr costs to specific hours is standard in marginal cost-of-service studies. The BAT paper's Appendix A describes their allocation as "based on the 500 highest load hours of the year."
+The exceedance-weighting method for allocating annual <span>$</span>/kW-yr costs to specific hours is standard in marginal cost-of-service studies. The BAT paper's Appendix A describes their allocation as "based on the 500 highest load hours of the year."
 
 ### Classification
 
