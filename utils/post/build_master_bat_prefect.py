@@ -378,13 +378,11 @@ def _process_utility(
 
     # --- Read BAT CSVs ---
     t = _log("  Reading BAT values (delivery run)...")
-    bat_delivery_df = cast(
-        pl.DataFrame, scan(f"{run.dir_delivery}/{BAT_CSV}").collect()
-    )
+    bat_delivery_df = scan(f"{run.dir_delivery}/{BAT_CSV}").collect()
     _log_done("  Reading BAT delivery", t, f"{bat_delivery_df.height} rows")
 
     t = _log("  Reading BAT values (supply run)...")
-    bat_supply_df = cast(pl.DataFrame, scan(f"{run.dir_supply}/{BAT_CSV}").collect())
+    bat_supply_df = scan(f"{run.dir_supply}/{BAT_CSV}").collect()
     _log_done("  Reading BAT supply", t, f"{bat_supply_df.height} rows")
 
     # --- Validate building IDs ---
