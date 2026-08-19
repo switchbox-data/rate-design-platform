@@ -1,0 +1,274 @@
+# Maryland Office of Home Energy Programs (OHEP) FY26 benefit schedules.
+#
+# This configuration contains the annual grant amounts used to model:
+#   - MEAP: Maryland Energy Assistance Program (home-heating assistance)
+#   - EUSP: Electric Universal Service Program (electric-bill assistance)
+#
+# Program year:
+#   FY26 = July 1, 2025 through June 30, 2026.
+#
+# Units and application:
+#   - All benefit amounts are nominal FY26 USD per program year.
+#   - These are annual fixed-dollar grants, not percentages or $/unit rates.
+#   - MEAP is keyed by OHEP Poverty Level and primary heating fuel.
+#   - EUSP is keyed by OHEP Poverty Level, primary heating fuel, and annual
+#     electric consumption band.
+#   - Conversion of annual grants to monthly master-bill credits is an
+#     application-layer decision and is intentionally not encoded here.
+#
+# Modeled scope:
+#   - Levels 1-5 are modeled because they map directly to FPL percentages.
+#   - Level 6 (subsidized/sub-metered/roomer/boarder) and Level 7
+#     (>200% FPL, categorically eligible) are intentionally excluded because
+#     ResStock does not provide enough information for reliable assignment.
+#   - See context/domain/charges/lmi_discounts_in_md.md §§2.1, 5, and 6.
+#
+# Primary source extracts:
+#   - context/sources/FY26-MEAP-Benefit-Matrix.md
+#   - context/sources/FY26-EUSP-Benefit-Matrix.md
+# Domain and implementation notes:
+#   - context/domain/charges/lmi_discounts_in_md.md
+#
+# Original OHEP sources:
+#   - MEAP:
+#     https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/FY26-MEAP-Benefit-Matrix-2-1-1.pdf
+#   - EUSP:
+#     https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/FY26-EUSP-Benefit-Matrix-Updated-7.7.25-2.docx
+#
+# DocumentCloud copies with page-level annotations:
+#   - MEAP: https://www.documentcloud.org/documents/28564977-fy26-meap-benefit-matrix/
+#   - EUSP: https://www.documentcloud.org/documents/28564979-fy26-eusp-benefit-matrixdocx/
+program_year: fy26
+effective_start: "2025-07-01"
+effective_end: "2026-06-30"
+currency: USD
+benefit_period: annual
+# Canonical fuel keys used throughout this file:
+#   electric, gas, oil_kerosene, propane, wood_coal
+#
+# Source-label differences:
+#   - The MEAP matrix labels oil/kerosene as "Oil".
+#   - The EUSP matrix labels it "Oil/Kerosene".
+#   - Both matrices label the final category "Wood/Coal".
+fuel_categories:
+  - electric
+  - gas
+  - oil_kerosene
+  - propane
+  - wood_coal
+# Executable tier assignment covers Levels 1-5 only.
+#
+# The published matrices use whole-number labels such as "26-50% FPL".
+# For a continuous computed FPL percentage, interpret each tier after Level 1
+# as (previous upper bound, current upper bound], avoiding gaps at 25.1, 50.1,
+# etc. Level 1 includes zero and negative computed values; application code
+# should separately filter vacant homes and invalid/missing income.
+poverty_levels:
+  - level: 1
+    source_label: "0-25% FPL"
+    fpl_lower_bound: 0
+    fpl_lower_inclusive: true
+    fpl_upper_bound: 25
+    fpl_upper_inclusive: true
+  - level: 2
+    source_label: "26-50% FPL"
+    fpl_lower_bound: 25
+    fpl_lower_inclusive: false
+    fpl_upper_bound: 50
+    fpl_upper_inclusive: true
+  - level: 3
+    source_label: "51-100% FPL"
+    fpl_lower_bound: 50
+    fpl_lower_inclusive: false
+    fpl_upper_bound: 100
+    fpl_upper_inclusive: true
+  - level: 4
+    source_label: "101-150% FPL"
+    fpl_lower_bound: 100
+    fpl_lower_inclusive: false
+    fpl_upper_bound: 150
+    fpl_upper_inclusive: true
+  - level: 5
+    source_label: "151-200% FPL"
+    fpl_lower_bound: 150
+    fpl_lower_inclusive: false
+    fpl_upper_bound: 200
+    fpl_upper_inclusive: true
+# Present in the source matrices but deliberately omitted from the executable
+# MEAP and EUSP schedules below.
+excluded_levels:
+  - level: 6
+    source_label: "Subsidized / Roomer / Boarder and Sub-metered"
+    reason: >-
+      This is a housing/metering category rather than an FPL band, and current ResStock metadata does not support reliable assignment.
+  - level: 7
+    source_label: ">200% FPL, Categorically Eligible Only"
+    reason: >-
+      Assignment requires categorical-enrollment data that is not available in ResStock; income alone cannot identify eligible households.
+meap:
+  program_name: Maryland Energy Assistance Program
+  purpose: home_heating_assistance
+  amount_unit: usd_per_program_year
+  lookup_keys:
+    - poverty_level
+    - primary_heating_fuel
+  source_markdown: context/sources/FY26-MEAP-Benefit-Matrix.md
+  source_url: >-
+    https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/FY26-MEAP-Benefit-Matrix-2-1-1.pdf
+  documentcloud_url: >-
+    https://www.documentcloud.org/documents/28564977-fy26-meap-benefit-matrix/#document/p1/a2826952
+  levels:
+    - level: 1
+      annual_grant:
+        electric: 100
+        gas: 550
+        oil_kerosene: 1100
+        propane: 1000
+        wood_coal: 550
+    - level: 2
+      annual_grant:
+        electric: 100
+        gas: 475
+        oil_kerosene: 990
+        propane: 930
+        wood_coal: 475
+    - level: 3
+      annual_grant:
+        electric: 100
+        gas: 400
+        oil_kerosene: 880
+        propane: 830
+        wood_coal: 400
+    - level: 4
+      annual_grant:
+        electric: 100
+        gas: 360
+        oil_kerosene: 770
+        propane: 725
+        wood_coal: 360
+    - level: 5
+      annual_grant:
+        electric: 100
+        gas: 300
+        oil_kerosene: 650
+        propane: 600
+        wood_coal: 300
+eusp:
+  program_name: Electric Universal Service Program
+  purpose: electric_bill_assistance
+  amount_unit: usd_per_program_year
+  lookup_keys:
+    - poverty_level
+    - primary_heating_fuel
+    - annual_electric_kwh_band
+  source_markdown: context/sources/FY26-EUSP-Benefit-Matrix.md
+  source_url: >-
+    https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/FY26-EUSP-Benefit-Matrix-Updated-7.7.25-2.docx
+  documentcloud_urls:
+    - >-
+      https://www.documentcloud.org/documents/28564979-fy26-eusp-benefit-matrixdocx/#document/p1/a2826953
+    - >-
+      https://www.documentcloud.org/documents/28564979-fy26-eusp-benefit-matrixdocx/#document/p2/a2826954
+    - >-
+      https://www.documentcloud.org/documents/28564979-fy26-eusp-benefit-matrixdocx/#document/p3/a2826955
+  # Published annual-electric-consumption bands. The edges requested for
+  # implementation are 0, 4,000, 8,000, and 12,000 kWh.
+  #
+  # Interpretation:
+  #   band 1: [0, 4,000]
+  #   band 2: (4,000, 8,000]
+  #   band 3: (8,000, 12,000]
+  #   band 4: (12,000, infinity)
+  kwh_band_edges:
+    - 0
+    - 4000
+    - 8000
+    - 12000
+  kwh_bands:
+    - band: 1
+      source_label: "0-4,000 kWh"
+      lower_bound_kwh: 0
+      lower_inclusive: true
+      upper_bound_kwh: 4000
+      upper_inclusive: true
+    - band: 2
+      source_label: "4,001-8,000 kWh"
+      lower_bound_kwh: 4000
+      lower_inclusive: false
+      upper_bound_kwh: 8000
+      upper_inclusive: true
+    - band: 3
+      source_label: "8,001-12,000 kWh"
+      lower_bound_kwh: 8000
+      lower_inclusive: false
+      upper_bound_kwh: 12000
+      upper_inclusive: true
+    - band: 4
+      source_label: ">12,000 kWh"
+      lower_bound_kwh: 12000
+      lower_inclusive: false
+      upper_bound_kwh: null
+      upper_inclusive: false
+  # Each annual_grant_by_kwh_band list is ordered [band 1, band 2, band 3,
+  # band 4], matching kwh_bands above.
+  levels:
+    - level: 1
+      annual_grant_by_heating_fuel:
+        electric:
+          annual_grant_by_kwh_band: [875, 900, 950, 1000]
+        gas:
+          annual_grant_by_kwh_band: [350, 400, 450, 500]
+        oil_kerosene:
+          annual_grant_by_kwh_band: [350, 400, 450, 500]
+        propane:
+          annual_grant_by_kwh_band: [350, 400, 450, 500]
+        wood_coal:
+          annual_grant_by_kwh_band: [350, 400, 450, 500]
+    - level: 2
+      annual_grant_by_heating_fuel:
+        electric:
+          annual_grant_by_kwh_band: [800, 850, 900, 950]
+        gas:
+          annual_grant_by_kwh_band: [300, 350, 400, 450]
+        oil_kerosene:
+          annual_grant_by_kwh_band: [300, 350, 400, 450]
+        propane:
+          annual_grant_by_kwh_band: [300, 350, 400, 450]
+        wood_coal:
+          annual_grant_by_kwh_band: [300, 350, 400, 450]
+    - level: 3
+      annual_grant_by_heating_fuel:
+        electric:
+          annual_grant_by_kwh_band: [750, 800, 850, 900]
+        gas:
+          annual_grant_by_kwh_band: [250, 300, 350, 400]
+        oil_kerosene:
+          annual_grant_by_kwh_band: [250, 300, 350, 400]
+        propane:
+          annual_grant_by_kwh_band: [250, 300, 350, 400]
+        wood_coal:
+          annual_grant_by_kwh_band: [250, 300, 350, 400]
+    - level: 4
+      annual_grant_by_heating_fuel:
+        electric:
+          annual_grant_by_kwh_band: [700, 750, 800, 850]
+        gas:
+          annual_grant_by_kwh_band: [225, 250, 300, 350]
+        oil_kerosene:
+          annual_grant_by_kwh_band: [225, 250, 300, 350]
+        propane:
+          annual_grant_by_kwh_band: [225, 250, 300, 350]
+        wood_coal:
+          annual_grant_by_kwh_band: [225, 250, 300, 350]
+    - level: 5
+      annual_grant_by_heating_fuel:
+        electric:
+          annual_grant_by_kwh_band: [650, 700, 750, 800]
+        gas:
+          annual_grant_by_kwh_band: [175, 200, 250, 300]
+        oil_kerosene:
+          annual_grant_by_kwh_band: [175, 200, 250, 300]
+        propane:
+          annual_grant_by_kwh_band: [175, 200, 250, 300]
+        wood_coal:
+          annual_grant_by_kwh_band: [175, 200, 250, 300]
