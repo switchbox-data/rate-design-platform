@@ -121,11 +121,15 @@ For each ICAP locality $\ell$ and month $m$:
 2. Compute a threshold $T$ = the maximum load below the $K$-th hour.
 3. Compute exceedance weights for peak hours ($w_h = 0$ otherwise):
 
-   $w_h = \frac{\text{Load}_h - T}{\sum_{h' \in \text{top } K} (\text{Load}_{h'} - T)}$
+$$
+w_h = \frac{\text{Load}_h - T}{\sum_{h' \in \text{top } K} (\text{Load}_{h'} - T)}
+$$
 
 4. Allocate the monthly capacity cost:
 
-   $MC^{\text{gen cap}}_h = w_h \times P_{\ell,m} \times \alpha_\ell$
+$$
+MC^{\text{gen cap}}_h = w_h \times P_{\ell,m} \times \alpha_\ell
+$$
 
 where $P_{\ell,m}$ is the ICAP spot price (\$/kW-month) for locality $\ell$ in month $m$, and $\alpha_\ell$ is the capacity weight from the zone mapping (reflecting the fraction of the utility's load in that locality).
 
