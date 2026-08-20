@@ -252,6 +252,26 @@ just s md build-all-master-prefect md_20260803_a
 
 That runs bills then BAT (in that order, because BAT joins the baseline bills). Either can be run alone with `build-master-bills-prefect` / `build-master-bat-prefect`, and both accept `--scenarios` to narrow the work.
 
+To build Maryland master bills with FY26 OHEP MEAP/EUSP columns for multiple participation scenarios:
+
+```bash
+just s md build-master-bills-prefect <batch> \
+  --calculate-lmi \
+  --lmi-participation-rates 1.0 0.4 \
+  --lmi-participation-mode weighted \
+  --lmi-calculation-type monthly
+```
+
+For MD, `monthly` means that annual grants are allocated proportionally across Jan–Dec bills; it does not mean equal twelfths. The command appends both p100 and p40 column sets in one pass. It rewrites master-bill outputs but does not alter CAIRO run directories.
+
+The current Prefect builder writes each per-utility table before applying LMI, then applies LMI to the concatenated table before its final write. Therefore MD OHEP columns are present only in the `all_utilities` table:
+
+```
+{output_base}/md/all_utilities/{batch}/{segment}/comb_bills_year_target/
+```
+
+Use that path for MD LMI analysis. See [LMI discounts in master bills](lmi_master_bills_workflow.md) for the complete data flow and column definitions.
+
 | Script                                     | Output                            | Grain             |
 | ------------------------------------------ | --------------------------------- | ----------------- |
 | `utils/post/build_master_bills_prefect.py` | `comb_bills_year_target/`         | building × month  |

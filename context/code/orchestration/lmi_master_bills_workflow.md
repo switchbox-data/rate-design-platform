@@ -1,6 +1,108 @@
 # LMI discounts in master bills
 
-How NY LMI discounts are built directly into `comb_bills_year_target` by `utils/post/build_master_bills.py`.
+How state LMI implementations are built directly into `comb_bills_year_target`. The current master-bill dispatch supports MD, NY, and RI; this document covers the NY fixed-credit path and the MD OHEP path in detail.
+
+---
+
+## Maryland OHEP (MEAP + EUSP)
+
+### What it does
+
+`utils/post/apply_md_ohep_to_master_bills.py` models the current FY26 OHEP grants. It does not implement Maryland's forthcoming Limited Income Mechanism (LIM).
+
+For every building, it:
+
+1. Computes FPL% from ResStock occupants and CPI-inflated representative income.
+2. Assigns OHEP Poverty Level 1–5; Levels 6–7 are outside the modeled metadata scope.
+3. Maps ResStock heating fuel to the OHEP matrix categories, treating heat pumps as electric heat.
+4. Reads annual electric use from the consolidated `load_curve_annual` parquet and assigns the EUSP kWh band.
+5. Looks up MEAP by `(level, heating fuel)` and EUSP by `(level, heating fuel, kWh band)`.
+6. Samples one or more participation scenarios.
+7. Applies EUSP to electric and MEAP to the heating-fuel bill. Electric-heat MEAP stacks with EUSP on electric.
+8. Allocates each annual grant proportionally across the applicable fuel's monthly bills and rebuilds Annual from Jan–Dec.
+
+### Integrated Prefect invocation
+
+From `rate_design/hp_rates/`:
+
+```bash
+just s md build-master-bills-prefect <batch> \
+  --calculate-lmi \
+  --lmi-participation-rates 1.0 0.4 \
+  --lmi-participation-mode weighted \
+  --lmi-calculation-type monthly
+```
+
+One call processes every completed `{scenario}_{stage}` segment discovered in the batch. Each rate creates its own `{pct}`-suffixed LMI columns, so p100 and p40 can coexist in the same table.
+
+The command rebuilds and rewrites the batch's master-bill parquet prefixes; it does not modify CAIRO run outputs. Re-running without `--calculate-lmi` reconstructs the base master tables without LMI columns.
+
+### Prefect output location
+
+MD OHEP is applied after the builder writes the per-utility table and before it writes the Hive-partitioned combined table. Consequently, the integrated LMI columns are in:
+
+```
+s3://data.sb/switchbox/cairo/outputs/hp_rates/md/all_utilities/<batch>/<segment>/comb_bills_year_target/
+```
+
+The per-utility path written by the same run does not contain them. Use `all_utilities` for MD OHEP analysis.
+
+### MD output columns
+
+Shared profile columns:
+
+- `ohep_poverty_level`, `primary_heating_fuel`, `annual_electric_kwh`, `eusp_kwh_band`
+- `elec_lmi_tier`, `gas_lmi_tier`, `oil_lmi_tier`, `propane_lmi_tier`
+- `is_lmi_elec`, `is_lmi_gas`, `is_lmi_oil`, `is_lmi_propane`, `is_lmi_any`
+- `has_unmodeled_meap_fuel`
+
+For each participation suffix `{pct}`:
+
+- `{fuel}_total_bill_lmi_{pct}` for electric, gas, oil, and propane
+- `energy_total_bill_lmi_{pct}`
+- `applied_discount_{fuel}_{pct}`
+
+`is_lmi_elec` means that a modeled grant lands on electric: positive EUSP, or positive MEAP for electric heat. The other fuel flags indicate where MEAP lands. `is_lmi_any` identifies the eligible participation pool.
+
+### MD annual-grant allocation
+
+For each participating building and applicable fuel:
+
+```
+annual bill          = sum(Jan..Dec base bills)
+annual credit        = EUSP, MEAP, or EUSP + MEAP
+fraction remaining   = max(0, 1 - annual credit / annual bill)
+discounted month     = base month * fraction remaining
+discounted Annual    = sum(Jan..Dec discounted months)
+```
+
+This preserves the full grant when the annual bill can absorb it, avoids negative monthly bills, and avoids losing grant dollars in low-bill months. It is an analytical allocation of an annual grant, not a statement about OHEP's operational posting cadence.
+
+### MD implementation files
+
+- `utils/post/data/md_ohep_benefits.yaml` — FY26 level boundaries, kWh bands, and annual grant matrices.
+- `utils/post/lmi_common.py` — FPL, CPI, tier/band expressions, matrix flattening, and participation helpers.
+- `utils/post/apply_md_ohep_to_master_bills.py` — profile construction, fuel routing, grant allocation, validation, standalone CLI, and Hive writer.
+- `utils/post/build_master_bills.py` — legacy master-bill dispatch.
+- `utils/post/build_master_bills_prefect.py` — current batch/segment dispatch.
+- `tests/test_md_ohep_discounts.py` — focused MD behavior and builder-dispatch tests.
+
+### MD validation and limitations
+
+The application validates non-null/nonnegative LMI bills, discounted bills not exceeding base bills, Annual rows equal to monthly sums, energy totals equal to fuel totals, and p100 electric application matching electric eligibility. Tests cover boundary assignments, matrix cells, fuel routing, stacking, toggles, proportional allocation, nonparticipants, participation, and both builders.
+
+Known exclusions:
+
+- Levels 6–7 cannot be assigned reliably from current ResStock fields.
+- Wood/coal is identified and receives EUSP when eligible, but MEAP cannot be applied because master bills have no wood/coal bill column.
+- The real-world OHEP take-up rate remains unknown; p100 and parameterized participation scenarios are modeling inputs.
+- LIM, arrearage assistance, USPP, and private charity are not included.
+
+See [Maryland low-income / energy affordability programs](../../domain/charges/lmi_discounts_in_md.md) for program sources and policy limitations.
+
+---
+
+## New York EAP / EEAP
 
 ---
 

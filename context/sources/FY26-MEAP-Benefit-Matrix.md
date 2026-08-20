@@ -2,8 +2,7 @@
 
 **Program**: Maryland Energy Assistance Program (MEAP) — OHEP heating assistance grant
 **Fiscal / program year**: FY26 (July 1, 2025 – June 30, 2026)
-**Source PDF**: `dev/md_lmi_sources/FY26-MEAP-Benefit-Matrix.pdf`
-**Original URL**: https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/FY26-MEAP-Benefit-Matrix-2-1-1.pdf
+**Source PDF**: https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/FY26-MEAP-Benefit-Matrix-2-1-1.pdf
 **Publisher**: Maryland Department of Human Services, Office of Home Energy Programs (OHEP)
 **Pages**: 1
 

@@ -2,8 +2,7 @@
 
 **Program**: Electric Universal Service Program (EUSP) — OHEP electric assistance grant
 **Fiscal / program year**: FY26 (July 1, 2025 – June 30, 2026)
-**Source file**: `dev/md_lmi_sources/FY26-EUSP-Benefit-Matrix.docx`
-**Original URL**: https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/FY26-EUSP-Benefit-Matrix-Updated-7.7.25-2.docx
+**Source DOCX**: https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/FY26-EUSP-Benefit-Matrix-Updated-7.7.25-2.docx
 **Publisher**: Maryland Department of Human Services, Office of Home Energy Programs (OHEP)
 
 Amounts below are **annual grant dollars** by OHEP Poverty / Benefit Level, primary heat source, and annual electric usage band. Extracted from the source `.docx` via `pandoc -t plain`. Source table headers sometimes show typographical artifacts (e.g. `12,0000kw`); usage bands are interpreted as:

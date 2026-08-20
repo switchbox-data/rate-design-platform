@@ -5,7 +5,7 @@
 **Docket**: Administrative Docket PC 59 — Limited Income Mechanisms for Utility Customers
 **Issue Date**: February 12, 2026
 **Pages**: 49
-**Source**: `dev/md_lmi_sources/Order_LIM-PC59.pdf`
+**Source PDF**: https://psc.maryland.gov/wp-content/uploads/2026/02/Order_LIM-PC59.pdf
 **Commissioners**: Kumar P. Barve, Chair; Frederick H. Hoover, Jr.; Bonnie A. Suchman; Odogwu Obi Linton; Ryan C. McLean
 
 > Note: Minor typographical errors in the source (e.g. misspellings, missing words) have been corrected for readability. Substantive corrections are annotated inline. Automated PDF extraction left some mid-document comment sections with footnote-body bleed; **Section VI (Commission Decisions) and the Ordering clauses were verified against the source PDF text** and are the authoritative passages for LIM design.
