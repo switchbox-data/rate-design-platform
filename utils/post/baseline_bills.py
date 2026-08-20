@@ -13,8 +13,6 @@ segment itself they equal the row's own values.
 
 from __future__ import annotations
 
-from typing import cast
-
 import polars as pl
 
 from utils.post.io import ANNUAL_MONTH, BLDG_ID
@@ -72,7 +70,7 @@ def load_baseline_reference_monthly(
         pl.col("upgrade").cast(pl.Int64),
         *baseline_columns_from_self(),
     )
-    df = cast(pl.DataFrame, q.collect())
+    df = q.collect()
 
     if df.is_empty():
         raise FileNotFoundError(

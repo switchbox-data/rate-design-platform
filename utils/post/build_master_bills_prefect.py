@@ -548,15 +548,11 @@ def _process_utility(
 
     # --- Electric bills ---
     t = _log("  Reading elec_bills_year_target.csv (delivery)...")
-    elec_delivery_df = cast(
-        pl.DataFrame, scan(f"{run.dir_delivery}/{ELEC_BILLS_CSV}").collect()
-    )
+    elec_delivery_df = scan(f"{run.dir_delivery}/{ELEC_BILLS_CSV}").collect()
     _log_done("  Reading elec delivery", t, f"{elec_delivery_df.height} rows")
 
     t = _log("  Reading elec_bills_year_target.csv (supply)...")
-    elec_supply_df = cast(
-        pl.DataFrame, scan(f"{run.dir_supply}/{ELEC_BILLS_CSV}").collect()
-    )
+    elec_supply_df = scan(f"{run.dir_supply}/{ELEC_BILLS_CSV}").collect()
     _log_done("  Reading elec supply", t, f"{elec_supply_df.height} rows")
 
     elec_d_ids = set(elec_delivery_df[BLDG_ID].unique().to_list())
@@ -648,12 +644,9 @@ def _process_utility(
     )
     _log_done("  Reading load curves", t)
 
-    gas = cast(
-        pl.DataFrame,
-        compute_gas_bills(
-            load_curves, gas_tariff_map, gas_rate_table, gas_fixed_charges
-        ).collect(),
-    )
+    gas = compute_gas_bills(
+        load_curves, gas_tariff_map, gas_rate_table, gas_fixed_charges
+    ).collect()
     _log_done("  Gas bills", t, f"{gas.height} rows")
 
     gas_ids = set(gas[BLDG_ID].unique().to_list())
@@ -667,9 +660,7 @@ def _process_utility(
 
     # --- Oil and propane bills ---
     t = _log("  Computing oil and propane bills...")
-    fuel_bills = cast(
-        pl.DataFrame, compute_fuel_bills(load_curves, monthly_prices).collect()
-    )
+    fuel_bills = compute_fuel_bills(load_curves, monthly_prices).collect()
     _log_done("  Oil/propane bills", t, f"{fuel_bills.height} rows")
 
     fuel_ids = set(fuel_bills[BLDG_ID].unique().to_list())
