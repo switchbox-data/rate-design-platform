@@ -15,8 +15,6 @@ state.
 
 from __future__ import annotations
 
-from typing import cast
-
 import polars as pl
 
 from utils.post.io import BLDG_ID
@@ -46,10 +44,7 @@ def load_metadata(path_resstock_base: str, state_upper: str) -> pl.DataFrame:
     attributes = pl.scan_parquet(
         f"{base}/metadata/state={state_upper}/upgrade={METADATA_UPGRADE}/metadata-sb.parquet"
     ).select(BLDG_ID, *ATTR_COLS)
-    return cast(
-        pl.DataFrame,
-        assignment.join(attributes, on=BLDG_ID, how="inner").collect(),
-    )
+    return assignment.join(attributes, on=BLDG_ID, how="inner").collect()
 
 
 def heating_type_v2() -> pl.Expr:

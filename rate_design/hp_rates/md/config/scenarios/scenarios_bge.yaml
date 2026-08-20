@@ -12,7 +12,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_default.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_default_precalc_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_default_precalc_delivery
     utility_revenue_requirement: rev_requirement/bge_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -39,7 +39,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_default_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_default_precalc_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_default_precalc_supply
     utility_revenue_requirement: rev_requirement/bge_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false
@@ -66,7 +66,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_default_calibrated.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_default_calibrated_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_default_calibrated_delivery
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -93,7 +93,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_default_supply_calibrated.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_default_calibrated_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_default_calibrated_supply
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false
@@ -115,13 +115,13 @@ runs:
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=00/
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
-    path_tariff_maps_electric: tariff_maps/electric/bge_hp_seasonal_vs_non-hp_base.csv
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_seasonal_vs_non-hp_base_percustomer_passthrough.csv
     path_tariff_maps_gas: tariff_maps/gas/bge_u00.csv
     path_tariffs_electric:
       hp: tariffs/electric/bge_hp_seasonal_percustomer_passthrough.json
       non-hp: tariffs/electric/bge_non-hp_base_percustomer_passthrough.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_hp_seasonal_percustomer_passthrough_precalc_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_seasonal_percustomer_passthrough_precalc_delivery
     utility_revenue_requirement: rev_requirement/bge_hp_vs_non-hp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
@@ -150,13 +150,13 @@ runs:
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=00/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=00/
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
-    path_tariff_maps_electric: tariff_maps/electric/bge_hp_seasonal_vs_non-hp_base_supply.csv
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_seasonal_vs_non-hp_base_percustomer_passthrough_supply.csv
     path_tariff_maps_gas: tariff_maps/gas/bge_u00.csv
     path_tariffs_electric:
       hp: tariffs/electric/bge_hp_seasonal_percustomer_passthrough_supply.json
       non-hp: tariffs/electric/bge_non-hp_base_percustomer_passthrough_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_hp_seasonal_percustomer_passthrough_precalc_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_seasonal_percustomer_passthrough_precalc_supply
     utility_revenue_requirement: rev_requirement/bge_hp_vs_non-hp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
@@ -185,12 +185,12 @@ runs:
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=02/
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
-    path_tariff_maps_electric: tariff_maps/electric/bge_hp_seasonal_vs_non-hp_base_calibrated.csv
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_seasonal_vs_non-hp_base_percustomer_passthrough_calibrated.csv
     path_tariff_maps_gas: tariff_maps/gas/bge_u02.csv
     path_tariffs_electric:
       all: tariffs/electric/bge_hp_seasonal_percustomer_passthrough_calibrated.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_hp_seasonal_percustomer_passthrough_calibrated_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_seasonal_percustomer_passthrough_calibrated_delivery
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -214,12 +214,12 @@ runs:
     path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=02/metadata-sb.parquet
     path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=02/
     path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
-    path_tariff_maps_electric: tariff_maps/electric/bge_hp_seasonal_vs_non-hp_base_supply_calibrated.csv
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_seasonal_vs_non-hp_base_percustomer_passthrough_supply_calibrated.csv
     path_tariff_maps_gas: tariff_maps/gas/bge_u02.csv
     path_tariffs_electric:
       all: tariffs/electric/bge_hp_seasonal_percustomer_passthrough_supply_calibrated.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260803_a/md_bge_hp_seasonal_percustomer_passthrough_calibrated_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_seasonal_percustomer_passthrough_calibrated_supply
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false
@@ -234,6 +234,390 @@ runs:
     process_workers: 8
     elasticity: 0.0
     residual_allocation_delivery: percustomer
+    residual_allocation_supply: passthrough
+  md_bge_hp_seasonal_epmc_passthrough_precalc_delivery:
+    run_name: md_bge_hp_seasonal_epmc_passthrough_precalc_delivery
+    state: MD
+    utility: bge
+    run_type: precalc
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=00/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_seasonal_vs_non-hp_base_epmc_passthrough.csv
+    path_tariff_maps_gas: tariff_maps/gas/bge_u00.csv
+    path_tariffs_electric:
+      hp: tariffs/electric/bge_hp_seasonal_epmc_passthrough.json
+      non-hp: tariffs/electric/bge_non-hp_base_epmc_passthrough.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_seasonal_epmc_passthrough_precalc_delivery
+    utility_revenue_requirement: rev_requirement/bge_hp_vs_non-hp.yaml
+    run_includes_supply: false
+    run_includes_subclasses: true
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/utility=bge/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/utility=bge/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/zero.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=MD/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: passthrough
+    subclass_config:
+      group_col: has_hp
+      selectors:
+        hp: 'true'
+        non-hp: 'false'
+  md_bge_hp_seasonal_epmc_passthrough_precalc_supply:
+    run_name: md_bge_hp_seasonal_epmc_passthrough_precalc_supply
+    state: MD
+    utility: bge
+    run_type: precalc
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=00/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_seasonal_vs_non-hp_base_epmc_passthrough_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/bge_u00.csv
+    path_tariffs_electric:
+      hp: tariffs/electric/bge_hp_seasonal_epmc_passthrough_supply.json
+      non-hp: tariffs/electric/bge_non-hp_base_epmc_passthrough_supply.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_seasonal_epmc_passthrough_precalc_supply
+    utility_revenue_requirement: rev_requirement/bge_hp_vs_non-hp.yaml
+    run_includes_supply: true
+    run_includes_subclasses: true
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/utility=bge/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/utility=bge/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=MD/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: passthrough
+    subclass_config:
+      group_col: has_hp
+      selectors:
+        hp: 'true'
+        non-hp: 'false'
+  md_bge_hp_seasonal_epmc_passthrough_calibrated_delivery:
+    run_name: md_bge_hp_seasonal_epmc_passthrough_calibrated_delivery
+    state: MD
+    utility: bge
+    run_type: default
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=02/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_seasonal_vs_non-hp_base_epmc_passthrough_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/bge_u02.csv
+    path_tariffs_electric:
+      all: tariffs/electric/bge_hp_seasonal_epmc_passthrough_calibrated.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_seasonal_epmc_passthrough_calibrated_delivery
+    utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
+    run_includes_supply: false
+    run_includes_subclasses: false
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/utility=bge/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/utility=bge/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/zero.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=MD/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: passthrough
+  md_bge_hp_seasonal_epmc_passthrough_calibrated_supply:
+    run_name: md_bge_hp_seasonal_epmc_passthrough_calibrated_supply
+    state: MD
+    utility: bge
+    run_type: default
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=02/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_seasonal_vs_non-hp_base_epmc_passthrough_supply_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/bge_u02.csv
+    path_tariffs_electric:
+      all: tariffs/electric/bge_hp_seasonal_epmc_passthrough_supply_calibrated.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_seasonal_epmc_passthrough_calibrated_supply
+    utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
+    run_includes_supply: true
+    run_includes_subclasses: false
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/utility=bge/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/utility=bge/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=MD/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: passthrough
+  md_bge_hp_flat_percustomer_passthrough_precalc_delivery:
+    run_name: md_bge_hp_flat_percustomer_passthrough_precalc_delivery
+    state: MD
+    utility: bge
+    run_type: precalc
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=00/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_flat_vs_non-hp_base_percustomer_passthrough.csv
+    path_tariff_maps_gas: tariff_maps/gas/bge_u00.csv
+    path_tariffs_electric:
+      hp: tariffs/electric/bge_hp_flat_percustomer_passthrough.json
+      non-hp: tariffs/electric/bge_non-hp_base_percustomer_passthrough.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_flat_percustomer_passthrough_precalc_delivery
+    utility_revenue_requirement: rev_requirement/bge_hp_vs_non-hp.yaml
+    run_includes_supply: false
+    run_includes_subclasses: true
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/utility=bge/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/utility=bge/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/zero.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=MD/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: percustomer
+    residual_allocation_supply: passthrough
+    subclass_config:
+      group_col: has_hp
+      selectors:
+        hp: 'true'
+        non-hp: 'false'
+  md_bge_hp_flat_percustomer_passthrough_precalc_supply:
+    run_name: md_bge_hp_flat_percustomer_passthrough_precalc_supply
+    state: MD
+    utility: bge
+    run_type: precalc
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=00/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_flat_vs_non-hp_base_percustomer_passthrough_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/bge_u00.csv
+    path_tariffs_electric:
+      hp: tariffs/electric/bge_hp_flat_percustomer_passthrough_supply.json
+      non-hp: tariffs/electric/bge_non-hp_base_percustomer_passthrough_supply.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_flat_percustomer_passthrough_precalc_supply
+    utility_revenue_requirement: rev_requirement/bge_hp_vs_non-hp.yaml
+    run_includes_supply: true
+    run_includes_subclasses: true
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/utility=bge/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/utility=bge/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=MD/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: percustomer
+    residual_allocation_supply: passthrough
+    subclass_config:
+      group_col: has_hp
+      selectors:
+        hp: 'true'
+        non-hp: 'false'
+  md_bge_hp_flat_percustomer_passthrough_calibrated_delivery:
+    run_name: md_bge_hp_flat_percustomer_passthrough_calibrated_delivery
+    state: MD
+    utility: bge
+    run_type: default
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=02/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_flat_vs_non-hp_base_percustomer_passthrough_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/bge_u02.csv
+    path_tariffs_electric:
+      all: tariffs/electric/bge_hp_flat_percustomer_passthrough_calibrated.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_flat_percustomer_passthrough_calibrated_delivery
+    utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
+    run_includes_supply: false
+    run_includes_subclasses: false
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/utility=bge/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/utility=bge/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/zero.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=MD/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: percustomer
+    residual_allocation_supply: passthrough
+  md_bge_hp_flat_percustomer_passthrough_calibrated_supply:
+    run_name: md_bge_hp_flat_percustomer_passthrough_calibrated_supply
+    state: MD
+    utility: bge
+    run_type: default
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=02/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_flat_vs_non-hp_base_percustomer_passthrough_supply_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/bge_u02.csv
+    path_tariffs_electric:
+      all: tariffs/electric/bge_hp_flat_percustomer_passthrough_supply_calibrated.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_flat_percustomer_passthrough_calibrated_supply
+    utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
+    run_includes_supply: true
+    run_includes_subclasses: false
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/utility=bge/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/utility=bge/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=MD/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: percustomer
+    residual_allocation_supply: passthrough
+  md_bge_hp_flat_epmc_passthrough_precalc_delivery:
+    run_name: md_bge_hp_flat_epmc_passthrough_precalc_delivery
+    state: MD
+    utility: bge
+    run_type: precalc
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=00/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_flat_vs_non-hp_base_epmc_passthrough.csv
+    path_tariff_maps_gas: tariff_maps/gas/bge_u00.csv
+    path_tariffs_electric:
+      hp: tariffs/electric/bge_hp_flat_epmc_passthrough.json
+      non-hp: tariffs/electric/bge_non-hp_base_epmc_passthrough.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_flat_epmc_passthrough_precalc_delivery
+    utility_revenue_requirement: rev_requirement/bge_hp_vs_non-hp.yaml
+    run_includes_supply: false
+    run_includes_subclasses: true
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/utility=bge/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/utility=bge/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/zero.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=MD/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: passthrough
+    subclass_config:
+      group_col: has_hp
+      selectors:
+        hp: 'true'
+        non-hp: 'false'
+  md_bge_hp_flat_epmc_passthrough_precalc_supply:
+    run_name: md_bge_hp_flat_epmc_passthrough_precalc_supply
+    state: MD
+    utility: bge
+    run_type: precalc
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=00/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=00/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_flat_vs_non-hp_base_epmc_passthrough_supply.csv
+    path_tariff_maps_gas: tariff_maps/gas/bge_u00.csv
+    path_tariffs_electric:
+      hp: tariffs/electric/bge_hp_flat_epmc_passthrough_supply.json
+      non-hp: tariffs/electric/bge_non-hp_base_epmc_passthrough_supply.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_flat_epmc_passthrough_precalc_supply
+    utility_revenue_requirement: rev_requirement/bge_hp_vs_non-hp.yaml
+    run_includes_supply: true
+    run_includes_subclasses: true
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/utility=bge/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/utility=bge/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=MD/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: passthrough
+    subclass_config:
+      group_col: has_hp
+      selectors:
+        hp: 'true'
+        non-hp: 'false'
+  md_bge_hp_flat_epmc_passthrough_calibrated_delivery:
+    run_name: md_bge_hp_flat_epmc_passthrough_calibrated_delivery
+    state: MD
+    utility: bge
+    run_type: default
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=02/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_flat_vs_non-hp_base_epmc_passthrough_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/bge_u02.csv
+    path_tariffs_electric:
+      all: tariffs/electric/bge_hp_flat_epmc_passthrough_calibrated.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_flat_epmc_passthrough_calibrated_delivery
+    utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
+    run_includes_supply: false
+    run_includes_subclasses: false
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/utility=bge/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/utility=bge/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/zero.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/zero.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=MD/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: epmc
+    residual_allocation_supply: passthrough
+  md_bge_hp_flat_epmc_passthrough_calibrated_supply:
+    run_name: md_bge_hp_flat_epmc_passthrough_calibrated_supply
+    state: MD
+    utility: bge
+    run_type: default
+    path_resstock_metadata: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=MD/upgrade=02/metadata-sb.parquet
+    path_resstock_loads: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=MD/upgrade=02/
+    path_utility_assignment: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=MD/utility_assignment.parquet
+    path_tariff_maps_electric: tariff_maps/electric/bge_hp_flat_vs_non-hp_base_epmc_passthrough_supply_calibrated.csv
+    path_tariff_maps_gas: tariff_maps/gas/bge_u02.csv
+    path_tariffs_electric:
+      all: tariffs/electric/bge_hp_flat_epmc_passthrough_supply_calibrated.json
+    path_tariffs_gas: tariffs/gas
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260817_b/md_bge_hp_flat_epmc_passthrough_calibrated_supply
+    utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
+    run_includes_supply: true
+    run_includes_subclasses: false
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/utility=bge/year=2025/data.parquet
+    path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/utility=bge/year=2025/data.parquet
+    path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/data.parquet
+    path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/data.parquet
+    path_electric_utility_stats: s3://data.sb/eia/861/electric_utility_stats/year=2024/state=MD/data.parquet
+    solar_pv_compensation: net_metering
+    year_run: 2025
+    year_dollar_conversion: 2025
+    process_workers: 8
+    elasticity: 0.0
+    residual_allocation_delivery: epmc
     residual_allocation_supply: passthrough
 subclass_config:
   group_col: has_hp

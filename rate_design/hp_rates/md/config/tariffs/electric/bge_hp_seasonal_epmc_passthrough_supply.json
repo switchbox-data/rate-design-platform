@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "bge_hp_seasonal_percustomer_passthrough",
-      "name": "bge_hp_seasonal_percustomer_passthrough",
+      "label": "bge_hp_seasonal_epmc_passthrough_supply",
+      "name": "bge_hp_seasonal_epmc_passthrough_supply",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,14 +640,14 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.06826752797184102,
+            "rate": 0.16528093394981816,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.046391153084425485,
+            "rate": 0.1553931898900724,
             "adj": 0.0,
             "unit": "kWh"
           }

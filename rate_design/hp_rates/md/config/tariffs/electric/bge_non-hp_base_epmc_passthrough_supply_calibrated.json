@@ -1,8 +1,8 @@
 {
   "items": [
     {
-      "label": "bge_non-hp_base_percustomer_passthrough_supply",
-      "name": "bge_non-hp_base_percustomer_passthrough_supply",
+      "label": "bge_non-hp_base_epmc_passthrough_supply",
+      "name": "bge_non-hp_base_epmc_passthrough_supply",
       "uri": "",
       "sector": "Residential",
       "servicetype": "Bundled",
@@ -640,56 +640,56 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.18542551730383997,
+            "rate": 0.18212451843419694,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.1905061764779652,
+            "rate": 0.18711473023929395,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.2242165355238033,
+            "rate": 0.22022496769063096,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.23278319442324072,
+            "rate": 0.22863912044229084,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.1990542928256722,
+            "rate": 0.1955106705391104,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.2030965691028959,
+            "rate": 0.1994809850409759,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.20356013289615554,
+            "rate": 0.19993629633706142,
             "adj": 0.0,
             "unit": "kWh"
           }
         ],
         [
           {
-            "rate": 0.23727049194199362,
+            "rate": 0.23304653378839843,
             "adj": 0.0,
             "unit": "kWh"
           }
