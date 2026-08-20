@@ -257,12 +257,12 @@ To build Maryland master bills with FY26 OHEP MEAP/EUSP columns for multiple par
 ```bash
 just s md build-master-bills-prefect <batch> \
   --calculate-lmi \
-  --lmi-participation-rates 1.0 0.4 \
+  --lmi-participation-rates 1.0 0.48 \
   --lmi-participation-mode weighted \
   --lmi-calculation-type monthly
 ```
 
-For MD, `monthly` means that annual grants are allocated proportionally across Jan–Dec bills; it does not mean equal twelfths. The command appends both p100 and p40 column sets in one pass. It rewrites master-bill outputs but does not alter CAIRO run directories.
+For MD, `monthly` means that annual grants are allocated proportionally across Jan–Dec bills; it does not mean equal twelfths. The command appends both p100 and p48 column sets in one pass. It rewrites master-bill outputs but does not alter CAIRO run directories.
 
 The current Prefect builder writes each per-utility table before applying LMI, then applies LMI to the concatenated table before its final write. Therefore MD OHEP columns are present only in the `all_utilities` table:
 

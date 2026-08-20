@@ -28,12 +28,12 @@ From `rate_design/hp_rates/`:
 ```bash
 just s md build-master-bills-prefect <batch> \
   --calculate-lmi \
-  --lmi-participation-rates 1.0 0.4 \
+  --lmi-participation-rates 1.0 0.48 \
   --lmi-participation-mode weighted \
   --lmi-calculation-type monthly
 ```
 
-One call processes every completed `{scenario}_{stage}` segment discovered in the batch. Each rate creates its own `{pct}`-suffixed LMI columns, so p100 and p40 can coexist in the same table.
+One call processes every completed `{scenario}_{stage}` segment discovered in the batch. Each rate creates its own `{pct}`-suffixed LMI columns, so p100 and p48 can coexist in the same table.
 
 The command rebuilds and rewrites the batch's master-bill parquet prefixes; it does not modify CAIRO run outputs. Re-running without `--calculate-lmi` reconstructs the base master tables without LMI columns.
 
@@ -95,7 +95,7 @@ Known exclusions:
 
 - Levels 6–7 cannot be assigned reliably from current ResStock fields.
 - Wood/coal is identified and receives EUSP when eligible, but MEAP cannot be applied because master bills have no wood/coal bill column.
-- The real-world OHEP take-up rate remains unknown; p100 and parameterized participation scenarios are modeling inputs.
+- The real-world OHEP take-up rate is estimated at ~48% statewide for FY 2025 (DLS N00I0006 budget analyses); see [lmi_discounts_in_md.md](../../domain/charges/lmi_discounts_in_md.md) §4 for the derivation. BGE-specific counts may refine this once utility filings from the Jul 8, 2026 PC 59 data order are available.
 - LIM, arrearage assistance, USPP, and private charity are not included.
 
 See [Maryland low-income / energy affordability programs](../../domain/charges/lmi_discounts_in_md.md) for program sources and policy limitations.

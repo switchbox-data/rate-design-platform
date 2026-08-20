@@ -1,6 +1,6 @@
 # Maryland low-income / energy affordability programs
 
-**Status:** OHEP **MEAP / EUSP is implemented** for master bills from the FY26 benefit matrices, DHS brochure, and income guidelines. Both legacy and Prefect master-bill builders dispatch the MD implementation with `--calculate-lmi`. **LIM is not implemented**: its tier → `%` / `$` schedules still require final Work Group / utility tariff inputs. A current real-world OHEP participation rate is also still needed.
+**Status:** OHEP **MEAP / EUSP is implemented** for master bills from the FY26 benefit matrices, DHS brochure, and income guidelines. Both legacy and Prefect master-bill builders dispatch the MD implementation with `--calculate-lmi`. **LIM is not implemented**: its tier → `%` / `$` schedules still require final Work Group / utility tariff inputs. **OHEP statewide participation rate is established at ~48%** (DLS FY 2026/2027 budget analyses; see §4 and sources below).
 
 **Utilities in scope:** Statewide OHEP and LIM apply to MD utilities generally; this repo currently emphasizes `bge` (`UTILITIES=bge` in `rate_design/hp_rates/md/state.env`). Also relevant: Pepco, Delmarva (DPL), SMECO, Potomac Edison, Columbia Gas, UGI, WGL.
 
@@ -8,14 +8,17 @@
 
 ### Citation key
 
-| Short cite                 | Document                                                                          | Extract / public URL                                                                                                                                                                            | DocumentCloud                                                                                  |
-| -------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| **PC 59 Order**            | MD PSC Order No. 92190, _Order on Limited Income Mechanism_, PC 59 (Feb 12, 2026) | [Order_LIM-PC59.md](../../sources/Order_LIM-PC59.md) · [PSC PDF](https://psc.maryland.gov/wp-content/uploads/2026/02/Order_LIM-PC59.pdf)                                                        | [doc 28564978](https://www.documentcloud.org/documents/28564978-order-lim-pc59/)               |
-| **FY26 MEAP matrix**       | OHEP FY26 MEAP heating grant schedule                                             | [FY26-MEAP-Benefit-Matrix.md](../../sources/FY26-MEAP-Benefit-Matrix.md) · [OHEP PDF](https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/FY26-MEAP-Benefit-Matrix-2-1-1.pdf)              | [doc 28564977](https://www.documentcloud.org/documents/28564977-fy26-meap-benefit-matrix/)     |
-| **FY26 EUSP matrix**       | OHEP FY26 EUSP electric grant schedule                                            | [FY26-EUSP-Benefit-Matrix.md](../../sources/FY26-EUSP-Benefit-Matrix.md) · [OHEP DOCX](https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/FY26-EUSP-Benefit-Matrix-Updated-7.7.25-2.docx) | [doc 28564979](https://www.documentcloud.org/documents/28564979-fy26-eusp-benefit-matrixdocx/) |
-| **OHEP brochure FY26**     | DHS OHEP English brochure (Jul 2025–Jun 2026)                                     | [OHEP PDF](https://dhs.maryland.gov/documents/OHEP/OHEP_Englishbrochure_2026.pdf)                                                                                                               | [doc 28564984](https://www.documentcloud.org/documents/28564984-ohep-englishbrochure-2026/)    |
-| **Income guidelines FY26** | OHEP 200% FPG weekly / monthly / annual limits                                    | [OHEP PDF](https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/Income-Guidelines-FY2026-Updated-7.9.2025.pdf)                                                                              | —                                                                                              |
-| **DHS About OHEP**         | Plain-language MEAP / EUSP / arrearage / USPP overview                            | [DHS page](https://dhs.maryland.gov/office-of-home-energy-programs/about-energy-assistance/)                                                                                                    | —                                                                                              |
+| Short cite                 | Document                                                                          | Extract / public URL                                                                                                                                                                                             | DocumentCloud                                                                                  |
+| -------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **PC 59 Order**            | MD PSC Order No. 92190, _Order on Limited Income Mechanism_, PC 59 (Feb 12, 2026) | [Order_LIM-PC59.md](../../sources/Order_LIM-PC59.md) · [PSC PDF](https://psc.maryland.gov/wp-content/uploads/2026/02/Order_LIM-PC59.pdf)                                                                         | [doc 28564978](https://www.documentcloud.org/documents/28564978-order-lim-pc59/)               |
+| **FY26 MEAP matrix**       | OHEP FY26 MEAP heating grant schedule                                             | [FY26-MEAP-Benefit-Matrix.md](../../sources/FY26-MEAP-Benefit-Matrix.md) · [OHEP PDF](https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/FY26-MEAP-Benefit-Matrix-2-1-1.pdf)                               | [doc 28564977](https://www.documentcloud.org/documents/28564977-fy26-meap-benefit-matrix/)     |
+| **FY26 EUSP matrix**       | OHEP FY26 EUSP electric grant schedule                                            | [FY26-EUSP-Benefit-Matrix.md](../../sources/FY26-EUSP-Benefit-Matrix.md) · [OHEP DOCX](https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/FY26-EUSP-Benefit-Matrix-Updated-7.7.25-2.docx)                  | [doc 28564979](https://www.documentcloud.org/documents/28564979-fy26-eusp-benefit-matrixdocx/) |
+| **OHEP brochure FY26**     | DHS OHEP English brochure (Jul 2025–Jun 2026)                                     | [OHEP PDF](https://dhs.maryland.gov/documents/OHEP/OHEP_Englishbrochure_2026.pdf)                                                                                                                                | [doc 28564984](https://www.documentcloud.org/documents/28564984-ohep-englishbrochure-2026/)    |
+| **Income guidelines FY26** | OHEP 200% FPG weekly / monthly / annual limits                                    | [OHEP PDF](https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/Income-Guidelines-FY2026-Updated-7.9.2025.pdf)                                                                                               | —                                                                                              |
+| **DHS About OHEP**         | Plain-language MEAP / EUSP / arrearage / USPP overview                            | [DHS page](https://dhs.maryland.gov/office-of-home-energy-programs/about-energy-assistance/)                                                                                                                     | —                                                                                              |
+| **DLS FY26 OHEP**          | DLS Analysis of FY 2026 MD Executive Budget — N00I0006 (Apr 2025)                 | [DLS-FY2026-OHEP-N00I0006.md](../../sources/DLS-FY2026-OHEP-N00I0006.md) · [DLS PDF](https://mgaleg.maryland.gov/pubs/budgetfiscal/2026fy-budget-docs-operating-N00I0006-DHS-Office-of-Home-Energy-Programs.pdf) | —                                                                                              |
+| **DLS FY27 OHEP**          | DLS Analysis of FY 2027 MD Executive Budget — N00I0006 (Mar 2026)                 | [DLS-FY2027-OHEP-N00I0006.md](../../sources/DLS-FY2027-OHEP-N00I0006.md) · [DLS PDF](https://mgaleg.maryland.gov/pubs/budgetfiscal/2027fy-budget-docs-operating-N00I0006-DHS-Office-of-Home-Energy-Programs.pdf) | —                                                                                              |
+| **DBM FY27 Testimony**     | DBM testimony on N00I0006, submitted with FY 2027 budget — FY25 recipient counts  | local PDF: `dev/psc_filings/DBM-FY2027-Testimony-N00I0006.pdf`                                                                                                                                                   | —                                                                                              |
 
 Inline pins use `([DocumentCloud p. N](…#document/pN/a…))` after the fact they support.
 
@@ -294,9 +297,13 @@ Where all quantities are **group averages** (per Poverty Level × heating-source
 | -------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Dual MEAP+EUSP                         | ~**0.5%** of MEAP recipients lack EUSP (implies dual receipt is typical among MEAP recipients) | PC 59 Order §III.1 ([DocumentCloud p. 8](https://www.documentcloud.org/documents/28564978-order-lim-pc59/#document/p8/a2826957)) |
 | LIM pool (future)                      | OHEP-certified, Poverty Level ≤6                                                               | PC 59 Order §III.1, §VI.1                                                                                                        |
-| **Enrollment / eligible take-up rate** | **Still needed** — no statewide participation % in sources used so far                         | —                                                                                                                                |
+| **Enrollment / eligible take-up rate** | **~48%** — FY 2025 statewide estimate; see derivation below                                    | DLS FY27 OHEP (p. 22) + DBM FY27 Testimony                                                                                       |
 
-**Modeling until rates are known:** support NY-style **p100** (all income-eligible) and a parameterized `participation_rate`; fill the real rate when OHEP / PC 53 / Jul 2026 PC 59 utility count filings are available.
+**Established rate — ~48% statewide:** From DHS's own budget submissions (DLS FY 2026 and FY 2027 analyses, N00I0006), the estimated eligible household population was **270,000** for fiscal 2025 (revised to 200,000 for fiscal 2026). Full-year FY 2025 recipient counts from DBM testimony: **128,926** MEAP households and **130,046** EUSP bill assistance households. Most MEAP recipients also receive EUSP (~0.5% lack EUSP per PC 59 Order), so unique recipients ≈ 130,000. Participation rate = 130,000 / 270,000 ≈ **48%**. Full derivation in [`DLS-FY2027-OHEP-N00I0006.md`](../../sources/DLS-FY2027-OHEP-N00I0006.md).
+
+**Caveats:** (1) Statewide figure, not BGE-specific. (2) Denominator is DHS's planning estimate, not a Census-derived count. (3) MFR vulnerable-population rates (18–39%) are subsets; overall 48% is consistent. (4) Maryland's categorical auto-enrollment (SNAP/SSI/TANF via Chapter 207 of 2023) supports a take-up rate at the high end of the national LIHEAP range (15–40%).
+
+**Model rate:** use `--lmi-participation-rates 1.0 0.48` for the production p48 scenario. p100 is retained as the upper bound.
 
 ---
 
@@ -349,12 +356,12 @@ Vacant units are excluded from profile assignment. The remaining profiles comput
 
 ### 5.5 Running the integrated Prefect build
 
-From `rate_design/hp_rates/`, build every completed segment in one Prefect batch and append p100 and p40 OHEP columns:
+From `rate_design/hp_rates/`, build every completed segment in one Prefect batch and append p100 and p48 OHEP columns:
 
 ```bash
 just s md build-master-bills-prefect <batch> \
   --calculate-lmi \
-  --lmi-participation-rates 1.0 0.4 \
+  --lmi-participation-rates 1.0 0.48 \
   --lmi-participation-mode weighted \
   --lmi-calculation-type monthly
 ```
@@ -422,11 +429,11 @@ LIM has no output columns and is not applied.
 
 ## 8. Key open questions
 
-1. Real-world **OHEP participation / take-up** rate (eligible vs enrolled).
-2. Ops Manual confirmation of operational **EUSP posting** and **L6/L7** assignment rules; the model's proportional allocation is an analytical choice.
-3. ResStock (or other) proxy for **sub-metered / subsidized / roomer** if L6 is ever in scope.
-4. LIM **tier →** `$/kWh` **/ flat** `$` from Work Group report / Fall 2026 tariffs.
-5. Soft-cap / cost-allocation outcomes for LIM non-participant riders.
+1. Ops Manual confirmation of operational **EUSP posting** and **L6/L7** assignment rules; the model's proportional allocation is an analytical choice.
+2. ResStock (or other) proxy for **sub-metered / subsidized / roomer** if L6 is ever in scope.
+3. LIM **tier →** `$/kWh` **/ flat** `$` from Work Group report / Fall 2026 tariffs.
+4. Soft-cap / cost-allocation outcomes for LIM non-participant riders.
+5. BGE-specific OHEP participation rate once utility-level counts are submitted per the Jul 8, 2026 PC 59 data order (filings due Aug 7, 2026).
 
 ---
 
@@ -434,16 +441,19 @@ LIM has no output columns and is not applied.
 
 ### A.1 Current OHEP (MEAP / EUSP)
 
-| Source                                                                                                                                   | Why look here                                             |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| [DHS OHEP hub](https://dhs.maryland.gov/office-of-home-energy-programs/)                                                                 | How to apply, program year                                |
-| [About energy assistance](https://dhs.maryland.gov/office-of-home-energy-programs/about-energy-assistance/)                              | MEAP / EUSP / arrearage / USPP overview                   |
-| [OHEP Brochure FY26 (PDF)](https://dhs.maryland.gov/documents/OHEP/OHEP_Englishbrochure_2026.pdf)                                        | Income limits; once-per-year grants; categorical SNAP/TCA |
-| [Income Guidelines FY2026 (PDF)](https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/Income-Guidelines-FY2026-Updated-7.9.2025.pdf) | 200% FPG weekly / monthly / annual                        |
-| **[FY26 MEAP extract](../../sources/FY26-MEAP-Benefit-Matrix.md)**                                                                       | Heating grant `$` table — **used above**                  |
-| **[FY26 EUSP extract](../../sources/FY26-EUSP-Benefit-Matrix.md)**                                                                       | Electric grant `$` tables — **used above**                |
-| [OHEP Operations Manual (PDF)](https://dhs.maryland.gov/documents/OHEP/OHEP-Operations-Manual.pdf)                                       | Still needed for L6/L7 admin + EUSP posting detail        |
-| OHEP public data / PC 53 / Jul 2026 PC 59 data order filings                                                                             | Participation counts                                      |
+| Source                                                                                                                                                                                                         | Why look here                                                                 |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| [DHS OHEP hub](https://dhs.maryland.gov/office-of-home-energy-programs/)                                                                                                                                       | How to apply, program year                                                    |
+| [About energy assistance](https://dhs.maryland.gov/office-of-home-energy-programs/about-energy-assistance/)                                                                                                    | MEAP / EUSP / arrearage / USPP overview                                       |
+| [OHEP Brochure FY26 (PDF)](https://dhs.maryland.gov/documents/OHEP/OHEP_Englishbrochure_2026.pdf)                                                                                                              | Income limits; once-per-year grants; categorical SNAP/TCA                     |
+| [Income Guidelines FY2026 (PDF)](https://dhs.maryland.gov/documents/OHEP/Advisory%20Board/Income-Guidelines-FY2026-Updated-7.9.2025.pdf)                                                                       | 200% FPG weekly / monthly / annual                                            |
+| **[FY26 MEAP extract](../../sources/FY26-MEAP-Benefit-Matrix.md)**                                                                                                                                             | Heating grant `$` table — **used above**                                      |
+| **[FY26 EUSP extract](../../sources/FY26-EUSP-Benefit-Matrix.md)**                                                                                                                                             | Electric grant `$` tables — **used above**                                    |
+| [OHEP Operations Manual (PDF)](https://dhs.maryland.gov/documents/OHEP/OHEP-Operations-Manual.pdf)                                                                                                             | Still needed for L6/L7 admin + EUSP posting detail                            |
+| **[DLS FY26 OHEP extract](../../sources/DLS-FY2026-OHEP-N00I0006.md)** · [DLS PDF](https://mgaleg.maryland.gov/pubs/budgetfiscal/2026fy-budget-docs-operating-N00I0006-DHS-Office-of-Home-Energy-Programs.pdf) | 270,000 eligible households estimate (FY25) — **used above**                  |
+| **[DLS FY27 OHEP extract](../../sources/DLS-FY2027-OHEP-N00I0006.md)** · [DLS PDF](https://mgaleg.maryland.gov/pubs/budgetfiscal/2027fy-budget-docs-operating-N00I0006-DHS-Office-of-Home-Energy-Programs.pdf) | Side-by-side 270k/200k + 48% derivation — **used above**                      |
+| DBM FY27 Testimony (`dev/psc_filings/DBM-FY2027-Testimony-N00I0006.pdf`)                                                                                                                                       | FY25 full-year recipient counts (MEAP 128,926; EUSP 130,046) — **used above** |
+| Jul 8, 2026 PC 59 data order filings (utility EUSP/MEAP counts, due Aug 7, 2026)                                                                                                                               | Utility-specific participation counts (pending)                               |
 
 ### A.2 LIM design
 
@@ -468,7 +478,7 @@ LIM has no output columns and is not applied.
 
 ### A.4 Remaining research order
 
-1. Pull **participation** stats (OHEP / PC 53 / Jul 2026 filings).
-2. Skim **Ops Manual** for L6/L7 and operational EUSP posting.
+1. Skim **Ops Manual** for L6/L7 and operational EUSP posting.
+2. Obtain utility-specific participation counts from Aug 7, 2026 PC 59 filings to refine BGE rate beyond the 48% statewide estimate.
 3. Obtain final utility LIM schedules and implement LIM as a separate component after OHEP.
 4. Decide whether Prefect per-utility master tables should also receive LMI columns; the integrated path currently writes them only to `all_utilities`.
