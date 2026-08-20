@@ -3,7 +3,8 @@
 Designed for use with polars lazy execution; functions return expressions
 or small collected data where needed.
 
-Covers both RI (LIDR+, FPL-only) and NY (EAP/EEAP, FPL + SMI/AMI).
+Covers MD (OHEP, FPL-only), RI (LIDR+, FPL-only), and NY
+(EAP/EEAP, FPL + SMI/AMI).
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ def load_fpl_guidelines(year: int) -> dict[str, int]:
     with path.open() as f:
         data = yaml.safe_load(f)
     if not isinstance(data, dict):
-        raise ValueError(f"FPL guidelines invalid in {path}")
+        raise ValueError(f"FPL guidelines invalid in {path}")  # noqa: TRY004
     entry = data.get(year) or data.get(str(year))
     if entry is None:
         raise ValueError(f"FPL guidelines not found for year {year} in {path}")
@@ -192,9 +193,156 @@ def select_participants_weighted(
     weights = weights / weights.sum()
     rng = np.random.default_rng(seed)
     indices = rng.choice(eligible_df.height, size=n, replace=False, p=weights)
-    participant_ids = set(eligible_df[bldg_id_col].to_list()[i] for i in indices)
+    participant_ids = {eligible_df[bldg_id_col].to_list()[i] for i in indices}
     return eligible_df.select(pl.col(bldg_id_col)).with_columns(
         pl.col(bldg_id_col).is_in(list(participant_ids)).alias("participates")
+    )
+
+
+# ---------------------------------------------------------------------------
+# MD OHEP helpers
+# ---------------------------------------------------------------------------
+
+
+def load_md_ohep_config(
+    config_name: str = "md_ohep_benefits.yaml",
+) -> dict[str, Any]:
+    """Load and minimally validate an MD OHEP MEAP/EUSP benefit config.
+
+    Parameters
+    ----------
+    config_name:
+        Filename within the data directory (default: ``md_ohep_benefits.yaml``
+        which is the FY26 schedule). Pass a different filename to load an
+        alternate program year when one is added.
+    """
+    path = _data_dir() / config_name
+    with path.open() as f:
+        config = yaml.safe_load(f)
+    if not isinstance(config, dict):
+        raise ValueError(f"MD OHEP config invalid in {path}")  # noqa: TRY004
+    required = {
+        "program_year",
+        "fpl_guideline_year",
+        "poverty_levels",
+        "meap",
+        "eusp",
+    }
+    missing = sorted(required - config.keys())
+    if missing:
+        raise ValueError(f"MD OHEP config missing keys {missing} in {path}")
+    return config
+
+
+def assign_md_ohep_level_expr(
+    fpl_pct_col: str, config: dict[str, Any] | None = None
+) -> pl.Expr:
+    """Assign modeled OHEP Poverty Level 1-5 from FPL%; 0 means unmodeled.
+
+    The published labels use whole-number ranges (for example, 26-50% FPL).
+    Continuous modeled values use the explicit interval bounds in the YAML:
+    Level 1 is [0, 25], and later levels are (prior upper bound, upper bound].
+    Null, negative, and above-200% values return 0. Levels 6 and 7 are not
+    assigned because the required housing/categorical-enrollment fields are
+    unavailable in ResStock.
+    """
+    if config is None:
+        config = load_md_ohep_config()
+    fpl = pl.col(fpl_pct_col)
+    expr = pl.lit(0, dtype=pl.Int32)
+    for tier in sorted(
+        config["poverty_levels"], key=lambda item: item["level"], reverse=True
+    ):
+        lower = float(tier["fpl_lower_bound"])
+        upper = float(tier["fpl_upper_bound"])
+        lower_match = fpl >= lower if tier["fpl_lower_inclusive"] else fpl > lower
+        upper_match = fpl <= upper if tier["fpl_upper_inclusive"] else fpl < upper
+        expr = (
+            pl.when(fpl.is_not_null() & lower_match & upper_match)
+            .then(pl.lit(int(tier["level"]), dtype=pl.Int32))
+            .otherwise(expr)
+        )
+    return expr
+
+
+def assign_md_eusp_kwh_band_expr(
+    annual_kwh_col: str, config: dict[str, Any] | None = None
+) -> pl.Expr:
+    """Assign EUSP annual-electric-consumption band 1-4; 0 means invalid."""
+    if config is None:
+        config = load_md_ohep_config()
+    annual_kwh = pl.col(annual_kwh_col)
+    expr = pl.lit(0, dtype=pl.Int32)
+    for band in sorted(
+        config["eusp"]["kwh_bands"], key=lambda item: item["band"], reverse=True
+    ):
+        lower = float(band["lower_bound_kwh"])
+        lower_match = (
+            annual_kwh >= lower if band["lower_inclusive"] else annual_kwh > lower
+        )
+        upper = band["upper_bound_kwh"]
+        if upper is None:
+            upper_match = pl.lit(True)
+        else:
+            upper_value = float(upper)
+            upper_match = (
+                annual_kwh <= upper_value
+                if band["upper_inclusive"]
+                else annual_kwh < upper_value
+            )
+        expr = (
+            pl.when(annual_kwh.is_not_null() & lower_match & upper_match)
+            .then(pl.lit(int(band["band"]), dtype=pl.Int32))
+            .otherwise(expr)
+        )
+    return expr
+
+
+def get_md_meap_benefits_df(
+    config: dict[str, Any] | None = None,
+) -> pl.DataFrame:
+    """Flatten MEAP benefits to level × primary fuel annual amounts."""
+    if config is None:
+        config = load_md_ohep_config()
+    rows: list[dict[str, object]] = []
+    for level in config["meap"]["levels"]:
+        for fuel, amount in level["annual_grant"].items():
+            rows.append(
+                {
+                    "ohep_poverty_level": int(level["level"]),
+                    "primary_heating_fuel": fuel,
+                    "meap_annual_benefit": float(amount),
+                }
+            )
+    return pl.DataFrame(rows).with_columns(
+        pl.col("ohep_poverty_level").cast(pl.Int32),
+        pl.col("meap_annual_benefit").cast(pl.Float64),
+    )
+
+
+def get_md_eusp_benefits_df(
+    config: dict[str, Any] | None = None,
+) -> pl.DataFrame:
+    """Flatten EUSP benefits to level × primary fuel × kWh-band amounts."""
+    if config is None:
+        config = load_md_ohep_config()
+    rows: list[dict[str, object]] = []
+    for level in config["eusp"]["levels"]:
+        for fuel, fuel_data in level["annual_grant_by_heating_fuel"].items():
+            amounts = fuel_data["annual_grant_by_kwh_band"]
+            for band, amount in enumerate(amounts, start=1):
+                rows.append(
+                    {
+                        "ohep_poverty_level": int(level["level"]),
+                        "primary_heating_fuel": fuel,
+                        "eusp_kwh_band": band,
+                        "eusp_annual_benefit": float(amount),
+                    }
+                )
+    return pl.DataFrame(rows).with_columns(
+        pl.col("ohep_poverty_level").cast(pl.Int32),
+        pl.col("eusp_kwh_band").cast(pl.Int32),
+        pl.col("eusp_annual_benefit").cast(pl.Float64),
     )
 
 

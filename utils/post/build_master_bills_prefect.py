@@ -36,7 +36,7 @@ Identities:
     gas_total_bill = gas_fixed_charge + gas_volumetric_bill
     energy_total_bill = elec_total_bill + gas_total_bill + propane_total_bill + oil_total_bill
 
-When ``--calculate-lmi`` is passed for NY or RI, the script also appends the LMI
+When ``--calculate-lmi`` is passed for MD, NY, or RI, the script also appends the LMI
 discount columns before writing each final output.
 """
 
@@ -56,6 +56,7 @@ import polars as pl
 from rate_design.hp_rates.pipeline_config import PipelineConfig, load_pipeline_config
 from utils.file_io import get_aws_storage_options
 from utils.post import apply_ny_lmi_to_master_bills as ny_lmi_master_bills
+from utils.post.apply_md_ohep_to_master_bills import apply_md_ohep_to_master
 from utils.post.apply_ny_lmi_to_master_bills import apply_ny_lmi_to_master
 from utils.post.apply_ri_lmi_discounts_to_bills import apply_ri_lmi_to_master
 from utils.post.baseline_bills import (
@@ -395,6 +396,25 @@ def _apply_lmi_discounts_to_master(
     """Dispatch LMI discount augmentation to the appropriate state module."""
     opts = get_aws_storage_options()
 
+    if state_upper == "MD":
+        if lmi_calculation_type != "monthly":
+            _log(
+                "  MD OHEP allocates annual grants proportionally across months; "
+                f"ignoring LMI calculation type {lmi_calculation_type!r}"
+            )
+        return apply_md_ohep_to_master(
+            master,
+            state=state_upper,
+            upgrade=upgrade,
+            path_resstock_release=path_resstock_release,
+            fpl_year=lmi_fpl_year,
+            cpi_s3_path=lmi_cpi_s3_path,
+            participation_rates=lmi_participation_rates,
+            participation_mode=lmi_participation_mode,
+            seed=lmi_seed,
+            opts=opts,
+        )
+
     if state_upper == "NY":
         # Sync elapsed-time logging so NY helper uses this script's start time.
         ny_lmi_master_bills._t0 = _t0
@@ -433,7 +453,7 @@ def _apply_lmi_discounts_to_master(
 
     raise ValueError(
         f"--calculate-lmi is not supported for state {state_upper!r}. "
-        "Supported states: NY, RI."
+        "Supported states: MD, NY, RI."
     )
 
 

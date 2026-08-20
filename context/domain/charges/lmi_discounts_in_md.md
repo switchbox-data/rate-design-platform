@@ -297,39 +297,39 @@ Where all quantities are **group averages** (per Poverty Level × heating-source
 
 Mirror NY/RI postprocessing (`apply_*_lmi_*` → master bills via `lmi_common.py`), with MD-specific grant lookups.
 
-### 5.1 Proposed script / config shape
+### 5.1 Implemented script / config shape
 
-- **Script:** `utils/post/apply_md_lmi_to_master_bills.py` (name TBD).
-- **Config YAML** (e.g. `utils/post/data/md_ohep_benefits.yaml`): embed FY26 MEAP and EUSP matrices; versioned by program year.
-- **CLI flags:**
-  - `participation_rate` (default 1.0 until real rate known)
-  - `include_lim` (default **False**)
-  - optional `include_meap` / `include_eusp` (default **True**) for ablations
-- **Outputs (public):** same pattern as NY/RI — `elec_total_bill_lmi_{pct}`, `gas_total_bill_lmi_{pct}` (and oil/propane if MEAP hits delivered fuels), `applied_discount_`*, `elec_lmi_tier` / poverty level, `is_lmi_*`.
-- **Outputs (internal / debug):** `meap_annual_credit`, `eusp_annual_credit`, `meap_monthly_credit`, `eusp_monthly_credit`, and later `lim_credit` when toggled on. Net LMI bill = base − sum of enabled credits (clamped ≥ 0 per month).
+- **Script:** `utils/post/apply_md_ohep_to_master_bills.py`.
+- **Config:** `utils/post/data/md_ohep_benefits.yaml` embeds the FY26 MEAP and EUSP matrices and links to the source extracts.
+- **CLI controls:** participation rate (default 1.0), uniform or income-weighted participation, random seed, ResStock upgrade, optional retention of component-credit columns, and `--exclude-meap` / `--exclude-eusp` sensitivity toggles (both programs are included by default).
+- **Outputs (public):** `elec_total_bill_lmi_{pct}`, `gas_total_bill_lmi_{pct}`, `oil_total_bill_lmi_{pct}`, `propane_total_bill_lmi_{pct}`, `energy_total_bill_lmi_{pct}`, fuel-specific `applied_discount_*`, `ohep_poverty_level`, `elec_lmi_tier`, fuel-specific tiers, and `is_lmi_*`.
+- **Outputs (optional debug):** `meap_annual_credit_{pct}` and `eusp_annual_credit_{pct}` when `--keep-component-columns` is passed.
+- **Just entrypoints:** `just s md apply-md-ohep-to-master-bills <batch> <segment>` for a Prefect segment, or `apply-md-ohep-to-existing-master-bills` with an explicit master-bills path.
+- **Automatic master build:** both legacy and Prefect master-bill builders dispatch MD when passed `--calculate-lmi`; use `--lmi-calculation-type monthly` to describe the proportional monthly allocation explicitly.
+- **Scope:** current OHEP benefits only. LIM is not yet implemented and is therefore off by construction.
 
 ### 5.2 Per-building algorithm (default path)
 
-1. **Filter** vacant units; require ResStock income + occupants ([resstock_lmi_metadata_guide.md](../code/data/resstock_lmi_metadata_guide.md)).
+1. **Filter** vacant units; require ResStock income + occupants ([resstock_lmi_metadata_guide.md](../../code/data/resstock_lmi_metadata_guide.md)).
 2. **Compute FPL%** from `representative_income` + `occupants` (inflate income dollar-year to match FY26 FPL if needed — same pattern as NY/RI).
 3. **Assign Poverty Level 1–5** via the band table in §2.1. **Do not assign L6/L7** on the default path (see §6).
 4. **Determine primary heating fuel** from ResStock (`in.heating_fuel` / postprocess heating flags) → map to matrix rows (Electric / Gas / Oil / Propane / Wood-Coal).
-5. **MEAP:** lookup `(level, fuel)` → `meap_annual`; apply to the matching fuel bill as `meap_annual / 12` each month (or to electric if electric heat).
-6. **EUSP:** compute annual electric kWh (from load curves or bill metadata) → band; lookup `(level, heat_source, band)` → `eusp_annual`; apply to **electric** as `eusp_annual / 12`.
-7. **Stack:** for participants, subtract both (when enabled). Default assumption: eligible homes get **both** MEAP and EUSP.
+5. **MEAP:** lookup `(level, fuel)` → `meap_annual`; allocate to the matching fuel bill proportionally to each month's bill share (or to electric if electric heat).
+6. **EUSP:** compute annual electric kWh (from load curves or bill metadata) → band; lookup `(level, heat_source, band)` → `eusp_annual`; allocate to **electric** proportionally to each month's bill share.
+7. **Stack:** for participants, subtract both (when enabled). Default assumption: eligible homes get **both** MEAP and EUSP. Monthly allocation is proportional (not equal-12ths) so the full grant is consumed up to the annual bill total.
 8. **Participation:** sample from eligible pool at `participation_rate` (uniform or income-weighted), same as NY/RI.
 9. **LIM (optional):** if `include_lim`, add LIM credit from a future schedule keyed by level × heating source; else skip.
 
 ### 5.3 ResStock field map (initial)
 
-| Need         | ResStock / derived                       |
-| ------------ | ---------------------------------------- |
-| Income       | `in.representative_income` (+ inflation) |
-| HH size      | `in.occupants`                           |
-| FPL%         | computed                                 |
-| Heating fuel | `in.heating_fuel` / `heats_with_*` flags |
-| Annual kWh   | from load curves or summed monthly usage |
-| Vacancy      | `in.vacancy_status`                      |
+| Need         | ResStock / derived                                                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Income       | `in.representative_income` (+ inflation)                                                                                              |
+| HH size      | `in.occupants`                                                                                                                        |
+| FPL%         | computed                                                                                                                              |
+| Heating fuel | `in.heating_fuel` / `heats_with_*` flags                                                                                              |
+| Annual kWh   | `load_curve_annual/.../{STATE}_upgrade{UPGRADE}_metadata_and_annual_results.parquet` → `out.electricity.total.energy_consumption.kwh` |
+| Vacancy      | `in.vacancy_status`                                                                                                                   |
 
 ---
 
@@ -340,6 +340,7 @@ Mirror NY/RI postprocessing (`apply_*_lmi_*` → master bills via `lmi_common.py
 | **Levels 6 and 7**                         | Matrix labels are housing/metering (L6) or >200% + categorical-only (L7), **not** FPL bands. ResStock does not cleanly identify “subsidized / roomer / boarder / sub-metered” for L6, nor categorical-only >200% for L7. **Default: assign only L1–L5 from FPL%; treat L6/L7 as** `$0` **/ out of scope** until Ops Manual + housing fields justify a proxy. | High                        |
 | **Stacking**                               | Model **both** MEAP and EUSP for dual-eligible homes as the common case; ~0.5% MEAP-without-EUSP exists (Order). Optional sensitivity: MEAP-only.                                                                                                                                                                                                            | Medium                      |
 | **Fuel split**                             | MEAP → heating fuel bill; EUSP → electric (amount depends on heat source + kWh). Wrong fuel assignment double-counts or misses assistance.                                                                                                                                                                                                                   | High                        |
+| **Wood/coal heating bills**                | ResStock `Other Fuel` is used as the closest proxy for the matrix's Wood/Coal row, but master bills have no wood/coal bill column. The script still applies EUSP and flags `has_unmodeled_meap_fuel`; it does not subtract the scheduled MEAP amount from an unrelated fuel bill.                                                                            | Medium                      |
 | **Exclude from current-bill LMI**          | ARA/GARA (arrears), USPP (protection only), private charity.                                                                                                                                                                                                                                                                                                 | High                        |
 | **Income timing**                          | Brochure uses **last 30 days** income; ResStock `representative_income` is an **annual** ACS-based proxy (2019$ in 2024.2). Document as approximation.                                                                                                                                                                                                       | Medium                      |
 | **Sub-metered / master-meter**             | Brochure: sub-metered / roomers eligible for OHEP grants. LIM initially **does not** cover master-meter customers without unique utility accounts (Order). ResStock may not flag master-meter cleanly.                                                                                                                                                       | Medium                      |
@@ -352,15 +353,15 @@ Mirror NY/RI postprocessing (`apply_*_lmi_*` → master bills via `lmi_common.py
 
 ## 7. Implications for rate-design modeling
 
-| Topic                      | Implication                                         | Confidence     |
-| -------------------------- | --------------------------------------------------- | -------------- |
-| What to code first         | **MEAP + EUSP** annual grants → monthly credits     | High           |
-| LIM                        | Toggle off until schedules final                    | High           |
-| Eligibility proxy          | FPL% ≤ 200% → Levels 1–5                            | High for L1–L5 |
-| Discount shape (OHEP)      | Fixed `$` grants (closer to NY `$`/mo than RI %)    | High           |
-| Discount shape (LIM later) | Closer to RI % of rate                              | High           |
-| Net bill column            | Single `*_lmi_*`; internal MEAP/EUSP/LIM columns    | High           |
-| Script                     | `apply_md_lmi_*` → master bills via `lmi_common.py` | Planned        |
+| Topic                      | Implication                                                           | Confidence     |
+| -------------------------- | --------------------------------------------------------------------- | -------------- |
+| What to code first         | **MEAP + EUSP** annual grants → monthly credits                       | High           |
+| LIM                        | Toggle off until schedules final                                      | High           |
+| Eligibility proxy          | FPL% ≤ 200% → Levels 1–5                                              | High for L1–L5 |
+| Discount shape (OHEP)      | Fixed `$` grants (closer to NY `$`/mo than RI %)                      | High           |
+| Discount shape (LIM later) | Closer to RI % of rate                                                | High           |
+| Net bill column            | Single `*_lmi_*`; internal MEAP/EUSP/LIM columns                      | High           |
+| Script                     | `apply_md_ohep_to_master_bills.py` → master bills via `lmi_common.py` | Implemented    |
 
 ---
 
@@ -407,12 +408,12 @@ Mirror NY/RI postprocessing (`apply_*_lmi_*` → master bills via `lmi_common.py
 | [FY26-MEAP-Benefit-Matrix.md](../../sources/FY26-MEAP-Benefit-Matrix.md)                        | MEAP `$`                        |
 | [FY26-EUSP-Benefit-Matrix.md](../../sources/FY26-EUSP-Benefit-Matrix.md)                        | EUSP `$`                        |
 | [md_residential_charges_in_bat.md](../methods/bat_mc_residual/md_residential_charges_in_bat.md) | EUSP cost recovery on BGE bills |
-| [resstock_lmi_metadata_guide.md](../code/data/resstock_lmi_metadata_guide.md)                   | ResStock → FPL%                 |
-| [lmi_master_bills_workflow.md](../code/orchestration/lmi_master_bills_workflow.md)              | NY wiring pattern for MD script |
+| [resstock_lmi_metadata_guide.md](../../code/data/resstock_lmi_metadata_guide.md)                | ResStock → FPL%                 |
+| [lmi_master_bills_workflow.md](../../code/orchestration/lmi_master_bills_workflow.md)           | NY wiring pattern for MD script |
 
 ### A.4 Remaining research order
 
 1. Pull **participation** stats (OHEP / PC 53 / Jul 2026 filings).
 2. Skim **Ops Manual** for L6/L7 + EUSP monthly vs lump.
 3. Download **Work Group Report** → LIM schedules when ready to flip `include_lim`.
-4. Implement `apply_md_lmi_*` (MEAP+EUSP default).
+4. Integrate the implemented OHEP script into any future automatic Prefect `--calculate-lmi` path if desired.

@@ -394,3 +394,43 @@ create-supply-capacity-mc-full-backfill *extra_args:
         done
     done
     echo ">> Done: full backfill" >&2
+
+# =============================================================================
+# MD-only: FY26 OHEP (MEAP + EUSP) master-bill credits
+# =============================================================================
+
+path_cpi_s3_md := "s3://data.sb/fred/cpi/"
+
+# Apply OHEP benefits to any existing Hive-partitioned master-bills path.
+#
+# Defaults to an in-place update. Pass path_output to stage the result elsewhere.
+# ResStock annual loads are a single state/upgrade parquet, so either the local
+# release or its S3 equivalent can be supplied as path_resstock.
+apply-md-ohep-to-existing-master-bills path_master_bills participation_rate="1.0" participation_mode="weighted" seed="42" upgrade="" path_output="" path_resstock=path_resstock_release *extra_args:
+    uv run python {{ path_repo }}/utils/post/apply_md_ohep_to_master_bills.py \
+      --master-bills-path "{{ path_master_bills }}" \
+      --state "{{ state_upper }}" \
+      --path-resstock-release "{{ path_resstock }}" \
+      --fpl-year 2025 \
+      --cpi-s3-path "{{ path_cpi_s3_md }}" \
+      --participation-rate "{{ participation_rate }}" \
+      --participation-mode "{{ participation_mode }}" \
+      --seed "{{ seed }}" \
+      {{ if upgrade != "" { "--upgrade \"" + upgrade + "\"" } else { "" } }} \
+      {{ if path_output != "" { "--output-path \"" + path_output + "\"" } else { "" } }} \
+      {{ extra_args }}
+
+# Convenience wrapper for a current Prefect master-table segment.
+#
+# Example:
+# just s md apply-md-ohep-to-master-bills md_20260820 hp_default_calibrated
+apply-md-ohep-to-master-bills batch segment participation_rate="1.0" participation_mode="weighted" seed="42" upgrade="" path_output="" *extra_args:
+    just apply-md-ohep-to-existing-master-bills \
+      "s3://data.sb/switchbox/cairo/outputs/hp_rates/{{ state }}/all_utilities/{{ batch }}/{{ segment }}/comb_bills_year_target/" \
+      "{{ participation_rate }}" \
+      "{{ participation_mode }}" \
+      "{{ seed }}" \
+      "{{ upgrade }}" \
+      "{{ path_output }}" \
+      "{{ path_resstock_release }}" \
+      {{ extra_args }}

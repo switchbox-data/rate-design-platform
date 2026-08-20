@@ -41,6 +41,8 @@
 program_year: fy26
 effective_start: "2025-07-01"
 effective_end: "2026-06-30"
+# FY26 OHEP income guidelines use the 2025 Federal Poverty Guidelines.
+fpl_guideline_year: 2025
 currency: USD
 benefit_period: annual
 # Canonical fuel keys used throughout this file:
