@@ -45,6 +45,54 @@ scenarios:
         non-hp:
           values: ["false"]
           structure: base
+  hp_seasonal_epmc_passthrough:
+    quartet: multi_rate_collapsed
+    depends_on: default
+    promote: hp
+    residual_allocation:
+      delivery: epmc
+      supply: passthrough
+    subclass_config:
+      group_col: has_hp
+      subgroups:
+        hp:
+          values: ["true"]
+          structure: seasonal
+        non-hp:
+          values: ["false"]
+          structure: base
+  hp_flat_percustomer_passthrough:
+    quartet: multi_rate_collapsed
+    depends_on: default
+    promote: hp
+    residual_allocation:
+      delivery: percustomer
+      supply: passthrough
+    subclass_config:
+      group_col: has_hp
+      subgroups:
+        hp:
+          values: ["true"]
+          structure: flat
+        non-hp:
+          values: ["false"]
+          structure: base
+  hp_flat_epmc_passthrough:
+    quartet: multi_rate_collapsed
+    depends_on: default
+    promote: hp
+    residual_allocation:
+      delivery: epmc
+      supply: passthrough
+    subclass_config:
+      group_col: has_hp
+      subgroups:
+        hp:
+          values: ["true"]
+          structure: flat
+        non-hp:
+          values: ["false"]
+          structure: base
 # The one stage every other run's bills are compared against, joined onto the
 # master tables as baseline_elec_* columns by post-processing.
 bill_change_baseline:
