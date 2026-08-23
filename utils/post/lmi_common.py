@@ -346,6 +346,54 @@ def get_md_eusp_benefits_df(
     )
 
 
+def load_md_bge_proposed_lim_config() -> dict[str, Any]:
+    """Load BGE's filed, unapproved July 2026 LIM rate schedule."""
+    path = _data_dir() / "md_bge_proposed_lim_rates.yaml"
+    with path.open() as f:
+        config = yaml.safe_load(f)
+    if not isinstance(config, dict):
+        raise ValueError(f"BGE proposed LIM config invalid in {path}")  # noqa: TRY004
+    required = {"utility", "filing_date", "status", "electric", "gas"}
+    missing = sorted(required - config.keys())
+    if missing:
+        raise ValueError(f"BGE proposed LIM config missing keys {missing} in {path}")
+    if config["status"] != "proposed":
+        raise ValueError(f"BGE LIM config must be marked proposed in {path}")
+    return config
+
+
+def get_md_bge_proposed_lim_rates_df(
+    config: dict[str, Any] | None = None,
+) -> pl.DataFrame:
+    """Flatten BGE's proposed electric and gas LIM rates by OHEP level."""
+    if config is None:
+        config = load_md_bge_proposed_lim_config()
+    electric_by_level = {
+        int(row["ohep_poverty_level"]): row for row in config["electric"]["rates"]
+    }
+    gas_by_level = {
+        int(row["ohep_poverty_level"]): row for row in config["gas"]["rates"]
+    }
+    levels = sorted(electric_by_level)
+    if levels != sorted(gas_by_level):
+        raise ValueError("BGE proposed electric and gas LIM levels do not match")
+    return pl.DataFrame(
+        [
+            {
+                "ohep_poverty_level": level,
+                "bge_proposed_lim_electric_heat_rate": float(
+                    electric_by_level[level]["electric_heat"]
+                ),
+                "bge_proposed_lim_non_electric_heat_rate": float(
+                    electric_by_level[level]["non_electric_heat"]
+                ),
+                "bge_proposed_lim_gas_rate": float(gas_by_level[level]["rate"]),
+            }
+            for level in levels
+        ]
+    ).with_columns(pl.col("ohep_poverty_level").cast(pl.Int32))
+
+
 # ---------------------------------------------------------------------------
 # NY EAP / EEAP helpers
 # ---------------------------------------------------------------------------

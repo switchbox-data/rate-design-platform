@@ -20,8 +20,8 @@ is applied to the bill for the primary heating fuel (electric, gas, oil, or
 propane). The Annual row is rebuilt as the sum of the twelve discounted monthly
 rows.
 
-This implements current OHEP benefits only. It does not implement the
-forthcoming Maryland Low-Income Mechanism (LIM).
+An explicit, default-off sensitivity option can additionally apply BGE's
+unapproved July 2026 proposed LIM rates to monthly electric and gas usage.
 """
 
 from __future__ import annotations
@@ -43,6 +43,7 @@ from utils.post.lmi_common import (
     assign_md_ohep_level_expr,
     fpl_pct_expr,
     fpl_threshold_expr,
+    get_md_bge_proposed_lim_rates_df,
     get_md_eusp_benefits_df,
     get_md_meap_benefits_df,
     inflate_income_expr,
@@ -73,6 +74,8 @@ SHARED_OUTPUT_COLS = [
     "is_lmi_propane",
     "is_lmi_any",
     "has_unmodeled_meap_fuel",
+    "bge_proposed_lim_electric_rate",
+    "bge_proposed_lim_gas_rate",
 ]
 
 
@@ -310,6 +313,7 @@ def _sample_md_participation(
 def _enrich_master_with_profiles(
     master: pl.DataFrame, profiles: pl.DataFrame
 ) -> pl.DataFrame:
+    """Join static OHEP profile columns (without participation) to master."""
     n_rows = master.height
     joined = master.join(profiles, on=BLDG_ID, how="left")
     if joined.height != n_rows:
@@ -331,7 +335,172 @@ def _enrich_master_with_profiles(
         pl.col("has_unmodeled_meap_fuel").fill_null(False),
         pl.col("meap_annual_benefit").fill_null(0.0),
         pl.col("eusp_annual_benefit").fill_null(0.0),
-        pl.col("participates").fill_null(False),
+    )
+
+
+def _warn_md_lim_scope(master: pl.DataFrame) -> None:
+    """Warn that the statewide LIM toggle currently has BGE rates only."""
+
+    def unsupported(column: str) -> list[str]:
+        return sorted(
+            str(value)
+            for value in master[column].drop_nulls().unique().to_list()
+            if str(value).lower() not in {"", "bge", "none"}
+        )
+
+    unsupported_electric = unsupported("sb.electric_utility")
+    unsupported_gas = unsupported("sb.gas_utility")
+    details: list[str] = []
+    if unsupported_electric:
+        details.append(f"electric={unsupported_electric}")
+    if unsupported_gas:
+        details.append(f"gas={unsupported_gas}")
+    suffix = (
+        f" Unsupported utilities receiving no LIM credit: {', '.join(details)}."
+        if details
+        else ""
+    )
+    warnings.warn(
+        "MD LIM is currently implemented only for BGE, using BGE's unapproved "
+        f"July 2026 proposed rates. OHEP benefits still apply to all utilities.{suffix}",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+
+
+def _enrich_bge_proposed_lim_inputs(
+    master: pl.DataFrame,
+) -> pl.DataFrame:
+    """Join BGE proposed LIM rates using master consumption columns directly."""
+    n_rows = master.height
+    result = master.join(
+        get_md_bge_proposed_lim_rates_df(),
+        on="ohep_poverty_level",
+        how="left",
+    )
+    if result.height != n_rows:
+        raise AssertionError(
+            f"BGE proposed LIM input joins changed row count: {n_rows} -> {result.height}"
+        )
+    return (
+        result.with_columns(
+            pl.when(pl.col("primary_heating_fuel") == "electric")
+            .then(pl.col("bge_proposed_lim_electric_heat_rate"))
+            .otherwise(pl.col("bge_proposed_lim_non_electric_heat_rate"))
+            .fill_null(0.0)
+            .alias("bge_proposed_lim_electric_rate"),
+            pl.col("bge_proposed_lim_gas_rate").fill_null(0.0),
+        )
+        .with_columns(
+            pl.when(pl.col("sb.electric_utility") == "bge")
+            .then(pl.col("bge_proposed_lim_electric_rate"))
+            .otherwise(0.0)
+            .alias("bge_proposed_lim_electric_rate"),
+            pl.when(pl.col("sb.gas_utility") == "bge")
+            .then(pl.col("bge_proposed_lim_gas_rate"))
+            .otherwise(0.0)
+            .alias("bge_proposed_lim_gas_rate"),
+        )
+        .drop(
+            "bge_proposed_lim_electric_heat_rate",
+            "bge_proposed_lim_non_electric_heat_rate",
+        )
+    )
+
+
+def _apply_bge_proposed_lim(
+    enriched: pl.DataFrame,
+    pct_label: int,
+) -> pl.DataFrame:
+    """Stack BGE's proposed volumetric LIM credits on post-OHEP bills."""
+    suffix = str(pct_label)
+    elec_bill = f"elec_total_bill_lmi_{suffix}"
+    gas_bill = f"gas_total_bill_lmi_{suffix}"
+    energy_bill = f"energy_total_bill_lmi_{suffix}"
+    elec_credit = f"bge_proposed_lim_electric_credit_{suffix}"
+    gas_credit = f"bge_proposed_lim_gas_credit_{suffix}"
+
+    result = enriched.with_columns(
+        pl.when(
+            (pl.col("month") != ANNUAL_MONTH)
+            & pl.col("participates")
+            & (pl.col("bge_proposed_lim_electric_rate") > 0)
+        )
+        .then(
+            pl.min_horizontal(
+                pl.col(elec_bill),
+                pl.col("elec_grid_kwh") * pl.col("bge_proposed_lim_electric_rate"),
+            )
+        )
+        .otherwise(0.0)
+        .alias(elec_credit),
+        pl.when(
+            (pl.col("month") != ANNUAL_MONTH)
+            & pl.col("participates")
+            & (pl.col("bge_proposed_lim_gas_rate") > 0)
+        )
+        .then(
+            pl.min_horizontal(
+                pl.col(gas_bill),
+                pl.col("gas_therms") * pl.col("bge_proposed_lim_gas_rate"),
+            )
+        )
+        .otherwise(0.0)
+        .alias(gas_credit),
+    )
+    result = result.with_columns(
+        pl.when(pl.col("month") != ANNUAL_MONTH)
+        .then(pl.col(elec_bill) - pl.col(elec_credit))
+        .otherwise(None)
+        .alias(elec_bill),
+        pl.when(pl.col("month") != ANNUAL_MONTH)
+        .then(pl.col(gas_bill) - pl.col(gas_credit))
+        .otherwise(None)
+        .alias(gas_bill),
+    )
+
+    annual = (
+        result.filter(pl.col("month") != ANNUAL_MONTH)
+        .group_by(BLDG_ID)
+        .agg(
+            pl.col(elec_bill).sum().alias("_lim_annual_elec_bill"),
+            pl.col(gas_bill).sum().alias("_lim_annual_gas_bill"),
+            pl.col(elec_credit).sum().alias("_lim_annual_elec_credit"),
+            pl.col(gas_credit).sum().alias("_lim_annual_gas_credit"),
+        )
+    )
+    result = result.join(annual, on=BLDG_ID, how="left").with_columns(
+        pl.when(pl.col("month") == ANNUAL_MONTH)
+        .then(pl.col("_lim_annual_elec_bill"))
+        .otherwise(pl.col(elec_bill))
+        .alias(elec_bill),
+        pl.when(pl.col("month") == ANNUAL_MONTH)
+        .then(pl.col("_lim_annual_gas_bill"))
+        .otherwise(pl.col(gas_bill))
+        .alias(gas_bill),
+        pl.when(pl.col("month") == ANNUAL_MONTH)
+        .then(pl.col("_lim_annual_elec_credit"))
+        .otherwise(pl.col(elec_credit))
+        .alias(elec_credit),
+        pl.when(pl.col("month") == ANNUAL_MONTH)
+        .then(pl.col("_lim_annual_gas_credit"))
+        .otherwise(pl.col(gas_credit))
+        .alias(gas_credit),
+    )
+    return result.with_columns(
+        pl.sum_horizontal(
+            elec_bill,
+            gas_bill,
+            f"oil_total_bill_lmi_{suffix}",
+            f"propane_total_bill_lmi_{suffix}",
+        ).alias(energy_bill),
+        (pl.col(elec_credit) > 0).alias(f"applied_bge_proposed_lim_electric_{suffix}"),
+        (pl.col(gas_credit) > 0).alias(f"applied_bge_proposed_lim_gas_{suffix}"),
+    ).drop(
+        "_lim_annual_elec_bill",
+        "_lim_annual_gas_bill",
+        "_lim_annual_elec_credit",
+        "_lim_annual_gas_credit",
     )
 
 
@@ -624,8 +793,9 @@ def apply_md_ohep_to_master(
     keep_component_columns: bool = False,
     include_meap: bool = True,
     include_eusp: bool = True,
+    include_lim: bool = False,
 ) -> pl.DataFrame:
-    """Append MD OHEP benefit and net LMI bill columns to master bills."""
+    """Append MD OHEP benefits and optional (until finalized) LIM credits."""
     config = load_md_ohep_config()
     configured_fpl_year = int(config["fpl_guideline_year"])
     if fpl_year != configured_fpl_year:
@@ -649,20 +819,26 @@ def apply_md_ohep_to_master(
         config=config,
     )
 
-    result = master
-    for rate_index, rate in enumerate(participation_rates):
+    result = _enrich_master_with_profiles(master, raw_profiles)
+    if include_lim:
+        _warn_md_lim_scope(master)
+        if "elec_grid_kwh" not in master.columns or "gas_therms" not in master.columns:
+            raise ValueError(
+                "--include-lim requires 'elec_grid_kwh' and 'gas_therms' columns in "
+                "master bills. Rebuild master bills with a current builder version."
+            )
+        result = _enrich_bge_proposed_lim_inputs(result)
+
+    for rate in participation_rates:
         if not 0.0 <= rate <= 1.0:
             raise ValueError(f"participation rate must be between 0 and 1; got {rate}")
         pct_label = round(rate * 100)
         sampled = _sample_md_participation(raw_profiles, rate, participation_mode, seed)
-        if rate_index == 0:
-            result = _enrich_master_with_profiles(result, sampled)
-        else:
-            result = result.join(
-                sampled.select(BLDG_ID, "participates"),
-                on=BLDG_ID,
-                how="left",
-            ).with_columns(pl.col("participates").fill_null(False))
+        result = result.join(
+            sampled.select(BLDG_ID, "participates"),
+            on=BLDG_ID,
+            how="left",
+        ).with_columns(pl.col("participates").fill_null(False))
         result = _apply_md_ohep_benefits(
             result,
             pct_label,
@@ -670,6 +846,8 @@ def apply_md_ohep_to_master(
             include_meap=include_meap,
             include_eusp=include_eusp,
         )
+        if include_lim:
+            result = _apply_bge_proposed_lim(result, pct_label)
         _validate_md_ohep(result, pct_label, rate, include_eusp=include_eusp)
         result = result.drop("participates")
 
@@ -731,6 +909,10 @@ def _rate_specific_columns(pct_label: int) -> list[str]:
         ],
         f"meap_annual_credit_{suffix}",
         f"eusp_annual_credit_{suffix}",
+        f"bge_proposed_lim_electric_credit_{suffix}",
+        f"bge_proposed_lim_gas_credit_{suffix}",
+        f"applied_bge_proposed_lim_electric_{suffix}",
+        f"applied_bge_proposed_lim_gas_{suffix}",
     ]
 
 
@@ -785,6 +967,12 @@ def main() -> None:
         dest="include_eusp",
         help="Do not apply EUSP; useful for component sensitivity runs",
     )
+    parser.add_argument(
+        "--include-lim",
+        action="store_true",
+        help="Apply available MD LIM rates; currently BGE's unapproved July 2026 "
+        "proposed rates only",
+    )
     args = parser.parse_args()
 
     opts = get_aws_storage_options()
@@ -822,6 +1010,7 @@ def main() -> None:
         keep_component_columns=args.keep_component_columns,
         include_meap=args.include_meap,
         include_eusp=args.include_eusp,
+        include_lim=args.include_lim,
     )
     output_path = args.output_path or args.master_bills_path
     _write_hive_partitioned(result, output_path)

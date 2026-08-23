@@ -8,7 +8,7 @@ How state LMI implementations are built directly into `comb_bills_year_target`. 
 
 ### What it does
 
-`utils/post/apply_md_ohep_to_master_bills.py` models the current FY26 OHEP grants. It does not implement Maryland's forthcoming Limited Income Mechanism (LIM).
+`utils/post/apply_md_ohep_to_master_bills.py` models the current FY26 OHEP grants. It can also apply BGE's unapproved July 1, 2026 proposed LIM rates as an explicit, default-off sensitivity. The proposed-rate option is not a representation of an effective tariff.
 
 For every building, it:
 
@@ -37,6 +37,19 @@ One call processes every completed `{scenario}_{stage}` segment discovered in th
 
 The command rebuilds and rewrites the batch's master-bill parquet prefixes; it does not modify CAIRO run outputs. Re-running without `--calculate-lmi` reconstructs the base master tables without LMI columns.
 
+To stack BGE's proposed LIM credits on the OHEP-discounted bills:
+
+```bash
+just s md build-master-bills-prefect <batch> \
+  --calculate-lmi \
+  --include-lim \
+  --lmi-participation-rates 1.0 0.48 \
+  --lmi-participation-mode weighted \
+  --lmi-calculation-type monthly
+```
+
+Omit `--include-lim` for OHEP-only results. The flag is accepted only for MD together with `--calculate-lmi`. It is statewide in interface, but currently only BGE rates are available: the command warns about that limitation, applies proposed LIM credits to BGE accounts, and leaves other utilities' bills at OHEP-only values.
+
 ### Prefect output location
 
 MD OHEP is applied after the builder writes the per-utility table and before it writes the Hive-partitioned combined table. Consequently, the integrated LMI columns are in:
@@ -62,6 +75,17 @@ For each participation suffix `{pct}`:
 - `energy_total_bill_lmi_{pct}`
 - `applied_discount_{fuel}_{pct}`
 
+When `--include-lim` is set:
+
+- `bge_proposed_lim_electric_rate`, in `$/kWh`
+- `bge_proposed_lim_gas_rate`, in `$/therm`
+- `bge_proposed_lim_electric_credit_{pct}`
+- `bge_proposed_lim_gas_credit_{pct}`
+- `applied_bge_proposed_lim_electric_{pct}`
+- `applied_bge_proposed_lim_gas_{pct}`
+
+For BGE accounts, monthly proposed LIM credit equals monthly ResStock usage times the Rider 14 or Rider 17 rate for the building's modeled OHEP level. Electric rates also distinguish electric from non-electric primary heat. Credits are floored at a zero post-OHEP bill, and Annual rows are rebuilt from January–December. Buildings assigned to other utilities receive no proposed BGE LIM credit. The LIM calculation uses the `elec_grid_kwh` and `gas_therms` columns already present in the master bills (requires a current builder version).
+
 `is_lmi_elec` means that a modeled grant lands on electric: positive EUSP, or positive MEAP for electric heat. The other fuel flags indicate where MEAP lands. `is_lmi_any` identifies the eligible participation pool.
 
 ### MD annual-grant allocation
@@ -81,6 +105,7 @@ This preserves the full grant when the annual bill can absorb it, avoids negativ
 ### MD implementation files
 
 - `utils/post/data/md_ohep_benefits.yaml` — FY26 level boundaries, kWh bands, and annual grant matrices.
+- `utils/post/data/md_bge_proposed_lim_rates.yaml` — filed Rider 14 and Rider 17 rates, marked proposed.
 - `utils/post/lmi_common.py` — FPL, CPI, tier/band expressions, matrix flattening, and participation helpers.
 - `utils/post/apply_md_ohep_to_master_bills.py` — profile construction, fuel routing, grant allocation, validation, standalone CLI, and Hive writer.
 - `utils/post/build_master_bills.py` — legacy master-bill dispatch.
@@ -96,7 +121,7 @@ Known exclusions:
 - Levels 6–7 cannot be assigned reliably from current ResStock fields.
 - Wood/coal is identified and receives EUSP when eligible, but MEAP cannot be applied because master bills have no wood/coal bill column.
 - The real-world OHEP take-up rate is estimated at ~48% statewide for FY 2025 (DLS N00I0006 budget analyses); see [lmi_discounts_in_md.md](../../domain/charges/lmi_discounts_in_md.md) §4 for the derivation. BGE-specific counts may refine this once utility filings from the Jul 8, 2026 PC 59 data order are available.
-- LIM, arrearage assistance, USPP, and private charity are not included.
+- BGE's proposed LIM option is a sensitivity only; the July 2026 filing is not approved or in force. No proposed LIM rates are available for other MD utilities. Arrearage assistance, USPP, and private charity are not included.
 
 See [Maryland low-income / energy affordability programs](../../domain/charges/lmi_discounts_in_md.md) for program sources and policy limitations.
 

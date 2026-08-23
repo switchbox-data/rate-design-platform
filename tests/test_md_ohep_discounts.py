@@ -9,14 +9,18 @@ import pytest
 
 from utils.post import build_master_bills, build_master_bills_prefect
 from utils.post.apply_md_ohep_to_master_bills import (
+    _apply_bge_proposed_lim,
     _apply_md_ohep_benefits,
+    _enrich_bge_proposed_lim_inputs,
     _sample_md_participation,
     _validate_md_ohep,
+    _warn_md_lim_scope,
     primary_heating_fuel_expr,
 )
 from utils.post.lmi_common import (
     assign_md_eusp_kwh_band_expr,
     assign_md_ohep_level_expr,
+    get_md_bge_proposed_lim_rates_df,
     get_md_eusp_benefits_df,
     get_md_meap_benefits_df,
     load_md_ohep_config,
@@ -119,6 +123,33 @@ def test_eusp_source_matrix_cells() -> None:
     assert l1_electric_band4["eusp_annual_benefit"].item() == 1000.0
     assert l5_gas_band1["eusp_annual_benefit"].item() == 175.0
     assert benefits.height == 100
+
+
+def test_bge_proposed_lim_source_rates() -> None:
+    rates = get_md_bge_proposed_lim_rates_df()
+    level_1 = rates.filter(pl.col("ohep_poverty_level") == 1)
+    level_5 = rates.filter(pl.col("ohep_poverty_level") == 5)
+    assert level_1["bge_proposed_lim_electric_heat_rate"].item() == 0.08372
+    assert level_1["bge_proposed_lim_non_electric_heat_rate"].item() == 0.13507
+    assert level_1["bge_proposed_lim_gas_rate"].item() == 0.5768
+    assert level_5["bge_proposed_lim_electric_heat_rate"].item() == 0.0
+    assert level_5["bge_proposed_lim_non_electric_heat_rate"].item() == 0.05803
+    assert level_5["bge_proposed_lim_gas_rate"].item() == 0.0
+    assert rates.height == 5
+
+
+def test_md_lim_scope_warning_lists_unsupported_utilities() -> None:
+    master = pl.DataFrame(
+        {
+            "sb.electric_utility": ["bge", "pepco"],
+            "sb.gas_utility": ["bge", "washgas"],
+        }
+    )
+    with pytest.warns(
+        RuntimeWarning,
+        match=r"only for BGE.*electric=\['pepco'\].*gas=\['washgas'\]",
+    ):
+        _warn_md_lim_scope(master)
 
 
 def test_primary_heating_fuel_mapping_and_hp_override() -> None:
@@ -387,6 +418,76 @@ def test_electric_meap_without_eusp_still_discounts_electric() -> None:
     _validate_md_ohep(result, 100, 1.0)
 
 
+def test_bge_proposed_lim_applies_volumetric_credits_after_ohep() -> None:
+    rows: list[dict[str, object]] = []
+    for month in MONTHS:
+        multiplier = 12.0 if month == "Annual" else 1.0
+        rows.append(
+            {
+                "bldg_id": 1,
+                "month": month,
+                "sb.electric_utility": "bge",
+                "sb.gas_utility": "bge",
+                "ohep_poverty_level": 1,
+                "primary_heating_fuel": "electric",
+                "participates": True,
+                "elec_total_bill_lmi_100": 50.0 * multiplier,
+                "gas_total_bill_lmi_100": 10.0 * multiplier,
+                "oil_total_bill_lmi_100": 0.0,
+                "propane_total_bill_lmi_100": 0.0,
+                "energy_total_bill_lmi_100": 60.0 * multiplier,
+                "elec_grid_kwh": 100.0 * multiplier,
+                "gas_therms": 1.0 * multiplier,
+            }
+        )
+
+    enriched = _enrich_bge_proposed_lim_inputs(pl.DataFrame(rows))
+    result = _apply_bge_proposed_lim(enriched, 100)
+    monthly = result.filter(pl.col("month") == "Jan")
+    annual = result.filter(pl.col("month") == "Annual")
+
+    assert monthly["elec_total_bill_lmi_100"].item() == pytest.approx(
+        50.0 - 100.0 * 0.08372
+    )
+    assert monthly["gas_total_bill_lmi_100"].item() == pytest.approx(10.0 - 0.5768)
+    assert annual["bge_proposed_lim_electric_credit_100"].item() == pytest.approx(
+        12 * 100.0 * 0.08372
+    )
+    assert annual["bge_proposed_lim_gas_credit_100"].item() == pytest.approx(
+        12 * 0.5768
+    )
+    assert annual["energy_total_bill_lmi_100"].item() == pytest.approx(
+        annual["elec_total_bill_lmi_100"].item()
+        + annual["gas_total_bill_lmi_100"].item()
+    )
+    assert annual["applied_bge_proposed_lim_electric_100"].item() is True
+    assert annual["applied_bge_proposed_lim_gas_100"].item() is True
+
+
+def test_bge_proposed_lim_is_zero_for_nonparticipants_and_other_utilities() -> None:
+    master = pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "month": ["Jan", "Jan"],
+            "sb.electric_utility": ["bge", "pepco"],
+            "sb.gas_utility": ["bge", "none"],
+            "ohep_poverty_level": [1, 1],
+            "primary_heating_fuel": ["gas", "gas"],
+            "participates": [False, True],
+            "elec_total_bill_lmi_100": [50.0, 50.0],
+            "gas_total_bill_lmi_100": [10.0, 0.0],
+            "oil_total_bill_lmi_100": [0.0, 0.0],
+            "propane_total_bill_lmi_100": [0.0, 0.0],
+            "energy_total_bill_lmi_100": [60.0, 50.0],
+            "elec_grid_kwh": [100.0, 100.0],
+            "gas_therms": [1.0, 0.0],
+        }
+    )
+    enriched = _enrich_bge_proposed_lim_inputs(master)
+    assert enriched["bge_proposed_lim_electric_rate"].to_list() == [0.13507, 0.0]
+    assert enriched["bge_proposed_lim_gas_rate"].to_list() == [0.5768, 0.0]
+
+
 def test_unknown_participation_mode_raises() -> None:
     profiles = pl.DataFrame({"bldg_id": [1], "is_lmi_any": [True], "fpl_pct": [50.0]})
     with pytest.raises(ValueError, match="participation_mode"):
@@ -446,6 +547,7 @@ def test_master_builder_dispatches_md_ohep(
         lmi_participation_mode="weighted",
         lmi_seed=42,
         lmi_calculation_type="monthly",
+        include_lim=True,
     )
 
     assert result.equals(expected)
@@ -454,3 +556,4 @@ def test_master_builder_dispatches_md_ohep(
     assert captured["upgrade"] == "00"
     assert captured["participation_rates"] == [1.0, 0.4]
     assert captured["opts"] == {"region": "x"}
+    assert captured["include_lim"] is True
