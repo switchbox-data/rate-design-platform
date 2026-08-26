@@ -388,7 +388,7 @@ create-dist-and-sub-tx-mc-data-all:
 # MID-CONFIG: generate between runs (using outputs from earlier runs)
 # =============================================================================
 
-compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" differentiated_yaml=path_differentiated_rev_requirement default_yaml=path_default_rev_requirement group_value_to_subclass="true=hp,false=non-hp" base_rr_yaml=path_default_rev_requirement run_dir_supply="" resstock_base="" upgrade="00" candidate_tariff_run_dir="":
+compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" differentiated_yaml=path_differentiated_rev_requirement default_yaml=path_default_rev_requirement group_value_to_subclass="true=hp,false=non-hp" base_rr_yaml=path_default_rev_requirement run_dir_supply="" resstock_base="" upgrade="00" candidate_tariff_run_dir="" candidate_tariff_supply_run_dir="" candidate_tariff_supply_method="passthrough":
     just -f {{ path_repo }}/utils/Justfile compute-subclass-rr \
       "{{ run_dir }}" \
       "{{ scenario_config }}" \
@@ -401,7 +401,9 @@ compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" diffe
       "{{ run_dir_supply }}" \
       "{{ resstock_base }}" \
       "{{ upgrade }}" \
-      "{{ candidate_tariff_run_dir }}"
+      "{{ candidate_tariff_run_dir }}" \
+      "{{ candidate_tariff_supply_run_dir }}" \
+      "{{ candidate_tariff_supply_method }}"
 
 compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="" group_col="has_hp" subclass_value="true" group_value_to_subclass="":
     just -f {{ path_repo }}/utils/Justfile compute-seasonal-discount-inputs \

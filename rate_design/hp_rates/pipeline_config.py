@@ -21,12 +21,12 @@ import yaml
 HP_RATES_DIR = Path(__file__).resolve().parent
 
 QUARTET_KINDS: frozenset[str] = frozenset(
-    {"single_rate", "multi_rate_collapsed", "multi_rate_preserved"}
+    {"single_rate", "multi_rate_collapsed", "multi_rate_preserved", "multi_rate_fixed"}
 )
 
 # Quartet kinds whose precalc stage runs per-subgroup (multi) tariffs.
 _MULTI_PRECALC_QUARTETS: frozenset[str] = frozenset(
-    {"multi_rate_collapsed", "multi_rate_preserved"}
+    {"multi_rate_collapsed", "multi_rate_preserved", "multi_rate_fixed"}
 )
 
 # Quartet kinds whose calibrated stage runs per-subgroup (multi) tariffs.
@@ -60,11 +60,15 @@ class SubgroupSpec:
         structure: The tariff structure for this subgroup.  One of the keys in
             ``DERIVED_STRUCTURES`` (triggers derivation) or ``"base"`` (copy
             the dependency's calibrated tariff and rename).
+        copy_from: For ``multi_rate_fixed`` quartets, the scenario name whose
+            calibrated tariff is sourced for this subgroup.  Must be set for
+            every subgroup of a ``multi_rate_fixed`` scenario; ignored otherwise.
     """
 
     alias: str
     values: list[str]
     structure: str
+    copy_from: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,7 +90,7 @@ class ScenarioConfig:
     A scenario is identified by its ``name`` and ``quartet`` kind.  Multi-rate
     scenarios additionally carry a ``subclass_config`` (population split),
     ``residual_allocation`` (delivery + supply), and ``promote`` (which
-    subgroup's calibrated tariff is promoted for collapsed quartets).
+    subgroup's calibrated tariff is promoted for collapsed/fixed quartets).
 
     ``tariff_base`` is the base component of the tariff filename stem
     (e.g. ``"default"``).  For single-rate scenarios this produces stems like
@@ -94,6 +98,14 @@ class ScenarioConfig:
 
     ``depends_on`` names the scenario whose outputs feed into this one's
     derive flow (subclass RR, tariff derivation).
+
+    ``requires`` lists scenarios that must complete before this one's prep
+    tasks can begin.  Used by ``multi_rate_fixed`` quartets (instead of
+    ``depends_on``).
+
+    ``candidate_tariff_scenario`` names the required scenario whose precalc
+    bills feed the candidate-tariff subclass RR computation.  Only used by
+    ``multi_rate_fixed``.
     """
 
     name: str
@@ -101,6 +113,8 @@ class ScenarioConfig:
     promote: str | None = None
     tariff_base: str | None = None
     depends_on: str | None = None
+    requires: list[str] | None = None
+    candidate_tariff_scenario: str | None = None
     residual_allocation_delivery: str | None = None
     residual_allocation_supply: str | None = None
     subclass_config: SubclassConfig | None = None
@@ -381,12 +395,18 @@ def _parse_scenario(name: str, raw: dict[str, Any]) -> ScenarioConfig:
             f"(one of {sorted(QUARTET_KINDS)})."
         )
     ra = raw.get("residual_allocation") or {}
+    requires_raw = raw.get("requires")
+    requires: list[str] | None = (
+        [str(r) for r in requires_raw] if requires_raw is not None else None
+    )
     return ScenarioConfig(
         name=name,
         quartet=quartet,
         promote=raw.get("promote"),
         tariff_base=raw.get("tariff_base"),
         depends_on=raw.get("depends_on"),
+        requires=requires,
+        candidate_tariff_scenario=raw.get("candidate_tariff_scenario"),
         residual_allocation_delivery=ra.get("delivery"),
         residual_allocation_supply=ra.get("supply"),
         subclass_config=_parse_subclass_config(raw.get("subclass_config")),
@@ -402,6 +422,7 @@ def _parse_subclass_config(raw: dict[str, Any] | None) -> SubclassConfig | None:
             alias=alias,
             values=[str(v) for v in spec["values"]],
             structure=str(spec["structure"]),
+            copy_from=spec.get("copy_from"),
         )
         for alias, spec in subgroups_raw.items()
     ]
@@ -438,6 +459,11 @@ def _parse_bill_change_baseline(
     return BillChangeBaseline(scenario=scenario, stage=stage)
 
 
+_PROMOTE_QUARTETS: frozenset[str] = frozenset(
+    {"multi_rate_collapsed", "multi_rate_fixed"}
+)
+
+
 def _validate_scenario(scenario: ScenarioConfig) -> None:
     """Validate a scenario's quartet/subclass/promotion invariants."""
     if scenario.quartet not in QUARTET_KINDS:
@@ -460,16 +486,51 @@ def _validate_scenario(scenario: ScenarioConfig) -> None:
             f"Scenario {scenario.name!r}: single-rate scenarios require a "
             "'tariff_base' (e.g. 'default')."
         )
-    if scenario.promote is not None and scenario.quartet != "multi_rate_collapsed":
+    if scenario.promote is not None and scenario.quartet not in _PROMOTE_QUARTETS:
         raise ValueError(
             f"Scenario {scenario.name!r}: 'promote' only applies to "
-            f"'multi_rate_collapsed' (got quartet {scenario.quartet!r})."
+            f"{sorted(_PROMOTE_QUARTETS)} (got quartet {scenario.quartet!r})."
         )
-    if scenario.quartet == "multi_rate_collapsed" and scenario.promote is None:
+    if scenario.quartet in _PROMOTE_QUARTETS and scenario.promote is None:
         raise ValueError(
-            f"Scenario {scenario.name!r}: 'multi_rate_collapsed' requires an "
+            f"Scenario {scenario.name!r}: {scenario.quartet!r} requires an "
             "explicit 'promote' field naming the subgroup to promote."
         )
+    # multi_rate_fixed specific validation
+    if scenario.quartet == "multi_rate_fixed":
+        if not scenario.requires:
+            raise ValueError(
+                f"Scenario {scenario.name!r}: 'multi_rate_fixed' requires a "
+                "'requires' list of prerequisite scenario names."
+            )
+        if scenario.candidate_tariff_scenario is None:
+            raise ValueError(
+                f"Scenario {scenario.name!r}: 'multi_rate_fixed' requires a "
+                "'candidate_tariff_scenario' naming the scenario whose precalc "
+                "bills feed the candidate-tariff RR computation."
+            )
+        if scenario.candidate_tariff_scenario not in scenario.requires:
+            raise ValueError(
+                f"Scenario {scenario.name!r}: candidate_tariff_scenario "
+                f"{scenario.candidate_tariff_scenario!r} must be in 'requires'."
+            )
+        if scenario.depends_on is not None:
+            raise ValueError(
+                f"Scenario {scenario.name!r}: 'multi_rate_fixed' uses 'requires' "
+                "instead of 'depends_on'."
+            )
+        if scenario.subclass_config is not None:
+            for sg in scenario.subclass_config.subgroups:
+                if sg.copy_from is None:
+                    raise ValueError(
+                        f"Scenario {scenario.name!r}, subgroup {sg.alias!r}: "
+                        "'multi_rate_fixed' requires 'copy_from' on each subgroup."
+                    )
+                if sg.copy_from not in scenario.requires:
+                    raise ValueError(
+                        f"Scenario {scenario.name!r}, subgroup {sg.alias!r}: "
+                        f"copy_from={sg.copy_from!r} must be in 'requires'."
+                    )
     if scenario.subclass_config is not None:
         for sg in scenario.subclass_config.subgroups:
             if sg.structure not in DERIVED_STRUCTURES and sg.structure != "base":

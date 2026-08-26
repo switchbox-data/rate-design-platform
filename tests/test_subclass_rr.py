@@ -11,6 +11,7 @@ import yaml
 
 from utils.mid.compute_subclass_rr import (
     DEFAULT_SEASONAL_OUTPUT_FILENAME,
+    CandidateTariffRR,
     _load_run_fields,
     _resolve_selector_group_values,
     _write_revenue_requirement_yamls,
@@ -491,7 +492,12 @@ def test_compute_candidate_tariff_subclass_rr(tmp_path: Path) -> None:
     result = compute_candidate_tariff_subclass_rr(
         ct_run_dir, total_delivery_rr=1000.0, group_col="has_hp"
     )
-    assert result == {"hp": pytest.approx(400.0), "non-hp": pytest.approx(600.0)}
+    assert isinstance(result, CandidateTariffRR)
+    assert result.delivery == {
+        "hp": pytest.approx(400.0),
+        "non-hp": pytest.approx(600.0),
+    }
+    assert result.supply is None
 
 
 def test_compute_candidate_tariff_subclass_rr_applies_weights(
@@ -519,7 +525,11 @@ def test_compute_candidate_tariff_subclass_rr_applies_weights(
     result = compute_candidate_tariff_subclass_rr(
         run_dir, total_delivery_rr=1000.0, group_col="has_hp"
     )
-    assert result == {"hp": pytest.approx(100.0), "non-hp": pytest.approx(900.0)}
+    assert result.delivery == {
+        "hp": pytest.approx(100.0),
+        "non-hp": pytest.approx(900.0),
+    }
+    assert result.supply is None
 
 
 def test_compute_candidate_tariff_subclass_rr_no_hp_customers_raises(
@@ -558,6 +568,112 @@ def test_compute_candidate_tariff_subclass_rr_missing_bills_raises(
         )
 
 
+def test_compute_candidate_tariff_subclass_rr_with_supply(tmp_path: Path) -> None:
+    """When supply run dir is provided, supply RR split is computed."""
+    delivery_dir = tmp_path / "delivery"
+    (delivery_dir / "bills").mkdir(parents=True)
+    supply_dir = tmp_path / "supply"
+    (supply_dir / "bills").mkdir(parents=True)
+
+    # Delivery-only bills: HP(1)=100, non-HP(2)=200
+    pl.DataFrame(
+        {"bldg_id": [1, 2], "month": ["Annual", "Annual"], "bill_level": [100.0, 200.0]}
+    ).write_csv(delivery_dir / "bills" / "elec_bills_year_target.csv")
+    # Delivery+supply bills: HP(1)=160, non-HP(2)=290
+    pl.DataFrame(
+        {"bldg_id": [1, 2], "month": ["Annual", "Annual"], "bill_level": [160.0, 290.0]}
+    ).write_csv(supply_dir / "bills" / "elec_bills_year_target.csv")
+    # Shared metadata (both dirs use same metadata, real CAIRO shares it)
+    meta = pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "weight": [1.0, 1.0],
+            "postprocess_group.has_hp": [True, False],
+        }
+    )
+    meta.write_csv(delivery_dir / "customer_metadata.csv")
+    meta.write_csv(supply_dir / "customer_metadata.csv")
+
+    result = compute_candidate_tariff_subclass_rr(
+        delivery_dir,
+        total_delivery_rr=500.0,
+        candidate_tariff_supply_run_dir=supply_dir,
+        total_delivery_and_supply_rr=700.0,
+        supply_method="passthrough",
+        group_col="has_hp",
+    )
+    # delivery: HP=100, non-HP=500-100=400
+    assert result.delivery == {
+        "hp": pytest.approx(100.0),
+        "non-hp": pytest.approx(400.0),
+    }
+    # supply: total_supply_rr = 700-500 = 200
+    # HP supply bill = 160-100 = 60, non-HP supply = 200-60 = 140
+    assert result.supply is not None
+    assert result.supply == {"hp": pytest.approx(60.0), "non-hp": pytest.approx(140.0)}
+
+
+def test_compute_candidate_tariff_subclass_rr_supply_requires_total_rr(
+    tmp_path: Path,
+) -> None:
+    """Providing supply_run_dir without total_delivery_and_supply_rr raises."""
+    delivery_dir = tmp_path / "delivery"
+    (delivery_dir / "bills").mkdir(parents=True)
+    supply_dir = tmp_path / "supply"
+    (supply_dir / "bills").mkdir(parents=True)
+
+    pl.DataFrame(
+        {"bldg_id": [1], "month": ["Annual"], "bill_level": [100.0]}
+    ).write_csv(delivery_dir / "bills" / "elec_bills_year_target.csv")
+    pl.DataFrame(
+        {"bldg_id": [1], "weight": [1.0], "postprocess_group.has_hp": [True]}
+    ).write_csv(delivery_dir / "customer_metadata.csv")
+
+    with pytest.raises(ValueError, match="total_delivery_and_supply_rr is required"):
+        compute_candidate_tariff_subclass_rr(
+            delivery_dir,
+            total_delivery_rr=500.0,
+            candidate_tariff_supply_run_dir=supply_dir,
+            total_delivery_and_supply_rr=None,
+            group_col="has_hp",
+        )
+
+
+def test_write_revenue_requirement_yamls_includes_candidate_tariff_supply(
+    tmp_path: Path,
+) -> None:
+    """Both delivery and supply candidate_tariff blocks are written to YAML."""
+    run1_dir = _write_sample_run_dir(tmp_path)
+    delivery_breakdowns = compute_subclass_rr(
+        run1_dir, cross_subsidy_cols="BAT_percustomer"
+    )
+    differentiated_yaml = tmp_path / "config/rev_requirement/bge_hp_vs_nonhp.yaml"
+    default_yaml = tmp_path / "config/rev_requirement/bge.yaml"
+    gv_map = {"true": "hp", "false": "non-hp"}
+
+    out_diff, _ = _write_revenue_requirement_yamls(
+        delivery_breakdowns,
+        run_dir=run1_dir,
+        group_col="has_hp",
+        utility="bge",
+        default_revenue_requirement=1000.0,
+        differentiated_yaml_path=differentiated_yaml,
+        default_yaml_path=default_yaml,
+        group_value_to_subclass=gv_map,
+        total_delivery_rr=1000.0,
+        candidate_tariff_rr={"hp": 400.0, "non-hp": 600.0},
+        candidate_tariff_supply_rr={"hp": 60.0, "non-hp": 140.0},
+    )
+
+    diff_data = yaml.safe_load(out_diff.read_text(encoding="utf-8"))
+    ct_delivery = diff_data["subclass_revenue_requirements"]["delivery"][
+        "candidate_tariff"
+    ]
+    assert ct_delivery == {"hp": pytest.approx(400.0), "non-hp": pytest.approx(600.0)}
+    ct_supply = diff_data["subclass_revenue_requirements"]["supply"]["candidate_tariff"]
+    assert ct_supply == {"hp": pytest.approx(60.0), "non-hp": pytest.approx(140.0)}
+
+
 def test_write_revenue_requirement_yamls_includes_candidate_tariff(
     tmp_path: Path,
 ) -> None:
@@ -570,7 +686,7 @@ def test_write_revenue_requirement_yamls_includes_candidate_tariff(
     default_yaml = tmp_path / "config/rev_requirement/bge.yaml"
     gv_map = {"true": "hp", "false": "non-hp"}
 
-    ct_rr = compute_candidate_tariff_subclass_rr(
+    ct_result = compute_candidate_tariff_subclass_rr(
         run1_dir, total_delivery_rr=1000.0, group_col="has_hp"
     )
 
@@ -584,7 +700,7 @@ def test_write_revenue_requirement_yamls_includes_candidate_tariff(
         default_yaml_path=default_yaml,
         group_value_to_subclass=gv_map,
         total_delivery_rr=1000.0,
-        candidate_tariff_rr=ct_rr,
+        candidate_tariff_rr=ct_result.delivery,
     )
 
     diff_data = yaml.safe_load(out_diff.read_text(encoding="utf-8"))

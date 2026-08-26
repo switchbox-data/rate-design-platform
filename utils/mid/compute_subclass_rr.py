@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 from typing import cast
@@ -834,40 +835,61 @@ def compute_subclass_rr(
     return results
 
 
+@dataclass(frozen=True)
+class CandidateTariffRR:
+    """Delivery and (optionally) supply subclass revenue requirement split."""
+
+    delivery: dict[str, float]
+    supply: dict[str, float] | None = None
+
+
+CANDIDATE_TARIFF_SUPPLY_METHODS = ("passthrough",)
+
+
 def compute_candidate_tariff_subclass_rr(
     candidate_tariff_run_dir: S3Path | Path,
     total_delivery_rr: float,
+    *,
+    candidate_tariff_supply_run_dir: S3Path | Path | None = None,
+    total_delivery_and_supply_rr: float | None = None,
+    supply_method: str = "passthrough",
     group_col: str = DEFAULT_GROUP_COL,
     hp_group_value: str = "true",
     annual_month: str = ANNUAL_MONTH_VALUE,
     storage_options: dict[str, str] | None = None,
-) -> dict[str, float]:
-    """Derive the HP/non-HP delivery RR split from a candidate-tariff run.
+) -> CandidateTariffRR:
+    """Derive the HP/non-HP delivery (and optionally supply) RR split.
 
-    ``candidate_tariff_run_dir`` is a CAIRO precalc run where a candidate
-    tariff (e.g. BGE's Schedule RD, or any alternative tariff design) has
-    already been calibrated to *total_delivery_rr* for the entire
-    residential class (both HP and non-HP customers billed under that one
-    tariff). ``RR_HP`` is what today's existing heat-pump customers
-    (``group_col == hp_group_value``, read from baseline metadata) actually
-    pay in that run. ``RR_nonHP`` is the residual against
-    *total_delivery_rr*, not this run's own non-HP bill sum, so the two
-    subclass targets always add back to the total exactly regardless of any
-    CAIRO calibration rounding.
+    ``candidate_tariff_run_dir`` is the **delivery-only** CAIRO precalc run
+    where a candidate tariff (e.g. BGE's Schedule RD) has been calibrated to
+    *total_delivery_rr* for the entire residential class.
 
-    Unlike :func:`compute_subclass_rr`, this does not read or adjust for any
-    BAT/cross-subsidy metric -- it is a plain weighted sum of the annual
-    bills the candidate tariff already produced (the "passthrough"
-    allocation, applied to a different run's bills).
+    ``candidate_tariff_supply_run_dir``, when provided, is the corresponding
+    **delivery+supply** run.  The supply RR split is computed according to
+    *supply_method*:
+
+    * ``"passthrough"`` (default): supply bills per customer = total run
+      bills − delivery-only bills.  ``supply_RR_HP`` = weighted sum for HP;
+      ``supply_RR_nonHP`` = total_supply_RR − supply_RR_HP.
+
+    ``RR_nonHP`` is always the residual against the total so the two
+    subclass targets always add back exactly.
     """
+    if supply_method not in CANDIDATE_TARIFF_SUPPLY_METHODS:
+        msg = (
+            f"Unsupported supply_method={supply_method!r}. "
+            f"Choices: {CANDIDATE_TARIFF_SUPPLY_METHODS}"
+        )
+        raise ValueError(msg)
+
     group_values = _load_group_values(
         candidate_tariff_run_dir, group_col, storage_options
     )
-    bills = _load_annual_target_bills(
+    delivery_bills = _load_annual_target_bills(
         candidate_tariff_run_dir, annual_month, storage_options
     )
 
-    joined = group_values.join(bills, on=BLDG_ID_COL, how="left").collect()
+    joined = group_values.join(delivery_bills, on=BLDG_ID_COL, how="left").collect()
     if joined.is_empty():
         msg = f"No customers found in {candidate_tariff_run_dir}/customer_metadata.csv."
         raise ValueError(msg)
@@ -888,21 +910,70 @@ def compute_candidate_tariff_subclass_rr(
         )
         raise ValueError(msg)
 
-    hp_bill_sum = float(
+    hp_delivery_sum = float(
         hp_rows.select((pl.col("annual_bill") * pl.col(WEIGHT_COL)).sum()).item()
     )
-    return {"hp": hp_bill_sum, "non-hp": total_delivery_rr - hp_bill_sum}
+    delivery_rr = {"hp": hp_delivery_sum, "non-hp": total_delivery_rr - hp_delivery_sum}
+
+    # --- Supply (optional) ---
+    supply_rr: dict[str, float] | None = None
+    if candidate_tariff_supply_run_dir is not None:
+        if total_delivery_and_supply_rr is None:
+            msg = (
+                "total_delivery_and_supply_rr is required when "
+                "candidate_tariff_supply_run_dir is provided."
+            )
+            raise ValueError(msg)
+        total_supply_rr = total_delivery_and_supply_rr - total_delivery_rr
+
+        total_bills = _load_annual_target_bills(
+            candidate_tariff_supply_run_dir, annual_month, storage_options
+        )
+        joined_total = (
+            group_values.join(total_bills, on=BLDG_ID_COL, how="left")
+            .collect()
+            .rename({"annual_bill": "total_bill"})
+        )
+        # Merge delivery bills to compute supply = total - delivery
+        joined_supply = joined_total.join(
+            joined.select(BLDG_ID_COL, "annual_bill"),
+            on=BLDG_ID_COL,
+            how="left",
+        ).with_columns(
+            (pl.col("total_bill") - pl.col("annual_bill")).alias("supply_bill")
+        )
+
+        hp_supply_rows = joined_supply.filter(pl.col(GROUP_VALUE_COL) == hp_group_value)
+        hp_supply_sum = float(
+            hp_supply_rows.select(
+                (pl.col("supply_bill") * pl.col(WEIGHT_COL)).sum()
+            ).item()
+        )
+        supply_rr = {"hp": hp_supply_sum, "non-hp": total_supply_rr - hp_supply_sum}
+
+    return CandidateTariffRR(delivery=delivery_rr, supply=supply_rr)
 
 
 def _load_run_from_scenario_config(
     scenario_config_path: Path,
-    run_num: int,
+    run_num: str | int,
 ) -> dict[str, object]:
+    """Look up one run entry by numeric index or canonical run name.
+
+    Legacy scenario YAMLs key runs by position (``1:``, ``2:``); YAMLs
+    generated by the Prefect pipeline key them by canonical run name
+    (``md_bge_default_precalc_delivery:``).  Both are accepted.
+    """
     data = yaml.safe_load(scenario_config_path.read_text(encoding="utf-8")) or {}
     runs = data.get("runs", {})
     run = runs.get(run_num) or runs.get(str(run_num))
+    if run is None and str(run_num).isdigit():
+        run = runs.get(int(run_num))
     if run is None:
-        msg = f"Run {run_num} not found in scenario config: {scenario_config_path}"
+        msg = (
+            f"Run {run_num!r} not found in scenario config: "
+            f"{scenario_config_path}. Available runs: {sorted(map(str, runs))}"
+        )
         raise ValueError(msg)
     if not isinstance(run, dict):
         msg = (
@@ -914,7 +985,7 @@ def _load_run_from_scenario_config(
 
 def _load_run_fields(
     scenario_config_path: Path,
-    run_num: int,
+    run_num: str | int,
 ) -> tuple[str, str, float]:
     """Read state, utility, and revenue requirement from a scenario run.
 
@@ -965,6 +1036,7 @@ def _write_revenue_requirement_yamls(
     customer_count_override: float | None = None,
     kwh_scale_factor: float | None = None,
     candidate_tariff_rr: dict[str, float] | None = None,
+    candidate_tariff_supply_rr: dict[str, float] | None = None,
 ) -> tuple[Path, Path]:
     """Write per-subclass revenue requirement YAML with separate delivery/supply blocks.
 
@@ -972,8 +1044,8 @@ def _write_revenue_requirement_yamls(
     one delivery method and one supply method via ``residual_allocation_delivery``
     and ``residual_allocation_supply`` in its scenario YAML.
 
-    Delivery methods: passthrough, percustomer, epmc, volumetric.
-    Supply methods: passthrough, percustomer, volumetric.
+    Delivery methods: passthrough, percustomer, epmc, volumetric, candidate_tariff.
+    Supply methods: passthrough, percustomer, volumetric, candidate_tariff.
     (Supply EPMC is omitted — broken by the run 1/run 2 subtraction architecture;
     volumetric gives a nearly identical result.)
 
@@ -1063,6 +1135,9 @@ def _write_revenue_requirement_yamls(
             supply_block[method_key] = {
                 alias: tot_rr[alias] - del_rr[alias] for alias in del_rr
             }
+
+    if candidate_tariff_supply_rr is not None:
+        supply_block["candidate_tariff"] = dict(candidate_tariff_supply_rr)
 
     differentiated_data: dict[str, object] = {
         "utility": utility,
@@ -1170,9 +1245,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--run-num",
-        type=int,
-        default=1,
-        help="Run number in scenarios.yaml to read default revenue requirement from.",
+        default="1",
+        help=(
+            "Which run in the scenario YAML to read state/utility/revenue "
+            "requirement from. Either a numeric index (legacy YAMLs) or a "
+            "canonical run name such as 'md_bge_default_precalc_delivery' "
+            "(YAMLs generated by the Prefect pipeline)."
+        ),
     )
     parser.add_argument(
         "--differentiated-yaml-path",
@@ -1275,6 +1354,26 @@ def main() -> None:
             "total_delivery_revenue_requirement - RR_HP."
         ),
     )
+    parser.add_argument(
+        "--candidate-tariff-supply-run-dir",
+        help=(
+            "Path to the delivery+supply CAIRO precalc run for the candidate "
+            "tariff. When provided (with --candidate-tariff-run-dir), also "
+            "computes a 'candidate_tariff' method for the supply block: "
+            "supply_RR_HP = total run bills - delivery-only bills for HP; "
+            "supply_RR_nonHP = total_supply_RR - supply_RR_HP."
+        ),
+    )
+    parser.add_argument(
+        "--candidate-tariff-supply-method",
+        default="passthrough",
+        choices=CANDIDATE_TARIFF_SUPPLY_METHODS,
+        help=(
+            "Method for computing the supply-side candidate_tariff subclass "
+            "RR split. Default: passthrough (supply = total_bills - "
+            "delivery_bills, summed per subclass)."
+        ),
+    )
     args = parser.parse_args()
 
     run_dir: S3Path | Path = (
@@ -1325,7 +1424,7 @@ def main() -> None:
         base_rr_customer_count = overrides.customer_count_override
         base_rr_kwh_scale_factor = overrides.kwh_scale_factor
 
-    candidate_tariff_rr: dict[str, float] | None = None
+    candidate_tariff_result: CandidateTariffRR | None = None
     if args.candidate_tariff_run_dir:
         if total_delivery_rr is None:
             msg = (
@@ -1337,16 +1436,27 @@ def main() -> None:
         ct_storage_options = (
             get_aws_storage_options() if isinstance(ct_run_dir, S3Path) else None
         )
-        candidate_tariff_rr = compute_candidate_tariff_subclass_rr(
+        ct_supply_run_dir: S3Path | Path | None = None
+        if args.candidate_tariff_supply_run_dir:
+            ct_supply_run_dir = _resolve_path_or_s3(
+                args.candidate_tariff_supply_run_dir
+            )
+        candidate_tariff_result = compute_candidate_tariff_subclass_rr(
             candidate_tariff_run_dir=ct_run_dir,
             total_delivery_rr=total_delivery_rr,
+            candidate_tariff_supply_run_dir=ct_supply_run_dir,
+            total_delivery_and_supply_rr=total_delivery_and_supply_rr,
+            supply_method=args.candidate_tariff_supply_method,
             group_col=args.group_col,
             annual_month=args.annual_month,
             storage_options=ct_storage_options,
         )
         print(
-            f"Candidate-tariff subclass RR (from {ct_run_dir}): {candidate_tariff_rr}"
+            f"Candidate-tariff subclass RR (from {ct_run_dir}): "
+            f"delivery={candidate_tariff_result.delivery}"
         )
+        if candidate_tariff_result.supply is not None:
+            print(f"Candidate-tariff supply RR: {candidate_tariff_result.supply}")
 
     total_breakdowns: dict[str, pl.DataFrame] | None = None
     if args.run_dir_supply:
@@ -1433,7 +1543,16 @@ def main() -> None:
             heating_type_breakdown=heating_type_breakdown,
             customer_count_override=base_rr_customer_count,
             kwh_scale_factor=base_rr_kwh_scale_factor,
-            candidate_tariff_rr=candidate_tariff_rr,
+            candidate_tariff_rr=(
+                candidate_tariff_result.delivery
+                if candidate_tariff_result is not None
+                else None
+            ),
+            candidate_tariff_supply_rr=(
+                candidate_tariff_result.supply
+                if candidate_tariff_result is not None
+                else None
+            ),
         )
         print(f"Wrote differentiated YAML: {differentiated_yaml_path}")
         print(f"Wrote default YAML: {default_yaml_path}")

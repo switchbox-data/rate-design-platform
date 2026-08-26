@@ -96,6 +96,25 @@ scenarios:
         non-hp:
           values: ["false"]
           structure: base
+  hp_rd_vs_default:
+    quartet: multi_rate_fixed
+    requires: [default, default_rd]
+    candidate_tariff_scenario: default_rd
+    promote: hp
+    residual_allocation:
+      delivery: candidate_tariff
+      supply: candidate_tariff
+    subclass_config:
+      group_col: has_hp
+      subgroups:
+        hp:
+          values: ["true"]
+          structure: base
+          copy_from: default_rd
+        non-hp:
+          values: ["false"]
+          structure: base
+          copy_from: default
 # The one stage every other run's bills are compared against, joined onto the
 # master tables as baseline_elec_* columns by post-processing.
 bill_change_baseline:
