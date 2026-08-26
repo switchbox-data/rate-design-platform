@@ -31,14 +31,15 @@ import '../Justfile'
 #   Output → config/tariffs/gas/{tariff_key}.json
 # =============================================================================
 
-fetch-default-electric-tariffs effective_date="2025-01-01":
+fetch-default-electric-tariffs effective_date="2025-01-01" tariff_key="":
     uv run python {{ path_repo }}/utils/pre/rev_requirement/fetch_electric_tariffs_genability.py \
       "{{ path_genability_yaml }}" \
       "{{ path_genability }}/default_tariffs" \
       --state "{{ state_upper }}" \
       --effective-date "{{ effective_date }}" \
       --urdb \
-      --path-urdb-dir "{{ path_tariffs_electric }}"
+      --path-urdb-dir "{{ path_tariffs_electric }}" \
+      {{ if tariff_key != "" { "--tariff-key \"" + tariff_key + "\"" } else { "" } }}
 
 path_rateacuity_phase2_yaml := path_tariffs_gas / "rateacuity_tariffs_chesapeake_phase2.yaml"
 path_add_pgc := path_repo / "utils/data_prep/tariffs/add_pgc_to_gas_urdb.py"
