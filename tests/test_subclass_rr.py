@@ -15,6 +15,7 @@ from utils.mid.compute_subclass_rr import (
     _resolve_selector_group_values,
     _write_revenue_requirement_yamls,
     _write_seasonal_inputs_csv,
+    compute_candidate_tariff_subclass_rr,
     compute_subclass_flat_discount_inputs,
     compute_subclass_rr,
     compute_subclass_seasonal_discount_inputs,
@@ -472,6 +473,127 @@ def test_write_revenue_requirement_yamls_round_trip(tmp_path: Path) -> None:
         assert sum_supply == pytest.approx(expected_supply), (
             f"Supply method {method_key}: sum mismatch"
         )
+
+
+# =============================================================================
+# Candidate-tariff subclass RR (bill sums from an alternative tariff, no BAT)
+# =============================================================================
+
+
+def test_compute_candidate_tariff_subclass_rr(tmp_path: Path) -> None:
+    """RR_HP = weighted sum of HP bills from the candidate-tariff run.
+
+    RR_nonHP is the residual against total_delivery_rr, not the run's own
+    non-HP bill sum.
+    """
+    ct_run_dir = _write_sample_run_dir(tmp_path)
+    # HP ids are 1 and 3 -> Annual bills 100.0 + 300.0 = 400.0 (weight=1 each).
+    result = compute_candidate_tariff_subclass_rr(
+        ct_run_dir, total_delivery_rr=1000.0, group_col="has_hp"
+    )
+    assert result == {"hp": pytest.approx(400.0), "non-hp": pytest.approx(600.0)}
+
+
+def test_compute_candidate_tariff_subclass_rr_applies_weights(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "run"
+    (run_dir / "bills").mkdir(parents=True)
+    (run_dir / "cross_subsidization").mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 1, 2, 2],
+            "month": ["Jan", "Annual", "Jan", "Annual"],
+            "bill_level": [0.0, 100.0, 0.0, 100.0],
+        }
+    ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
+    pl.DataFrame(
+        {
+            "bldg_id": [1, 2],
+            "weight": [1.0, 9.0],
+            "postprocess_group.has_hp": [True, False],
+        }
+    ).write_csv(run_dir / "customer_metadata.csv")
+
+    # Weighted HP bill sum = 100 * 1 = 100.
+    result = compute_candidate_tariff_subclass_rr(
+        run_dir, total_delivery_rr=1000.0, group_col="has_hp"
+    )
+    assert result == {"hp": pytest.approx(100.0), "non-hp": pytest.approx(900.0)}
+
+
+def test_compute_candidate_tariff_subclass_rr_no_hp_customers_raises(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "run"
+    (run_dir / "bills").mkdir(parents=True)
+    pl.DataFrame(
+        {"bldg_id": [1], "month": ["Annual"], "bill_level": [100.0]}
+    ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
+    pl.DataFrame(
+        {"bldg_id": [1], "weight": [1.0], "postprocess_group.has_hp": [False]}
+    ).write_csv(run_dir / "customer_metadata.csv")
+
+    with pytest.raises(ValueError, match="No customers with has_hp='true'"):
+        compute_candidate_tariff_subclass_rr(
+            run_dir, total_delivery_rr=1000.0, group_col="has_hp"
+        )
+
+
+def test_compute_candidate_tariff_subclass_rr_missing_bills_raises(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "run"
+    (run_dir / "bills").mkdir(parents=True)
+    pl.DataFrame({"bldg_id": [1], "month": ["Jan"], "bill_level": [5.0]}).write_csv(
+        run_dir / "bills" / "elec_bills_year_target.csv"
+    )
+    pl.DataFrame(
+        {"bldg_id": [1], "weight": [1.0], "postprocess_group.has_hp": [True]}
+    ).write_csv(run_dir / "customer_metadata.csv")
+
+    with pytest.raises(ValueError, match="Missing annual target bills"):
+        compute_candidate_tariff_subclass_rr(
+            run_dir, total_delivery_rr=1000.0, group_col="has_hp"
+        )
+
+
+def test_write_revenue_requirement_yamls_includes_candidate_tariff(
+    tmp_path: Path,
+) -> None:
+    """The 'candidate_tariff' method is written into the delivery block when provided."""
+    run1_dir = _write_sample_run_dir(tmp_path)
+    delivery_breakdowns = compute_subclass_rr(
+        run1_dir, cross_subsidy_cols="BAT_percustomer"
+    )
+    differentiated_yaml = tmp_path / "config/rev_requirement/bge_hp_vs_nonhp.yaml"
+    default_yaml = tmp_path / "config/rev_requirement/bge.yaml"
+    gv_map = {"true": "hp", "false": "non-hp"}
+
+    ct_rr = compute_candidate_tariff_subclass_rr(
+        run1_dir, total_delivery_rr=1000.0, group_col="has_hp"
+    )
+
+    out_diff, _ = _write_revenue_requirement_yamls(
+        delivery_breakdowns,
+        run_dir=run1_dir,
+        group_col="has_hp",
+        utility="bge",
+        default_revenue_requirement=1000.0,
+        differentiated_yaml_path=differentiated_yaml,
+        default_yaml_path=default_yaml,
+        group_value_to_subclass=gv_map,
+        total_delivery_rr=1000.0,
+        candidate_tariff_rr=ct_rr,
+    )
+
+    diff_data = yaml.safe_load(out_diff.read_text(encoding="utf-8"))
+    ct_block = diff_data["subclass_revenue_requirements"]["delivery"][
+        "candidate_tariff"
+    ]
+    assert ct_block["hp"] == pytest.approx(400.0)
+    assert ct_block["non-hp"] == pytest.approx(600.0)
+    assert ct_block["hp"] + ct_block["non-hp"] == pytest.approx(1000.0)
 
 
 def test_parse_group_value_to_subclass() -> None:
