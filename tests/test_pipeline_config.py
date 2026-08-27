@@ -116,6 +116,7 @@ class TestMultiRateFixed:
             "quartet": "multi_rate_fixed",
             "requires": ["default", "default_rd"],
             "candidate_tariff_scenario": "default_rd",
+            "candidate_tariff_supply_method": "passthrough",
             "promote": "hp",
             "residual_allocation": {
                 "delivery": "candidate_tariff",
@@ -145,6 +146,7 @@ class TestMultiRateFixed:
         assert sc.quartet == "multi_rate_fixed"
         assert sc.requires == ["default", "default_rd"]
         assert sc.candidate_tariff_scenario == "default_rd"
+        assert sc.candidate_tariff_supply_method == "passthrough"
         assert sc.promote == "hp"
         assert sc.depends_on is None
         assert sc.subclass_config is not None
@@ -181,6 +183,127 @@ class TestMultiRateFixed:
             "copy_from"
         ]
         with pytest.raises(ValueError, match="requires 'copy_from'"):
+            load_pipeline_config(_write(tmp_path, data))
+
+    def test_manual_rr_yaml_bypasses_candidate_tariff_scenario(
+        self, tmp_path: Path
+    ) -> None:
+        """candidate_tariff_rr_yaml_path lets 'requires' omit the RD scenario."""
+        data = self._fixed_scenario_yaml()
+        del data["scenarios"]["hp_rd_vs_default"]["candidate_tariff_scenario"]
+        data["scenarios"]["hp_rd_vs_default"]["candidate_tariff_rr_yaml_path"] = (
+            "rev_requirement/bge_hp_vs_non-hp.yaml"
+        )
+        config = load_pipeline_config(_write(tmp_path, data))
+        sc = config.scenario("hp_rd_vs_default")
+        assert sc.candidate_tariff_scenario is None
+        assert (
+            sc.candidate_tariff_rr_yaml_path == "rev_requirement/bge_hp_vs_non-hp.yaml"
+        )
+
+    def test_manual_rr_yaml_and_candidate_tariff_scenario_both_set_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        data = self._fixed_scenario_yaml()
+        data["scenarios"]["hp_rd_vs_default"]["candidate_tariff_rr_yaml_path"] = (
+            "rev_requirement/bge_hp_vs_non-hp.yaml"
+        )
+        with pytest.raises(ValueError, match="sets both"):
+            load_pipeline_config(_write(tmp_path, data))
+
+    def test_manual_tariff_paths_bypass_copy_from(self, tmp_path: Path) -> None:
+        data = self._fixed_scenario_yaml()
+        data["scenarios"]["hp_rd_vs_default"]["subclass_config"]["subgroups"]["hp"] = {
+            "values": ["true"],
+            "structure": "base",
+            "tariff_json_path": "tariffs/electric/bge_rd_default_calibrated.json",
+            "tariff_json_supply_path": (
+                "tariffs/electric/bge_rd_default_supply_calibrated.json"
+            ),
+        }
+        config = load_pipeline_config(_write(tmp_path, data))
+        subclass_config = config.scenario("hp_rd_vs_default").subclass_config
+        assert subclass_config is not None
+        sg = subclass_config.subgroups[0]
+        assert sg.copy_from is None
+        assert sg.tariff_json_path == "tariffs/electric/bge_rd_default_calibrated.json"
+
+    def test_manual_tariff_path_without_supply_path_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        data = self._fixed_scenario_yaml()
+        data["scenarios"]["hp_rd_vs_default"]["subclass_config"]["subgroups"]["hp"] = {
+            "values": ["true"],
+            "structure": "base",
+            "tariff_json_path": "tariffs/electric/bge_rd_default_calibrated.json",
+        }
+        with pytest.raises(ValueError, match="must both be set or both be omitted"):
+            load_pipeline_config(_write(tmp_path, data))
+
+    def test_manual_tariff_path_and_copy_from_both_set_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        data = self._fixed_scenario_yaml()
+        data["scenarios"]["hp_rd_vs_default"]["subclass_config"]["subgroups"]["hp"][
+            "tariff_json_path"
+        ] = "tariffs/electric/bge_rd_default_calibrated.json"
+        data["scenarios"]["hp_rd_vs_default"]["subclass_config"]["subgroups"]["hp"][
+            "tariff_json_supply_path"
+        ] = "tariffs/electric/bge_rd_default_supply_calibrated.json"
+        with pytest.raises(ValueError, match="sets both 'copy_from'"):
+            load_pipeline_config(_write(tmp_path, data))
+
+    def test_fully_manual_scenario_needs_no_requires(self, tmp_path: Path) -> None:
+        """When RR yaml + all tariffs are manual, 'requires' is optional."""
+        data = self._fixed_scenario_yaml()
+        del data["scenarios"]["hp_rd_vs_default"]["requires"]
+        del data["scenarios"]["hp_rd_vs_default"]["candidate_tariff_scenario"]
+        sc = data["scenarios"]["hp_rd_vs_default"]
+        sc["candidate_tariff_rr_yaml_path"] = "rev_requirement/bge_hp_vs_non-hp.yaml"
+        sc["subclass_config"]["subgroups"]["hp"] = {
+            "values": ["true"],
+            "structure": "base",
+            "tariff_json_path": "tariffs/electric/bge_rd_default_calibrated.json",
+            "tariff_json_supply_path": (
+                "tariffs/electric/bge_rd_default_supply_calibrated.json"
+            ),
+        }
+        sc["subclass_config"]["subgroups"]["non-hp"] = {
+            "values": ["false"],
+            "structure": "base",
+            "tariff_json_path": "tariffs/electric/bge_default_calibrated.json",
+            "tariff_json_supply_path": (
+                "tariffs/electric/bge_default_supply_calibrated.json"
+            ),
+        }
+        config = load_pipeline_config(_write(tmp_path, data))
+        assert config.scenario("hp_rd_vs_default").requires is None
+
+    def test_fully_manual_tariffs_but_derived_rr_still_needs_requires(
+        self, tmp_path: Path
+    ) -> None:
+        """All tariffs manual but RR still derived: 'requires' is still needed
+        (for candidate_tariff_scenario's precalc bills)."""
+        data = self._fixed_scenario_yaml()
+        del data["scenarios"]["hp_rd_vs_default"]["requires"]
+        sc = data["scenarios"]["hp_rd_vs_default"]
+        sc["subclass_config"]["subgroups"]["hp"] = {
+            "values": ["true"],
+            "structure": "base",
+            "tariff_json_path": "tariffs/electric/bge_rd_default_calibrated.json",
+            "tariff_json_supply_path": (
+                "tariffs/electric/bge_rd_default_supply_calibrated.json"
+            ),
+        }
+        sc["subclass_config"]["subgroups"]["non-hp"] = {
+            "values": ["false"],
+            "structure": "base",
+            "tariff_json_path": "tariffs/electric/bge_default_calibrated.json",
+            "tariff_json_supply_path": (
+                "tariffs/electric/bge_default_supply_calibrated.json"
+            ),
+        }
+        with pytest.raises(ValueError, match="requires.*list"):
             load_pipeline_config(_write(tmp_path, data))
 
     def test_copy_from_not_in_requires_rejected(self, tmp_path: Path) -> None:

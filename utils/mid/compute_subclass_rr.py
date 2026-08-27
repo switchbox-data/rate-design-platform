@@ -843,7 +843,72 @@ class CandidateTariffRR:
     supply: dict[str, float] | None = None
 
 
-CANDIDATE_TARIFF_SUPPLY_METHODS = ("passthrough",)
+# How the class-level supply RR is shared across buildings.
+# BAT CSV columns used as per-building shares (already $; multiplied by weight).
+_SUPPLY_METHOD_BAT_SHARE_COL: dict[str, str] = {
+    "volumetric": "customer_level_residual_share_volumetric",
+    "epmc": "customer_level_economic_burden",
+}
+
+CANDIDATE_TARIFF_SUPPLY_METHODS = (
+    "passthrough",
+    "percustomer",
+    "epmc",
+    "volumetric",
+)
+
+
+def _load_bat_share_column(
+    run_dir: S3Path | Path,
+    col: str,
+    storage_options: dict[str, str] | None,
+) -> pl.LazyFrame:
+    """Load one per-building allocator column from the BAT CSV."""
+    return (
+        pl.scan_csv(
+            _csv_path(
+                run_dir, "cross_subsidization/cross_subsidization_BAT_values.csv"
+            ),
+            storage_options=storage_options,
+        )
+        .select(
+            pl.col(BLDG_ID_COL).cast(pl.Int64),
+            pl.col(col).cast(pl.Float64).alias("share"),
+        )
+        .group_by(BLDG_ID_COL)
+        .agg(pl.col("share").sum())
+    )
+
+
+def _distribute_class_rr(
+    joined: pl.DataFrame,
+    total: float,
+    share_col: str,
+    hp_group_value: str,
+) -> dict[str, float]:
+    """Split ``total`` across HP / non-HP in proportion to weighted ``share_col``.
+
+    Non-HP is the residual so the two subclass targets add back to ``total``
+    exactly.
+    """
+    weighted = joined.with_columns(
+        (pl.col(share_col) * pl.col(WEIGHT_COL)).alias("_wshare")
+    )
+    total_share = float(weighted.select(pl.col("_wshare").sum()).item() or 0.0)
+    if total_share <= 0:
+        msg = (
+            f"Supply allocation shares sum to {total_share}; cannot distribute "
+            f"class supply RR of {total}."
+        )
+        raise ValueError(msg)
+    hp_share = float(
+        weighted.filter(pl.col(GROUP_VALUE_COL) == hp_group_value)
+        .select(pl.col("_wshare").sum())
+        .item()
+        or 0.0
+    )
+    hp_rr = total * (hp_share / total_share)
+    return {"hp": hp_rr, "non-hp": total - hp_rr}
 
 
 def compute_candidate_tariff_subclass_rr(
@@ -853,6 +918,7 @@ def compute_candidate_tariff_subclass_rr(
     candidate_tariff_supply_run_dir: S3Path | Path | None = None,
     total_delivery_and_supply_rr: float | None = None,
     supply_method: str = "passthrough",
+    allocation_run_dir: S3Path | Path | None = None,
     group_col: str = DEFAULT_GROUP_COL,
     hp_group_value: str = "true",
     annual_month: str = ANNUAL_MONTH_VALUE,
@@ -860,20 +926,32 @@ def compute_candidate_tariff_subclass_rr(
 ) -> CandidateTariffRR:
     """Derive the HP/non-HP delivery (and optionally supply) RR split.
 
-    ``candidate_tariff_run_dir`` is the **delivery-only** CAIRO precalc run
-    where a candidate tariff (e.g. BGE's Schedule RD) has been calibrated to
-    *total_delivery_rr* for the entire residential class.
+    Delivery (always from ``candidate_tariff_run_dir``, a delivery-only run
+    billed on the candidate tariff):
 
-    ``candidate_tariff_supply_run_dir``, when provided, is the corresponding
-    **delivery+supply** run.  The supply RR split is computed according to
-    *supply_method*:
+    * ``RR_HP`` = weighted sum of HP annual bills
+    * ``RR_nonHP`` = ``total_delivery_rr`` − ``RR_HP``
 
-    * ``"passthrough"`` (default): supply bills per customer = total run
-      bills − delivery-only bills.  ``supply_RR_HP`` = weighted sum for HP;
-      ``supply_RR_nonHP`` = total_supply_RR − supply_RR_HP.
+    Supply, when ``total_delivery_and_supply_rr`` is provided, takes the
+    **class-level** supply pot already in the testimony YAML
+    (``total_delivery_and_supply_rr − total_delivery_rr``) and divides it
+    across buildings according to *supply_method*:
 
-    ``RR_nonHP`` is always the residual against the total so the two
-    subclass targets always add back exactly.
+    * ``"passthrough"`` (default): each building's share of actual supply
+      bills on the **candidate tariff** (delivery+supply bill − delivery-only
+      bill). Requires ``candidate_tariff_supply_run_dir`` (the candidate
+      tariff's delivery+supply run).
+    * ``"percustomer"``: each building's sample weight (equal per customer,
+      expanded by ResStock weight).
+    * ``"volumetric"``: ``customer_level_residual_share_volumetric`` (kWh
+      proportions from the BAT CSV).
+    * ``"epmc"``: ``customer_level_economic_burden``.
+
+    For passthrough, ``allocation_run_dir`` should be the candidate tariff's
+    delivery-only run (defaults to ``candidate_tariff_run_dir``). For
+    percustomer / volumetric / epmc it may be any run with the same
+    buildings (typically the default delivery run). Subclass targets always
+    add back to the class pot.
     """
     if supply_method not in CANDIDATE_TARIFF_SUPPLY_METHODS:
         msg = (
@@ -915,41 +993,70 @@ def compute_candidate_tariff_subclass_rr(
     )
     delivery_rr = {"hp": hp_delivery_sum, "non-hp": total_delivery_rr - hp_delivery_sum}
 
-    # --- Supply (optional) ---
     supply_rr: dict[str, float] | None = None
-    if candidate_tariff_supply_run_dir is not None:
-        if total_delivery_and_supply_rr is None:
-            msg = (
-                "total_delivery_and_supply_rr is required when "
-                "candidate_tariff_supply_run_dir is provided."
-            )
-            raise ValueError(msg)
+    if (
+        candidate_tariff_supply_run_dir is not None
+        and total_delivery_and_supply_rr is None
+    ):
+        msg = (
+            "total_delivery_and_supply_rr is required when "
+            "candidate_tariff_supply_run_dir is provided."
+        )
+        raise ValueError(msg)
+    if total_delivery_and_supply_rr is not None and not (
+        supply_method == "passthrough" and candidate_tariff_supply_run_dir is None
+    ):
         total_supply_rr = total_delivery_and_supply_rr - total_delivery_rr
+        alloc_dir = allocation_run_dir or candidate_tariff_run_dir
+        alloc_groups = _load_group_values(alloc_dir, group_col, storage_options)
 
-        total_bills = _load_annual_target_bills(
-            candidate_tariff_supply_run_dir, annual_month, storage_options
-        )
-        joined_total = (
-            group_values.join(total_bills, on=BLDG_ID_COL, how="left")
-            .collect()
-            .rename({"annual_bill": "total_bill"})
-        )
-        # Merge delivery bills to compute supply = total - delivery
-        joined_supply = joined_total.join(
-            joined.select(BLDG_ID_COL, "annual_bill"),
-            on=BLDG_ID_COL,
-            how="left",
-        ).with_columns(
-            (pl.col("total_bill") - pl.col("annual_bill")).alias("supply_bill")
-        )
+        if supply_method == "passthrough":
+            if candidate_tariff_supply_run_dir is None:
+                msg = (
+                    "candidate_tariff_supply_run_dir is required when "
+                    "supply_method='passthrough'."
+                )
+                raise ValueError(msg)
+            alloc_delivery_bills = _load_annual_target_bills(
+                alloc_dir, annual_month, storage_options
+            )
+            total_bills = _load_annual_target_bills(
+                candidate_tariff_supply_run_dir, annual_month, storage_options
+            )
+            alloc_joined = (
+                alloc_groups.join(alloc_delivery_bills, on=BLDG_ID_COL, how="left")
+                .join(
+                    total_bills.rename({"annual_bill": "total_bill"}),
+                    on=BLDG_ID_COL,
+                    how="left",
+                )
+                .collect()
+                .with_columns(
+                    (pl.col("total_bill") - pl.col("annual_bill")).alias("share")
+                )
+            )
+        elif supply_method == "percustomer":
+            alloc_joined = alloc_groups.collect().with_columns(
+                pl.lit(1.0).alias("share")
+            )
+        else:
+            bat_col = _SUPPLY_METHOD_BAT_SHARE_COL[supply_method]
+            shares = _load_bat_share_column(alloc_dir, bat_col, storage_options)
+            alloc_joined = alloc_groups.join(
+                shares, on=BLDG_ID_COL, how="left"
+            ).collect()
+            nulls = alloc_joined.filter(pl.col("share").is_null()).height
+            if nulls:
+                msg = (
+                    f"Missing {bat_col} for {nulls} buildings in {alloc_dir}/"
+                    "cross_subsidization/cross_subsidization_BAT_values.csv "
+                    f"(required for supply_method={supply_method!r})."
+                )
+                raise ValueError(msg)
 
-        hp_supply_rows = joined_supply.filter(pl.col(GROUP_VALUE_COL) == hp_group_value)
-        hp_supply_sum = float(
-            hp_supply_rows.select(
-                (pl.col("supply_bill") * pl.col(WEIGHT_COL)).sum()
-            ).item()
+        supply_rr = _distribute_class_rr(
+            alloc_joined, total_supply_rr, "share", hp_group_value
         )
-        supply_rr = {"hp": hp_supply_sum, "non-hp": total_supply_rr - hp_supply_sum}
 
     return CandidateTariffRR(delivery=delivery_rr, supply=supply_rr)
 
@@ -1046,12 +1153,14 @@ def _write_revenue_requirement_yamls(
 
     Delivery methods: passthrough, percustomer, epmc, volumetric, candidate_tariff.
     Supply methods: passthrough, percustomer, volumetric, candidate_tariff.
-    (Supply EPMC is omitted — broken by the run 1/run 2 subtraction architecture;
-    volumetric gives a nearly identical result.)
+    (Supply EPMC is omitted from the BAT-subtraction path — broken by the
+    run 1/run 2 subtraction architecture; volumetric gives a nearly identical
+    result.)
 
-    Supply pass-through = actual supply bills per subclass (no BAT adjustment).
-    Supply percustomer/volumetric = supply bills - supply BAT (clean subtraction
-    because per-customer and volumetric weights are constant across runs).
+    ``candidate_tariff`` delivery = HP bill sum on the candidate tariff,
+    non-HP = class delivery RR − HP.  ``candidate_tariff`` supply = class
+    supply RR distributed across buildings by the chosen supply method
+    (passthrough / percustomer / volumetric / epmc).
     """
     differentiated_yaml_path.parent.mkdir(parents=True, exist_ok=True)
     default_yaml_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1357,11 +1466,11 @@ def main() -> None:
     parser.add_argument(
         "--candidate-tariff-supply-run-dir",
         help=(
-            "Path to the delivery+supply CAIRO precalc run for the candidate "
-            "tariff. When provided (with --candidate-tariff-run-dir), also "
-            "computes a 'candidate_tariff' method for the supply block: "
-            "supply_RR_HP = total run bills - delivery-only bills for HP; "
-            "supply_RR_nonHP = total_supply_RR - supply_RR_HP."
+            "Path to the candidate tariff's delivery+supply CAIRO precalc "
+            "run (e.g. default_rd). Used for passthrough supply shares "
+            "(supply bill = total bill − delivery bill). Required with "
+            "--candidate-tariff-run-dir when --candidate-tariff-supply-method "
+            "is passthrough."
         ),
     )
     parser.add_argument(
@@ -1369,9 +1478,10 @@ def main() -> None:
         default="passthrough",
         choices=CANDIDATE_TARIFF_SUPPLY_METHODS,
         help=(
-            "Method for computing the supply-side candidate_tariff subclass "
-            "RR split. Default: passthrough (supply = total_bills - "
-            "delivery_bills, summed per subclass)."
+            "How to divide the class-level supply RR (from --base-rr-yaml) "
+            "across buildings. passthrough: share of actual supply bills. "
+            "percustomer: sample weight. volumetric: kWh-proportional BAT "
+            "residual share. epmc: economic burden. Default: passthrough."
         ),
     )
     args = parser.parse_args()

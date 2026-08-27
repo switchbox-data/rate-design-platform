@@ -100,6 +100,7 @@ scenarios:
     quartet: multi_rate_fixed
     requires: [default, default_rd]
     candidate_tariff_scenario: default_rd
+    candidate_tariff_supply_method: passthrough
     promote: hp
     residual_allocation:
       delivery: candidate_tariff

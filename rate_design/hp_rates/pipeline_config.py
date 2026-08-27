@@ -61,14 +61,25 @@ class SubgroupSpec:
             ``DERIVED_STRUCTURES`` (triggers derivation) or ``"base"`` (copy
             the dependency's calibrated tariff and rename).
         copy_from: For ``multi_rate_fixed`` quartets, the scenario name whose
-            calibrated tariff is sourced for this subgroup.  Must be set for
-            every subgroup of a ``multi_rate_fixed`` scenario; ignored otherwise.
+            calibrated tariff is sourced for this subgroup.  Mutually exclusive
+            with ``tariff_json_path``/``tariff_json_supply_path``; exactly one
+            sourcing mechanism must be set for every subgroup of a
+            ``multi_rate_fixed`` scenario. Ignored otherwise.
+        tariff_json_path: For ``multi_rate_fixed`` quartets, an explicit path
+            (relative to the state config dir, or absolute) to a calibrated
+            delivery tariff JSON to use for this subgroup verbatim — no
+            scenario dependency, no derivation. Must be paired with
+            ``tariff_json_supply_path``.
+        tariff_json_supply_path: The delivery+supply counterpart of
+            ``tariff_json_path``.
     """
 
     alias: str
     values: list[str]
     structure: str
     copy_from: str | None = None
+    tariff_json_path: str | None = None
+    tariff_json_supply_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,7 +116,17 @@ class ScenarioConfig:
 
     ``candidate_tariff_scenario`` names the required scenario whose precalc
     bills feed the candidate-tariff subclass RR computation.  Only used by
-    ``multi_rate_fixed``.
+    ``multi_rate_fixed``; mutually exclusive with
+    ``candidate_tariff_rr_yaml_path``.
+
+    ``candidate_tariff_rr_yaml_path`` is an explicit path (relative to the
+    state config dir, or absolute) to a pre-computed subclass RR YAML to use
+    verbatim for this ``multi_rate_fixed`` scenario — no derivation, no
+    dependency on ``candidate_tariff_scenario``.
+
+    ``candidate_tariff_supply_method`` is how the class-level supply RR is
+    divided across buildings (passthrough / percustomer / volumetric / epmc).
+    Default ``passthrough``. Only used by ``multi_rate_fixed``.
     """
 
     name: str
@@ -115,6 +136,8 @@ class ScenarioConfig:
     depends_on: str | None = None
     requires: list[str] | None = None
     candidate_tariff_scenario: str | None = None
+    candidate_tariff_rr_yaml_path: str | None = None
+    candidate_tariff_supply_method: str | None = None
     residual_allocation_delivery: str | None = None
     residual_allocation_supply: str | None = None
     subclass_config: SubclassConfig | None = None
@@ -407,6 +430,8 @@ def _parse_scenario(name: str, raw: dict[str, Any]) -> ScenarioConfig:
         depends_on=raw.get("depends_on"),
         requires=requires,
         candidate_tariff_scenario=raw.get("candidate_tariff_scenario"),
+        candidate_tariff_rr_yaml_path=raw.get("candidate_tariff_rr_yaml_path"),
+        candidate_tariff_supply_method=raw.get("candidate_tariff_supply_method"),
         residual_allocation_delivery=ra.get("delivery"),
         residual_allocation_supply=ra.get("supply"),
         subclass_config=_parse_subclass_config(raw.get("subclass_config")),
@@ -423,6 +448,8 @@ def _parse_subclass_config(raw: dict[str, Any] | None) -> SubclassConfig | None:
             values=[str(v) for v in spec["values"]],
             structure=str(spec["structure"]),
             copy_from=spec.get("copy_from"),
+            tariff_json_path=spec.get("tariff_json_path"),
+            tariff_json_supply_path=spec.get("tariff_json_supply_path"),
         )
         for alias, spec in subgroups_raw.items()
     ]
@@ -498,34 +525,84 @@ def _validate_scenario(scenario: ScenarioConfig) -> None:
         )
     # multi_rate_fixed specific validation
     if scenario.quartet == "multi_rate_fixed":
-        if not scenario.requires:
-            raise ValueError(
-                f"Scenario {scenario.name!r}: 'multi_rate_fixed' requires a "
-                "'requires' list of prerequisite scenario names."
-            )
-        if scenario.candidate_tariff_scenario is None:
-            raise ValueError(
-                f"Scenario {scenario.name!r}: 'multi_rate_fixed' requires a "
-                "'candidate_tariff_scenario' naming the scenario whose precalc "
-                "bills feed the candidate-tariff RR computation."
-            )
-        if scenario.candidate_tariff_scenario not in scenario.requires:
-            raise ValueError(
-                f"Scenario {scenario.name!r}: candidate_tariff_scenario "
-                f"{scenario.candidate_tariff_scenario!r} must be in 'requires'."
-            )
         if scenario.depends_on is not None:
             raise ValueError(
                 f"Scenario {scenario.name!r}: 'multi_rate_fixed' uses 'requires' "
                 "instead of 'depends_on'."
             )
-        if scenario.subclass_config is not None:
-            for sg in scenario.subclass_config.subgroups:
-                if sg.copy_from is None:
-                    raise ValueError(
-                        f"Scenario {scenario.name!r}, subgroup {sg.alias!r}: "
-                        "'multi_rate_fixed' requires 'copy_from' on each subgroup."
-                    )
+
+        manual_rr = scenario.candidate_tariff_rr_yaml_path is not None
+        subgroups = (
+            scenario.subclass_config.subgroups
+            if scenario.subclass_config is not None
+            else []
+        )
+
+        # Structural per-subgroup checks (independent of 'requires').
+        for sg in subgroups:
+            manual_tariff = sg.tariff_json_path is not None
+            manual_tariff_supply = sg.tariff_json_supply_path is not None
+            if manual_tariff != manual_tariff_supply:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}, subgroup {sg.alias!r}: "
+                    "'tariff_json_path' and 'tariff_json_supply_path' must "
+                    "both be set or both be omitted."
+                )
+            if manual_tariff and sg.copy_from is not None:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}, subgroup {sg.alias!r}: "
+                    "sets both 'copy_from' and 'tariff_json_path'; the "
+                    "latter bypasses derivation entirely, so remove one."
+                )
+            if not manual_tariff and sg.copy_from is None:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}, subgroup {sg.alias!r}: "
+                    "'multi_rate_fixed' requires 'copy_from' (to copy a "
+                    "prerequisite scenario's calibrated tariff) or "
+                    "'tariff_json_path'/'tariff_json_supply_path' (to use "
+                    "tariff JSONs verbatim) on each subgroup."
+                )
+
+        # 'requires' is only optional when nothing needs to be derived from it.
+        needs_requires = not manual_rr or any(
+            sg.tariff_json_path is None for sg in subgroups
+        )
+        if needs_requires and not scenario.requires:
+            raise ValueError(
+                f"Scenario {scenario.name!r}: 'multi_rate_fixed' requires a "
+                "'requires' list of prerequisite scenario names, unless both "
+                "'candidate_tariff_rr_yaml_path' and every subgroup's "
+                "'tariff_json_path' are set (fully manual inputs)."
+            )
+
+        if manual_rr:
+            if scenario.candidate_tariff_scenario is not None:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}: sets both "
+                    "'candidate_tariff_scenario' and "
+                    "'candidate_tariff_rr_yaml_path'; the latter bypasses "
+                    "derivation entirely, so remove one."
+                )
+        else:
+            if scenario.candidate_tariff_scenario is None:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}: 'multi_rate_fixed' requires "
+                    "either 'candidate_tariff_scenario' (to derive the "
+                    "subclass RR) or 'candidate_tariff_rr_yaml_path' (to use "
+                    "a pre-computed RR YAML verbatim)."
+                )
+            assert scenario.requires is not None  # guaranteed by needs_requires above
+            if scenario.candidate_tariff_scenario not in scenario.requires:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}: candidate_tariff_scenario "
+                    f"{scenario.candidate_tariff_scenario!r} must be in 'requires'."
+                )
+
+        for sg in subgroups:
+            if sg.copy_from is not None:
+                assert (
+                    scenario.requires is not None
+                )  # guaranteed by needs_requires above
                 if sg.copy_from not in scenario.requires:
                     raise ValueError(
                         f"Scenario {scenario.name!r}, subgroup {sg.alias!r}: "
