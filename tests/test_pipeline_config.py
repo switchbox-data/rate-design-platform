@@ -10,6 +10,7 @@ import pytest
 import yaml
 
 from rate_design.hp_rates.pipeline_config import (
+    generate_scenarios_yaml,
     load_pipeline_config,
     validate_preflight_inputs,
 )
@@ -108,14 +109,14 @@ class TestMultiRateFixed:
     def _fixed_scenario_yaml(self) -> dict[str, Any]:
         """Pipeline YAML with a valid multi_rate_fixed scenario."""
         data = _minimal_pipeline_yaml()
-        data["scenarios"]["default_rd"] = {
-            "quartet": "single_rate",
+        data["scenarios"]["default_uncalibrated_rd"] = {
+            "quartet": "single_rate_uncalibrated",
             "tariff_base": "rd_default",
         }
         data["scenarios"]["hp_rd_vs_default"] = {
             "quartet": "multi_rate_fixed",
-            "requires": ["default", "default_rd"],
-            "candidate_tariff_scenario": "default_rd",
+            "requires": ["default", "default_uncalibrated_rd"],
+            "candidate_tariff_scenario": "default_uncalibrated_rd",
             "candidate_tariff_supply_method": "passthrough",
             "promote": "hp",
             "residual_allocation": {
@@ -128,7 +129,7 @@ class TestMultiRateFixed:
                     "hp": {
                         "values": ["true"],
                         "structure": "base",
-                        "copy_from": "default_rd",
+                        "copy_from": "default_uncalibrated_rd",
                     },
                     "non-hp": {
                         "values": ["false"],
@@ -144,13 +145,13 @@ class TestMultiRateFixed:
         config = load_pipeline_config(_write(tmp_path, self._fixed_scenario_yaml()))
         sc = config.scenario("hp_rd_vs_default")
         assert sc.quartet == "multi_rate_fixed"
-        assert sc.requires == ["default", "default_rd"]
-        assert sc.candidate_tariff_scenario == "default_rd"
+        assert sc.requires == ["default", "default_uncalibrated_rd"]
+        assert sc.candidate_tariff_scenario == "default_uncalibrated_rd"
         assert sc.candidate_tariff_supply_method == "passthrough"
         assert sc.promote == "hp"
         assert sc.depends_on is None
         assert sc.subclass_config is not None
-        assert sc.subclass_config.subgroups[0].copy_from == "default_rd"
+        assert sc.subclass_config.subgroups[0].copy_from == "default_uncalibrated_rd"
         assert sc.subclass_config.subgroups[1].copy_from == "default"
 
     def test_missing_requires_rejected(self, tmp_path: Path) -> None:
@@ -319,6 +320,87 @@ class TestMultiRateFixed:
         del data["scenarios"]["hp_rd_vs_default"]["promote"]
         with pytest.raises(ValueError, match="requires an explicit 'promote'"):
             load_pipeline_config(_write(tmp_path, data))
+
+
+class TestSingleRateUncalibrated:
+    """``single_rate_uncalibrated``: CAIRO default mode, posted tariff, large RR."""
+
+    def _yaml(self) -> dict[str, Any]:
+        data = _minimal_pipeline_yaml()
+        data["scenarios"]["default_uncalibrated_rd"] = {
+            "quartet": "single_rate_uncalibrated",
+            "tariff_base": "rd_default",
+        }
+        return data
+
+    def test_loads(self, tmp_path: Path) -> None:
+        config = load_pipeline_config(_write(tmp_path, self._yaml()))
+        sc = config.scenario("default_uncalibrated_rd")
+        assert sc.quartet == "single_rate_uncalibrated"
+        assert sc.is_single_rate
+        assert sc.is_uncalibrated
+        assert sc.tariff_base == "rd_default"
+        assert not config.scenario("default").is_uncalibrated
+
+    def test_missing_tariff_base_rejected(self, tmp_path: Path) -> None:
+        data = self._yaml()
+        del data["scenarios"]["default_uncalibrated_rd"]["tariff_base"]
+        with pytest.raises(ValueError, match="tariff_base"):
+            load_pipeline_config(_write(tmp_path, data))
+
+    def test_subclass_config_rejected(self, tmp_path: Path) -> None:
+        data = self._yaml()
+        data["scenarios"]["default_uncalibrated_rd"]["subclass_config"] = {
+            "group_col": "has_hp",
+            "subgroups": {
+                "hp": {"values": ["true"], "structure": "base"},
+            },
+        }
+        with pytest.raises(ValueError, match="must not declare a 'subclass_config'"):
+            load_pipeline_config(_write(tmp_path, data))
+
+    def test_generated_runs_are_default_mode_with_posted_tariff_and_large_rr(
+        self, tmp_path: Path
+    ) -> None:
+        config = load_pipeline_config(_write(tmp_path, self._yaml()))
+        out = tmp_path / "scenarios.yaml"
+        generate_scenarios_yaml(
+            config, "batch_test", out, scenarios=["default_uncalibrated_rd"]
+        )
+        doc = yaml.safe_load(out.read_text(encoding="utf-8"))
+        runs = doc["runs"]
+        assert len(runs) == 4
+        large_rr = "rev_requirement/bge_large.yaml"
+        for name, run in runs.items():
+            assert run["run_type"] == "default", name
+            assert run["utility_revenue_requirement"] == large_rr, name
+            tariffs = run["path_tariffs_electric"]
+            assert "calibrated" not in tariffs["all"], name
+            assert tariffs["all"].startswith("tariffs/electric/bge_rd_default"), name
+
+        precalc_d = runs["md_bge_default_uncalibrated_rd_precalc_delivery"]
+        cal_d = runs["md_bge_default_uncalibrated_rd_calibrated_delivery"]
+        assert precalc_d["path_tariffs_electric"] == cal_d["path_tariffs_electric"]
+        assert "upgrade=00" in precalc_d["path_resstock_metadata"]
+        assert "upgrade=02" in cal_d["path_resstock_metadata"]
+
+    def test_ordinary_single_rate_precalc_still_solves_to_class_rr(
+        self, tmp_path: Path
+    ) -> None:
+        config = load_pipeline_config(_write(tmp_path, self._yaml()))
+        out = tmp_path / "scenarios.yaml"
+        generate_scenarios_yaml(config, "batch_test", out, scenarios=["default"])
+        runs = yaml.safe_load(out.read_text(encoding="utf-8"))["runs"]
+        precalc = runs["md_bge_default_precalc_delivery"]
+        calibrated = runs["md_bge_default_calibrated_delivery"]
+        assert precalc["run_type"] == "precalc"
+        assert precalc["utility_revenue_requirement"] == "rev_requirement/bge.yaml"
+        assert calibrated["run_type"] == "default"
+        assert (
+            calibrated["utility_revenue_requirement"]
+            == "rev_requirement/bge_large.yaml"
+        )
+        assert calibrated["path_tariffs_electric"]["all"].endswith("_calibrated.json")
 
 
 class TestFuseMountCheck:

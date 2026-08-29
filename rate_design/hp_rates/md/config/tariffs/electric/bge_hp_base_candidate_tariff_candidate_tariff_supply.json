@@ -1,14 +1,134 @@
 {
   "items": [
     {
-      "label": "bge_hp_base_candidate_tariff_candidate_tariff_supply",
-      "name": "bge_hp_base_candidate_tariff_candidate_tariff_supply",
-      "uri": "",
-      "sector": "Residential",
-      "servicetype": "Bundled",
-      "dgrules": "Net Metering",
-      "utility": "GenericUtility",
-      "country": "USA",
+      "energyratestructure": [
+        [
+          {
+            "rate": 0.15313,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.35511,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.14829,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.35027,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.16413,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.43608,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.16269,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.43464,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.17084,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.44279,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.1526,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.42827,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.15439,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.43006,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.15224,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.42791,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.46326,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.16651,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.43656,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.14973,
+            "unit": "kWh"
+          }
+        ],
+        [
+          {
+            "rate": 0.34981,
+            "unit": "kWh"
+          }
+        ]
+      ],
       "energyweekdayschedule": [
         [
           0,
@@ -637,157 +757,12 @@
           19
         ]
       ],
-      "energyratestructure": [
-        [
-          {
-            "rate": 0.14105932168585295,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.3271303095497889,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.13660596715654943,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.3226769550204854,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.1511954844488689,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.40171716761726495,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.14987040656745038,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.4003920897358464,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.1573837347610606,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.4079054179294566,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.14058120080080502,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.39453169374483044,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.14222047240668362,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.39617096535070906,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.14023968588291363,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.3941901788269391,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.42675704139706044,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.15339484052008936,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.40216796730888155,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.13793104503796796,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ],
-        [
-          {
-            "rate": 0.32225347652230013,
-            "adj": 0.0,
-            "unit": "kWh"
-          }
-        ]
-      ],
       "fixedchargefirstmeter": 10.32,
-      "fixedchargeunits": "$/month"
+      "fixedchargeunits": "$/month",
+      "label": "bge_hp_base_candidate_tariff_candidate_tariff_supply",
+      "utility": "Baltimore Gas & Electric Co",
+      "name": "bge_hp_base_candidate_tariff_candidate_tariff_supply",
+      "country": "USA"
     }
   ]
 }

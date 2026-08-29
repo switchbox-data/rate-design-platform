@@ -6,18 +6,20 @@ Status: redesigned pipeline with generic quartet-based orchestration, structure 
 
 - **Scenario** — one rate design to evaluate (`default`, `hp_seasonal_percustomer_passthrough`, …), declared with a `quartet` kind in the pipeline YAML.
 - **Variant** — the cost scope of one CAIRO run: `delivery` (`billing_kwh=True`) or `supply` (`billing_kwh=False`).
-- **Stage** — calibration lifecycle position: `precalc` (CAIRO solves tariffs on baseline population) then `calibrated` (target population uses promoted `*_calibrated.json` as input).
+- **Stage** — orchestration slot: `precalc` (upgrade 00) then `calibrated` (upgrade 02). For `single_rate` / multi-rate quartets, precalc is CAIRO `run_type: precalc` (solves tariffs) and calibrated is `run_type: default` (bills the promoted `*_calibrated.json`). For `single_rate_uncalibrated`, **both** stages are `run_type: default` and bill the posted tariff; the large-number RR YAML is used so CAIRO does not error on revenue sufficiency.
 - **Run** — one CAIRO invocation = one (stage, variant) pair. Identified by a canonical run name.
 - **Quartet** — the four runs that fully evaluate one scenario: 2 stages × 2 variants.
-- **Tariff promotion seam** — the handoff joining precalc → calibrated: precalc outputs' `tariff_final_config.json` → `*_calibrated.json` files written to config dir.
+- **Tariff promotion seam** — the handoff joining precalc → calibrated: precalc outputs' `tariff_final_config.json` → `*_calibrated.json` files written to config dir. Skipped for `single_rate_uncalibrated`.
 
 ### Quartet kinds
 
-| quartet                | precalc | calibrated | subgroups | description                                             |
-| ---------------------- | ------- | ---------- | --------- | ------------------------------------------------------- |
-| `single_rate`          | single  | single     | no        | Calibrate one tariff on up00, evaluate on up02          |
-| `multi_rate_collapsed` | multi   | single     | yes       | Calibrate per-subgroup, promote one to calibrated stage |
-| `multi_rate_preserved` | multi   | multi      | yes       | Keep all subgroup tariffs through calibrated stage      |
+| quartet                    | precalc | calibrated | subgroups | description                                                                                               |
+| -------------------------- | ------- | ---------- | --------- | --------------------------------------------------------------------------------------------------------- |
+| `single_rate`              | single  | single     | no        | Calibrate one tariff on up00, evaluate on up02                                                            |
+| `single_rate_uncalibrated` | single  | single     | no        | Bill a posted tariff unchanged (`run_type: default` both stages, large-number RR so CAIRO does not error) |
+| `multi_rate_collapsed`     | multi   | single     | yes       | Calibrate per-subgroup, promote one to calibrated stage                                                   |
+| `multi_rate_preserved`     | multi   | multi      | yes       | Keep all subgroup tariffs through calibrated stage                                                        |
+| `multi_rate_fixed`         | multi   | single     | yes       | Copy already-built tariffs (no redesign); subclass RR from a candidate-tariff run                         |
 
 ## Files
 
@@ -196,7 +198,7 @@ bill_change_baseline:
 ### Key config fields
 
 - `output_base` — root S3/FUSE path for outputs; batch dir = `{output_base}/{state}/{utility}/{batch}`
-- `tariff_base` — explicit stem component for single-rate tariff filenames (required for `single_rate` quartet)
+- `tariff_base` — explicit stem component for single-rate tariff filenames (required for `single_rate` and `single_rate_uncalibrated`)
 - `periods_yaml` — utility periods config (winter months); defaults to `periods/{utility}.yaml`
 - `depends_on` — names the dependency scenario whose outputs feed `derive_tariffs`
 - `promote` — which subgroup's calibrated tariff to promote for `multi_rate_collapsed`

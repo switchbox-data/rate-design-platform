@@ -1,6 +1,6 @@
 utility: bge
 group_col: has_hp
-source_run_dir: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260827_rd_hp/20260827_034251_md_bge_default_precalc_delivery
+source_run_dir: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260828_rd_hp/20260828_144735_md_bge_default_precalc_delivery
 test_year_customer_count: 1222270.17
 resstock_kwh_scale_factor: 0.8280035547183955
 total_delivery_revenue_requirement: 1217984516.32
@@ -9,29 +9,29 @@ subclass_revenue_requirements:
   delivery:
     percustomer:
       non-hp: 969456626.6315578
-      hp: 248527889.6884414
+      hp: 248527889.6884412
     epmc:
-      non-hp: 934419787.4390666
+      non-hp: 934419787.4390669
       hp: 283564728.8809329
     volumetric:
       non-hp: 899378601.3676196
-      hp: 318605914.9523801
+      hp: 318605914.95238024
     passthrough:
       non-hp: 902024720.1897411
-      hp: 315959796.1302512
+      hp: 315959796.13025105
     candidate_tariff:
-      hp: 314731632.87128115
-      non-hp: 903252883.4487188
+      hp: 390795814.4835669
+      non-hp: 827188701.836433
   supply:
     passthrough:
-      non-hp: 1116151577.431212
-      hp: 407546447.6887873
+      non-hp: 1116151577.4312136
+      hp: 407546447.6887878
     percustomer:
-      non-hp: 1163983216.2008462
-      hp: 359714808.9191531
+      non-hp: 1163983216.2008476
+      hp: 359714808.9191538
     volumetric:
-      non-hp: 1127304782.4139318
-      hp: 396393242.7060669
+      non-hp: 1127304782.4139338
+      hp: 396393242.70606714
     candidate_tariff:
-      hp: 401696714.95833635
-      non-hp: 1122001310.1616638
+      hp: 401808567.69027
+      non-hp: 1121889457.4297302

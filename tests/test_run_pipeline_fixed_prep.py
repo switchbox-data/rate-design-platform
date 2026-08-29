@@ -219,3 +219,97 @@ class TestPrepareFixedTariffsManual:
         # Relabelled to this scenario's own stem, not the manual source's label.
         assert payload["items"][0]["label"] == hp_delivery.stem
         assert payload["items"][0]["label"] != "manual_hp_source"
+
+
+class TestPrepareFixedTariffsCopyFrom:
+    """``copy_from`` uses posted JSON for uncalibrated sources, calibrated otherwise."""
+
+    def _fixed_scenario(self) -> ScenarioConfig:
+        return ScenarioConfig(
+            name="hp_rd_vs_default",
+            quartet="multi_rate_fixed",
+            promote="hp",
+            requires=["default", "default_uncalibrated_rd"],
+            residual_allocation_delivery="candidate_tariff",
+            residual_allocation_supply="candidate_tariff",
+            subclass_config=SubclassConfig(
+                group_col="has_hp",
+                subgroups=[
+                    SubgroupSpec(
+                        alias="hp",
+                        values=["true"],
+                        structure="base",
+                        copy_from="default_uncalibrated_rd",
+                    ),
+                    SubgroupSpec(
+                        alias="non-hp",
+                        values=["false"],
+                        structure="base",
+                        copy_from="default",
+                    ),
+                ],
+            ),
+        )
+
+    def test_uncalibrated_copy_from_uses_posted_tariff(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / "config"
+        _write_urdb_tariff(
+            config_dir / "tariffs/electric/bge_rd_default.json", "posted_rd"
+        )
+        # Tag the posted file so we can tell copy_from did not pick *_calibrated.
+        posted = json.loads(
+            (config_dir / "tariffs/electric/bge_rd_default.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        posted["items"][0]["source_tag"] = "posted_rd"
+        (config_dir / "tariffs/electric/bge_rd_default.json").write_text(
+            json.dumps(posted), encoding="utf-8"
+        )
+        _write_urdb_tariff(
+            config_dir / "tariffs/electric/bge_rd_default_supply.json",
+            "posted_rd_supply",
+        )
+        _write_urdb_tariff(
+            config_dir / "tariffs/electric/bge_default_calibrated.json",
+            "calibrated_default",
+        )
+        cal = json.loads(
+            (config_dir / "tariffs/electric/bge_default_calibrated.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        cal["items"][0]["source_tag"] = "calibrated_default"
+        (config_dir / "tariffs/electric/bge_default_calibrated.json").write_text(
+            json.dumps(cal), encoding="utf-8"
+        )
+        _write_urdb_tariff(
+            config_dir / "tariffs/electric/bge_default_supply_calibrated.json",
+            "calibrated_default_supply",
+        )
+
+        scenarios = {
+            "default": ScenarioConfig(
+                name="default", quartet="single_rate", tariff_base="default"
+            ),
+            "default_uncalibrated_rd": ScenarioConfig(
+                name="default_uncalibrated_rd",
+                quartet="single_rate_uncalibrated",
+                tariff_base="rd_default",
+            ),
+            "hp_rd_vs_default": self._fixed_scenario(),
+        }
+        config = _config(tmp_path, scenarios)
+        written = prepare_fixed_tariffs.fn(config, scenarios["hp_rd_vs_default"], {})
+
+        hp_delivery = next(
+            p for p in written if "_hp_" in p.name and "_supply" not in p.name
+        )
+        nonhp_delivery = next(
+            p for p in written if "_non-hp_" in p.name and "_supply" not in p.name
+        )
+        hp_payload = json.loads(hp_delivery.read_text(encoding="utf-8"))
+        nonhp_payload = json.loads(nonhp_delivery.read_text(encoding="utf-8"))
+        assert hp_payload["items"][0]["source_tag"] == "posted_rd"
+        assert nonhp_payload["items"][0]["source_tag"] == "calibrated_default"
+        assert hp_payload["items"][0]["label"] == hp_delivery.stem

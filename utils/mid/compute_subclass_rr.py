@@ -1454,10 +1454,10 @@ def main() -> None:
     parser.add_argument(
         "--candidate-tariff-run-dir",
         help=(
-            "Path to a CAIRO precalc run directory where a candidate tariff "
-            "(e.g. BGE Schedule RD, or any alternative tariff design) has "
-            "already been calibrated to the total residential delivery revenue "
-            "requirement. When provided (together with --base-rr-yaml), adds a "
+            "Path to a CAIRO run directory billed on a candidate tariff "
+            "(e.g. posted BGE Schedule RD) without CAIRO adjusting the "
+            "tariff (typically a ``single_rate_uncalibrated`` run). When "
+            "provided (together with --base-rr-yaml), adds a "
             "'candidate_tariff' method to the delivery block: RR_HP = weighted "
             "sum of this run's bills for --group-col=true customers; RR_nonHP = "
             "total_delivery_revenue_requirement - RR_HP."
@@ -1467,7 +1467,7 @@ def main() -> None:
         "--candidate-tariff-supply-run-dir",
         help=(
             "Path to the candidate tariff's delivery+supply CAIRO precalc "
-            "run (e.g. default_rd). Used for passthrough supply shares "
+            "run (e.g. default_uncalibrated_rd). Used for passthrough supply shares "
             "(supply bill = total bill − delivery bill). Required with "
             "--candidate-tariff-run-dir when --candidate-tariff-supply-method "
             "is passthrough."

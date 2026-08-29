@@ -21,7 +21,19 @@ import yaml
 HP_RATES_DIR = Path(__file__).resolve().parent
 
 QUARTET_KINDS: frozenset[str] = frozenset(
-    {"single_rate", "multi_rate_collapsed", "multi_rate_preserved", "multi_rate_fixed"}
+    {
+        "single_rate",
+        "single_rate_uncalibrated",
+        "multi_rate_collapsed",
+        "multi_rate_preserved",
+        "multi_rate_fixed",
+    }
+)
+
+# One posted tariff, no subclass split. Includes uncalibrated (CAIRO default
+# mode: tariff is not solved to the class RR).
+_SINGLE_RATE_QUARTETS: frozenset[str] = frozenset(
+    {"single_rate", "single_rate_uncalibrated"}
 )
 
 # Quartet kinds whose precalc stage runs per-subgroup (multi) tariffs.
@@ -61,7 +73,9 @@ class SubgroupSpec:
             ``DERIVED_STRUCTURES`` (triggers derivation) or ``"base"`` (copy
             the dependency's calibrated tariff and rename).
         copy_from: For ``multi_rate_fixed`` quartets, the scenario name whose
-            calibrated tariff is sourced for this subgroup.  Mutually exclusive
+            tariff is sourced for this subgroup.  ``single_rate`` sources the
+            promoted ``*_calibrated.json``; ``single_rate_uncalibrated``
+            sources the posted (unadjusted) tariff.  Mutually exclusive
             with ``tariff_json_path``/``tariff_json_supply_path``; exactly one
             sourcing mechanism must be set for every subgroup of a
             ``multi_rate_fixed`` scenario. Ignored otherwise.
@@ -105,7 +119,8 @@ class ScenarioConfig:
 
     ``tariff_base`` is the base component of the tariff filename stem
     (e.g. ``"default"``).  For single-rate scenarios this produces stems like
-    ``bge_default[_supply][_calibrated]``.  Required only for single-rate scenarios.
+    ``bge_default[_supply][_calibrated]``.  Required for ``single_rate`` and
+    ``single_rate_uncalibrated``.
 
     ``depends_on`` names the scenario whose outputs feed into this one's
     derive flow (subclass RR, tariff derivation).
@@ -154,7 +169,17 @@ class ScenarioConfig:
 
     @property
     def is_single_rate(self) -> bool:
-        return self.quartet == "single_rate"
+        """True for one-tariff quartets (calibrated or uncalibrated)."""
+        return self.quartet in _SINGLE_RATE_QUARTETS
+
+    @property
+    def is_uncalibrated(self) -> bool:
+        """True when CAIRO must leave the posted tariff unchanged.
+
+        Both stages of this quartet use ``run_type: default`` and the
+        large-number RR YAML so CAIRO does not solve rates to class RR.
+        """
+        return self.quartet == "single_rate_uncalibrated"
 
 
 @dataclass(frozen=True, slots=True)
@@ -558,7 +583,7 @@ def _validate_scenario(scenario: ScenarioConfig) -> None:
                 raise ValueError(
                     f"Scenario {scenario.name!r}, subgroup {sg.alias!r}: "
                     "'multi_rate_fixed' requires 'copy_from' (to copy a "
-                    "prerequisite scenario's calibrated tariff) or "
+                    "prerequisite scenario's tariff) or "
                     "'tariff_json_path'/'tariff_json_supply_path' (to use "
                     "tariff JSONs verbatim) on each subgroup."
                 )
@@ -752,6 +777,7 @@ def _build_run_entry(
     is_supply = variant == "supply"
     is_calibrated = stage == "calibrated"
     upgrade = rd.upgrade_calibrated if is_calibrated else rd.upgrade_precalc
+    run_type = "default" if (is_calibrated or scenario.is_uncalibrated) else "precalc"
 
     # ResStock paths
     meta = (
@@ -801,7 +827,7 @@ def _build_run_entry(
         "run_name": run_name,
         "state": state_upper,
         "utility": config.utility,
-        "run_type": "default" if is_calibrated else "precalc",
+        "run_type": run_type,
         "path_resstock_metadata": meta,
         "path_resstock_loads": loads,
         "path_utility_assignment": ua,
@@ -862,13 +888,16 @@ def _resolve_tariff_paths(
     """
     is_supply = variant == "supply"
     is_calibrated = stage == "calibrated"
+    # Uncalibrated quartets bill the posted tariff at both stages — there is
+    # no promotion seam and no *_calibrated.json input.
+    use_calibrated_tariff = is_calibrated and not scenario.is_uncalibrated
 
     if scenario.is_single_rate:
         stem = tariff_stem(
             config.utility,
             scenario,
             supply=is_supply,
-            calibrated=is_calibrated,
+            calibrated=use_calibrated_tariff,
         )
         tariffs = {"all": f"tariffs/electric/{stem}.json"}
         map_rel = f"tariff_maps/electric/{stem}.csv"
@@ -981,6 +1010,10 @@ def _resolve_rr_yaml(
 ) -> str:
     """Return the revenue requirement YAML path (relative) for a run."""
     rd = config.run_defaults
+    # Uncalibrated: CAIRO default mode still requires an RR YAML and errors
+    # if bills over-collect. The large-number file makes that check a no-op.
+    if scenario.is_uncalibrated:
+        return rd.rr_single_rate_calibrated
     if stage == "calibrated":
         if scenario.is_single_rate:
             return rd.rr_single_rate_calibrated

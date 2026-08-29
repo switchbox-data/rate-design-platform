@@ -564,10 +564,11 @@ def compute_candidate_tariff_rr_for_fixed(
 
     # Compute candidate_tariff delivery (HP bill sums on the candidate tariff)
     # and supply (class supply RR distributed by candidate_tariff_supply_method).
-    # Passthrough supply shares use the candidate-tariff (default_rd) delivery
-    # and delivery+supply bills so they match the delivery rule. Other methods
-    # (percustomer / volumetric / epmc) use the first required scenario
-    # (usually default): those shares come from customer counts, kWh, and MC.
+    # Passthrough supply shares use the candidate-tariff (e.g.
+    # default_uncalibrated_rd) delivery and delivery+supply bills so they
+    # match the delivery rule. Other methods (percustomer / volumetric /
+    # epmc) use the first required scenario (usually default): those shares
+    # come from customer counts, kWh, and MC.
     supply_method = scenario.candidate_tariff_supply_method or "passthrough"
     if supply_method not in CANDIDATE_TARIFF_SUPPLY_METHODS:
         msg = (
@@ -627,7 +628,9 @@ def prepare_fixed_tariffs(
     For each subgroup in a ``multi_rate_fixed`` scenario, the source tariff is
     either:
 
-    * ``copy_from``: the calibrated tariff from a prerequisite scenario, or
+    * ``copy_from``: the tariff from a prerequisite scenario
+      (``*_calibrated.json`` for ``single_rate``, posted JSON for
+      ``single_rate_uncalibrated``), or
     * ``tariff_json_path`` / ``tariff_json_supply_path``: an explicit path to
       use verbatim, bypassing any scenario dependency.
 
@@ -653,7 +656,7 @@ def prepare_fixed_tariffs(
                     config.utility,
                     source_scenario,
                     supply=is_supply,
-                    calibrated=True,
+                    calibrated=not source_scenario.is_uncalibrated,
                 )
                 source_path = json_dir / f"{source_stem}.json"
 
@@ -734,6 +737,7 @@ def run_quartet(
     batch_dir: Path,
     process_workers: int,
     concurrent: bool,
+    promote_tariffs: bool = True,
 ) -> dict[str, Path]:
     """Run one scenario's full quartet: 2 stages × 2 variants = 4 CAIRO runs.
 
@@ -742,6 +746,8 @@ def run_quartet(
     1. **Precalc stage** — run delivery and supply ``cairo_run`` tasks.
     2. **Tariff promotion** — extract ``*_calibrated.json`` from precalc
        outputs so they are available as inputs for the calibrated stage.
+       Skipped when ``promote_tariffs`` is False (uncalibrated quartets:
+       both stages bill the posted tariff).
     3. **Calibrated stage** — run delivery and supply ``cairo_run`` tasks.
 
     All run configurations are already materialised in the scenario YAML by
@@ -776,6 +782,9 @@ def run_quartet(
             when ``concurrent`` is True (see above).
         concurrent: ``concurrent_variants`` from the pipeline YAML. Whether
             each stage's delivery and supply runs overlap.
+        promote_tariffs: If False, skip writing ``*_calibrated.json`` from
+            precalc outputs. Used by ``single_rate_uncalibrated`` quartets,
+            whose calibrated stage still bills the posted tariff.
 
     Returns:
         Mapping of ``{stage}_{variant}`` to the output directory path for
@@ -800,13 +809,21 @@ def run_quartet(
     results["precalc_supply"] = precalc_s_dir
 
     # --- Tariff promotion seam ---
-    promoted = _promote_calibrated_tariffs([precalc_d_dir, precalc_s_dir], state=state)
-    log.info(
-        "run_quartet[%s]: promoted %d calibrated tariffs: %s",
-        scenario_name,
-        len(promoted),
-        [p.name for p in promoted],
-    )
+    if promote_tariffs:
+        promoted = _promote_calibrated_tariffs(
+            [precalc_d_dir, precalc_s_dir], state=state
+        )
+        log.info(
+            "run_quartet[%s]: promoted %d calibrated tariffs: %s",
+            scenario_name,
+            len(promoted),
+            [p.name for p in promoted],
+        )
+    else:
+        log.info(
+            "run_quartet[%s]: skipping tariff promotion (uncalibrated)",
+            scenario_name,
+        )
 
     # --- Stage 2: calibrated ---
     cal_d_dir, cal_s_dir = _run_stage(
@@ -953,6 +970,7 @@ def run_batch(
             batch_dir=batch_dir,
             process_workers=config.process_workers,
             concurrent=config.concurrent_variants,
+            promote_tariffs=not scenario.is_uncalibrated,
         )
 
     # --- Run dependent scenarios (after dependency + derive step) ---
@@ -974,6 +992,7 @@ def run_batch(
             batch_dir=batch_dir,
             process_workers=config.process_workers,
             concurrent=config.concurrent_variants,
+            promote_tariffs=not scenario.is_uncalibrated,
         )
 
     # --- Run fixed scenarios (multi_rate_fixed: separate prep tasks) ---
@@ -1001,6 +1020,7 @@ def run_batch(
             batch_dir=batch_dir,
             process_workers=config.process_workers,
             concurrent=config.concurrent_variants,
+            promote_tariffs=not scenario.is_uncalibrated,
         )
 
     log.info("run_batch: all scenarios complete for batch %s", batch)
