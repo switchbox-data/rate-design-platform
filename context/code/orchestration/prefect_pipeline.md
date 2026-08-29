@@ -13,13 +13,13 @@ Status: redesigned pipeline with generic quartet-based orchestration, structure 
 
 ### Quartet kinds
 
-| quartet                    | precalc | calibrated | subgroups | description                                                                                               |
-| -------------------------- | ------- | ---------- | --------- | --------------------------------------------------------------------------------------------------------- |
-| `single_rate`              | single  | single     | no        | Calibrate one tariff on up00, evaluate on up02                                                            |
-| `single_rate_uncalibrated` | single  | single     | no        | Bill a posted tariff unchanged (`run_type: default` both stages, large-number RR so CAIRO does not error) |
-| `multi_rate_collapsed`     | multi   | single     | yes       | Calibrate per-subgroup, promote one to calibrated stage                                                   |
-| `multi_rate_preserved`     | multi   | multi      | yes       | Keep all subgroup tariffs through calibrated stage                                                        |
-| `multi_rate_fixed`         | multi   | single     | yes       | Copy already-built tariffs (no redesign); subclass RR from a candidate-tariff run                         |
+| quartet                    | precalc | calibrated | subgroups | description                                                                                                                                                            |
+| -------------------------- | ------- | ---------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `single_rate`              | single  | single     | no        | Calibrate one tariff on up00, evaluate on up02                                                                                                                         |
+| `single_rate_uncalibrated` | single  | single     | no        | Bill a posted tariff unchanged (`run_type: default` both stages, large-number RR so CAIRO does not error)                                                              |
+| `multi_rate_collapsed`     | multi   | single     | yes       | Calibrate per-subgroup, promote one to calibrated stage                                                                                                                |
+| `multi_rate_preserved`     | multi   | multi      | yes       | Keep all subgroup tariffs through calibrated stage                                                                                                                     |
+| `multi_rate_fixed`         | multi   | single     | yes       | Copy already-built tariffs (no redesign); subclass RR from a candidate-tariff run. See [`multi_rate_fixed_candidate_tariff.md`](multi_rate_fixed_candidate_tariff.md). |
 
 ## Files
 
@@ -38,20 +38,26 @@ run_batch @flow (master)
   │    ├─ validate inputs (FUSE mount, MC paths, ResStock, RR YAMLs, tariff JSONs)
   │    ├─ generate scenarios YAML (pipeline YAML → per-run format for run_scenario.py)
   │    └─ generate electric tariff maps (write_tariff_maps_from_scenario)
-  ├─ independent scenarios (no depends_on):
+  ├─ independent scenarios (no depends_on, not multi_rate_fixed):
   │    └─ run_quartet @flow
   │         ├─ precalc: cairo_run(delivery) → cairo_run(supply)
-  │         ├─ tariff promotion seam
+  │         ├─ tariff promotion seam (skipped for single_rate_uncalibrated)
   │         └─ calibrated: cairo_run(delivery) → cairo_run(supply)
-  └─ dependent scenarios (has depends_on):
-       ├─ check_dependency (verify dependency's quartet completed)
-       ├─ derive_tariffs (compute subclass RR + dispatch tariff creation by structure)
+  ├─ dependent scenarios (has depends_on):
+  │    ├─ check_dependency (verify dependency's quartet completed)
+  │    ├─ derive_tariffs (compute subclass RR + dispatch tariff creation by structure)
+  │    └─ run_quartet @flow
+  └─ multi_rate_fixed (uses requires, not depends_on):
+       ├─ check_dependency for each name in requires
+       ├─ compute_candidate_tariff_rr_for_fixed
+       ├─ prepare_fixed_tariffs (relabel-copy; or use tariff_json_path)
        └─ run_quartet @flow
 ```
 
 - `cairo_run` is the atomic `@task`: shells out to `run_scenario.py` as a subprocess for full memory isolation.
 - `run_quartet` is a `@flow` with `ThreadPoolTaskRunner(max_workers=2)`. Whether each stage's delivery + supply pair actually overlaps is controlled by `concurrent_variants` (see below); the arrows above show the default sequential mode.
-- `derive_tariffs` dispatches to `pipeline_derive.py` handlers (no if-chains in the pipeline).
+- `derive_tariffs` dispatches to `pipeline_derive.py` handlers (no if-chains in the pipeline). Seasonal/flat HP rates use that path.
+- `multi_rate_fixed` is a third dispatch: copy already-built tariffs and a candidate-tariff subclass RR, then CAIRO. See [`multi_rate_fixed_candidate_tariff.md`](multi_rate_fixed_candidate_tariff.md).
 
 ## Canonical run naming
 
