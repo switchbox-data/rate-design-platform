@@ -314,6 +314,61 @@ Building BAT without the baseline bills raises with the path to build first — 
 
 BAT metrics in **calibrated** segments are dominated by the deliberately large revenue requirement those runs use (`residual_share_total` lands in the hundreds of thousands per customer, versus roughly a thousand in precalc). Bills in calibrated segments are unaffected and correct. The builders write what CAIRO produced without special-casing; interpret cross-subsidy metrics from precalc segments.
 
+## End-to-end example: MD/BGE with Just recipes
+
+The invocation and post-processing steps above are the generic, state-agnostic path (raw `python -m` / `uv run python`). `rate_design/hp_rates/Justfile` and `rate_design/hp_rates/md/Justfile` wrap them into a handful of recipes, and MD's adds a composed recipe for its OHEP (MEAP/EUSP) LMI columns. This section walks the full MD/BGE flow using those recipes; see [Justfiles](../../rate_design/hp_rates/Justfile) for the recipes themselves.
+
+### 1. Start the Prefect server (once per session, separate terminal)
+
+```bash
+cd rate_design/hp_rates
+just serve-prefect
+```
+
+`serve-prefect` is a thin wrapper around `uv run prefect server start --port {{ port }}` (default port `4200`). It is state-agnostic — one server serves every state/utility batch — so it lives in the shared Justfile and does not need `just s md ...` dispatch. Leave this terminal open for the duration of the batch.
+
+### 2. Point the pipeline at the server (in your working terminal)
+
+```bash
+export PREFECT_API_URL=http://127.0.0.1:4200/api
+```
+
+`run-pipeline` checks this at the top of its recipe body and fails fast with a reminder if it is unset, rather than silently falling back to an ephemeral server that loses run history.
+
+### 3. Run the batch
+
+For MD, use the composed recipe to get the pipeline run and both LMI-aware master tables in one command:
+
+```bash
+just s md run-with-lmi md_20260803_a
+```
+
+This chains three recipes, stopping at the first failure:
+
+1. `run-pipeline md_20260803_a` — runs every scenario in `md/config/scenarios/pipeline_bge.yaml` (equivalent to the `uv run python -m rate_design.hp_rates.run_pipeline ...` invocation above, minus typing the `--yaml` path).
+2. `build-master-bills-prefect md_20260803_a --calculate-lmi --lmi-participation-rates 1.0 0.48 --lmi-participation-mode weighted --lmi-calculation-type monthly` — MD's standard OHEP participation scenarios (see [Post-processing: master tables](#post-processing-master-tables) above for what these flags do).
+3. `build-master-bat-prefect md_20260803_a` — BAT for the batch, joining the baseline bills the previous step wrote.
+
+To restrict to one scenario (e.g. while iterating on a single scenario's tariff derivation), pass it after the batch name — it is forwarded to all three steps:
+
+```bash
+just s md run-with-lmi md_20260803_a default
+```
+
+If you don't need LMI columns (e.g. a non-MD state, or a quick check of raw bills), use the uncomposed recipes directly — `just s <state> run-pipeline <batch>` followed by `just s <state> build-all-master-prefect <batch>`.
+
+### 4. Resuming after a failure or partial run
+
+Re-running the same batch name is always safe and cheap: `cairo_run` skips any run whose `.runs/{name}.path` index file already exists (see [Run index](#run-index-resume-mechanism) above), so `just s md run-with-lmi md_20260803_a` only redoes what's missing or failed. `*scenarios` only narrows which scenarios are considered at all — it is not required for a fast rerun of the same batch.
+
+### 5. Where the LMI columns land
+
+As noted in [Post-processing: master tables](#post-processing-master-tables), MD OHEP columns are written only to the `all_utilities` master-bills table, not the per-utility one:
+
+```
+{output_base}/md/all_utilities/{batch}/{segment}/comb_bills_year_target/
+```
+
 ## Derived path anatomy
 
 Every path the pipeline constructs is listed below with its template, source components, and a concrete BGE example.
