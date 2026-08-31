@@ -207,7 +207,7 @@ Example of a fully manual declaration (illustrative):
 ```yaml
 hp_rd_vs_default:
   quartet: multi_rate_fixed
-  candidate_tariff_rr_yaml_path: rev_requirement/bge_hp_vs_nonhp.yaml
+  candidate_tariff_rr_yaml_path: rev_requirement/bge_hp_vs_non-hp.yaml
   promote: hp
   residual_allocation:
     delivery: candidate_tariff
