@@ -41,22 +41,22 @@ preflight
   ├─ default                          (single_rate)
   │    R/RL, class RR, CAIRO precalc then calibrated
   │
-  ├─ default_uncalibrated_rd          (single_rate_uncalibrated)
+  ├─ default_rd_uncalibrated          (single_rate_uncalibrated)
   │    posted Schedule RD, run_type: default both stages,
   │    large-number RR YAML, no tariff promotion
   │
   └─ hp_rd_vs_default                 (multi_rate_fixed)
-       requires: [default, default_uncalibrated_rd]
+       requires: [default, default_rd_uncalibrated]
        │
        ├─ compute_candidate_tariff_rr_for_fixed
        │    HP delivery RR ← weighted HP annual bills on
-       │      default_uncalibrated_rd upgrade-00 delivery
+       │      default_rd_uncalibrated upgrade-00 delivery
        │    non-HP delivery RR ← class delivery RR − HP
        │    class supply pot (testimony YAML) split by
        │      candidate_tariff_supply_method (BGE: passthrough)
        │
        ├─ prepare_fixed_tariffs
-       │    HP     ← copy posted RD   (default_uncalibrated_rd)
+       │    HP     ← copy posted RD   (default_rd_uncalibrated)
        │    non-HP ← copy calibrated R/RL (default)
        │    relabel onto this scenario's stems; do not rewrite rates
        │
@@ -71,7 +71,7 @@ One command (must list the three names, or the seasonal/flat quartets run too):
 uv run python -m rate_design.hp_rates.run_pipeline \
   --yaml rate_design/hp_rates/md/config/scenarios/pipeline_bge.yaml \
   --batch md_YYYYMMDD_rd_hp \
-  --scenarios default default_uncalibrated_rd hp_rd_vs_default
+  --scenarios default default_rd_uncalibrated hp_rd_vs_default
 ```
 
 Then master tables:
@@ -86,7 +86,9 @@ dominated by the large-number RR; use it for bill changes on upgrade 02, not
 cross-subsidy. `bill_change_baseline` is `default` / `precalc`.
 
 Completed batch: `md_20260828_rd_hp` under
-`/data.sb/switchbox/cairo/outputs/hp_rates/md/`.
+`/data.sb/switchbox/cairo/outputs/hp_rates/md/`. That batch's on-disk run
+dirs still use the old scenario name `default_uncalibrated_rd`; newer runs
+use `default_rd_uncalibrated`.
 
 ## `single_rate_uncalibrated`
 
@@ -110,7 +112,7 @@ BGE: `tariff_base: rd_default` → `bge_rd_default.json` /
 **Check that CAIRO did not solve rates:** compare posted
 `bge_rd_default.json` energy rates to
 `tariff_final_config.json` → `bge_rd_default` → `ur_ec_tou_mat` column 4 in
-each of the four `default_uncalibrated_rd` output dirs (via `.runs/*.path`).
+each of the four `default_rd_uncalibrated` output dirs (via `.runs/*.path`).
 They must match exactly, including the stage named `calibrated`.
 
 Do **not** use `bge_rd_default_calibrated.json` for that check. Promotion is
@@ -122,7 +124,7 @@ Do **not** compare `bge_hp_base_candidate_tariff_candidate_tariff.json` to
 CAIRO precalc of `hp_rd_vs_default` to the HP subclass target; those rates
 **should** differ.
 
-`copy_from: default_uncalibrated_rd` copies the **posted** stem
+`copy_from: default_rd_uncalibrated` copies the **posted** stem
 (`calibrated=False`). `copy_from: default` copies `*_calibrated.json`.
 
 ## Candidate-tariff subclass RR

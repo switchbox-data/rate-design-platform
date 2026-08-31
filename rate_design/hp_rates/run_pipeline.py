@@ -565,7 +565,7 @@ def compute_candidate_tariff_rr_for_fixed(
     # Compute candidate_tariff delivery (HP bill sums on the candidate tariff)
     # and supply (class supply RR distributed by candidate_tariff_supply_method).
     # Passthrough supply shares use the candidate-tariff (e.g.
-    # default_uncalibrated_rd) delivery and delivery+supply bills so they
+    # default_rd_uncalibrated) delivery and delivery+supply bills so they
     # match the delivery rule. Other methods (percustomer / volumetric /
     # epmc) use the first required scenario (usually default): those shares
     # come from customer counts, kWh, and MC.

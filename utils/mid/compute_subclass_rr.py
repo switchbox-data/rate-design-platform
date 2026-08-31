@@ -1467,7 +1467,7 @@ def main() -> None:
         "--candidate-tariff-supply-run-dir",
         help=(
             "Path to the candidate tariff's delivery+supply CAIRO precalc "
-            "run (e.g. default_uncalibrated_rd). Used for passthrough supply shares "
+            "run (e.g. default_rd_uncalibrated). Used for passthrough supply shares "
             "(supply bill = total bill − delivery bill). Required with "
             "--candidate-tariff-run-dir when --candidate-tariff-supply-method "
             "is passthrough."

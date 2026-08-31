@@ -107,8 +107,8 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-  md_bge_default_uncalibrated_rd_precalc_delivery:
-    run_name: md_bge_default_uncalibrated_rd_precalc_delivery
+  md_bge_default_rd_uncalibrated_precalc_delivery:
+    run_name: md_bge_default_rd_uncalibrated_precalc_delivery
     state: MD
     utility: bge
     run_type: default
@@ -120,7 +120,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_rd_default.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260828_rd_hp/md_bge_default_uncalibrated_rd_precalc_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260828_rd_hp/md_bge_default_rd_uncalibrated_precalc_delivery
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -134,8 +134,8 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-  md_bge_default_uncalibrated_rd_precalc_supply:
-    run_name: md_bge_default_uncalibrated_rd_precalc_supply
+  md_bge_default_rd_uncalibrated_precalc_supply:
+    run_name: md_bge_default_rd_uncalibrated_precalc_supply
     state: MD
     utility: bge
     run_type: default
@@ -147,7 +147,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_rd_default_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260828_rd_hp/md_bge_default_uncalibrated_rd_precalc_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260828_rd_hp/md_bge_default_rd_uncalibrated_precalc_supply
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false
@@ -161,8 +161,8 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-  md_bge_default_uncalibrated_rd_calibrated_delivery:
-    run_name: md_bge_default_uncalibrated_rd_calibrated_delivery
+  md_bge_default_rd_uncalibrated_calibrated_delivery:
+    run_name: md_bge_default_rd_uncalibrated_calibrated_delivery
     state: MD
     utility: bge
     run_type: default
@@ -174,7 +174,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_rd_default.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260828_rd_hp/md_bge_default_uncalibrated_rd_calibrated_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260828_rd_hp/md_bge_default_rd_uncalibrated_calibrated_delivery
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -188,8 +188,8 @@ runs:
     year_dollar_conversion: 2025
     process_workers: 8
     elasticity: 0.0
-  md_bge_default_uncalibrated_rd_calibrated_supply:
-    run_name: md_bge_default_uncalibrated_rd_calibrated_supply
+  md_bge_default_rd_uncalibrated_calibrated_supply:
+    run_name: md_bge_default_rd_uncalibrated_calibrated_supply
     state: MD
     utility: bge
     run_type: default
@@ -201,7 +201,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_rd_default_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260828_rd_hp/md_bge_default_uncalibrated_rd_calibrated_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260828_rd_hp/md_bge_default_rd_uncalibrated_calibrated_supply
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false

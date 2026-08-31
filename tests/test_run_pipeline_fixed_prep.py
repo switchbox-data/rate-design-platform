@@ -229,7 +229,7 @@ class TestPrepareFixedTariffsCopyFrom:
             name="hp_rd_vs_default",
             quartet="multi_rate_fixed",
             promote="hp",
-            requires=["default", "default_uncalibrated_rd"],
+            requires=["default", "default_rd_uncalibrated"],
             residual_allocation_delivery="candidate_tariff",
             residual_allocation_supply="candidate_tariff",
             subclass_config=SubclassConfig(
@@ -239,7 +239,7 @@ class TestPrepareFixedTariffsCopyFrom:
                         alias="hp",
                         values=["true"],
                         structure="base",
-                        copy_from="default_uncalibrated_rd",
+                        copy_from="default_rd_uncalibrated",
                     ),
                     SubgroupSpec(
                         alias="non-hp",
@@ -292,8 +292,8 @@ class TestPrepareFixedTariffsCopyFrom:
             "default": ScenarioConfig(
                 name="default", quartet="single_rate", tariff_base="default"
             ),
-            "default_uncalibrated_rd": ScenarioConfig(
-                name="default_uncalibrated_rd",
+            "default_rd_uncalibrated": ScenarioConfig(
+                name="default_rd_uncalibrated",
                 quartet="single_rate_uncalibrated",
                 tariff_base="rd_default",
             ),

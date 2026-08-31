@@ -29,7 +29,7 @@ scenarios:
   default:
     quartet: single_rate
     tariff_base: default
-  default_uncalibrated_rd:
+  default_rd_uncalibrated:
     # Posted Schedule RD billed as-is (CAIRO default mode + large-number RR).
     quartet: single_rate_uncalibrated
     tariff_base: rd_default
@@ -99,8 +99,8 @@ scenarios:
           structure: base
   hp_rd_vs_default:
     quartet: multi_rate_fixed
-    requires: [default, default_uncalibrated_rd]
-    candidate_tariff_scenario: default_uncalibrated_rd
+    requires: [default, default_rd_uncalibrated]
+    candidate_tariff_scenario: default_rd_uncalibrated
     candidate_tariff_supply_method: passthrough
     promote: hp
     residual_allocation:
@@ -112,7 +112,7 @@ scenarios:
         hp:
           values: ["true"]
           structure: base
-          copy_from: default_uncalibrated_rd
+          copy_from: default_rd_uncalibrated
         non-hp:
           values: ["false"]
           structure: base

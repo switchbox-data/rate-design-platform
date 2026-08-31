@@ -109,14 +109,14 @@ class TestMultiRateFixed:
     def _fixed_scenario_yaml(self) -> dict[str, Any]:
         """Pipeline YAML with a valid multi_rate_fixed scenario."""
         data = _minimal_pipeline_yaml()
-        data["scenarios"]["default_uncalibrated_rd"] = {
+        data["scenarios"]["default_rd_uncalibrated"] = {
             "quartet": "single_rate_uncalibrated",
             "tariff_base": "rd_default",
         }
         data["scenarios"]["hp_rd_vs_default"] = {
             "quartet": "multi_rate_fixed",
-            "requires": ["default", "default_uncalibrated_rd"],
-            "candidate_tariff_scenario": "default_uncalibrated_rd",
+            "requires": ["default", "default_rd_uncalibrated"],
+            "candidate_tariff_scenario": "default_rd_uncalibrated",
             "candidate_tariff_supply_method": "passthrough",
             "promote": "hp",
             "residual_allocation": {
@@ -129,7 +129,7 @@ class TestMultiRateFixed:
                     "hp": {
                         "values": ["true"],
                         "structure": "base",
-                        "copy_from": "default_uncalibrated_rd",
+                        "copy_from": "default_rd_uncalibrated",
                     },
                     "non-hp": {
                         "values": ["false"],
@@ -145,13 +145,13 @@ class TestMultiRateFixed:
         config = load_pipeline_config(_write(tmp_path, self._fixed_scenario_yaml()))
         sc = config.scenario("hp_rd_vs_default")
         assert sc.quartet == "multi_rate_fixed"
-        assert sc.requires == ["default", "default_uncalibrated_rd"]
-        assert sc.candidate_tariff_scenario == "default_uncalibrated_rd"
+        assert sc.requires == ["default", "default_rd_uncalibrated"]
+        assert sc.candidate_tariff_scenario == "default_rd_uncalibrated"
         assert sc.candidate_tariff_supply_method == "passthrough"
         assert sc.promote == "hp"
         assert sc.depends_on is None
         assert sc.subclass_config is not None
-        assert sc.subclass_config.subgroups[0].copy_from == "default_uncalibrated_rd"
+        assert sc.subclass_config.subgroups[0].copy_from == "default_rd_uncalibrated"
         assert sc.subclass_config.subgroups[1].copy_from == "default"
 
     def test_missing_requires_rejected(self, tmp_path: Path) -> None:
@@ -327,7 +327,7 @@ class TestSingleRateUncalibrated:
 
     def _yaml(self) -> dict[str, Any]:
         data = _minimal_pipeline_yaml()
-        data["scenarios"]["default_uncalibrated_rd"] = {
+        data["scenarios"]["default_rd_uncalibrated"] = {
             "quartet": "single_rate_uncalibrated",
             "tariff_base": "rd_default",
         }
@@ -335,7 +335,7 @@ class TestSingleRateUncalibrated:
 
     def test_loads(self, tmp_path: Path) -> None:
         config = load_pipeline_config(_write(tmp_path, self._yaml()))
-        sc = config.scenario("default_uncalibrated_rd")
+        sc = config.scenario("default_rd_uncalibrated")
         assert sc.quartet == "single_rate_uncalibrated"
         assert sc.is_single_rate
         assert sc.is_uncalibrated
@@ -344,13 +344,13 @@ class TestSingleRateUncalibrated:
 
     def test_missing_tariff_base_rejected(self, tmp_path: Path) -> None:
         data = self._yaml()
-        del data["scenarios"]["default_uncalibrated_rd"]["tariff_base"]
+        del data["scenarios"]["default_rd_uncalibrated"]["tariff_base"]
         with pytest.raises(ValueError, match="tariff_base"):
             load_pipeline_config(_write(tmp_path, data))
 
     def test_subclass_config_rejected(self, tmp_path: Path) -> None:
         data = self._yaml()
-        data["scenarios"]["default_uncalibrated_rd"]["subclass_config"] = {
+        data["scenarios"]["default_rd_uncalibrated"]["subclass_config"] = {
             "group_col": "has_hp",
             "subgroups": {
                 "hp": {"values": ["true"], "structure": "base"},
@@ -365,7 +365,7 @@ class TestSingleRateUncalibrated:
         config = load_pipeline_config(_write(tmp_path, self._yaml()))
         out = tmp_path / "scenarios.yaml"
         generate_scenarios_yaml(
-            config, "batch_test", out, scenarios=["default_uncalibrated_rd"]
+            config, "batch_test", out, scenarios=["default_rd_uncalibrated"]
         )
         doc = yaml.safe_load(out.read_text(encoding="utf-8"))
         runs = doc["runs"]
@@ -378,8 +378,8 @@ class TestSingleRateUncalibrated:
             assert "calibrated" not in tariffs["all"], name
             assert tariffs["all"].startswith("tariffs/electric/bge_rd_default"), name
 
-        precalc_d = runs["md_bge_default_uncalibrated_rd_precalc_delivery"]
-        cal_d = runs["md_bge_default_uncalibrated_rd_calibrated_delivery"]
+        precalc_d = runs["md_bge_default_rd_uncalibrated_precalc_delivery"]
+        cal_d = runs["md_bge_default_rd_uncalibrated_calibrated_delivery"]
         assert precalc_d["path_tariffs_electric"] == cal_d["path_tariffs_electric"]
         assert "upgrade=00" in precalc_d["path_resstock_metadata"]
         assert "upgrade=02" in cal_d["path_resstock_metadata"]
