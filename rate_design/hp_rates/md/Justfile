@@ -18,6 +18,43 @@ utility := env_var_or_default('UTILITY', 'bge')
 import '../Justfile'
 
 # =============================================================================
+# FULL FLOW RUN - Prefect pipeline batch + LMI master tables, end to end
+#
+# One command for the full MD OHEP flow: run the Prefect pipeline batch,
+# then build master bills with LMI columns, then master BAT. Stops at the
+# first failure (set -euo pipefail), so a broken CAIRO run never reaches
+# post-processing.
+#
+# Setup (once per session):
+#   1. just serve-prefect                                   # separate terminal, keep it open
+#   2. export PREFECT_API_URL=http://127.0.0.1:4200/api     # in this terminal
+#
+# Then:
+#   just s md run-with-lmi md_20260803_a                    # full batch, all scenarios
+#   just s md run-with-lmi md_20260803_a default             # just the "default" scenario
+#
+# Re-running with the same batch name resumes: run-pipeline skips any CAIRO
+# run that already completed (via its .runs/{name}.path index file), so a
+# rerun after a fix only redoes what's missing or failed. *scenarios narrows
+# which scenarios are considered at all -- it is not required for a fast
+# rerun of the same batch.
+#
+# LMI (OHEP MEAP/EUSP) columns land only in the all_utilities master-bills
+# table, not the per-utility one -- see context/code/orchestration/
+# prefect_pipeline.md for why (LMI is applied to the concatenated table).
+run-with-lmi batch *scenarios:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just run-pipeline "{{ batch }}" {{ scenarios }}
+    just build-master-bills-prefect "{{ batch }}" \
+      --calculate-lmi \
+      --lmi-participation-rates 1.0 0.48 \
+      --lmi-participation-mode weighted \
+      --lmi-calculation-type monthly \
+      {{ if scenarios != "" { "--scenarios " + scenarios } else { "" } }}
+    just build-master-bat-prefect "{{ batch }}" {{ if scenarios != "" { "--scenarios " + scenarios } else { "" } }}
+
+# =============================================================================
 # MD-only: tariff fetching
 #
 # fetch-default-electric-tariffs: fetches both the Genability snapshot (for the
