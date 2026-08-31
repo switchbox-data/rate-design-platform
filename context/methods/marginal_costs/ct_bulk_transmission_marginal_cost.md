@@ -59,7 +59,7 @@ This is the CT-specific addition relative to RI. The `generate_bulk_tx_mc.py` CL
 
 **`utility_zone`:** Peak hours are identified from CT zone load only. This would be appropriate if CT's transmission constraints are primarily local and CT's own peak is the relevant driver of PTF investment for CT. In practice, the NE system peak and the CT zone peak are highly correlated but not identical.
 
-**Which to use:** `ne_system` is the default and the recommended primary value. The `utility_zone` option exists for sensitivity analysis and to explore how much the two signals diverge. A comparison script is available at `dev/compare_ct_bulk_tx_allocation_loads.py`.
+**Which to use:** `ne_system` is the default and the recommended primary value. The `utility_zone` option exists for sensitivity analysis and to explore how much the two signals diverge.
 
 A comparison run (2025 ISO-NE data) found that the two signals share most peak hours, with a small set of hours where one signal is non-zero and the other is zero. The divergence is typically small relative to the total cost level, making the choice low-stakes for the BAT.
 
@@ -129,7 +129,6 @@ Both `ct_eversource` and `ct_ui` are defined in `state.env` as `UTILITIES=ct_eve
 | `utils/data_prep/marginal_costs/supply_capacity_isone.py` | `load_isone_zone_loads`                                                             |
 | `rate_design/hp_rates/ct/Justfile`                        | `create-bulk-tx-mc-data`, `create-bulk-tx-mc-data-all` recipes                      |
 | `rate_design/hp_rates/ct/state.env`                       | `UTILITIES=ct_eversource,ct_ui`, `REGION=isone`, `YEAR=2025`                        |
-| `dev/compare_ct_bulk_tx_allocation_loads.py`              | Compare system vs. CT-zone allocation signals                                       |
 | `tests/test_ri_bulk_tx_mc.py`                             | Tests for exceedance allocation, system vs. zone load modes                         |
 
 ---

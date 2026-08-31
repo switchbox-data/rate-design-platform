@@ -1449,7 +1449,7 @@ build-master-bat batch run_delivery run_supply *batch_overrides:
 
 # script_args: optional trailing args passed to the script as-is. Use to pass
 # per-utility batch overrides (for example, --batch-override cenhud=ny_20260306_r1-8)
-# and optional LMI flags (for example, --calculate-lmi --lmi-participation-rate 0.4).
+# and optional LMI flags (for example, --calculate-lmi --lmi-participation-rates 1.0 0.48).
 
 # =============================================================================
 # POST-PROCESSING: master tables for Prefect pipeline batches
