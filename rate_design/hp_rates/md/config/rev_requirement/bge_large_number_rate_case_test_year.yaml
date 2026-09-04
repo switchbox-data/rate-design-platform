@@ -5,3 +5,4 @@ source: none
 # Schedule R: https://www.documentcloud.org/documents/28475935-331766-7-karas-direct-testimony-wexhibits-7022026-f/#document/p41/a2823476
 # Schedule RL: https://www.documentcloud.org/documents/28475935-331766-7-karas-direct-testimony-wexhibits-7022026-f/#document/p42/a2823477
 test_year_customer_count: 1222270.17 # (13,973,317 + 693,925) / 12
+resstock_kwh_scale_factor: 0.8280035547183955 # test_year_residential_kwh / resstock_total_residential_kwh_scaled_customer
