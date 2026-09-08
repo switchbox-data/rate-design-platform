@@ -12,7 +12,6 @@
 #
 # Reference climate zone: A 6-7 (coefficient = 0).
 # Year built categories are mutually exclusive indicator variables.
-
 source:
   title: "Analysis of air leakage measurements of US houses"
   authors: ["Wanyu R. Chan", "Jeffrey Joh", "Max H. Sherman"]
@@ -22,14 +21,12 @@ source:
   year: 2013
   doi: "10.1016/j.enbuild.2013.07.047"
   table: "Table 1"
-
 model:
   dependent_variable: "ln(NL)"
   r_squared: 0.683
-  residual_variance: 0.200  # σ², from Section 4 (after including foundation & duct)
-  geometric_std_dev: 1.56   # exp(sqrt(0.200)) = 1.564, rounded per paper
+  residual_variance: 0.200 # σ², from Section 4 (after including foundation & duct)
+  geometric_std_dev: 1.56 # exp(sqrt(0.200)) = 1.564, rounded per paper
   n_homes: 134000
-
 # (a) Year built — indicator variables (one per home), Eq 4.
 # β_year encodes the expected ln(NL) shift relative to the intercept absorbed
 # into the climate-zone reference. Newer homes are tighter (more negative).
@@ -58,7 +55,6 @@ year_built:
     beta: -1.058
     se: 0.00748
     ci_95: [-1.073, -1.043]
-
 # (b) Climate zone — IECC zones, 12 categories. A 6-7 is the reference (β = 0).
 # Humid climate zones (A) tend to have higher NL in warmer zones.
 # Dry zones (B) are relatively airtight. Marine (C) shows a reversal (C3 < C4).
@@ -117,33 +113,28 @@ climate_zone:
     # from the original PDF. From β ± 1.96·SE the upper bound should be ~-0.494.
     # We reproduce the paper's table as-is; downstream code should use β ± 1.96·SE.
     ci_95: [-0.530, -0.439]
-
 # (c) WAP homes — pre-weatherization leakage of income-qualified weatherization
 # program participants. WAP homes have ~52% higher NL: exp(0.420) - 1 = 0.522.
 wap_homes:
   beta_LI: 0.420
   se: 0.00428
   ci_95: [0.411, 0.428]
-
 # (d) Energy efficiency rated homes — homes with an energy efficiency rating
 # (e.g. ENERGY STAR). ~32% lower NL: 1 - exp(-0.384) = 0.319.
 energy_efficiency:
   beta_e: -0.384
   se: 0.00453
   ci_95: [-0.393, -0.375]
-
 # (e) Floor area and house height — continuous variables.
 # 100 m² larger → ~19% lower NL. 2-story vs 1-story (ΔH=2.5m) → ~17% higher NL.
 floor_area:
   beta_area_per_m2: -0.00208
   se: 0.0000179
   ci_95: [-0.00211, -0.00204]
-
 house_height:
   beta_h_per_m: 0.064
   se: 0.00125
   ci_95: [0.061, 0.066]
-
 # (f) Foundation type — modeled on residuals (Eq 6, N=12,559).
 # Slab is tightest; unconditioned basement / vented crawlspace is leakiest.
 foundation_type:
@@ -159,7 +150,6 @@ foundation_type:
     beta: 0.180
     se: 0.00577
     ci_95: [0.169, 0.192]
-
 # (g) Duct location — modeled on residuals (Eq 7, N=526).
 # Conditioned space is tightest; vented crawlspace is leakiest.
 # Estimates are uncertain due to small sample size.
@@ -176,7 +166,6 @@ duct_location:
     beta: 0.181
     se: 0.0383
     ci_95: [0.106, 0.256]
-
 # NL to ACH50 conversion (from Eq 2 and Section 5).
 #
 #   NL = (1000/ρ) · (ELA₄/Area) · (H/H_ref)^0.3
@@ -193,6 +182,6 @@ nl_to_ach50:
   # Section 5 assumed heights for RECS application:
   stories_to_height_m:
     1: 3.0
-    2: 5.5       # also used for split-level
+    2: 5.5 # also used for split-level
     3: 8.0
     4_plus: 10.0

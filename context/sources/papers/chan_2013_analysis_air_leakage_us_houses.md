@@ -173,40 +173,40 @@ The regression model explains 68% of the observed variability. Table 1 shows the
 
 **Results of regression models, described in Eqs. (4)–(7), that relate ln(NL) and various housing characteristics.**
 
-| Explanatory variable | | Coefficient estimates | Standard error | Pr(>\|t\|) | 95% confidence interval (C.I.) |
-|---|---|---|---|---|---|
-| **(a) Year built** | | | | | |
-| | Before 1960 | −0.250 | 0.00705 | <2e−16 | −0.264; −0.236 |
-| | 1960–69 | −0.433 | 0.00811 | <2e−16 | −0.449; −0.417 |
-| | 1970–79 | −0.452 | 0.00762 | <2e−16 | −0.467; −0.437 |
-| | 1980–89 | −0.654 | 0.00836 | <2e−16 | −0.670; −0.637 |
-| | 1990–99 | −0.915 | 0.00816 | <2e−16 | −0.931; −0.899 |
-| | 2000 and After | −1.058 | 0.00748 | <2e−16 | −1.073; −1.043 |
-| **(b) Climate zone** | | | | | |
-| | Humid A 1–2 | 0.473 | 0.01015 | <2e−16 | 0.453; 0.493 |
-| | A 3 | 0.253 | 0.00653 | <2e−16 | 0.240; 0.266 |
-| | A 4 | 0.326 | 0.00586 | <2e−16 | 0.315; 0.338 |
-| | A 5 | 0.112 | 0.00551 | <2e−16 | 0.101; 0.123 |
-| | A 6–7 | 0 | – | – | – |
-| | Dry B 2–3 | −0.038 | 0.00759 | 7.57e−07 | −0.052; −0.023 |
-| | B 4–5 | −0.009 | 0.00684 | 2.00e−01 | −0.022; 0.005 |
-| | B 6 | 0.019 | 0.00988 | 4.91e−03 | 0.00008; 0.039 |
-| | Marine C 3 | 0.048 | 0.01407 | 6.02e−04 | 0.021; 0.076 |
-| | C 4 | 0.258 | 0.01133 | <2e−16 | 0.236; 0.281 |
-| | Alaska AK 7 | 0.026 | 0.00589 | 1.42e−05 | 0.014; 0.037 |
-| | AK 8 | −0.512 | 0.00938 | <2e−16 | −0.530; −0.439 |
-| **(c) WAP homes (pre-weatherization)** | $\beta_{LI}$ | 0.420 | 0.00428 | <2e−16 | 0.411; 0.428 |
-| **(d) Energy efficiency rated homes** | $\beta_e$ | −0.384 | 0.00453 | <2e−16 | −0.393; −0.375 |
-| **(e) Floor area** | $\beta_{area}$ (m⁻²) | −0.00208 | 0.0000179 | <2e−16 | −0.00211; −0.00204 |
-| | **House height** | $\beta_h$ (m⁻¹) | 0.064 | 0.00125 | <2e−16 | 0.061; 0.066 |
-| **(f) Foundation type** | | | | | |
-| | Slab | $\beta_{slab}$ | −0.037 | 0.00709 | 1.85e−07 | −0.051; −0.023 |
-| | Cond. basement / unvented crawlspace | $\beta_{floor1}$ | 0.109 | 0.00492 | <2e−16 | 0.099; 0.118 |
-| | Uncond. basement / vented crawlspace | $\beta_{floor2}$ | 0.180 | 0.00577 | <2e−16 | 0.169; 0.192 |
-| **(g) Duct location** | | | | | |
-| | Conditioned space | $\beta_{cond}$ | −0.124 | 0.0255 | 1.53e−06 | −0.174; −0.074 |
-| | Uncond. attic / basement | $\beta_{duct1}$ | 0.071 | 0.0339 | 3.59e−02 | 0.005; 0.138 |
-| | Vented crawlspace | $\beta_{duct2}$ | 0.181 | 0.0383 | 2.98e−06 | 0.106; 0.256 |
+| Explanatory variable                   |                                      | Coefficient estimates | Standard error | Pr(>\|t\|) | 95% confidence interval (C.I.) |
+| -------------------------------------- | ------------------------------------ | --------------------- | -------------- | ---------- | ------------------------------ |
+| **(a) Year built**                     |                                      |                       |                |            |                                |
+|                                        | Before 1960                          | −0.250                | 0.00705        | <2e−16     | −0.264; −0.236                 |
+|                                        | 1960–69                              | −0.433                | 0.00811        | <2e−16     | −0.449; −0.417                 |
+|                                        | 1970–79                              | −0.452                | 0.00762        | <2e−16     | −0.467; −0.437                 |
+|                                        | 1980–89                              | −0.654                | 0.00836        | <2e−16     | −0.670; −0.637                 |
+|                                        | 1990–99                              | −0.915                | 0.00816        | <2e−16     | −0.931; −0.899                 |
+|                                        | 2000 and After                       | −1.058                | 0.00748        | <2e−16     | −1.073; −1.043                 |
+| **(b) Climate zone**                   |                                      |                       |                |            |                                |
+|                                        | Humid A 1–2                          | 0.473                 | 0.01015        | <2e−16     | 0.453; 0.493                   |
+|                                        | A 3                                  | 0.253                 | 0.00653        | <2e−16     | 0.240; 0.266                   |
+|                                        | A 4                                  | 0.326                 | 0.00586        | <2e−16     | 0.315; 0.338                   |
+|                                        | A 5                                  | 0.112                 | 0.00551        | <2e−16     | 0.101; 0.123                   |
+|                                        | A 6–7                                | 0                     | –              | –          | –                              |
+|                                        | Dry B 2–3                            | −0.038                | 0.00759        | 7.57e−07   | −0.052; −0.023                 |
+|                                        | B 4–5                                | −0.009                | 0.00684        | 2.00e−01   | −0.022; 0.005                  |
+|                                        | B 6                                  | 0.019                 | 0.00988        | 4.91e−03   | 0.00008; 0.039                 |
+|                                        | Marine C 3                           | 0.048                 | 0.01407        | 6.02e−04   | 0.021; 0.076                   |
+|                                        | C 4                                  | 0.258                 | 0.01133        | <2e−16     | 0.236; 0.281                   |
+|                                        | Alaska AK 7                          | 0.026                 | 0.00589        | 1.42e−05   | 0.014; 0.037                   |
+|                                        | AK 8                                 | −0.512                | 0.00938        | <2e−16     | −0.530; −0.439                 |
+| **(c) WAP homes (pre-weatherization)** | $\beta_{LI}$                         | 0.420                 | 0.00428        | <2e−16     | 0.411; 0.428                   |
+| **(d) Energy efficiency rated homes**  | $\beta_e$                            | −0.384                | 0.00453        | <2e−16     | −0.393; −0.375                 |
+| **(e) Floor area**                     | $\beta_{area}$ (m⁻²)                 | −0.00208              | 0.0000179      | <2e−16     | −0.00211; −0.00204             |
+|                                        | **House height**                     | $\beta_h$ (m⁻¹)       | 0.064          | 0.00125    | <2e−16                         |
+| **(f) Foundation type**                |                                      |                       |                |            |                                |
+|                                        | Slab                                 | $\beta_{slab}$        | −0.037         | 0.00709    | 1.85e−07                       |
+|                                        | Cond. basement / unvented crawlspace | $\beta_{floor1}$      | 0.109          | 0.00492    | <2e−16                         |
+|                                        | Uncond. basement / vented crawlspace | $\beta_{floor2}$      | 0.180          | 0.00577    | <2e−16                         |
+| **(g) Duct location**                  |                                      |                       |                |            |                                |
+|                                        | Conditioned space                    | $\beta_{cond}$        | −0.124         | 0.0255     | 1.53e−06                       |
+|                                        | Uncond. attic / basement             | $\beta_{duct1}$       | 0.071          | 0.0339     | 3.59e−02                       |
+|                                        | Vented crawlspace                    | $\beta_{duct2}$       | 0.181          | 0.0383     | 2.98e−06                       |
 
 ### 4.1. Year built and climate zones
 
@@ -288,16 +288,16 @@ RECS only reports if ducts are used for space heating and cooling, but it does n
 
 **Use of RECS 2009 data to estimate NL distribution using the regression model.**
 
-| Regression variable | RECS 2009 variable and descriptions |
-|---|---|
-| (a) Year built $\vec{I}_{year}$ | **YEARMADERANGE**: 8 year ranges when housing unit was built (before 1950, 50–59, 60–69, 70–79, 80–89, 90–99, 2000–04, 04–09) |
-| (b) Climate zone $\vec{I}_{cz}$ | **REPORTABLE DOMAIN**: 27 reportable states and groups of states; **CLIMATE REGION PUB**: Building America climate region (1–5) |
-| (c) WAP homes $I_{LI}$ | **POVERTY150**: household income at or below 150% of poverty line (yes/no) |
-| (d) Energy efficiency rated homes $I_e$ | Assumed negligible |
-| (e) Floor area $Area$ (m²) | **TOTROOMS**: total number (1–25) of rooms in the housing unit |
-| House height $H$ (m) | **STORIES**: number of stories in a single-family home (1, 2, 3, 4+, split-level, others, n/a) |
+| Regression variable                                         | RECS 2009 variable and descriptions                                                                                                                                                     |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (a) Year built $\vec{I}_{year}$                             | **YEARMADERANGE**: 8 year ranges when housing unit was built (before 1950, 50–59, 60–69, 70–79, 80–89, 90–99, 2000–04, 04–09)                                                           |
+| (b) Climate zone $\vec{I}_{cz}$                             | **REPORTABLE DOMAIN**: 27 reportable states and groups of states; **CLIMATE REGION PUB**: Building America climate region (1–5)                                                         |
+| (c) WAP homes $I_{LI}$                                      | **POVERTY150**: household income at or below 150% of poverty line (yes/no)                                                                                                              |
+| (d) Energy efficiency rated homes $I_e$                     | Assumed negligible                                                                                                                                                                      |
+| (e) Floor area $Area$ (m²)                                  | **TOTROOMS**: total number (1–25) of rooms in the housing unit                                                                                                                          |
+| House height $H$ (m)                                        | **STORIES**: number of stories in a single-family home (1, 2, 3, 4+, split-level, others, n/a)                                                                                          |
 | (f) Foundation type: $I_{slab}$, $I_{floor1}$, $I_{floor2}$ | **CONCRETE**: housing unit over a concrete slab (yes, no, n/a); **CELLAR**: basement in housing unit; **BASEHEAT**: heating used in basement; **CRAWL**: housing unit over a crawlspace |
-| (g) Duct location: $I_{cond}$, $I_{duct1}$, $I_{duct2}$ | Weighted averages computed based on REPORTABLE DOMAIN |
+| (g) Duct location: $I_{cond}$, $I_{duct1}$, $I_{duct2}$     | Weighted averages computed based on REPORTABLE DOMAIN                                                                                                                                   |
 
 Estimates of the US air leakage distribution are shown in Fig. 7 nationwide, and for selected states as examples.
 

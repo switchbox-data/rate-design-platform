@@ -1,0 +1,188 @@
+state: MD
+upgrade_id: '00'
+input_release: res_2024_amy2018_2_sb
+output_release: res_2024_amy2018_2_sb_ach
+climate_zone: A_4
+elapsed_seconds: 222.5
+n_buildings_total: 9995
+group_counts:
+  Heat Pump: 2163
+  Electric Resistance: 2099
+  Natural Gas: 4424
+  Delivered Fuels: 1134
+  unclassified: 175
+regressions:
+  Heat Pump__elec_heating:
+    slope: !!python/object/apply:numpy._core.multiarray.scalar
+    - &id001 !!python/object/apply:numpy.dtype
+      args:
+      - f8
+      - false
+      - true
+      state: !!python/tuple
+      - 3
+      - <
+      - null
+      - null
+      - null
+      - -1
+      - -1
+      - 0
+    - !!binary |
+      nIh+bf30vz8=
+    intercept: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      7QxTW+rg9z8=
+    r_squared: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      oWez6nO10T8=
+    n: 2163
+  Heat Pump__elec_cooling:
+    slope: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      HQWIghlToD8=
+    intercept: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      nIwqw7jb9j8=
+    r_squared: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      dEaU9gZfwD8=
+    n: 2163
+  Electric Resistance__elec_heating:
+    slope: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      C7WmeccpzD8=
+    intercept: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      yXGndLDeA0A=
+    r_squared: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      io7k8h/Szz8=
+    n: 2099
+  Electric Resistance__elec_cooling:
+    slope: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      LSY2H9eGmj8=
+    intercept: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      X9TuVwH+9T8=
+    r_squared: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      mN2Th4Vasz8=
+    n: 1907
+  Natural Gas__gas_heating:
+    slope: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      jX3JxoMt1T8=
+    intercept: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      1HyVfOw+EEA=
+    r_squared: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      XdxGA3gL1D8=
+    n: 4424
+  Natural Gas__elec_cooling:
+    slope: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      chk3NdB8nj8=
+    intercept: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      +YTsvI1N9z8=
+    r_squared: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      E/JBz2bVtz8=
+    n: 4105
+  Delivered Fuels__elec_heating:
+    slope: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      7l7uk6MAgT8=
+    intercept: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      UKkSZW8ptz8=
+    r_squared: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      mEwVjErq0D8=
+    n: 1046
+  Delivered Fuels__elec_cooling:
+    slope: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      jNr9KsB3mz8=
+    intercept: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      d4GSAgtg+j8=
+    r_squared: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      MlUwKqkTsD8=
+    n: 1056
+correction_fractions:
+  Delivered Fuels__elec_cooling:
+    mean: 0.122576
+    median: 0.069255
+    std: 0.196637
+    min: -0.279238
+    max: 1.0
+  Delivered Fuels__elec_heating:
+    mean: 0.249773
+    median: 0.188777
+    std: 0.356069
+    min: -0.5
+    max: 1.0
+  Electric Resistance__elec_cooling:
+    mean: 0.143704
+    median: 0.089093
+    std: 0.205199
+    min: -0.418575
+    max: 1.0
+  Electric Resistance__elec_heating:
+    mean: 0.332923
+    median: 0.258121
+    std: 0.366142
+    min: -0.5
+    max: 1.0
+  Heat Pump__elec_cooling:
+    mean: 0.147278
+    median: 0.109795
+    std: 0.181527
+    min: -0.45476
+    max: 1.0
+  Heat Pump__elec_heating:
+    mean: 0.288083
+    median: 0.241231
+    std: 0.335814
+    min: -0.5
+    max: 1.0
+  Natural Gas__elec_cooling:
+    mean: 0.148741
+    median: 0.089961
+    std: 0.214673
+    min: -0.5
+    max: 1.0
+  Natural Gas__gas_heating:
+    mean: 0.285013
+    median: 0.231491
+    std: 0.330488
+    min: -0.5
+    max: 1.0

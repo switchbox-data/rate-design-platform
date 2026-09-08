@@ -2,10 +2,8 @@
 # Uses Chan et al. (2013) regression model to predict expected NL from
 # housing characteristics, then derives a correction factor to adjust
 # ResStock ACH50 values (and downstream heating/cooling end-uses).
-
 state: MD
-climate_zone: "A_4"  # IECC 4A (humid); 99.2% of MD homes. 0.8% are 5A.
-
+climate_zone: "A_4" # IECC 4A (humid); 99.2% of MD homes. 0.8% are 5A.
 # ResStock vintage categories → Chan year_built categories.
 # ResStock has no "2020s" category for MD (newest is "2010s").
 vintage_mapping:
@@ -18,7 +16,6 @@ vintage_mapping:
   "1990s": "1990_99"
   "2000s": "2000_and_after"
   "2010s": "2000_and_after"
-
 # ResStock stories → house height (m), from Chan Section 5 / RECS application.
 # ResStock in.geometry_stories values range from 1 to 35 (high values are
 # multi-family buildings). For single-family detached, typically 1-3.
@@ -27,7 +24,6 @@ stories_to_height_m:
   "2": 5.5
   "3": 8.0
   "4+": 10.0
-
 # Columns from the ResStock metadata parquet.
 # Verified against: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/
 #                   state=MD/upgrade=00/metadata-sb.parquet
@@ -52,7 +48,6 @@ metadata_columns:
   heating_type: "postprocess_group.heating_type"
   # Building type
   building_type: "in.geometry_building_type_recs"
-
 # ResStock foundation_type → Chan foundation category mapping.
 # "Ambient" is not in Chan's model; treat as floor2 (leakiest) or exclude.
 foundation_mapping:
@@ -61,8 +56,7 @@ foundation_mapping:
   "Unvented Crawlspace": "floor1_cond_bsmt_unvented_crawl"
   "Unheated Basement": "floor2_uncond_bsmt_vented_crawl"
   "Vented Crawlspace": "floor2_uncond_bsmt_vented_crawl"
-  "Ambient": "floor2_uncond_bsmt_vented_crawl"  # conservative default
-
+  "Ambient": "floor2_uncond_bsmt_vented_crawl" # conservative default
 # ResStock duct_location → Chan duct category mapping.
 # "None" and "Garage" are not in Chan's model; omit (set duct contribution to 0).
 duct_mapping:
@@ -71,9 +65,8 @@ duct_mapping:
   "Unheated Basement": "duct1_uncond_attic_bsmt"
   "Attic": "duct1_uncond_attic_bsmt"
   "Crawlspace": "duct2_vented_crawl"
-  "Garage": null   # not in Chan model
-  "None": null      # no ducts
-
+  "Garage": null # not in Chan model
+  "None": null # no ducts
 # ---------------------------------------------------------------------------
 # Correction fraction clip bounds.
 # frac is the proportional adjustment to each end-use's hourly load:
@@ -81,9 +74,8 @@ duct_mapping:
 # Positive frac → loads decrease (ResStock overestimates infiltration).
 # Clip prevents extreme corrections from outlier buildings.
 # ---------------------------------------------------------------------------
-frac_clip_lower: -0.5   # max 50% load increase
-frac_clip_upper: 1.0    # max 100% load decrease (to zero)
-
+frac_clip_lower: -0.5 # max 50% load increase
+frac_clip_upper: 1.0 # max 100% load decrease (to zero)
 # ---------------------------------------------------------------------------
 # Group classification rules.
 # Each group has filter conditions applied to metadata columns.
@@ -123,7 +115,6 @@ groups:
         annual_kwh_cols:
           - out.electricity.cooling.energy_consumption.kwh
           - out.electricity.cooling_fans_pumps.energy_consumption.kwh
-
   Electric Resistance:
     conditions:
       heats_with_electricity: true
@@ -147,7 +138,6 @@ groups:
         annual_kwh_cols:
           - out.electricity.cooling.energy_consumption.kwh
           - out.electricity.cooling_fans_pumps.energy_consumption.kwh
-
   Natural Gas:
     conditions:
       heats_with_natgas: true
@@ -166,7 +156,6 @@ groups:
         annual_kwh_cols:
           - out.electricity.cooling.energy_consumption.kwh
           - out.electricity.cooling_fans_pumps.energy_consumption.kwh
-
   Delivered Fuels:
     # OR logic: either oil or propane heaters.
     # We do NOT correct fuel oil or propane consumption — only their electric
