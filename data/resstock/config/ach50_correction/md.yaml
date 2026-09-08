@@ -1,0 +1,196 @@
+# Maryland-specific context for ACH50 infiltration correction
+# Uses Chan et al. (2013) regression model to predict expected NL from
+# housing characteristics, then derives a correction factor to adjust
+# ResStock ACH50 values (and downstream heating/cooling end-uses).
+
+state: MD
+climate_zone: "A_4"  # IECC 4A (humid); 99.2% of MD homes. 0.8% are 5A.
+
+# ResStock vintage categories → Chan year_built categories.
+# ResStock has no "2020s" category for MD (newest is "2010s").
+vintage_mapping:
+  "<1940": "before_1960"
+  "1940s": "before_1960"
+  "1950s": "before_1960"
+  "1960s": "1960_69"
+  "1970s": "1970_79"
+  "1980s": "1980_89"
+  "1990s": "1990_99"
+  "2000s": "2000_and_after"
+  "2010s": "2000_and_after"
+
+# ResStock stories → house height (m), from Chan Section 5 / RECS application.
+# ResStock in.geometry_stories values range from 1 to 35 (high values are
+# multi-family buildings). For single-family detached, typically 1-3.
+stories_to_height_m:
+  "1": 3.0
+  "2": 5.5
+  "3": 8.0
+  "4+": 10.0
+
+# Columns from the ResStock metadata parquet.
+# Verified against: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/
+#                   state=MD/upgrade=00/metadata-sb.parquet
+metadata_columns:
+  # ACH50: string like "10 ACH50" — parse with int(val.split()[0])
+  ach50: "in.infiltration"
+  # Floor area (numeric, integer sqft)
+  floor_area_sqft: "in.sqft"
+  # Floor area (binned string like "1500-1999", for reference only)
+  floor_area_bin: "in.geometry_floor_area"
+  # Vintage: "<1940", "1940s", "1950s", ..., "2010s"
+  vintage: "in.vintage"
+  # Stories: string "1", "2", ..., "35" (high values are multi-family)
+  stories: "in.geometry_stories"
+  # Foundation type: "Slab", "Heated Basement", "Unheated Basement",
+  #   "Vented Crawlspace", "Unvented Crawlspace", "Ambient"
+  foundation_type: "in.geometry_foundation_type"
+  # Duct location: "Living Space", "Heated Basement", "Unheated Basement",
+  #   "Attic", "Crawlspace", "Garage", "None"
+  duct_location: "in.duct_location"
+  # Heating type (post-processed)
+  heating_type: "postprocess_group.heating_type"
+  # Building type
+  building_type: "in.geometry_building_type_recs"
+
+# ResStock foundation_type → Chan foundation category mapping.
+# "Ambient" is not in Chan's model; treat as floor2 (leakiest) or exclude.
+foundation_mapping:
+  "Slab": "slab"
+  "Heated Basement": "floor1_cond_bsmt_unvented_crawl"
+  "Unvented Crawlspace": "floor1_cond_bsmt_unvented_crawl"
+  "Unheated Basement": "floor2_uncond_bsmt_vented_crawl"
+  "Vented Crawlspace": "floor2_uncond_bsmt_vented_crawl"
+  "Ambient": "floor2_uncond_bsmt_vented_crawl"  # conservative default
+
+# ResStock duct_location → Chan duct category mapping.
+# "None" and "Garage" are not in Chan's model; omit (set duct contribution to 0).
+duct_mapping:
+  "Living Space": "cond_space"
+  "Heated Basement": "cond_space"
+  "Unheated Basement": "duct1_uncond_attic_bsmt"
+  "Attic": "duct1_uncond_attic_bsmt"
+  "Crawlspace": "duct2_vented_crawl"
+  "Garage": null   # not in Chan model
+  "None": null      # no ducts
+
+# ---------------------------------------------------------------------------
+# Correction fraction clip bounds.
+# frac is the proportional adjustment to each end-use's hourly load:
+#   hourly *= (1 - frac)
+# Positive frac → loads decrease (ResStock overestimates infiltration).
+# Clip prevents extreme corrections from outlier buildings.
+# ---------------------------------------------------------------------------
+frac_clip_lower: -0.5   # max 50% load increase
+frac_clip_upper: 1.0    # max 100% load decrease (to zero)
+
+# ---------------------------------------------------------------------------
+# Group classification rules.
+# Each group has filter conditions applied to metadata columns.
+# The script evaluates groups in order; first match wins.
+#
+# Condition formats:
+#   dict of {column: value}  → AND logic (all conditions must be true)
+#   list of dicts            → OR logic (any condition dict must be true)
+#
+# Each group specifies which end-use column groups to correct, with:
+#   hourly_consumption_cols  → columns in the hourly parquet to scale
+#   annual_kwh_cols          → matching columns in the annual parquet
+#                              (with .kwh suffix); summed for the WLS
+#                              regression and correction fraction
+# ---------------------------------------------------------------------------
+groups:
+  Heat Pump:
+    conditions:
+      heats_with_electricity: true
+      "postprocess_group.has_hp": true
+    enduse_groups:
+      elec_heating:
+        hourly_consumption_cols:
+          - out.electricity.heating.energy_consumption
+          - out.electricity.heating_fans_pumps.energy_consumption
+          - out.electricity.heating_hp_bkup.energy_consumption
+          - out.electricity.heating_hp_bkup_fa.energy_consumption
+        annual_kwh_cols:
+          - out.electricity.heating.energy_consumption.kwh
+          - out.electricity.heating_fans_pumps.energy_consumption.kwh
+          - out.electricity.heating_hp_bkup.energy_consumption.kwh
+          - out.electricity.heating_hp_bkup_fa.energy_consumption.kwh
+      elec_cooling:
+        hourly_consumption_cols:
+          - out.electricity.cooling.energy_consumption
+          - out.electricity.cooling_fans_pumps.energy_consumption
+        annual_kwh_cols:
+          - out.electricity.cooling.energy_consumption.kwh
+          - out.electricity.cooling_fans_pumps.energy_consumption.kwh
+
+  Electric Resistance:
+    conditions:
+      heats_with_electricity: true
+      "postprocess_group.has_hp": false
+    enduse_groups:
+      elec_heating:
+        hourly_consumption_cols:
+          - out.electricity.heating.energy_consumption
+          - out.electricity.heating_fans_pumps.energy_consumption
+          - out.electricity.heating_hp_bkup.energy_consumption
+          - out.electricity.heating_hp_bkup_fa.energy_consumption
+        annual_kwh_cols:
+          - out.electricity.heating.energy_consumption.kwh
+          - out.electricity.heating_fans_pumps.energy_consumption.kwh
+          - out.electricity.heating_hp_bkup.energy_consumption.kwh
+          - out.electricity.heating_hp_bkup_fa.energy_consumption.kwh
+      elec_cooling:
+        hourly_consumption_cols:
+          - out.electricity.cooling.energy_consumption
+          - out.electricity.cooling_fans_pumps.energy_consumption
+        annual_kwh_cols:
+          - out.electricity.cooling.energy_consumption.kwh
+          - out.electricity.cooling_fans_pumps.energy_consumption.kwh
+
+  Natural Gas:
+    conditions:
+      heats_with_natgas: true
+    enduse_groups:
+      gas_heating:
+        hourly_consumption_cols:
+          - out.natural_gas.heating.energy_consumption
+          - out.natural_gas.heating_hp_bkup.energy_consumption
+        annual_kwh_cols:
+          - out.natural_gas.heating.energy_consumption.kwh
+          - out.natural_gas.heating_hp_bkup.energy_consumption.kwh
+      elec_cooling:
+        hourly_consumption_cols:
+          - out.electricity.cooling.energy_consumption
+          - out.electricity.cooling_fans_pumps.energy_consumption
+        annual_kwh_cols:
+          - out.electricity.cooling.energy_consumption.kwh
+          - out.electricity.cooling_fans_pumps.energy_consumption.kwh
+
+  Delivered Fuels:
+    # OR logic: either oil or propane heaters.
+    # We do NOT correct fuel oil or propane consumption — only their electric
+    # heating (backup) and electric cooling loads. The group exists so these
+    # homes are classified separately for WLS regression fitting.
+    conditions:
+      - heats_with_oil: true
+      - heats_with_propane: true
+    enduse_groups:
+      elec_heating:
+        hourly_consumption_cols:
+          - out.electricity.heating.energy_consumption
+          - out.electricity.heating_fans_pumps.energy_consumption
+          - out.electricity.heating_hp_bkup.energy_consumption
+          - out.electricity.heating_hp_bkup_fa.energy_consumption
+        annual_kwh_cols:
+          - out.electricity.heating.energy_consumption.kwh
+          - out.electricity.heating_fans_pumps.energy_consumption.kwh
+          - out.electricity.heating_hp_bkup.energy_consumption.kwh
+          - out.electricity.heating_hp_bkup_fa.energy_consumption.kwh
+      elec_cooling:
+        hourly_consumption_cols:
+          - out.electricity.cooling.energy_consumption
+          - out.electricity.cooling_fans_pumps.energy_consumption
+        annual_kwh_cols:
+          - out.electricity.cooling.energy_consumption.kwh
+          - out.electricity.cooling_fans_pumps.energy_consumption.kwh
