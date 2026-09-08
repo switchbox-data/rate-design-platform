@@ -109,6 +109,9 @@ class TestMultiRateFixed:
     def _fixed_scenario_yaml(self) -> dict[str, Any]:
         """Pipeline YAML with a valid multi_rate_fixed scenario."""
         data = _minimal_pipeline_yaml()
+        data["revenue_requirement"]["single_rate_uncalibrated"] = (
+            "rev_requirement/bge_uncalibrated_large.yaml"
+        )
         data["scenarios"]["default_rd_uncalibrated"] = {
             "quartet": "single_rate_uncalibrated",
             "tariff_base": "rd_default",
@@ -378,6 +381,9 @@ class TestSingleRateUncalibrated:
 
     def _yaml(self) -> dict[str, Any]:
         data = _minimal_pipeline_yaml()
+        data["revenue_requirement"]["single_rate_uncalibrated"] = (
+            "rev_requirement/bge_uncalibrated_large.yaml"
+        )
         data["scenarios"]["default_rd_uncalibrated"] = {
             "quartet": "single_rate_uncalibrated",
             "tariff_base": "rd_default",
@@ -413,6 +419,17 @@ class TestSingleRateUncalibrated:
     def test_generated_runs_are_default_mode_with_posted_tariff_and_large_rr(
         self, tmp_path: Path
     ) -> None:
+        """Verify every invariant of the uncalibrated quartet:
+
+        1. Exactly 4 runs (2 stages × 2 variants).
+        2. All run_type == "default" (CAIRO bills the tariff as-is).
+        3. All use the dedicated large-number RR YAML (not the real class RR).
+        4. Delivery runs use bge_rd_default.json (posted, never *_calibrated).
+        5. Supply runs use bge_rd_default_supply.json (posted, never *_calibrated).
+        6. Same tariff JSON in precalc and calibrated (no promotion seam).
+        7. run_includes_subclasses is false (single tariff key "all").
+        8. Precalc uses upgrade 00, calibrated uses upgrade 02.
+        """
         config = load_pipeline_config(_write(tmp_path, self._yaml()))
         out = tmp_path / "scenarios.yaml"
         generate_scenarios_yaml(
@@ -420,20 +437,58 @@ class TestSingleRateUncalibrated:
         )
         doc = yaml.safe_load(out.read_text(encoding="utf-8"))
         runs = doc["runs"]
-        assert len(runs) == 4
-        large_rr = "rev_requirement/bge_large.yaml"
-        for name, run in runs.items():
-            assert run["run_type"] == "default", name
-            assert run["utility_revenue_requirement"] == large_rr, name
-            tariffs = run["path_tariffs_electric"]
-            assert "calibrated" not in tariffs["all"], name
-            assert tariffs["all"].startswith("tariffs/electric/bge_rd_default"), name
 
+        # --- (1) Exactly 4 runs ---
+        assert len(runs) == 4
+        expected_names = {
+            f"md_bge_default_rd_uncalibrated_{stage}_{variant}"
+            for stage in ("precalc", "calibrated")
+            for variant in ("delivery", "supply")
+        }
+        assert set(runs.keys()) == expected_names
+
+        large_rr = "rev_requirement/bge_uncalibrated_large.yaml"
+        for name, run in runs.items():
+            # --- (2) run_type always "default" ---
+            assert run["run_type"] == "default", f"{name}: run_type"
+
+            # --- (3) large-number RR YAML ---
+            assert run["utility_revenue_requirement"] == large_rr, f"{name}: rr"
+
+            tariff_path = run["path_tariffs_electric"]["all"]
+
+            # --- (4/5) posted tariff, delivery vs supply ---
+            assert "calibrated" not in tariff_path, f"{name}: no *_calibrated"
+            if "supply" in name:
+                assert tariff_path == "tariffs/electric/bge_rd_default_supply.json", (
+                    f"{name}: supply tariff"
+                )
+            else:
+                assert tariff_path == "tariffs/electric/bge_rd_default.json", (
+                    f"{name}: delivery tariff"
+                )
+
+            # --- (7) no subclasses ---
+            assert run["run_includes_subclasses"] is False, f"{name}: subclasses"
+            assert list(run["path_tariffs_electric"].keys()) == ["all"], (
+                f"{name}: single tariff key"
+            )
+
+        # --- (6) same tariff in precalc and calibrated (no promotion) ---
         precalc_d = runs["md_bge_default_rd_uncalibrated_precalc_delivery"]
         cal_d = runs["md_bge_default_rd_uncalibrated_calibrated_delivery"]
         assert precalc_d["path_tariffs_electric"] == cal_d["path_tariffs_electric"]
+        precalc_s = runs["md_bge_default_rd_uncalibrated_precalc_supply"]
+        cal_s = runs["md_bge_default_rd_uncalibrated_calibrated_supply"]
+        assert precalc_s["path_tariffs_electric"] == cal_s["path_tariffs_electric"]
+
+        # --- (8) upgrade 00 vs 02 ---
         assert "upgrade=00" in precalc_d["path_resstock_metadata"]
         assert "upgrade=02" in cal_d["path_resstock_metadata"]
+
+        # --- promote_tariffs would be False (checked via the flag) ---
+        sc = config.scenario("default_rd_uncalibrated")
+        assert sc.is_uncalibrated
 
     def test_ordinary_single_rate_precalc_still_solves_to_class_rr(
         self, tmp_path: Path
@@ -452,6 +507,17 @@ class TestSingleRateUncalibrated:
             == "rev_requirement/bge_large.yaml"
         )
         assert calibrated["path_tariffs_electric"]["all"].endswith("_calibrated.json")
+
+    def test_missing_uncalibrated_rr_key_rejected(self, tmp_path: Path) -> None:
+        data = _minimal_pipeline_yaml()
+        data["scenarios"]["default_rd_uncalibrated"] = {
+            "quartet": "single_rate_uncalibrated",
+            "tariff_base": "rd_default",
+        }
+        with pytest.raises(
+            ValueError, match="revenue_requirement.single_rate_uncalibrated"
+        ):
+            load_pipeline_config(_write(tmp_path, data))
 
 
 class TestFuseMountCheck:

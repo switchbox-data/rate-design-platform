@@ -23,6 +23,7 @@ marginal_costs:
 revenue_requirement:
   single_rate: rev_requirement/bge_rate_case_test_year.yaml
   single_rate_calibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
+  single_rate_uncalibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
   # multi_rate: DERIVED from utility + subgroup aliases (e.g. bge_hp_vs_nonhp.yaml)
   multi_rate_calibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
 scenarios:

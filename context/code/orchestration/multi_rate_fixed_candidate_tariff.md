@@ -96,12 +96,12 @@ use `default_rd_uncalibrated`.
 Same four-run quartet shape as `single_rate` (upgrade 00 then 02, delivery +
 supply). Differences:
 
-|                  | `single_rate`                   | `single_rate_uncalibrated`   |
-| ---------------- | ------------------------------- | ---------------------------- |
-| CAIRO `run_type` | precalc then default            | **default both stages**      |
-| RR YAML          | class RR, then large-number     | **large-number both stages** |
-| Tariff files     | posted then `*_calibrated.json` | **posted JSON both stages**  |
-| Promotion seam   | writes `*_calibrated.json`      | **skipped**                  |
+|                  | `single_rate`                               | `single_rate_uncalibrated`                 |
+| ---------------- | ------------------------------------------- | ------------------------------------------ |
+| CAIRO `run_type` | precalc then default                        | **default both stages**                    |
+| RR YAML          | `single_rate` then `single_rate_calibrated` | **`single_rate_uncalibrated` both stages** |
+| Tariff files     | posted then `*_calibrated.json`             | **posted JSON both stages**                |
+| Promotion seam   | writes `*_calibrated.json`                  | **skipped**                                |
 
 `run_type` stays the CAIRO binary `precalc` | `default`. "Uncalibrated" lives
 on the quartet kind, posted JSON, and large-number RR — not a third YAML

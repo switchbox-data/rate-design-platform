@@ -179,6 +179,7 @@ marginal_costs:
 revenue_requirement:
   single_rate: rev_requirement/bge_rate_case_test_year.yaml
   single_rate_calibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
+  single_rate_uncalibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
   multi_rate_calibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
 scenarios:
   default:
@@ -205,6 +206,7 @@ bill_change_baseline:
 
 - `output_base` — root S3/FUSE path for outputs; batch dir = `{output_base}/{state}/{utility}/{batch}`
 - `tariff_base` — explicit stem component for single-rate tariff filenames (required for `single_rate` and `single_rate_uncalibrated`)
+- `revenue_requirement.single_rate_uncalibrated` — required when a `single_rate_uncalibrated` scenario is declared. The large-number RR YAML used for both stages of that quartet (do not reuse `single_rate_calibrated` implicitly).
 - `periods_yaml` — utility periods config (winter months); defaults to `periods/{utility}.yaml`
 - `depends_on` — prerequisite scenario name(s). YAML accepts a string or a list. Collapsed/preserved quartets take one name (the parent whose outputs feed `derive_tariffs`); `multi_rate_fixed` takes the list of scenarios that must finish before prep.
 - `promote` — which subgroup's calibrated tariff to promote for `multi_rate_collapsed`

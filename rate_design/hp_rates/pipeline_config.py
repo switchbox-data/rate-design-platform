@@ -194,8 +194,9 @@ class ScenarioConfig:
     def is_uncalibrated(self) -> bool:
         """True when CAIRO must leave the posted tariff unchanged.
 
-        Both stages of this quartet use ``run_type: default`` and the
-        large-number RR YAML so CAIRO does not solve rates to class RR.
+        Both stages of this quartet use ``run_type: default`` and
+        ``revenue_requirement.single_rate_uncalibrated`` (the large-number
+        RR YAML) so CAIRO does not solve rates to class RR.
         """
         return self.quartet in _UNCALIBRATED_QUARTETS
 
@@ -248,6 +249,7 @@ class RunDefaults:
     periods_yaml: str
     sample_size: int | None = None
     elasticity: float = 0.0
+    rr_single_rate_uncalibrated: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -425,11 +427,22 @@ def load_pipeline_config(yaml_path: Path) -> PipelineConfig:
         rr_single_rate=rr["single_rate"],
         rr_single_rate_calibrated=rr["single_rate_calibrated"],
         rr_multi_rate_calibrated=rr["multi_rate_calibrated"],
+        rr_single_rate_uncalibrated=rr.get("single_rate_uncalibrated"),
         solar_pv_compensation=data.get("solar_pv_compensation", "net_metering"),
         periods_yaml=data.get("periods_yaml", f"periods/{data['utility']}.yaml"),
         sample_size=_parse_optional_int(data.get("sample_size")),
         elasticity=float(data.get("elasticity", 0.0)),
     )
+
+    if (
+        any(s.is_uncalibrated for s in scenarios.values())
+        and run_defaults.rr_single_rate_uncalibrated is None
+    ):
+        raise ValueError(
+            "revenue_requirement.single_rate_uncalibrated is required when a "
+            "'single_rate_uncalibrated' scenario is declared (the large-number "
+            "RR YAML used for both stages)."
+        )
 
     return PipelineConfig(
         state=data["state"],
@@ -1061,9 +1074,11 @@ def _resolve_rr_yaml(
     """Return the revenue requirement YAML path (relative) for a run."""
     rd = config.run_defaults
     # Uncalibrated: CAIRO default mode still requires an RR YAML and errors
-    # if bills over-collect. The large-number file makes that check a no-op.
+    # if bills over-collect. The dedicated large-number file makes that check
+    # a no-op. Required at load when any uncalibrated scenario is declared.
     if scenario.is_uncalibrated:
-        return rd.rr_single_rate_calibrated
+        assert rd.rr_single_rate_uncalibrated is not None
+        return rd.rr_single_rate_uncalibrated
     if stage == "calibrated":
         if scenario.is_single_rate:
             return rd.rr_single_rate_calibrated
@@ -1128,6 +1143,7 @@ def validate_preflight_inputs(
         rd.rr_single_rate,
         rd.rr_single_rate_calibrated,
         rd.rr_multi_rate_calibrated,
+        *([rd.rr_single_rate_uncalibrated] if rd.rr_single_rate_uncalibrated else []),
     ):
         rr_path = config_dir / rr_rel
         if not rr_path.exists():
