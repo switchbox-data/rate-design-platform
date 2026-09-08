@@ -258,6 +258,127 @@ adjust-mf-electricity state input_release output_release upgrade_ids:
         --output_release "{{ output_release }}" \
         --upgrade_ids "{{ upgrade_ids }}"
 
+# ── 4b. ACH50 infiltration correction (optional) ─────────────────────────────
+#
+# Corrects per-building hourly heating/cooling loads for ACH50 infiltration
+# overestimation using the Chan et al. (2013) regression model.  Reads from
+# the _sb release and writes a schema-identical _sb_ach release (hourly,
+# monthly, annual, metadata, utility assignment).
+#
+# Only runs for states that have an ach50_correction/<state>.yaml config.
+#
+# Examples:
+#   just -f data/resstock/Justfile correct-ach50 MD "00 01"
+#   just -f data/resstock/Justfile correct-ach50 MD "00 01" --workers 100
+
+# Derived release name for the ACH50-corrected variant.
+resstock_release_sb_ach := resstock_release_sb + "_ach"
+
+# Path variables for config files.
+path_chan_coefficients := "data/resstock/config/chan_2013_coefficients.yaml"
+path_ach50_config_dir := "data/resstock/config/ach50_correction"
+
+correct-ach50 state upgrade_ids *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ path_local_repo }}"
+
+    state_upper=$(echo "{{ state }}" | tr '[:lower:]' '[:upper:]')
+    state_lower=$(echo "{{ state }}" | tr '[:upper:]' '[:lower:]')
+    path_context="{{ path_ach50_config_dir }}/${state_lower}.yaml"
+
+    if [ ! -f "$path_context" ]; then
+        echo "ERROR: ACH50 correction config not found: $path_context" >&2
+        echo "ACH50 correction is not configured for state $state_upper." >&2
+        exit 1
+    fi
+
+    echo "═══════════════════════════════════════════════════════════════════"
+    echo " ACH50 correction: {{ resstock_release_sb }} → {{ resstock_release_sb_ach }}"
+    echo " State: $state_upper   Upgrades: {{ upgrade_ids }}"
+    echo "═══════════════════════════════════════════════════════════════════"
+
+    # Step 1: Correct hourly load curves + copy metadata
+    echo ""
+    echo "── Step 1/3: Correcting hourly load curves ──"
+    uv run python -m data.resstock.load_curve.correct_ach50_infiltration \
+        --path-local "{{ path_local_parquet }}" \
+        --path-s3 "{{ path_s3_parquet }}" \
+        --input-release "{{ resstock_release_sb }}" \
+        --output-release "{{ resstock_release_sb_ach }}" \
+        --state "$state_upper" \
+        --upgrade-ids "{{ upgrade_ids }}" \
+        --path-chan-coefficients "{{ path_chan_coefficients }}" \
+        --path-context-config "$path_context" \
+        {{ args }}
+
+    # Step 2: Aggregate monthly + annual from corrected hourly
+    echo ""
+    echo "── Step 2/3: Aggregating monthly load curves ──"
+    uv run python "{{ path_local_repo }}/data/resstock/load_curve/aggregate_loads.py" \
+        --path-input "{{ path_local_parquet }}/{{ resstock_release_sb_ach }}" \
+        --path-output "{{ path_local_parquet }}/{{ resstock_release_sb_ach }}" \
+        --state "$state_upper" \
+        --upgrade-ids "{{ upgrade_ids }}" \
+        --bsf-release "{{ resstock_release }}" \
+        --workers 50 \
+        --add-monthly
+
+    echo ""
+    echo "── Step 3/3: Aggregating annual load curves ──"
+    uv run python "{{ path_local_repo }}/data/resstock/load_curve/aggregate_loads.py" \
+        --path-input "{{ path_local_parquet }}/{{ resstock_release_sb_ach }}" \
+        --path-output "{{ path_local_parquet }}/{{ resstock_release_sb_ach }}" \
+        --path-annual-raw "{{ path_local_parquet }}/{{ resstock_release_sb }}" \
+        --state "$state_upper" \
+        --upgrade-ids "{{ upgrade_ids }}" \
+        --bsf-release "{{ resstock_release }}" \
+        --workers 50 \
+        --add-annual
+
+    echo ""
+    echo "═══════════════════════════════════════════════════════════════════"
+    echo " ACH50 correction complete."
+    echo " Output: {{ path_local_parquet }}/{{ resstock_release_sb_ach }}"
+    echo " To upload: just -f data/resstock/Justfile upload-ach50 $state_upper \"{{ upgrade_ids }}\""
+    echo "═══════════════════════════════════════════════════════════════════"
+
+# Upload the _sb_ach release to S3 for a state.
+# Only uploads the specified upgrade_ids, not the entire state directory.
+upload-ach50 state upgrade_ids:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    state_upper=$(echo "{{ state }}" | tr '[:lower:]' '[:upper:]')
+    local_base="{{ path_local_parquet }}/{{ resstock_release_sb_ach }}"
+    s3_base="{{ path_s3_parquet }}/{{ resstock_release_sb_ach }}"
+
+    # metadata_utility is NOT upgrade-partitioned — sync the whole state dir.
+    for file_type in metadata_utility; do
+        local_dir="${local_base}/${file_type}/state=${state_upper}"
+        if [ -d "$local_dir" ]; then
+            s3_dir="${s3_base}/${file_type}/state=${state_upper}/"
+            echo "Uploading ${file_type}/state=${state_upper} → ${s3_dir}"
+            aws s3 sync "$local_dir" "$s3_dir" --quiet
+        fi
+    done
+
+    # metadata and load curves are upgrade-partitioned — only sync the
+    # requested upgrades.
+    for uid in {{ upgrade_ids }}; do
+        upgrade_padded=$(printf "%02d" "$uid")
+        for file_type in metadata load_curve_hourly load_curve_monthly load_curve_annual; do
+            local_dir="${local_base}/${file_type}/state=${state_upper}/upgrade=${upgrade_padded}"
+            if [ -d "$local_dir" ]; then
+                s3_dir="${s3_base}/${file_type}/state=${state_upper}/upgrade=${upgrade_padded}/"
+                echo "Uploading ${file_type}/state=${state_upper}/upgrade=${upgrade_padded} → ${s3_dir}"
+                aws s3 sync "$local_dir" "$s3_dir" --quiet
+            fi
+        done
+    done
+
+    echo "Upload complete: ${s3_base}"
+    echo "(Report YAMLs are committed to rate_design/hp_rates/{state}/config/load_adj/, not uploaded to S3.)"
+
 # ── 5. Monthly load curves ───────────────────────────────────────────────────
 
 # Aggregate _sb hourly load curves into monthly for a state.
