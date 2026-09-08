@@ -263,6 +263,26 @@ just s md build-all-master-prefect md_20260803_a
 
 That runs bills then BAT (in that order, because BAT joins the baseline bills). Either can be run alone with `build-master-bills-prefect` / `build-master-bat-prefect`, and both accept `--scenarios` to narrow the work.
 
+To build Maryland master bills with FY26 OHEP MEAP/EUSP columns for multiple participation scenarios:
+
+```bash
+just s md build-master-bills-prefect <batch> \
+  --calculate-lmi \
+  --lmi-participation-rates 1.0 0.48 \
+  --lmi-participation-mode weighted \
+  --lmi-calculation-type monthly
+```
+
+For MD, `monthly` means that annual grants are allocated proportionally across Jan–Dec bills; it does not mean equal twelfths. The command appends both p100 and p48 column sets in one pass. It rewrites master-bill outputs but does not alter CAIRO run directories.
+
+The current Prefect builder writes each per-utility table before applying LMI, then applies LMI to the concatenated table before its final write. Therefore MD OHEP columns are present only in the `all_utilities` table:
+
+```
+{output_base}/md/all_utilities/{batch}/{segment}/comb_bills_year_target/
+```
+
+Use that path for MD LMI analysis. See [LMI discounts in master bills](lmi_master_bills_workflow.md) for the complete data flow and column definitions.
+
 | Script                                     | Output                            | Grain             |
 | ------------------------------------------ | --------------------------------- | ----------------- |
 | `utils/post/build_master_bills_prefect.py` | `comb_bills_year_target/`         | building × month  |
@@ -304,6 +324,61 @@ Building BAT without the baseline bills raises with the path to build first — 
 ### Reading the BAT tables
 
 BAT metrics in **calibrated** segments are dominated by the deliberately large revenue requirement those runs use (`residual_share_total` lands in the hundreds of thousands per customer, versus roughly a thousand in precalc). Bills in calibrated segments are unaffected and correct. The builders write what CAIRO produced without special-casing; interpret cross-subsidy metrics from precalc segments.
+
+## End-to-end example: MD/BGE with Just recipes
+
+The invocation and post-processing steps above are the generic, state-agnostic path (raw `python -m` / `uv run python`). `rate_design/hp_rates/Justfile` and `rate_design/hp_rates/md/Justfile` wrap them into a handful of recipes, and MD's adds a composed recipe for its OHEP (MEAP/EUSP) LMI columns. This section walks the full MD/BGE flow using those recipes; see [Justfiles](../../rate_design/hp_rates/Justfile) for the recipes themselves.
+
+### 1. Start the Prefect server (once per session, separate terminal)
+
+```bash
+cd rate_design/hp_rates
+just serve-prefect
+```
+
+`serve-prefect` is a thin wrapper around `uv run prefect server start --port {{ port }}` (default port `4200`). It is state-agnostic — one server serves every state/utility batch — so it lives in the shared Justfile and does not need `just s md ...` dispatch. Leave this terminal open for the duration of the batch.
+
+### 2. Point the pipeline at the server (in your working terminal)
+
+```bash
+export PREFECT_API_URL=http://127.0.0.1:4200/api
+```
+
+`run-pipeline` checks this at the top of its recipe body and fails fast with a reminder if it is unset, rather than silently falling back to an ephemeral server that loses run history.
+
+### 3. Run the batch
+
+For MD, use the composed recipe to get the pipeline run and both LMI-aware master tables in one command:
+
+```bash
+just s md run-with-lmi md_20260803_a
+```
+
+This chains three recipes, stopping at the first failure:
+
+1. `run-pipeline md_20260803_a` — runs every scenario in `md/config/scenarios/pipeline_bge.yaml` (equivalent to the `uv run python -m rate_design.hp_rates.run_pipeline ...` invocation above, minus typing the `--yaml` path).
+2. `build-master-bills-prefect md_20260803_a --calculate-lmi --lmi-participation-rates 1.0 0.48 --lmi-participation-mode weighted --lmi-calculation-type monthly` — MD's standard OHEP participation scenarios (see [Post-processing: master tables](#post-processing-master-tables) above for what these flags do).
+3. `build-master-bat-prefect md_20260803_a` — BAT for the batch, joining the baseline bills the previous step wrote.
+
+To restrict to one scenario (e.g. while iterating on a single scenario's tariff derivation), pass it after the batch name — it is forwarded to all three steps:
+
+```bash
+just s md run-with-lmi md_20260803_a default
+```
+
+If you don't need LMI columns (e.g. a non-MD state, or a quick check of raw bills), use the uncomposed recipes directly — `just s <state> run-pipeline <batch>` followed by `just s <state> build-all-master-prefect <batch>`.
+
+### 4. Resuming after a failure or partial run
+
+Re-running the same batch name is always safe and cheap: `cairo_run` skips any run whose `.runs/{name}.path` index file already exists (see [Run index](#run-index-resume-mechanism) above), so `just s md run-with-lmi md_20260803_a` only redoes what's missing or failed. `*scenarios` only narrows which scenarios are considered at all — it is not required for a fast rerun of the same batch.
+
+### 5. Where the LMI columns land
+
+As noted in [Post-processing: master tables](#post-processing-master-tables), MD OHEP columns are written only to the `all_utilities` master-bills table, not the per-utility one:
+
+```
+{output_base}/md/all_utilities/{batch}/{segment}/comb_bills_year_target/
+```
 
 ## Derived path anatomy
 

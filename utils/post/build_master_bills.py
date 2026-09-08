@@ -14,7 +14,8 @@ Output schema (13 rows per building: Jan..Dec + Annual):
     elec_fixed_charge, elec_delivery_bill, elec_supply_bill, elec_total_bill,
     passthrough_delivery, passthrough_supply,
     gas_fixed_charge, gas_volumetric_bill, gas_total_bill,
-    propane_total_bill, oil_total_bill, energy_total_bill
+    propane_total_bill, oil_total_bill, energy_total_bill,
+    elec_grid_kwh, gas_therms
 
 ``passthrough_delivery`` / ``passthrough_supply`` are the baseline electric bill
 components from master ``run_1+2`` ``comb_bills_year_target`` (``upgrade == 0``),
@@ -45,11 +46,14 @@ from typing import cast
 import polars as pl
 
 from utils.file_io import get_aws_storage_options
+from utils.loads import ELECTRIC_LOAD_COL, ELECTRIC_PV_COL, grid_consumption_expr
 from utils.post import apply_ny_lmi_to_master_bills as ny_lmi_master_bills
+from utils.post.apply_md_ohep_to_master_bills import apply_md_ohep_to_master
 from utils.post.apply_ny_lmi_to_master_bills import apply_ny_lmi_to_master
 from utils.post.apply_ri_lmi_discounts_to_bills import apply_ri_lmi_to_master
 from utils.post.delivered_fuel_bills import compute_fuel_bills, load_monthly_fuel_prices
 from utils.post.gas_bills import (
+    GAS_CONSUMPTION_COL,
     build_fixed_charge_table,
     build_rate_table,
     compute_gas_bills,
@@ -58,8 +62,8 @@ from utils.post.gas_bills import (
 )
 from utils.post.io import (
     ANNUAL_MONTH,
-    BLDG_ID,
     BILL_LEVEL,
+    BLDG_ID,
     scan,
     scan_load_curves_for_utility,
 )
@@ -161,9 +165,12 @@ OUTPUT_COLS = [
     "propane_total_bill",
     "oil_total_bill",
     "energy_total_bill",
+    "elec_grid_kwh",
+    "gas_therms",
 ]
 
 FLOAT_TOL = 1e-4
+KWH_PER_THERM = 29.3001
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -523,9 +530,30 @@ def _apply_lmi_discounts_to_master(
     lmi_participation_mode: str,
     lmi_seed: int,
     lmi_calculation_type: str,
+    include_lim: bool = False,
 ) -> pl.DataFrame:
     """Dispatch LMI discount augmentation to the appropriate state module."""
     opts = get_aws_storage_options()
+
+    if state_upper == "MD":
+        if lmi_calculation_type != "monthly":
+            _log(
+                "  MD OHEP allocates annual grants proportionally across months; "
+                f"ignoring LMI calculation type {lmi_calculation_type!r}"
+            )
+        return apply_md_ohep_to_master(
+            master,
+            state=state_upper,
+            upgrade=upgrade,
+            path_resstock_release=path_resstock_release,
+            fpl_year=lmi_fpl_year,
+            cpi_s3_path=lmi_cpi_s3_path,
+            participation_rates=lmi_participation_rates,
+            participation_mode=lmi_participation_mode,
+            seed=lmi_seed,
+            opts=opts,
+            include_lim=include_lim,
+        )
 
     if state_upper == "NY":
         # Sync elapsed-time logging so NY helper uses this script's start time.
@@ -565,7 +593,7 @@ def _apply_lmi_discounts_to_master(
 
     raise ValueError(
         f"--calculate-lmi is not supported for state {state_upper!r}. "
-        "Supported states: NY, RI."
+        "Supported states: MD, NY, RI."
     )
 
 
@@ -743,11 +771,49 @@ def _process_utility(
 
     _assert_no_nulls(fuel_bills, ["oil_total_bill", "propane_total_bill"], utility)
 
+    # --- Monthly consumption (elec grid kWh + gas therms) ---
+    monthly_consumption = load_curves.select(
+        pl.col(BLDG_ID),
+        pl.col("month"),
+        grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL)
+        .fill_null(0.0)
+        .alias("elec_grid_kwh"),
+        (pl.col(GAS_CONSUMPTION_COL).fill_null(0.0) / KWH_PER_THERM).alias(
+            "gas_therms"
+        ),
+    ).collect()
+    month_int_to_str: dict[int, str] = {
+        1: "Jan",
+        2: "Feb",
+        3: "Mar",
+        4: "Apr",
+        5: "May",
+        6: "Jun",
+        7: "Jul",
+        8: "Aug",
+        9: "Sep",
+        10: "Oct",
+        11: "Nov",
+        12: "Dec",
+    }
+    monthly_consumption = monthly_consumption.with_columns(
+        pl.col("month").replace_strict(month_int_to_str, return_dtype=pl.String)
+    )
+    annual_consumption = monthly_consumption.group_by(BLDG_ID).agg(
+        pl.lit(ANNUAL_MONTH).alias("month"),
+        pl.col("elec_grid_kwh").sum(),
+        pl.col("gas_therms").sum(),
+    )
+    consumption = pl.concat([monthly_consumption, annual_consumption]).select(
+        BLDG_ID, "month", "elec_grid_kwh", "gas_therms"
+    )
+
     # --- Join all components ---
     t = _log("  Joining components...")
     joined_pre = (
         elec.join(gas, on=[BLDG_ID, "month"], how="inner")
         .join(fuel_bills, on=[BLDG_ID, "month"], how="inner")
+        .join(consumption, on=[BLDG_ID, "month"], how="inner")
         .join(
             metadata_for_utility.select(META_COLS),
             on=BLDG_ID,
@@ -943,6 +1009,13 @@ def _parse_args() -> argparse.Namespace:
         default="budget",
         help="LMI bill calculation method (used with --calculate-lmi).",
     )
+    parser.add_argument(
+        "--include-lim",
+        action="store_true",
+        help="For MD, apply available utility LIM rates on OHEP-discounted bills. "
+        "Currently only BGE's proposed July 2026 rates are available. "
+        "Requires --calculate-lmi.",
+    )
     return parser.parse_args()
 
 
@@ -953,6 +1026,8 @@ def main() -> None:
 
     state = args.state.lower()
     state_upper = state.upper()
+    if args.include_lim and (not args.calculate_lmi or state_upper != "MD"):
+        raise ValueError("--include-lim requires --calculate-lmi and --state md")
     _validate_run_pair(args.run_delivery, args.run_supply)
     upgrade = _upgrade_for_run(args.run_delivery)
     utilities = args.utilities.split(",") if args.utilities else _read_utilities(state)
@@ -1111,6 +1186,7 @@ def main() -> None:
             lmi_participation_mode=args.lmi_participation_mode,
             lmi_seed=args.lmi_seed,
             lmi_calculation_type=args.lmi_calculation_type,
+            include_lim=args.include_lim,
         )
 
     # --- Write output (Hive-partitioned parquet) ---

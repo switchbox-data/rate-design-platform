@@ -9,6 +9,8 @@
 #   just s ny run-all-utilities-sequential                      # all utilities for a state
 #   UTILITY=rie just -f ri/Justfile all-pre                     # via state wrapper directly
 #   set -a && source ny/state.env && set +a && UTILITY=nyseg just all-pre  # manual source
+#   just s md serve-prefect                                     # start Prefect server (separate terminal)
+#   PREFECT_API_URL=http://127.0.0.1:4200/api just s md run-pipeline md_20260803_a  # run Prefect pipeline batch
 # =============================================================================
 # Tier 1: Identity (set by state wrapper, dispatch, or manual source)
 # =============================================================================
@@ -74,6 +76,7 @@ path_tariffs_gas := path_config / "tariffs/gas"
 path_rateacuity_yaml := path_tariffs_gas / "rateacuity_tariffs.yaml"
 path_scenarios := path_config / "scenarios"
 path_scenario_config := path_scenarios / "scenarios_" + utility + ".yaml"
+path_pipeline_yaml := path_scenarios / ("pipeline_" + utility + ".yaml")
 path_periods_yaml := path_config / "periods" / utility + ".yaml"
 path_rev_requirement := path_config / "rev_requirement"
 path_default_rev_requirement := path_rev_requirement / utility + ".yaml"
@@ -1452,7 +1455,44 @@ build-master-bat batch run_delivery run_supply *batch_overrides:
 
 # script_args: optional trailing args passed to the script as-is. Use to pass
 # per-utility batch overrides (for example, --batch-override cenhud=ny_20260306_r1-8)
-# and optional LMI flags (for example, --calculate-lmi --lmi-participation-rate 0.4).
+# and optional LMI flags (for example, --calculate-lmi --lmi-participation-rates 1.0 0.48).
+
+# =============================================================================
+# PREFECT PIPELINE
+#
+# Runs scenarios defined in a per-utility pipeline YAML
+# (config/scenarios/pipeline_{utility}.yaml) via Prefect. See
+# context/code/orchestration/prefect_pipeline.md for the full architecture
+# and a state-specific end-to-end example.
+# =============================================================================
+
+# Start a local Prefect server to track flows/tasks/run state for pipeline
+# batches. Long-lived infra meant to survive across many batches, so this is
+# kept foreground-only and separate from run-pipeline: start it once in its
+# own terminal, then export PREFECT_API_URL in the terminal you run
+# run-pipeline from (see run-pipeline's own precondition check below).
+#
+# just s md serve-prefect
+serve-prefect port="4200":
+    uv run prefect server start --port {{ port }}
+
+# Run (or resume) a Prefect pipeline batch for the current state/utility.
+# Re-running with the same batch name resumes: cairo_run skips any run whose
+# .runs/{name}.path index file already exists, so a rerun only redoes what's
+# missing or failed. Pass scenario names to additionally restrict which
+# scenarios preflight/the run considers at all (omit to run every scenario
+# in the pipeline YAML).
+#
+#   just s md run-pipeline md_20260803_a
+# just s md run-pipeline md_20260803_a default          # single scenario
+run-pipeline batch *scenarios:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${PREFECT_API_URL:?Set PREFECT_API_URL before running (see: just serve-prefect). e.g. export PREFECT_API_URL=http://127.0.0.1:4200/api}"
+    uv run python -m rate_design.hp_rates.run_pipeline \
+      --yaml "{{ path_pipeline_yaml }}" \
+      --batch "{{ batch }}" \
+      {{ if scenarios != "" { "--scenarios " + scenarios } else { "" } }}
 
 # =============================================================================
 # POST-PROCESSING: master tables for Prefect pipeline batches

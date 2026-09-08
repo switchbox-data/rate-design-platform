@@ -67,6 +67,8 @@ Either way, a segment joins a **delivery** run with its paired **supply** run: e
 | gas_total_bill                                                                     | Total gas bill                                                                      |
 | propane_total_bill, oil_total_bill                                                 | Delivered fuel bills                                                                |
 | energy_total_bill                                                                  | Sum of all fuel bills                                                               |
+| elec_grid_kwh                                                                      | Monthly grid electric consumption (kWh), matching CAIRO's billing basis             |
+| gas_therms                                                                         | Monthly natural gas consumption (therms)                                            |
 
 **Master BAT** (`cross_subsidization_BAT_values/`) — one row per building (annual). Computes delivery, supply, and total bill alignment by taking the delivery-only run's BAT values as delivery, the delivery+supply run's values as total, and deriving supply = total − delivery. Also carries the cost-allocation components BAT is derived from (`annual_bill_*`, `economic_burden_*`, `residual_share_*`) and the same `baseline_elec_*` columns as master bills, which it reads from the baseline segment's master bills — so build bills first. Legacy invocation: `just build-master-bat <batch> <run_delivery> <run_supply>`.
 
