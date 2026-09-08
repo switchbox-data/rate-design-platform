@@ -6,18 +6,20 @@ Status: redesigned pipeline with generic quartet-based orchestration, structure 
 
 - **Scenario** — one rate design to evaluate (`default`, `hp_seasonal_percustomer_passthrough`, …), declared with a `quartet` kind in the pipeline YAML.
 - **Variant** — the cost scope of one CAIRO run: `delivery` (`billing_kwh=True`) or `supply` (`billing_kwh=False`).
-- **Stage** — calibration lifecycle position: `precalc` (CAIRO solves tariffs on baseline population) then `calibrated` (target population uses promoted `*_calibrated.json` as input).
+- **Stage** — orchestration slot: `precalc` (upgrade 00) then `calibrated` (upgrade 02). For `single_rate` / multi-rate quartets, precalc is CAIRO `run_type: precalc` (solves tariffs) and calibrated is `run_type: default` (bills the promoted `*_calibrated.json`). For `single_rate_uncalibrated`, **both** stages are `run_type: default` and bill the posted tariff; the large-number RR YAML is used so CAIRO does not error on revenue sufficiency.
 - **Run** — one CAIRO invocation = one (stage, variant) pair. Identified by a canonical run name.
 - **Quartet** — the four runs that fully evaluate one scenario: 2 stages × 2 variants.
-- **Tariff promotion seam** — the handoff joining precalc → calibrated: precalc outputs' `tariff_final_config.json` → `*_calibrated.json` files written to config dir.
+- **Tariff promotion seam** — the handoff joining precalc → calibrated: precalc outputs' `tariff_final_config.json` → `*_calibrated.json` files written to config dir. Skipped for `single_rate_uncalibrated`.
 
 ### Quartet kinds
 
-| quartet                | precalc | calibrated | subgroups | description                                             |
-| ---------------------- | ------- | ---------- | --------- | ------------------------------------------------------- |
-| `single_rate`          | single  | single     | no        | Calibrate one tariff on up00, evaluate on up02          |
-| `multi_rate_collapsed` | multi   | single     | yes       | Calibrate per-subgroup, promote one to calibrated stage |
-| `multi_rate_preserved` | multi   | multi      | yes       | Keep all subgroup tariffs through calibrated stage      |
+| quartet                    | precalc | calibrated | subgroups | description                                                                                                                                                            |
+| -------------------------- | ------- | ---------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `single_rate`              | single  | single     | no        | Calibrate one tariff on up00, evaluate on up02                                                                                                                         |
+| `single_rate_uncalibrated` | single  | single     | no        | Bill a posted tariff unchanged (`run_type: default` both stages, large-number RR so CAIRO does not error)                                                              |
+| `multi_rate_collapsed`     | multi   | single     | yes       | Calibrate per-subgroup, promote one to calibrated stage                                                                                                                |
+| `multi_rate_preserved`     | multi   | multi      | yes       | Keep all subgroup tariffs through calibrated stage                                                                                                                     |
+| `multi_rate_fixed`         | multi   | single     | yes       | Copy already-built tariffs (no redesign); subclass RR from a candidate-tariff run. See [`multi_rate_fixed_candidate_tariff.md`](multi_rate_fixed_candidate_tariff.md). |
 
 ## Files
 
@@ -36,20 +38,26 @@ run_batch @flow (master)
   │    ├─ validate inputs (FUSE mount, MC paths, ResStock, RR YAMLs, tariff JSONs)
   │    ├─ generate scenarios YAML (pipeline YAML → per-run format for run_scenario.py)
   │    └─ generate electric tariff maps (write_tariff_maps_from_scenario)
-  ├─ independent scenarios (no depends_on):
-  │    └─ run_quartet @flow
-  │         ├─ precalc: cairo_run(delivery) → cairo_run(supply)
-  │         ├─ tariff promotion seam
-  │         └─ calibrated: cairo_run(delivery) → cairo_run(supply)
-  └─ dependent scenarios (has depends_on):
-       ├─ check_dependency (verify dependency's quartet completed)
-       ├─ derive_tariffs (compute subclass RR + dispatch tariff creation by structure)
-       └─ run_quartet @flow
+  ├─ independent scenarios (no depends_on, not multi_rate_fixed):
+       │    └─ run_quartet @flow
+       │         ├─ precalc: cairo_run(delivery) → cairo_run(supply)
+       │         ├─ tariff promotion seam (skipped for single_rate_uncalibrated)
+       │         └─ calibrated: cairo_run(delivery) → cairo_run(supply)
+       ├─ dependent scenarios (collapsed/preserved; one depends_on parent):
+       │    ├─ check_dependency (verify that parent's quartet completed)
+       │    ├─ derive_tariffs (compute subclass RR + dispatch tariff creation by structure)
+       │    └─ run_quartet @flow
+       └─ multi_rate_fixed (depends_on is a list of prerequisite scenarios):
+            ├─ check_dependency for each name in depends_on
+            ├─ compute_candidate_tariff_rr_for_fixed
+            ├─ prepare_fixed_tariffs (relabel-copy; or use tariff_json_path)
+            └─ run_quartet @flow
 ```
 
 - `cairo_run` is the atomic `@task`: shells out to `run_scenario.py` as a subprocess for full memory isolation.
 - `run_quartet` is a `@flow` with `ThreadPoolTaskRunner(max_workers=2)`. Whether each stage's delivery + supply pair actually overlaps is controlled by `concurrent_variants` (see below); the arrows above show the default sequential mode.
-- `derive_tariffs` dispatches to `pipeline_derive.py` handlers (no if-chains in the pipeline).
+- `derive_tariffs` dispatches to `pipeline_derive.py` handlers (no if-chains in the pipeline). Seasonal/flat HP rates use that path.
+- `multi_rate_fixed` is a third dispatch: copy already-built tariffs and a candidate-tariff subclass RR, then CAIRO. See [`multi_rate_fixed_candidate_tariff.md`](multi_rate_fixed_candidate_tariff.md).
 
 ## Canonical run naming
 
@@ -171,6 +179,7 @@ marginal_costs:
 revenue_requirement:
   single_rate: rev_requirement/bge_rate_case_test_year.yaml
   single_rate_calibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
+  single_rate_uncalibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
   multi_rate_calibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
 scenarios:
   default:
@@ -196,10 +205,12 @@ bill_change_baseline:
 ### Key config fields
 
 - `output_base` — root S3/FUSE path for outputs; batch dir = `{output_base}/{state}/{utility}/{batch}`
-- `tariff_base` — explicit stem component for single-rate tariff filenames (required for `single_rate` quartet)
+- `tariff_base` — explicit stem component for single-rate tariff filenames (required for `single_rate` and `single_rate_uncalibrated`)
+- `revenue_requirement.single_rate_uncalibrated` — required when a `single_rate_uncalibrated` scenario is declared. The large-number RR YAML used for both stages of that quartet (do not reuse `single_rate_calibrated` implicitly).
 - `periods_yaml` — utility periods config (winter months); defaults to `periods/{utility}.yaml`
-- `depends_on` — names the dependency scenario whose outputs feed `derive_tariffs`
+- `depends_on` — prerequisite scenario name(s). YAML accepts a string or a list. Collapsed/preserved quartets take one name (the parent whose outputs feed `derive_tariffs`); `multi_rate_fixed` takes the list of scenarios that must finish before prep.
 - `promote` — which subgroup's calibrated tariff to promote for `multi_rate_collapsed`
+- `bat_allocation_scenario` — for `multi_rate_fixed` with a derived RR: the prerequisite scenario (usually `default`) whose precalc outputs supply the BAT-based allocation methods. Must be in `depends_on`
 - `bill_change_baseline` — the one `(scenario, stage)` every run's bills are compared against. Read only by post-processing, so the pipeline runs without it; the master-table builders raise if it is missing. It is a single stage, not a quartet: usually `default` + `precalc`, i.e. today's rates on the pre-upgrade population.
 
 ## Invocation

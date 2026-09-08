@@ -23,12 +23,17 @@ marginal_costs:
 revenue_requirement:
   single_rate: rev_requirement/bge_rate_case_test_year.yaml
   single_rate_calibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
+  single_rate_uncalibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
   # multi_rate: DERIVED from utility + subgroup aliases (e.g. bge_hp_vs_nonhp.yaml)
   multi_rate_calibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
 scenarios:
   default:
     quartet: single_rate
     tariff_base: default
+  default_rd_uncalibrated:
+    # Posted Schedule RD billed as-is (CAIRO default mode + large-number RR).
+    quartet: single_rate_uncalibrated
+    tariff_base: rd_default
   hp_seasonal_percustomer_passthrough:
     quartet: multi_rate_collapsed
     depends_on: default
@@ -93,6 +98,27 @@ scenarios:
         non-hp:
           values: ["false"]
           structure: base
+  hp_rd_vs_default:
+    quartet: multi_rate_fixed
+    depends_on: [default, default_rd_uncalibrated]
+    candidate_tariff_scenario: default_rd_uncalibrated
+    candidate_tariff_supply_method: passthrough
+    bat_allocation_scenario: default
+    promote: hp
+    residual_allocation:
+      delivery: candidate_tariff
+      supply: candidate_tariff
+    subclass_config:
+      group_col: has_hp
+      subgroups:
+        hp:
+          values: ["true"]
+          structure: base
+          copy_from: default_rd_uncalibrated
+        non-hp:
+          values: ["false"]
+          structure: base
+          copy_from: default
 # The one stage every other run's bills are compared against, joined onto the
 # master tables as baseline_elec_* columns by post-processing.
 bill_change_baseline:

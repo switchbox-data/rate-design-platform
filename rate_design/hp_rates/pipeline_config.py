@@ -21,16 +21,36 @@ import yaml
 HP_RATES_DIR = Path(__file__).resolve().parent
 
 QUARTET_KINDS: frozenset[str] = frozenset(
-    {"single_rate", "multi_rate_collapsed", "multi_rate_preserved"}
+    {
+        "single_rate",
+        "single_rate_uncalibrated",
+        "multi_rate_collapsed",
+        "multi_rate_preserved",
+        "multi_rate_fixed",
+    }
 )
+
+# One posted tariff, no subclass split. Includes uncalibrated (CAIRO default
+# mode: tariff is not solved to the class RR).
+_SINGLE_RATE_QUARTETS: frozenset[str] = frozenset(
+    {"single_rate", "single_rate_uncalibrated"}
+)
+
+# CAIRO leaves the posted tariff unchanged (run_type: default + large-number RR).
+_UNCALIBRATED_QUARTETS: frozenset[str] = frozenset({"single_rate_uncalibrated"})
 
 # Quartet kinds whose precalc stage runs per-subgroup (multi) tariffs.
 _MULTI_PRECALC_QUARTETS: frozenset[str] = frozenset(
-    {"multi_rate_collapsed", "multi_rate_preserved"}
+    {"multi_rate_collapsed", "multi_rate_preserved", "multi_rate_fixed"}
 )
 
 # Quartet kinds whose calibrated stage runs per-subgroup (multi) tariffs.
 _MULTI_EVAL_QUARTETS: frozenset[str] = frozenset({"multi_rate_preserved"})
+
+# Multi-rate quartets that are not fixed: one parent, then derive_tariffs.
+_DERIVE_QUARTETS: frozenset[str] = frozenset(
+    {"multi_rate_collapsed", "multi_rate_preserved"}
+)
 
 # Residual allocation method -> BAT cross-subsidy column in CAIRO outputs.
 ALLOCATION_TO_BAT_COL: dict[str, str] = {
@@ -60,11 +80,28 @@ class SubgroupSpec:
         structure: The tariff structure for this subgroup.  One of the keys in
             ``DERIVED_STRUCTURES`` (triggers derivation) or ``"base"`` (copy
             the dependency's calibrated tariff and rename).
+        copy_from: For ``multi_rate_fixed`` quartets, the scenario name whose
+            tariff is sourced for this subgroup.  ``single_rate`` sources the
+            promoted ``*_calibrated.json``; ``single_rate_uncalibrated``
+            sources the posted (unadjusted) tariff.  Mutually exclusive
+            with ``tariff_json_path``/``tariff_json_supply_path``; exactly one
+            sourcing mechanism must be set for every subgroup of a
+            ``multi_rate_fixed`` scenario. Ignored otherwise.
+        tariff_json_path: For ``multi_rate_fixed`` quartets, an explicit path
+            (relative to the state config dir, or absolute) to a calibrated
+            delivery tariff JSON to use for this subgroup verbatim — no
+            scenario dependency, no derivation. Must be paired with
+            ``tariff_json_supply_path``.
+        tariff_json_supply_path: The delivery+supply counterpart of
+            ``tariff_json_path``.
     """
 
     alias: str
     values: list[str]
     structure: str
+    copy_from: str | None = None
+    tariff_json_path: str | None = None
+    tariff_json_supply_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,21 +123,54 @@ class ScenarioConfig:
     A scenario is identified by its ``name`` and ``quartet`` kind.  Multi-rate
     scenarios additionally carry a ``subclass_config`` (population split),
     ``residual_allocation`` (delivery + supply), and ``promote`` (which
-    subgroup's calibrated tariff is promoted for collapsed quartets).
+    subgroup's calibrated tariff is promoted for collapsed/fixed quartets).
 
     ``tariff_base`` is the base component of the tariff filename stem
     (e.g. ``"default"``).  For single-rate scenarios this produces stems like
-    ``bge_default[_supply][_calibrated]``.  Required only for single-rate scenarios.
+    ``bge_default[_supply][_calibrated]``.  Required for ``single_rate`` and
+    ``single_rate_uncalibrated``.
 
-    ``depends_on`` names the scenario whose outputs feed into this one's
-    derive flow (subclass RR, tariff derivation).
+    ``depends_on`` names the scenario(s) that must finish before this one.
+    YAML accepts a string or a list; it is always stored as a list.  How the
+    pipeline uses those names depends on the quartet:
+
+    - ``multi_rate_collapsed`` / ``multi_rate_preserved``: exactly one name,
+      whose outputs feed ``derive_tariffs``.
+    - ``multi_rate_fixed``: the scenarios that supply copied tariffs and/or
+      candidate-tariff bills (prep waits on all of them).
+    - Independent scenarios omit it.
+
+    ``candidate_tariff_scenario`` names the required scenario whose precalc
+    bills feed the candidate-tariff subclass RR computation.  Only used by
+    ``multi_rate_fixed``; mutually exclusive with
+    ``candidate_tariff_rr_yaml_path``.
+
+    ``bat_allocation_scenario`` names the prerequisite scenario (usually
+    ``default``) whose precalc outputs supply the standard BAT-based
+    allocation methods written alongside the candidate-tariff RR, and the
+    allocation shares for non-passthrough supply methods.  Required by
+    ``multi_rate_fixed`` whenever the RR is derived rather than supplied via
+    ``candidate_tariff_rr_yaml_path``; must be listed in ``depends_on``.
+
+    ``candidate_tariff_rr_yaml_path`` is an explicit path (relative to the
+    state config dir, or absolute) to a pre-computed subclass RR YAML to use
+    verbatim for this ``multi_rate_fixed`` scenario — no derivation, no
+    dependency on ``candidate_tariff_scenario``.
+
+    ``candidate_tariff_supply_method`` is how the class-level supply RR is
+    divided across buildings (passthrough / percustomer / volumetric / epmc).
+    Default ``passthrough``. Only used by ``multi_rate_fixed``.
     """
 
     name: str
     quartet: str
     promote: str | None = None
     tariff_base: str | None = None
-    depends_on: str | None = None
+    depends_on: list[str] | None = None
+    candidate_tariff_scenario: str | None = None
+    candidate_tariff_rr_yaml_path: str | None = None
+    candidate_tariff_supply_method: str | None = None
+    bat_allocation_scenario: str | None = None
     residual_allocation_delivery: str | None = None
     residual_allocation_supply: str | None = None
     subclass_config: SubclassConfig | None = None
@@ -117,7 +187,18 @@ class ScenarioConfig:
 
     @property
     def is_single_rate(self) -> bool:
-        return self.quartet == "single_rate"
+        """True for one-tariff quartets (calibrated or uncalibrated)."""
+        return self.quartet in _SINGLE_RATE_QUARTETS
+
+    @property
+    def is_uncalibrated(self) -> bool:
+        """True when CAIRO must leave the posted tariff unchanged.
+
+        Both stages of this quartet use ``run_type: default`` and
+        ``revenue_requirement.single_rate_uncalibrated`` (the large-number
+        RR YAML) so CAIRO does not solve rates to class RR.
+        """
+        return self.quartet in _UNCALIBRATED_QUARTETS
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,6 +249,7 @@ class RunDefaults:
     periods_yaml: str
     sample_size: int | None = None
     elasticity: float = 0.0
+    rr_single_rate_uncalibrated: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -345,11 +427,22 @@ def load_pipeline_config(yaml_path: Path) -> PipelineConfig:
         rr_single_rate=rr["single_rate"],
         rr_single_rate_calibrated=rr["single_rate_calibrated"],
         rr_multi_rate_calibrated=rr["multi_rate_calibrated"],
+        rr_single_rate_uncalibrated=rr.get("single_rate_uncalibrated"),
         solar_pv_compensation=data.get("solar_pv_compensation", "net_metering"),
         periods_yaml=data.get("periods_yaml", f"periods/{data['utility']}.yaml"),
         sample_size=_parse_optional_int(data.get("sample_size")),
         elasticity=float(data.get("elasticity", 0.0)),
     )
+
+    if (
+        any(s.is_uncalibrated for s in scenarios.values())
+        and run_defaults.rr_single_rate_uncalibrated is None
+    ):
+        raise ValueError(
+            "revenue_requirement.single_rate_uncalibrated is required when a "
+            "'single_rate_uncalibrated' scenario is declared (the large-number "
+            "RR YAML used for both stages)."
+        )
 
     return PipelineConfig(
         state=data["state"],
@@ -386,10 +479,27 @@ def _parse_scenario(name: str, raw: dict[str, Any]) -> ScenarioConfig:
         quartet=quartet,
         promote=raw.get("promote"),
         tariff_base=raw.get("tariff_base"),
-        depends_on=raw.get("depends_on"),
+        depends_on=_parse_depends_on(raw.get("depends_on")),
+        candidate_tariff_scenario=raw.get("candidate_tariff_scenario"),
+        candidate_tariff_rr_yaml_path=raw.get("candidate_tariff_rr_yaml_path"),
+        candidate_tariff_supply_method=raw.get("candidate_tariff_supply_method"),
+        bat_allocation_scenario=raw.get("bat_allocation_scenario"),
         residual_allocation_delivery=ra.get("delivery"),
         residual_allocation_supply=ra.get("supply"),
         subclass_config=_parse_subclass_config(raw.get("subclass_config")),
+    )
+
+
+def _parse_depends_on(raw: object) -> list[str] | None:
+    """Normalize YAML ``depends_on`` (string or list) to a list of names."""
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        return [raw]
+    if isinstance(raw, list):
+        return [str(item) for item in raw]
+    raise ValueError(
+        f"'depends_on' must be a scenario name or a list of names; got {type(raw).__name__}."
     )
 
 
@@ -402,6 +512,9 @@ def _parse_subclass_config(raw: dict[str, Any] | None) -> SubclassConfig | None:
             alias=alias,
             values=[str(v) for v in spec["values"]],
             structure=str(spec["structure"]),
+            copy_from=spec.get("copy_from"),
+            tariff_json_path=spec.get("tariff_json_path"),
+            tariff_json_supply_path=spec.get("tariff_json_supply_path"),
         )
         for alias, spec in subgroups_raw.items()
     ]
@@ -438,6 +551,11 @@ def _parse_bill_change_baseline(
     return BillChangeBaseline(scenario=scenario, stage=stage)
 
 
+_PROMOTE_QUARTETS: frozenset[str] = frozenset(
+    {"multi_rate_collapsed", "multi_rate_fixed"}
+)
+
+
 def _validate_scenario(scenario: ScenarioConfig) -> None:
     """Validate a scenario's quartet/subclass/promotion invariants."""
     if scenario.quartet not in QUARTET_KINDS:
@@ -460,15 +578,123 @@ def _validate_scenario(scenario: ScenarioConfig) -> None:
             f"Scenario {scenario.name!r}: single-rate scenarios require a "
             "'tariff_base' (e.g. 'default')."
         )
-    if scenario.promote is not None and scenario.quartet != "multi_rate_collapsed":
+    if scenario.promote is not None and scenario.quartet not in _PROMOTE_QUARTETS:
         raise ValueError(
             f"Scenario {scenario.name!r}: 'promote' only applies to "
-            f"'multi_rate_collapsed' (got quartet {scenario.quartet!r})."
+            f"{sorted(_PROMOTE_QUARTETS)} (got quartet {scenario.quartet!r})."
         )
-    if scenario.quartet == "multi_rate_collapsed" and scenario.promote is None:
+    if scenario.quartet in _PROMOTE_QUARTETS and scenario.promote is None:
         raise ValueError(
-            f"Scenario {scenario.name!r}: 'multi_rate_collapsed' requires an "
+            f"Scenario {scenario.name!r}: {scenario.quartet!r} requires an "
             "explicit 'promote' field naming the subgroup to promote."
+        )
+    if (
+        scenario.bat_allocation_scenario is not None
+        and scenario.quartet != "multi_rate_fixed"
+    ):
+        raise ValueError(
+            f"Scenario {scenario.name!r}: 'bat_allocation_scenario' only applies to "
+            f"'multi_rate_fixed' (got quartet {scenario.quartet!r})."
+        )
+    # multi_rate_fixed specific validation
+    if scenario.quartet == "multi_rate_fixed":
+        manual_rr = scenario.candidate_tariff_rr_yaml_path is not None
+        subgroups = (
+            scenario.subclass_config.subgroups
+            if scenario.subclass_config is not None
+            else []
+        )
+
+        # Structural per-subgroup checks (independent of 'depends_on').
+        for sg in subgroups:
+            manual_tariff = sg.tariff_json_path is not None
+            manual_tariff_supply = sg.tariff_json_supply_path is not None
+            if manual_tariff != manual_tariff_supply:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}, subgroup {sg.alias!r}: "
+                    "'tariff_json_path' and 'tariff_json_supply_path' must "
+                    "both be set or both be omitted."
+                )
+            if manual_tariff and sg.copy_from is not None:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}, subgroup {sg.alias!r}: "
+                    "sets both 'copy_from' and 'tariff_json_path'; the "
+                    "latter bypasses derivation entirely, so remove one."
+                )
+            if not manual_tariff and sg.copy_from is None:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}, subgroup {sg.alias!r}: "
+                    "'multi_rate_fixed' requires 'copy_from' (to copy a "
+                    "prerequisite scenario's tariff) or "
+                    "'tariff_json_path'/'tariff_json_supply_path' (to use "
+                    "tariff JSONs verbatim) on each subgroup."
+                )
+
+        # 'depends_on' is only optional when nothing needs to be derived from it.
+        needs_depends_on = not manual_rr or any(
+            sg.tariff_json_path is None for sg in subgroups
+        )
+        if needs_depends_on and not scenario.depends_on:
+            raise ValueError(
+                f"Scenario {scenario.name!r}: 'multi_rate_fixed' requires a "
+                "'depends_on' list of prerequisite scenario names, unless both "
+                "'candidate_tariff_rr_yaml_path' and every subgroup's "
+                "'tariff_json_path' are set (fully manual inputs)."
+            )
+
+        if manual_rr:
+            if scenario.candidate_tariff_scenario is not None:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}: sets both "
+                    "'candidate_tariff_scenario' and "
+                    "'candidate_tariff_rr_yaml_path'; the latter bypasses "
+                    "derivation entirely, so remove one."
+                )
+        else:
+            if scenario.candidate_tariff_scenario is None:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}: 'multi_rate_fixed' requires "
+                    "either 'candidate_tariff_scenario' (to derive the "
+                    "subclass RR) or 'candidate_tariff_rr_yaml_path' (to use "
+                    "a pre-computed RR YAML verbatim)."
+                )
+            assert scenario.depends_on is not None  # guaranteed by needs_depends_on
+            if scenario.candidate_tariff_scenario not in scenario.depends_on:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}: candidate_tariff_scenario "
+                    f"{scenario.candidate_tariff_scenario!r} must be in 'depends_on'."
+                )
+            if scenario.bat_allocation_scenario is None:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}: 'multi_rate_fixed' requires "
+                    "an explicit 'bat_allocation_scenario' (usually 'default') "
+                    "naming the prerequisite scenario whose precalc outputs "
+                    "supply the BAT-based allocation methods."
+                )
+            if scenario.bat_allocation_scenario not in scenario.depends_on:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}: bat_allocation_scenario "
+                    f"{scenario.bat_allocation_scenario!r} must be in 'depends_on'."
+                )
+
+        for sg in subgroups:
+            if sg.copy_from is not None:
+                assert scenario.depends_on is not None  # guaranteed by needs_depends_on
+                if sg.copy_from not in scenario.depends_on:
+                    raise ValueError(
+                        f"Scenario {scenario.name!r}, subgroup {sg.alias!r}: "
+                        f"copy_from={sg.copy_from!r} must be in 'depends_on'."
+                    )
+    if (
+        scenario.quartet in _DERIVE_QUARTETS
+        and scenario.depends_on is not None
+        and len(scenario.depends_on) != 1
+    ):
+        raise ValueError(
+            f"Scenario {scenario.name!r}: {scenario.quartet!r} 'depends_on' "
+            "must be a single scenario name (the parent whose outputs feed "
+            "derive_tariffs). A list of names is only valid for "
+            "'multi_rate_fixed'."
         )
     if scenario.subclass_config is not None:
         for sg in scenario.subclass_config.subgroups:
@@ -614,6 +840,7 @@ def _build_run_entry(
     is_supply = variant == "supply"
     is_calibrated = stage == "calibrated"
     upgrade = rd.upgrade_calibrated if is_calibrated else rd.upgrade_precalc
+    run_type = "default" if (is_calibrated or scenario.is_uncalibrated) else "precalc"
 
     # ResStock paths
     meta = (
@@ -663,7 +890,7 @@ def _build_run_entry(
         "run_name": run_name,
         "state": state_upper,
         "utility": config.utility,
-        "run_type": "default" if is_calibrated else "precalc",
+        "run_type": run_type,
         "path_resstock_metadata": meta,
         "path_resstock_loads": loads,
         "path_utility_assignment": ua,
@@ -724,13 +951,16 @@ def _resolve_tariff_paths(
     """
     is_supply = variant == "supply"
     is_calibrated = stage == "calibrated"
+    # Uncalibrated quartets bill the posted tariff at both stages — there is
+    # no promotion seam and no *_calibrated.json input.
+    use_calibrated_tariff = is_calibrated and not scenario.is_uncalibrated
 
     if scenario.is_single_rate:
         stem = tariff_stem(
             config.utility,
             scenario,
             supply=is_supply,
-            calibrated=is_calibrated,
+            calibrated=use_calibrated_tariff,
         )
         tariffs = {"all": f"tariffs/electric/{stem}.json"}
         map_rel = f"tariff_maps/electric/{stem}.csv"
@@ -843,6 +1073,12 @@ def _resolve_rr_yaml(
 ) -> str:
     """Return the revenue requirement YAML path (relative) for a run."""
     rd = config.run_defaults
+    # Uncalibrated: CAIRO default mode still requires an RR YAML and errors
+    # if bills over-collect. The dedicated large-number file makes that check
+    # a no-op. Required at load when any uncalibrated scenario is declared.
+    if scenario.is_uncalibrated:
+        assert rd.rr_single_rate_uncalibrated is not None
+        return rd.rr_single_rate_uncalibrated
     if stage == "calibrated":
         if scenario.is_single_rate:
             return rd.rr_single_rate_calibrated
@@ -907,6 +1143,7 @@ def validate_preflight_inputs(
         rd.rr_single_rate,
         rd.rr_single_rate_calibrated,
         rd.rr_multi_rate_calibrated,
+        *([rd.rr_single_rate_uncalibrated] if rd.rr_single_rate_uncalibrated else []),
     ):
         rr_path = config_dir / rr_rel
         if not rr_path.exists():
