@@ -36,6 +36,9 @@ _SINGLE_RATE_QUARTETS: frozenset[str] = frozenset(
     {"single_rate", "single_rate_uncalibrated"}
 )
 
+# CAIRO leaves the posted tariff unchanged (run_type: default + large-number RR).
+_UNCALIBRATED_QUARTETS: frozenset[str] = frozenset({"single_rate_uncalibrated"})
+
 # Quartet kinds whose precalc stage runs per-subgroup (multi) tariffs.
 _MULTI_PRECALC_QUARTETS: frozenset[str] = frozenset(
     {"multi_rate_collapsed", "multi_rate_preserved", "multi_rate_fixed"}
@@ -43,6 +46,11 @@ _MULTI_PRECALC_QUARTETS: frozenset[str] = frozenset(
 
 # Quartet kinds whose calibrated stage runs per-subgroup (multi) tariffs.
 _MULTI_EVAL_QUARTETS: frozenset[str] = frozenset({"multi_rate_preserved"})
+
+# Multi-rate quartets that are not fixed: one parent, then derive_tariffs.
+_DERIVE_QUARTETS: frozenset[str] = frozenset(
+    {"multi_rate_collapsed", "multi_rate_preserved"}
+)
 
 # Residual allocation method -> BAT cross-subsidy column in CAIRO outputs.
 ALLOCATION_TO_BAT_COL: dict[str, str] = {
@@ -122,17 +130,27 @@ class ScenarioConfig:
     ``bge_default[_supply][_calibrated]``.  Required for ``single_rate`` and
     ``single_rate_uncalibrated``.
 
-    ``depends_on`` names the scenario whose outputs feed into this one's
-    derive flow (subclass RR, tariff derivation).
+    ``depends_on`` names the scenario(s) that must finish before this one.
+    YAML accepts a string or a list; it is always stored as a list.  How the
+    pipeline uses those names depends on the quartet:
 
-    ``requires`` lists scenarios that must complete before this one's prep
-    tasks can begin.  Used by ``multi_rate_fixed`` quartets (instead of
-    ``depends_on``).
+    - ``multi_rate_collapsed`` / ``multi_rate_preserved``: exactly one name,
+      whose outputs feed ``derive_tariffs``.
+    - ``multi_rate_fixed``: the scenarios that supply copied tariffs and/or
+      candidate-tariff bills (prep waits on all of them).
+    - Independent scenarios omit it.
 
     ``candidate_tariff_scenario`` names the required scenario whose precalc
     bills feed the candidate-tariff subclass RR computation.  Only used by
     ``multi_rate_fixed``; mutually exclusive with
     ``candidate_tariff_rr_yaml_path``.
+
+    ``bat_allocation_scenario`` names the prerequisite scenario (usually
+    ``default``) whose precalc outputs supply the standard BAT-based
+    allocation methods written alongside the candidate-tariff RR, and the
+    allocation shares for non-passthrough supply methods.  Required by
+    ``multi_rate_fixed`` whenever the RR is derived rather than supplied via
+    ``candidate_tariff_rr_yaml_path``; must be listed in ``depends_on``.
 
     ``candidate_tariff_rr_yaml_path`` is an explicit path (relative to the
     state config dir, or absolute) to a pre-computed subclass RR YAML to use
@@ -148,11 +166,11 @@ class ScenarioConfig:
     quartet: str
     promote: str | None = None
     tariff_base: str | None = None
-    depends_on: str | None = None
-    requires: list[str] | None = None
+    depends_on: list[str] | None = None
     candidate_tariff_scenario: str | None = None
     candidate_tariff_rr_yaml_path: str | None = None
     candidate_tariff_supply_method: str | None = None
+    bat_allocation_scenario: str | None = None
     residual_allocation_delivery: str | None = None
     residual_allocation_supply: str | None = None
     subclass_config: SubclassConfig | None = None
@@ -179,7 +197,7 @@ class ScenarioConfig:
         Both stages of this quartet use ``run_type: default`` and the
         large-number RR YAML so CAIRO does not solve rates to class RR.
         """
-        return self.quartet == "single_rate_uncalibrated"
+        return self.quartet in _UNCALIBRATED_QUARTETS
 
 
 @dataclass(frozen=True, slots=True)
@@ -443,23 +461,32 @@ def _parse_scenario(name: str, raw: dict[str, Any]) -> ScenarioConfig:
             f"(one of {sorted(QUARTET_KINDS)})."
         )
     ra = raw.get("residual_allocation") or {}
-    requires_raw = raw.get("requires")
-    requires: list[str] | None = (
-        [str(r) for r in requires_raw] if requires_raw is not None else None
-    )
     return ScenarioConfig(
         name=name,
         quartet=quartet,
         promote=raw.get("promote"),
         tariff_base=raw.get("tariff_base"),
-        depends_on=raw.get("depends_on"),
-        requires=requires,
+        depends_on=_parse_depends_on(raw.get("depends_on")),
         candidate_tariff_scenario=raw.get("candidate_tariff_scenario"),
         candidate_tariff_rr_yaml_path=raw.get("candidate_tariff_rr_yaml_path"),
         candidate_tariff_supply_method=raw.get("candidate_tariff_supply_method"),
+        bat_allocation_scenario=raw.get("bat_allocation_scenario"),
         residual_allocation_delivery=ra.get("delivery"),
         residual_allocation_supply=ra.get("supply"),
         subclass_config=_parse_subclass_config(raw.get("subclass_config")),
+    )
+
+
+def _parse_depends_on(raw: object) -> list[str] | None:
+    """Normalize YAML ``depends_on`` (string or list) to a list of names."""
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        return [raw]
+    if isinstance(raw, list):
+        return [str(item) for item in raw]
+    raise ValueError(
+        f"'depends_on' must be a scenario name or a list of names; got {type(raw).__name__}."
     )
 
 
@@ -548,14 +575,16 @@ def _validate_scenario(scenario: ScenarioConfig) -> None:
             f"Scenario {scenario.name!r}: {scenario.quartet!r} requires an "
             "explicit 'promote' field naming the subgroup to promote."
         )
+    if (
+        scenario.bat_allocation_scenario is not None
+        and scenario.quartet != "multi_rate_fixed"
+    ):
+        raise ValueError(
+            f"Scenario {scenario.name!r}: 'bat_allocation_scenario' only applies to "
+            f"'multi_rate_fixed' (got quartet {scenario.quartet!r})."
+        )
     # multi_rate_fixed specific validation
     if scenario.quartet == "multi_rate_fixed":
-        if scenario.depends_on is not None:
-            raise ValueError(
-                f"Scenario {scenario.name!r}: 'multi_rate_fixed' uses 'requires' "
-                "instead of 'depends_on'."
-            )
-
         manual_rr = scenario.candidate_tariff_rr_yaml_path is not None
         subgroups = (
             scenario.subclass_config.subgroups
@@ -563,7 +592,7 @@ def _validate_scenario(scenario: ScenarioConfig) -> None:
             else []
         )
 
-        # Structural per-subgroup checks (independent of 'requires').
+        # Structural per-subgroup checks (independent of 'depends_on').
         for sg in subgroups:
             manual_tariff = sg.tariff_json_path is not None
             manual_tariff_supply = sg.tariff_json_supply_path is not None
@@ -588,14 +617,14 @@ def _validate_scenario(scenario: ScenarioConfig) -> None:
                     "tariff JSONs verbatim) on each subgroup."
                 )
 
-        # 'requires' is only optional when nothing needs to be derived from it.
-        needs_requires = not manual_rr or any(
+        # 'depends_on' is only optional when nothing needs to be derived from it.
+        needs_depends_on = not manual_rr or any(
             sg.tariff_json_path is None for sg in subgroups
         )
-        if needs_requires and not scenario.requires:
+        if needs_depends_on and not scenario.depends_on:
             raise ValueError(
                 f"Scenario {scenario.name!r}: 'multi_rate_fixed' requires a "
-                "'requires' list of prerequisite scenario names, unless both "
+                "'depends_on' list of prerequisite scenario names, unless both "
                 "'candidate_tariff_rr_yaml_path' and every subgroup's "
                 "'tariff_json_path' are set (fully manual inputs)."
             )
@@ -616,23 +645,44 @@ def _validate_scenario(scenario: ScenarioConfig) -> None:
                     "subclass RR) or 'candidate_tariff_rr_yaml_path' (to use "
                     "a pre-computed RR YAML verbatim)."
                 )
-            assert scenario.requires is not None  # guaranteed by needs_requires above
-            if scenario.candidate_tariff_scenario not in scenario.requires:
+            assert scenario.depends_on is not None  # guaranteed by needs_depends_on
+            if scenario.candidate_tariff_scenario not in scenario.depends_on:
                 raise ValueError(
                     f"Scenario {scenario.name!r}: candidate_tariff_scenario "
-                    f"{scenario.candidate_tariff_scenario!r} must be in 'requires'."
+                    f"{scenario.candidate_tariff_scenario!r} must be in 'depends_on'."
+                )
+            if scenario.bat_allocation_scenario is None:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}: 'multi_rate_fixed' requires "
+                    "an explicit 'bat_allocation_scenario' (usually 'default') "
+                    "naming the prerequisite scenario whose precalc outputs "
+                    "supply the BAT-based allocation methods."
+                )
+            if scenario.bat_allocation_scenario not in scenario.depends_on:
+                raise ValueError(
+                    f"Scenario {scenario.name!r}: bat_allocation_scenario "
+                    f"{scenario.bat_allocation_scenario!r} must be in 'depends_on'."
                 )
 
         for sg in subgroups:
             if sg.copy_from is not None:
-                assert (
-                    scenario.requires is not None
-                )  # guaranteed by needs_requires above
-                if sg.copy_from not in scenario.requires:
+                assert scenario.depends_on is not None  # guaranteed by needs_depends_on
+                if sg.copy_from not in scenario.depends_on:
                     raise ValueError(
                         f"Scenario {scenario.name!r}, subgroup {sg.alias!r}: "
-                        f"copy_from={sg.copy_from!r} must be in 'requires'."
+                        f"copy_from={sg.copy_from!r} must be in 'depends_on'."
                     )
+    if (
+        scenario.quartet in _DERIVE_QUARTETS
+        and scenario.depends_on is not None
+        and len(scenario.depends_on) != 1
+    ):
+        raise ValueError(
+            f"Scenario {scenario.name!r}: {scenario.quartet!r} 'depends_on' "
+            "must be a single scenario name (the parent whose outputs feed "
+            "derive_tariffs). A list of names is only valid for "
+            "'multi_rate_fixed'."
+        )
     if scenario.subclass_config is not None:
         for sg in scenario.subclass_config.subgroups:
             if sg.structure not in DERIVED_STRUCTURES and sg.structure != "base":

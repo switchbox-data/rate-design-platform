@@ -229,7 +229,7 @@ class TestPrepareFixedTariffsCopyFrom:
             name="hp_rd_vs_default",
             quartet="multi_rate_fixed",
             promote="hp",
-            requires=["default", "default_rd_uncalibrated"],
+            depends_on=["default", "default_rd_uncalibrated"],
             residual_allocation_delivery="candidate_tariff",
             residual_allocation_supply="candidate_tariff",
             subclass_config=SubclassConfig(

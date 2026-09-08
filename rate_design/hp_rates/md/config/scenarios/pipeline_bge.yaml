@@ -99,9 +99,10 @@ scenarios:
           structure: base
   hp_rd_vs_default:
     quartet: multi_rate_fixed
-    requires: [default, default_rd_uncalibrated]
+    depends_on: [default, default_rd_uncalibrated]
     candidate_tariff_scenario: default_rd_uncalibrated
     candidate_tariff_supply_method: passthrough
+    bat_allocation_scenario: default
     promote: hp
     residual_allocation:
       delivery: candidate_tariff

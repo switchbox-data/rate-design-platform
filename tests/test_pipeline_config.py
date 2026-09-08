@@ -115,9 +115,10 @@ class TestMultiRateFixed:
         }
         data["scenarios"]["hp_rd_vs_default"] = {
             "quartet": "multi_rate_fixed",
-            "requires": ["default", "default_rd_uncalibrated"],
+            "depends_on": ["default", "default_rd_uncalibrated"],
             "candidate_tariff_scenario": "default_rd_uncalibrated",
             "candidate_tariff_supply_method": "passthrough",
+            "bat_allocation_scenario": "default",
             "promote": "hp",
             "residual_allocation": {
                 "delivery": "candidate_tariff",
@@ -145,19 +146,15 @@ class TestMultiRateFixed:
         config = load_pipeline_config(_write(tmp_path, self._fixed_scenario_yaml()))
         sc = config.scenario("hp_rd_vs_default")
         assert sc.quartet == "multi_rate_fixed"
-        assert sc.requires == ["default", "default_rd_uncalibrated"]
-        assert sc.candidate_tariff_scenario == "default_rd_uncalibrated"
-        assert sc.candidate_tariff_supply_method == "passthrough"
-        assert sc.promote == "hp"
-        assert sc.depends_on is None
+        assert sc.depends_on == ["default", "default_rd_uncalibrated"]
         assert sc.subclass_config is not None
         assert sc.subclass_config.subgroups[0].copy_from == "default_rd_uncalibrated"
         assert sc.subclass_config.subgroups[1].copy_from == "default"
 
-    def test_missing_requires_rejected(self, tmp_path: Path) -> None:
+    def test_missing_depends_on_rejected(self, tmp_path: Path) -> None:
         data = self._fixed_scenario_yaml()
-        del data["scenarios"]["hp_rd_vs_default"]["requires"]
-        with pytest.raises(ValueError, match="requires.*list"):
+        del data["scenarios"]["hp_rd_vs_default"]["depends_on"]
+        with pytest.raises(ValueError, match="depends_on"):
             load_pipeline_config(_write(tmp_path, data))
 
     def test_missing_candidate_tariff_scenario_rejected(self, tmp_path: Path) -> None:
@@ -166,16 +163,10 @@ class TestMultiRateFixed:
         with pytest.raises(ValueError, match="candidate_tariff_scenario"):
             load_pipeline_config(_write(tmp_path, data))
 
-    def test_candidate_not_in_requires_rejected(self, tmp_path: Path) -> None:
+    def test_candidate_not_in_depends_on_rejected(self, tmp_path: Path) -> None:
         data = self._fixed_scenario_yaml()
         data["scenarios"]["hp_rd_vs_default"]["candidate_tariff_scenario"] = "other"
-        with pytest.raises(ValueError, match="must be in 'requires'"):
-            load_pipeline_config(_write(tmp_path, data))
-
-    def test_depends_on_rejected(self, tmp_path: Path) -> None:
-        data = self._fixed_scenario_yaml()
-        data["scenarios"]["hp_rd_vs_default"]["depends_on"] = "default"
-        with pytest.raises(ValueError, match="uses 'requires' instead of 'depends_on'"):
+        with pytest.raises(ValueError, match="must be in 'depends_on'"):
             load_pipeline_config(_write(tmp_path, data))
 
     def test_missing_copy_from_rejected(self, tmp_path: Path) -> None:
@@ -189,7 +180,7 @@ class TestMultiRateFixed:
     def test_manual_rr_yaml_bypasses_candidate_tariff_scenario(
         self, tmp_path: Path
     ) -> None:
-        """candidate_tariff_rr_yaml_path lets 'requires' omit the RD scenario."""
+        """candidate_tariff_rr_yaml_path lets 'depends_on' omit the RD scenario."""
         data = self._fixed_scenario_yaml()
         del data["scenarios"]["hp_rd_vs_default"]["candidate_tariff_scenario"]
         data["scenarios"]["hp_rd_vs_default"]["candidate_tariff_rr_yaml_path"] = (
@@ -254,10 +245,10 @@ class TestMultiRateFixed:
         with pytest.raises(ValueError, match="sets both 'copy_from'"):
             load_pipeline_config(_write(tmp_path, data))
 
-    def test_fully_manual_scenario_needs_no_requires(self, tmp_path: Path) -> None:
-        """When RR yaml + all tariffs are manual, 'requires' is optional."""
+    def test_fully_manual_scenario_needs_no_depends_on(self, tmp_path: Path) -> None:
+        """When RR yaml + all tariffs are manual, 'depends_on' is optional."""
         data = self._fixed_scenario_yaml()
-        del data["scenarios"]["hp_rd_vs_default"]["requires"]
+        del data["scenarios"]["hp_rd_vs_default"]["depends_on"]
         del data["scenarios"]["hp_rd_vs_default"]["candidate_tariff_scenario"]
         sc = data["scenarios"]["hp_rd_vs_default"]
         sc["candidate_tariff_rr_yaml_path"] = "rev_requirement/bge_hp_vs_non-hp.yaml"
@@ -278,15 +269,15 @@ class TestMultiRateFixed:
             ),
         }
         config = load_pipeline_config(_write(tmp_path, data))
-        assert config.scenario("hp_rd_vs_default").requires is None
+        assert config.scenario("hp_rd_vs_default").depends_on is None
 
-    def test_fully_manual_tariffs_but_derived_rr_still_needs_requires(
+    def test_fully_manual_tariffs_but_derived_rr_still_needs_depends_on(
         self, tmp_path: Path
     ) -> None:
-        """All tariffs manual but RR still derived: 'requires' is still needed
+        """All tariffs manual but RR still derived: 'depends_on' is still needed
         (for candidate_tariff_scenario's precalc bills)."""
         data = self._fixed_scenario_yaml()
-        del data["scenarios"]["hp_rd_vs_default"]["requires"]
+        del data["scenarios"]["hp_rd_vs_default"]["depends_on"]
         sc = data["scenarios"]["hp_rd_vs_default"]
         sc["subclass_config"]["subgroups"]["hp"] = {
             "values": ["true"],
@@ -304,21 +295,81 @@ class TestMultiRateFixed:
                 "tariffs/electric/bge_default_supply_calibrated.json"
             ),
         }
-        with pytest.raises(ValueError, match="requires.*list"):
+        with pytest.raises(ValueError, match="depends_on"):
             load_pipeline_config(_write(tmp_path, data))
 
-    def test_copy_from_not_in_requires_rejected(self, tmp_path: Path) -> None:
+    def test_copy_from_not_in_depends_on_rejected(self, tmp_path: Path) -> None:
         data = self._fixed_scenario_yaml()
         data["scenarios"]["hp_rd_vs_default"]["subclass_config"]["subgroups"]["hp"][
             "copy_from"
         ] = "unknown"
-        with pytest.raises(ValueError, match="must be in 'requires'"):
+        with pytest.raises(ValueError, match="must be in 'depends_on'"):
             load_pipeline_config(_write(tmp_path, data))
 
     def test_missing_promote_rejected(self, tmp_path: Path) -> None:
         data = self._fixed_scenario_yaml()
         del data["scenarios"]["hp_rd_vs_default"]["promote"]
         with pytest.raises(ValueError, match="requires an explicit 'promote'"):
+            load_pipeline_config(_write(tmp_path, data))
+
+    def test_bat_allocation_scenario_parses(self, tmp_path: Path) -> None:
+        config = load_pipeline_config(_write(tmp_path, self._fixed_scenario_yaml()))
+        assert config.scenario("hp_rd_vs_default").bat_allocation_scenario == "default"
+
+    def test_missing_bat_allocation_scenario_rejected(self, tmp_path: Path) -> None:
+        """The BAT-allocation run is never inferred from 'depends_on' order."""
+        data = self._fixed_scenario_yaml()
+        del data["scenarios"]["hp_rd_vs_default"]["bat_allocation_scenario"]
+        with pytest.raises(
+            ValueError, match="requires an explicit 'bat_allocation_scenario'"
+        ):
+            load_pipeline_config(_write(tmp_path, data))
+
+    def test_bat_allocation_scenario_not_in_depends_on_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        data = self._fixed_scenario_yaml()
+        data["scenarios"]["hp_rd_vs_default"]["bat_allocation_scenario"] = "other"
+        with pytest.raises(ValueError, match="bat_allocation_scenario 'other'"):
+            load_pipeline_config(_write(tmp_path, data))
+
+    def test_bat_allocation_scenario_on_non_fixed_quartet_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        data = _minimal_pipeline_yaml()
+        data["scenarios"]["default"]["bat_allocation_scenario"] = "default"
+        with pytest.raises(ValueError, match="only applies to 'multi_rate_fixed'"):
+            load_pipeline_config(_write(tmp_path, data))
+
+
+class TestDependsOn:
+    """``depends_on`` is a string or list; quartet kind decides how many names."""
+
+    def _collapsed_yaml(self) -> dict[str, Any]:
+        data = _minimal_pipeline_yaml()
+        data["scenarios"]["hp_seasonal"] = {
+            "quartet": "multi_rate_collapsed",
+            "depends_on": "default",
+            "promote": "hp",
+            "residual_allocation": {"delivery": "percustomer", "supply": "passthrough"},
+            "subclass_config": {
+                "group_col": "has_hp",
+                "subgroups": {
+                    "hp": {"values": ["true"], "structure": "seasonal"},
+                    "non-hp": {"values": ["false"], "structure": "base"},
+                },
+            },
+        }
+        return data
+
+    def test_string_normalizes_to_one_element_list(self, tmp_path: Path) -> None:
+        config = load_pipeline_config(_write(tmp_path, self._collapsed_yaml()))
+        assert config.scenario("hp_seasonal").depends_on == ["default"]
+
+    def test_collapsed_rejects_multiple_names(self, tmp_path: Path) -> None:
+        data = self._collapsed_yaml()
+        data["scenarios"]["hp_seasonal"]["depends_on"] = ["default", "other"]
+        with pytest.raises(ValueError, match="must be a single scenario name"):
             load_pipeline_config(_write(tmp_path, data))
 
 

@@ -11,7 +11,7 @@ RD."
 
 This is the Prefect path added for that question. Seasonal / flat HP rates still
 use `multi_rate_collapsed` + `depends_on` + `derive_tariffs`. This path uses
-`requires` + two prep tasks + `multi_rate_fixed`.
+`depends_on` (a list of prerequisite scenarios) + two prep tasks + `multi_rate_fixed`.
 
 ## Why a separate path
 
@@ -46,7 +46,8 @@ preflight
   │    large-number RR YAML, no tariff promotion
   │
   └─ hp_rd_vs_default                 (multi_rate_fixed)
-       requires: [default, default_rd_uncalibrated]
+       depends_on: [default, default_rd_uncalibrated]
+       bat_allocation_scenario: default
        │
        ├─ compute_candidate_tariff_rr_for_fixed
        │    HP delivery RR ← weighted HP annual bills on
@@ -162,7 +163,7 @@ CAIRO still **precalcs** the copied tariffs to those subclass targets. "Fixed"
 means **no structure derivation** (no new seasonal/flat/TOU JSON), not "leave
 cents/kWh unchanged."
 
-Uses `requires` (list), never `depends_on`. Prep is two tasks so `run_quartet`
+Uses `depends_on` (a list of prerequisite scenarios). Prep is two tasks so `run_quartet`
 does not invent RR or rewrite rates:
 
 1. `compute_candidate_tariff_rr_for_fixed`
@@ -181,19 +182,25 @@ multi-rate kinds.
 
 Each subgroup must use **exactly one** tariff source:
 
-| Field                                          | Meaning                                                                                                                                         |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `copy_from: <scenario>`                        | Copy that scenario's tariff (`*_calibrated.json` unless the source is `single_rate_uncalibrated`, then posted). Scenario must be in `requires`. |
-| `tariff_json_path` + `tariff_json_supply_path` | Use those JSON files verbatim (paths relative to the state config dir, or absolute). No scenario dependency for that subgroup.                  |
+| Field                                          | Meaning                                                                                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `copy_from: <scenario>`                        | Copy that scenario's tariff (`*_calibrated.json` unless the source is `single_rate_uncalibrated`, then posted). Scenario must be in `depends_on`. |
+| `tariff_json_path` + `tariff_json_supply_path` | Use those JSON files verbatim (paths relative to the state config dir, or absolute). No scenario dependency for that subgroup.                    |
 
 Subclass RR must use **exactly one** of:
 
-| Field                           | Meaning                                                                           |
-| ------------------------------- | --------------------------------------------------------------------------------- |
-| `candidate_tariff_scenario`     | Derive RR from that required scenario's upgrade-00 bills. Must be in `requires`.  |
-| `candidate_tariff_rr_yaml_path` | Copy a pre-computed subclass RR YAML to the canonical destination. No derivation. |
+| Field                           | Meaning                                                                            |
+| ------------------------------- | ---------------------------------------------------------------------------------- |
+| `candidate_tariff_scenario`     | Derive RR from that required scenario's upgrade-00 bills. Must be in `depends_on`. |
+| `candidate_tariff_rr_yaml_path` | Copy a pre-computed subclass RR YAML to the canonical destination. No derivation.  |
 
-`requires` may be omitted only when **both** the RR YAML and **every**
+When the RR is derived, `bat_allocation_scenario` (usually `default`, and also
+in `depends_on`) names the scenario whose precalc outputs supply the BAT-based
+allocation methods written alongside the candidate-tariff RR, plus the
+allocation shares for non-passthrough supply methods. It is required in that
+case — the pipeline never infers it from `depends_on` order.
+
+`depends_on` may be omitted only when **both** the RR YAML and **every**
 subgroup's tariff JSONs are supplied by path (fully manual feed). The quartet
 is still not an "independent" `single_rate` scenario; it always goes through
 the fixed prep tasks.
@@ -232,7 +239,7 @@ hp_rd_vs_default:
 | Piece                                 | Where                                                        |
 | ------------------------------------- | ------------------------------------------------------------ |
 | Quartet kinds, YAML validation, stems | `rate_design/hp_rates/pipeline_config.py`                    |
-| Prep tasks + `requires` dispatch      | `rate_design/hp_rates/run_pipeline.py`                       |
+| Prep tasks + `depends_on` dispatch    | `rate_design/hp_rates/run_pipeline.py`                       |
 | Candidate-tariff RR math              | `utils/mid/compute_subclass_rr.py`                           |
 | BGE wiring                            | `rate_design/hp_rates/md/config/scenarios/pipeline_bge.yaml` |
 | Generic Prefect vocabulary            | [`prefect_pipeline.md`](prefect_pipeline.md)                 |

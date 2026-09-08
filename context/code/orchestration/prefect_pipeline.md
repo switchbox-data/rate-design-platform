@@ -39,19 +39,19 @@ run_batch @flow (master)
   │    ├─ generate scenarios YAML (pipeline YAML → per-run format for run_scenario.py)
   │    └─ generate electric tariff maps (write_tariff_maps_from_scenario)
   ├─ independent scenarios (no depends_on, not multi_rate_fixed):
-  │    └─ run_quartet @flow
-  │         ├─ precalc: cairo_run(delivery) → cairo_run(supply)
-  │         ├─ tariff promotion seam (skipped for single_rate_uncalibrated)
-  │         └─ calibrated: cairo_run(delivery) → cairo_run(supply)
-  ├─ dependent scenarios (has depends_on):
-  │    ├─ check_dependency (verify dependency's quartet completed)
-  │    ├─ derive_tariffs (compute subclass RR + dispatch tariff creation by structure)
-  │    └─ run_quartet @flow
-  └─ multi_rate_fixed (uses requires, not depends_on):
-       ├─ check_dependency for each name in requires
-       ├─ compute_candidate_tariff_rr_for_fixed
-       ├─ prepare_fixed_tariffs (relabel-copy; or use tariff_json_path)
-       └─ run_quartet @flow
+       │    └─ run_quartet @flow
+       │         ├─ precalc: cairo_run(delivery) → cairo_run(supply)
+       │         ├─ tariff promotion seam (skipped for single_rate_uncalibrated)
+       │         └─ calibrated: cairo_run(delivery) → cairo_run(supply)
+       ├─ dependent scenarios (collapsed/preserved; one depends_on parent):
+       │    ├─ check_dependency (verify that parent's quartet completed)
+       │    ├─ derive_tariffs (compute subclass RR + dispatch tariff creation by structure)
+       │    └─ run_quartet @flow
+       └─ multi_rate_fixed (depends_on is a list of prerequisite scenarios):
+            ├─ check_dependency for each name in depends_on
+            ├─ compute_candidate_tariff_rr_for_fixed
+            ├─ prepare_fixed_tariffs (relabel-copy; or use tariff_json_path)
+            └─ run_quartet @flow
 ```
 
 - `cairo_run` is the atomic `@task`: shells out to `run_scenario.py` as a subprocess for full memory isolation.
@@ -206,8 +206,9 @@ bill_change_baseline:
 - `output_base` — root S3/FUSE path for outputs; batch dir = `{output_base}/{state}/{utility}/{batch}`
 - `tariff_base` — explicit stem component for single-rate tariff filenames (required for `single_rate` and `single_rate_uncalibrated`)
 - `periods_yaml` — utility periods config (winter months); defaults to `periods/{utility}.yaml`
-- `depends_on` — names the dependency scenario whose outputs feed `derive_tariffs`
+- `depends_on` — prerequisite scenario name(s). YAML accepts a string or a list. Collapsed/preserved quartets take one name (the parent whose outputs feed `derive_tariffs`); `multi_rate_fixed` takes the list of scenarios that must finish before prep.
 - `promote` — which subgroup's calibrated tariff to promote for `multi_rate_collapsed`
+- `bat_allocation_scenario` — for `multi_rate_fixed` with a derived RR: the prerequisite scenario (usually `default`) whose precalc outputs supply the BAT-based allocation methods. Must be in `depends_on`
 - `bill_change_baseline` — the one `(scenario, stage)` every run's bills are compared against. Read only by post-processing, so the pipeline runs without it; the master-table builders raise if it is missing. It is a single stage, not a quartet: usually `default` + `precalc`, i.e. today's rates on the pre-upgrade population.
 
 ## Invocation

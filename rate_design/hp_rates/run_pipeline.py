@@ -330,7 +330,7 @@ def _derive_subgroup_tariffs(
     assert scenario.depends_on is not None
     rd = config.run_defaults
 
-    dep_scenario = config.scenario(scenario.depends_on)
+    dep_scenario = config.scenario(scenario.depends_on[0])
     group_col = scenario.subclass_config.group_col
     gv2s = _group_value_to_subclass(scenario)
 
@@ -503,9 +503,8 @@ def compute_candidate_tariff_rr_for_fixed(
 
     Otherwise, reads the candidate_tariff_scenario's precalc bills to derive
     the HP/non-HP revenue requirement split (delivery + supply).  Also
-    computes the standard BAT-based methods from the first required
-    scenario's precalc outputs so the YAML contains all available allocation
-    methods.
+    computes the standard BAT-based methods from ``bat_allocation_scenario``'s
+    precalc outputs so the YAML contains all available allocation methods.
 
     Returns the path to the written RR YAML.
     """
@@ -527,12 +526,13 @@ def compute_candidate_tariff_rr_for_fixed(
         return out_path
 
     assert scenario.candidate_tariff_scenario is not None
-    assert scenario.requires is not None
+    assert scenario.bat_allocation_scenario is not None
     rd = config.run_defaults
 
     ct_scenario = scenario.candidate_tariff_scenario
     ct_dirs = req_outputs[ct_scenario]
     ct_delivery_dir = ct_dirs["precalc_delivery"]
+    bat_allocation_scenario = scenario.bat_allocation_scenario
 
     group_col = scenario.subclass_config.group_col
     gv2s = _group_value_to_subclass(scenario)
@@ -547,17 +547,16 @@ def compute_candidate_tariff_rr_for_fixed(
     )
     overrides = _parse_resstock_overrides(base_rr)
 
-    # Compute standard BAT-based delivery and supply breakdowns from the first
-    # required scenario's precalc outputs (for reference methods in the YAML).
-    first_req = scenario.requires[0]
-    first_dirs = req_outputs[first_req]
+    # Compute standard BAT-based delivery and supply breakdowns from the
+    # BAT-allocation scenario's precalc outputs (for reference methods in the YAML).
+    bat_dirs = req_outputs[bat_allocation_scenario]
     delivery_breakdowns = compute_subclass_rr(
-        run_dir=first_dirs["precalc_delivery"],
+        run_dir=bat_dirs["precalc_delivery"],
         group_col=group_col,
         cross_subsidy_cols=cols,
     )
     total_breakdowns = compute_subclass_rr(
-        run_dir=first_dirs["precalc_supply"],
+        run_dir=bat_dirs["precalc_supply"],
         group_col=group_col,
         cross_subsidy_cols=cols,
     )
@@ -567,7 +566,7 @@ def compute_candidate_tariff_rr_for_fixed(
     # Passthrough supply shares use the candidate-tariff (e.g.
     # default_rd_uncalibrated) delivery and delivery+supply bills so they
     # match the delivery rule. Other methods (percustomer / volumetric /
-    # epmc) use the first required scenario (usually default): those shares
+    # epmc) use the BAT-allocation scenario (usually default): those shares
     # come from customer counts, kWh, and MC.
     supply_method = scenario.candidate_tariff_supply_method or "passthrough"
     if supply_method not in CANDIDATE_TARIFF_SUPPLY_METHODS:
@@ -581,7 +580,7 @@ def compute_candidate_tariff_rr_for_fixed(
         alloc_run_dir = ct_delivery_dir
     else:
         supply_run_dir = None
-        alloc_run_dir = first_dirs["precalc_delivery"]
+        alloc_run_dir = bat_dirs["precalc_delivery"]
     ct_result = compute_candidate_tariff_subclass_rr(
         candidate_tariff_run_dir=ct_delivery_dir,
         total_delivery_rr=total_delivery_rr,
@@ -594,7 +593,7 @@ def compute_candidate_tariff_rr_for_fixed(
 
     differentiated_yaml_path, _ = _write_revenue_requirement_yamls(
         delivery_breakdowns=delivery_breakdowns,
-        run_dir=first_dirs["precalc_delivery"],
+        run_dir=bat_dirs["precalc_delivery"],
         group_col=group_col,
         utility=config.utility,
         default_revenue_requirement=total_delivery_rr,
@@ -903,6 +902,33 @@ def preflight(
     return yaml_path
 
 
+def _partition_scenarios(
+    selected: list[ScenarioConfig],
+) -> tuple[list[ScenarioConfig], list[ScenarioConfig], list[ScenarioConfig]]:
+    """Split selected scenarios into independent / derive-dependent / fixed.
+
+    Every selected scenario must land in exactly one bucket so a new quartet
+    kind (or a new ``depends_on`` shape) cannot be skipped by ``run_batch``.
+    """
+    fixed = [s for s in selected if s.quartet == "multi_rate_fixed"]
+    dependent = [
+        s
+        for s in selected
+        if s.quartet != "multi_rate_fixed" and s.depends_on is not None
+    ]
+    independent = [
+        s for s in selected if s.quartet != "multi_rate_fixed" and s.depends_on is None
+    ]
+    dispatched = {s.name for s in independent + dependent + fixed}
+    missing = sorted({s.name for s in selected} - dispatched)
+    if missing:
+        raise RuntimeError(
+            f"run_batch: scenarios were not dispatched: {missing}. "
+            "Update the independent/dependent/fixed partition."
+        )
+    return independent, dependent, fixed
+
+
 # ---------------------------------------------------------------------------
 # Master flow
 # ---------------------------------------------------------------------------
@@ -918,8 +944,10 @@ def run_batch(
     """Master flow: load config, preflight, run scenarios in dependency order.
 
     Scenarios without ``depends_on`` (independent) are run first; scenarios
-    with dependencies run after their dependency has completed (with a
-    ``derive_tariffs`` step in between).
+    with a single ``depends_on`` parent run after that parent has completed
+    (with a ``derive_tariffs`` step in between).  ``multi_rate_fixed``
+    scenarios wait on every name in ``depends_on``, then run their prep
+    tasks.
 
     Args:
         yaml_path: Path to the pipeline YAML (e.g. ``pipeline_bge.yaml``).
@@ -946,19 +974,7 @@ def run_batch(
     if scenarios is not None:
         selected = [s for s in selected if s.name in scenarios]
 
-    fixed = [s for s in selected if s.quartet == "multi_rate_fixed"]
-    dependent = [
-        s
-        for s in selected
-        if s.quartet != "multi_rate_fixed" and s.depends_on is not None
-    ]
-    independent = [
-        s
-        for s in selected
-        if s.quartet != "multi_rate_fixed"
-        and s.depends_on is None
-        and s.requires is None
-    ]
+    independent, dependent, fixed = _partition_scenarios(selected)
 
     # --- Run independent scenarios ---
     for scenario in independent:
@@ -977,7 +993,7 @@ def run_batch(
     for scenario in dependent:
         assert scenario.depends_on is not None
         dep_outputs = check_dependency(
-            batch_dir, config.state, config.utility, scenario.depends_on
+            batch_dir, config.state, config.utility, scenario.depends_on[0]
         )
         dep_precalc = {
             "precalc_delivery": dep_outputs["precalc_delivery"],
@@ -1000,7 +1016,7 @@ def run_batch(
         # Check all required scenarios have completed. May be empty/None when
         # both the RR yaml and every subgroup's tariff are manually supplied.
         req_outputs: dict[str, dict[str, Path]] = {}
-        for req_name in scenario.requires or []:
+        for req_name in scenario.depends_on or []:
             req_outputs[req_name] = check_dependency(
                 batch_dir, config.state, config.utility, req_name
             )
