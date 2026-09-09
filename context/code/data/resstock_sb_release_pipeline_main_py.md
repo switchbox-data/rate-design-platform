@@ -46,7 +46,7 @@ Release-level defaults are loaded from `data/resstock/config.yaml`. State-specif
 | `--identify-natgas-connection` | `True`                                         | Add `has_natgas_connection`                                                         |
 | `--add-vulnerability-columns`  | per-state from `state_configs.yaml`            | Add LMI columns; defaults True for NY, False for RI. Pass True/False to override.   |
 | `--approximate-non-hp-load`    | `True`                                         | Run k-nearest-neighbor HVAC substitution for each upgrade in `approx_upgrade_ids`   |
-| `--adjust-mf-electricity`      | `True`                                         | Apply MF non-HVAC electricity adjustment (00 and 02)                                |
+| `--adjust-mf-electricity`      | `True`                                         | Apply MF non-HVAC electricity adjustment (`mf_adj_upgrade_ids`: 00, 01, 02)         |
 | `--assign-utility`             | `True`                                         | Assign electric/gas utilities (NY, RI only)                                         |
 | `--electric-poly-filename`     | from `state_configs.yaml`                      | Electric utility polygon CSV; overrides config default                              |
 | `--gas-poly-filename`          | from `state_configs.yaml`                      | Gas utility polygon CSV; overrides config default                                   |
@@ -326,9 +326,9 @@ Logic is in `_approximate_non_hp_load()`. For each (state, upgrade) pair in the 
 
 ### Step 2c-ii: Adjust MF electricity
 
-Runs only when `--adjust-mf-electricity True` and at least one of upgrades 00/02 is in `--upgrade-ids` and `load_curve_hourly` is in `--file-types`.
+Runs only when `--adjust-mf-electricity True` and at least one of `mf_adj_upgrade_ids` (from `data/resstock/config.yaml`; currently `00`, `01`, and `02`) is in `--upgrade-ids` and `load_curve_hourly` is in `--file-types`.
 
-Logic is in `_adjust_mf_electricity()`. For each (state, upgrade) pair in `["00", "02"]`:
+Logic is in `_adjust_mf_electricity()`. For each (state, upgrade) pair in the intersection of `--upgrade-ids` and `mf_adj_upgrade_ids`:
 
 1. Reads `metadata-sb.parquet` from `path_sb` and `load_curve_annual` from `path_raw`.
 2. Computes MF/SF non-HVAC electricity ratios (mean kWh/sqft) via `_get_non_hvac_mf_to_sf_ratios`.

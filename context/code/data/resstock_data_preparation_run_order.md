@@ -139,7 +139,7 @@ just -f rate_design/hp_rates/ri/Justfile resstock-assign-utility
 
 Copy the relevant release and upgrade(s) from the standard release to the new `sb` release, including `metadata_utility` so the `sb` release gets utility assignment by copy.
 
-**Via state-specific Justfile (defaults: upgrades 00+02, metadata+metadata_utility+load_curve_hourly):**
+**Via state-specific Justfile (defaults: upgrades 00+01+02, metadata+metadata_utility+load_curve_hourly):**
 
 ```bash
 just -f rate_design/hp_rates/ny/Justfile resstock-copy

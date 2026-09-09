@@ -847,9 +847,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=True,
         metavar="BOOL",
         help=(
-            "Apply MF non-HVAC electricity adjustment for upgrades 00 and 02 "
-            "(default: True). Runs after approximate-non-hp-load. Requires "
-            "load_curve_hourly and load_curve_annual in --file-types."
+            "Apply MF non-HVAC electricity adjustment for each upgrade in "
+            "mf_adj_upgrade_ids (config.yaml; currently 00, 01, 02) that is "
+            "also in --upgrade-ids (default: True). Runs after "
+            "approximate-non-hp-load. Requires load_curve_hourly and "
+            "load_curve_annual in --file-types."
         ),
     )
     parser.add_argument(
@@ -1198,7 +1200,7 @@ def main(argv: list[str] | None = None) -> None:
             upsert_run(path_sb, run)
             gc.collect()
 
-        # ── 2c-ii. Adjust MF non-HVAC electricity for upgrades 00 and 02 ──────
+        # ── 2c-ii. Adjust MF non-HVAC electricity (mf_adj_upgrade_ids) ─────────
         if (
             args.adjust_mf_electricity
             and any(u.zfill(2) in _MF_ADJ_UPGRADES for u in args.upgrade_ids)

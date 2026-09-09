@@ -315,15 +315,20 @@ _rs_release_sb := `uv run python -m data.resstock.constants resstock_release_sb`
 [private]
 _rs_upgrade_ids_padded := `uv run python -m data.resstock.constants upgrade_ids_padded`
 [private]
+_rs_mf_adj_upgrade_ids := `uv run python -m data.resstock.constants resstock.mf_adj_upgrade_ids`
+[private]
+_rs_approx_upgrade_ids := `uv run python -m data.resstock.constants resstock.approx_upgrade_ids`
+[private]
 _rs_elec_poly := `uv run python -m data.resstock.constants state_config.NY.utility_assignment.kwargs.electric_poly_filename`
 [private]
 _rs_gas_poly := `uv run python -m data.resstock.constants state_config.NY.utility_assignment.kwargs.gas_poly_filename`
 
 # ── Full pipeline ─────────────────────────────────────────────────────────────
 
-# Run the full NY _sb release pipeline for upgrades 0 and 2.
+# Run the full NY _sb release pipeline for upgrades 0, 1, and 2
+# (baseline + HP upgrades that get approximation and MF adjustment).
 resstock-run-pipeline *args:
-    just -f "{{ _resstock_jf }}" run-pipeline NY --upgrade-ids 0 2 {{ args }}
+    just -f "{{ _resstock_jf }}" run-pipeline NY --upgrade-ids 0 1 2 {{ args }}
 
 # ── Fetch ─────────────────────────────────────────────────────────────────────
 
@@ -333,8 +338,8 @@ resstock-fetch *args:
 
 # ── Copy / clone ──────────────────────────────────────────────────────────────
 
-# Copy NY data from standard to _sb release (upgrades 00 and 02).
-resstock-copy upgrade_ids="00 02" file_types="metadata metadata_utility load_curve_hourly":
+# Copy NY data from standard to _sb release (upgrades 00, 01, 02).
+resstock-copy upgrade_ids="00 01 02" file_types="metadata metadata_utility load_curve_hourly":
     just -f "{{ _resstock_jf }}" copy-resstock-data {{ _rs_release }} {{ _rs_release_sb }} NY "{{ upgrade_ids }}" "{{ file_types }}"
 
 # ── Metadata transforms ──────────────────────────────────────────────────────
@@ -381,23 +386,27 @@ resstock-assign-utility electric_poly="" gas_poly="":
 
 # ── Load curve modifications ─────────────────────────────────────────────────
 
-# Run non-HP load approximation for NY (upgrade 02, k=15).
+# Run non-HP load approximation for NY (approx_upgrade_ids from config, k=15).
 resstock-approximate-non-hp-load:
-    just -f "{{ _resstock_jf }}" approximate-non-hp-load NY 02 {{ _rs_release }} {{ _rs_release_sb }} 15 True True
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for upgrade in {{ _rs_approx_upgrade_ids }}; do
+        just -f "{{ _resstock_jf }}" approximate-non-hp-load NY "${upgrade}" {{ _rs_release }} {{ _rs_release_sb }} 15 True True
+    done
 
-# Apply MF non-HVAC electricity adjustment for NY (upgrades 00 and 02).
+# Apply MF non-HVAC electricity adjustment for NY (mf_adj_upgrade_ids from config).
 resstock-adjust-mf-electricity:
-    just -f "{{ _resstock_jf }}" adjust-mf-electricity NY {{ _rs_release }} {{ _rs_release_sb }} "00 02"
+    just -f "{{ _resstock_jf }}" adjust-mf-electricity NY {{ _rs_release }} {{ _rs_release_sb }} "{{ _rs_mf_adj_upgrade_ids }}"
 
 # ── Monthly loads ─────────────────────────────────────────────────────────────
 
-# Aggregate NY _sb hourly load curves into monthly (upgrades 00 and 02).
+# Aggregate NY _sb hourly load curves into monthly (upgrades 00, 01, 02).
 resstock-add-monthly-loads:
-    just -f "{{ _resstock_jf }}" add-monthly-loads NY "00 02"
+    just -f "{{ _resstock_jf }}" add-monthly-loads NY "00 01 02"
 
-# Upload NY monthly load curves to S3 (upgrades 00 and 02).
+# Upload NY monthly load curves to S3 (upgrades 00, 01, 02).
 resstock-upload-monthly-loads:
-    just -f "{{ _resstock_jf }}" upload-monthly-loads NY "00 02"
+    just -f "{{ _resstock_jf }}" upload-monthly-loads NY "00 01 02"
 
 # =============================================================================
 # NY-only: demand-flex diagnostics
