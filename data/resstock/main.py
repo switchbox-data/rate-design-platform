@@ -111,7 +111,7 @@ _DEFAULT_RELEASE_VERSION: int = _cfg["resstock"]["release_version"]
 _DEFAULT_UPGRADE_IDS: list[str] = _cfg["resstock"]["upgrade_ids"]
 _DEFAULT_FILE_TYPES: list[str] = _cfg["resstock"]["file_types"]
 _MF_ADJ_UPGRADES: list[str] = _cfg["resstock"]["mf_adj_upgrade_ids"]
-_APPROX_UPGRADE: str = _cfg["resstock"]["approx_upgrade_id"]
+_APPROX_UPGRADES: list[str] = _cfg["resstock"]["approx_upgrade_ids"]
 _UTILITY_ASSIGN_UPGRADE: str = _cfg["resstock"]["utility_assign_upgrade_id"]
 _DEFAULT_PUMS_SURVEY: str = _cfg["pums"]["survey"]
 _DEFAULT_PUMS_YEAR: str = str(_cfg["pums"]["year"])
@@ -138,128 +138,147 @@ def _approximate_non_hp_load(
     *,
     states: list[str],
     path_sb: Path,
+    upgrade_ids: list[str],
     sample: int,
-) -> None:
-    """Approximate non-HP load curves for upgrade 02 via k-nearest-neighbor HVAC
-    substitution.  For each state, identifies non-HP multifamily and other-fuel-type
-    buildings, finds their k nearest HP neighbors by heating-load RMSE, replaces their
-    HVAC hourly columns with the neighbor average, and updates metadata accordingly.
+) -> list[str]:
+    """Approximate non-HP load curves via k-nearest-neighbor HVAC substitution.
+
+    For each (state, upgrade) in ``approx_upgrade_ids`` that is also in
+    ``upgrade_ids``, identifies non-HP multifamily and other-fuel-type buildings,
+    finds their k nearest HP neighbors by heating-load RMSE, replaces their HVAC
+    hourly columns with the neighbor average, and updates metadata accordingly.
+
+    Returns a list of zero-padded upgrade IDs that were actually processed.
 
     When ``sample > 0`` only a subset of buildings is available locally (bsf filters
     both metadata and load curves to the sampled set).  The neighbor search is limited
     to those sampled buildings.  This is acceptable because ``--sample`` is a
     development/testing feature; run without ``--sample`` for production use.
     """
-    upgrade = _APPROX_UPGRADE
+    padded_requested = [u.zfill(2) for u in upgrade_ids]
+    active_upgrades = [uid for uid in _APPROX_UPGRADES if uid in padded_requested]
+    processed_upgrades: list[str] = []
+
     for s in states:
-        loc = f"state={s} upgrade={upgrade}"
-        local_lc_dir = (
-            path_sb / "load_curve_hourly" / f"state={s}" / f"upgrade={upgrade}"
-        )
-        metadata_path = (
-            path_sb
-            / "metadata"
-            / f"state={s}"
-            / f"upgrade={upgrade}"
-            / "metadata-sb.parquet"
-        )
-        if not metadata_path.exists():
-            print(f"  WARNING: {metadata_path} not found, skipping {loc}.", flush=True)
-            continue
-        if not local_lc_dir.exists():
-            print(f"  WARNING: {local_lc_dir} not found, skipping {loc}.", flush=True)
-            continue
+        for upgrade in active_upgrades:
+            loc = f"state={s} upgrade={upgrade}"
+            local_lc_dir = (
+                path_sb / "load_curve_hourly" / f"state={s}" / f"upgrade={upgrade}"
+            )
+            metadata_path = (
+                path_sb
+                / "metadata"
+                / f"state={s}"
+                / f"upgrade={upgrade}"
+                / "metadata-sb.parquet"
+            )
+            if not metadata_path.exists():
+                print(
+                    f"  WARNING: {metadata_path} not found, skipping {loc}.",
+                    flush=True,
+                )
+                continue
+            if not local_lc_dir.exists():
+                print(
+                    f"  WARNING: {local_lc_dir} not found, skipping {loc}.",
+                    flush=True,
+                )
+                continue
 
-        print(f"  Processing {loc}...", flush=True)
-        metadata = pl.scan_parquet(str(metadata_path))
+            print(f"  Processing {loc}...", flush=True)
+            metadata = pl.scan_parquet(str(metadata_path))
 
-        # When --sample > 0, bsf filters both metadata and load curves to the
-        # sampled subset.  Restrict targets to buildings whose parquet exists
-        # locally (defensive — in practice bsf keeps them in sync).
-        local_bldg_ids: set[int] | None = None
-        if sample > 0:
-            local_bldg_ids = {
-                int(p.stem.split("-")[0])
-                for p in local_lc_dir.iterdir()
-                if p.suffix == ".parquet"
-            }
+            # When --sample > 0, bsf filters both metadata and load curves to the
+            # sampled subset.  Restrict targets to buildings whose parquet exists
+            # locally (defensive — in practice bsf keeps them in sync).
+            local_bldg_ids: set[int] | None = None
+            if sample > 0:
+                local_bldg_ids = {
+                    int(p.stem.split("-")[0])
+                    for p in local_lc_dir.iterdir()
+                    if p.suffix == ".parquet"
+                }
+                print(
+                    f"    WARNING: --sample active — neighbor pool is limited to the "
+                    f"{len(local_bldg_ids)} locally downloaded buildings. "
+                    f"Run without --sample for production use.",
+                    flush=True,
+                )
+
+            non_hp_parts = [
+                _identify_non_hp_mf(metadata),
+                _identify_other_fuel_types(metadata),
+            ]
+            non_hp_bldg_metadata = pl.concat(non_hp_parts).unique("bldg_id")
+
+            if local_bldg_ids is not None:
+                non_hp_bldg_metadata = non_hp_bldg_metadata.filter(
+                    pl.col("bldg_id").is_in(list(local_bldg_ids))
+                )
+
+            n_targets = (non_hp_bldg_metadata.collect()).height
+            if n_targets == 0:
+                print("    No non-HP target buildings, skipping.", flush=True)
+                continue
+            print(f"    {n_targets} non-HP target buildings.", flush=True)
+
+            neighbor_map = _find_nearest_neighbors(
+                metadata,
+                non_hp_bldg_metadata,
+                local_lc_dir,
+                upgrade,
+                k=15,
+                include_cooling=False,
+            )
+
+            # Log neighbor-search summary.
+            neighbor_counts = [len(v) for v in neighbor_map.values()]
+            n_no_neighbors = sum(1 for c in neighbor_counts if c == 0)
+            if neighbor_counts:
+                avg_n = sum(neighbor_counts) / len(neighbor_counts)
+                min_n = min(neighbor_counts)
+                max_n = max(neighbor_counts)
+                print(
+                    f"    Neighbor search complete: {len(neighbor_map)} targets, "
+                    f"neighbors per target: min={min_n} avg={avg_n:.1f} max={max_n}.",
+                    flush=True,
+                )
+            if n_no_neighbors:
+                print(
+                    f"    WARNING: {n_no_neighbors} target(s) found no neighbors "
+                    f"and will be skipped.",
+                    flush=True,
+                )
+
+            natural_gas_usage = update_load_curve_hourly(
+                neighbor_map,
+                local_lc_dir,
+                local_lc_dir,
+                upgrade,
+            )
+
+            # Collect + write_parquet (not sink_parquet) because the scan source and
+            # output target are the same file.
+            updated_metadata = update_non_hp_metadata(
+                non_hp_bldg_metadata,
+                metadata,
+                natural_gas_usage=natural_gas_usage,
+            )
+            (updated_metadata.collect()).write_parquet(str(metadata_path))
             print(
-                f"    WARNING: --sample active — neighbor pool is limited to the "
-                f"{len(local_bldg_ids)} locally downloaded buildings. "
-                f"Run without --sample for production use.",
+                f"    Done: updated {n_targets} buildings in {metadata_path.name}.",
                 flush=True,
             )
+            if upgrade not in processed_upgrades:
+                processed_upgrades.append(upgrade)
 
-        non_hp_parts = [
-            _identify_non_hp_mf(metadata),
-            _identify_other_fuel_types(metadata),
-        ]
-        non_hp_bldg_metadata = pl.concat(non_hp_parts).unique("bldg_id")
+            # Eagerly release the large intermediates so the next state/upgrade
+            # starts with a clean memory budget.  Without this, the OOM killer can
+            # fire on multi-state runs (exit code 137).
+            del neighbor_map, natural_gas_usage, updated_metadata, non_hp_bldg_metadata
+            gc.collect()
 
-        if local_bldg_ids is not None:
-            non_hp_bldg_metadata = non_hp_bldg_metadata.filter(
-                pl.col("bldg_id").is_in(list(local_bldg_ids))
-            )
-
-        n_targets = (non_hp_bldg_metadata.collect()).height
-        if n_targets == 0:
-            print("    No non-HP target buildings, skipping.", flush=True)
-            continue
-        print(f"    {n_targets} non-HP target buildings.", flush=True)
-
-        neighbor_map = _find_nearest_neighbors(
-            metadata,
-            non_hp_bldg_metadata,
-            local_lc_dir,
-            upgrade,
-            k=15,
-            include_cooling=False,
-        )
-
-        # Log neighbor-search summary.
-        neighbor_counts = [len(v) for v in neighbor_map.values()]
-        n_no_neighbors = sum(1 for c in neighbor_counts if c == 0)
-        if neighbor_counts:
-            avg_n = sum(neighbor_counts) / len(neighbor_counts)
-            min_n = min(neighbor_counts)
-            max_n = max(neighbor_counts)
-            print(
-                f"    Neighbor search complete: {len(neighbor_map)} targets, "
-                f"neighbors per target: min={min_n} avg={avg_n:.1f} max={max_n}.",
-                flush=True,
-            )
-        if n_no_neighbors:
-            print(
-                f"    WARNING: {n_no_neighbors} target(s) found no neighbors "
-                f"and will be skipped.",
-                flush=True,
-            )
-
-        natural_gas_usage = update_load_curve_hourly(
-            neighbor_map,
-            local_lc_dir,
-            local_lc_dir,
-            upgrade,
-        )
-
-        # Collect + write_parquet (not sink_parquet) because the scan source and
-        # output target are the same file.
-        updated_metadata = update_non_hp_metadata(
-            non_hp_bldg_metadata,
-            metadata,
-            natural_gas_usage=natural_gas_usage,
-        )
-        (updated_metadata.collect()).write_parquet(str(metadata_path))
-        print(
-            f"    Done: updated {n_targets} buildings in {metadata_path.name}.",
-            flush=True,
-        )
-
-        # Eagerly release the large intermediates so the next state starts with a
-        # clean memory budget.  Without this, the OOM killer can fire on multi-state
-        # runs (exit code 137).
-        del neighbor_map, natural_gas_usage, updated_metadata, non_hp_bldg_metadata
-        gc.collect()
+    return processed_upgrades
 
 
 def _adjust_mf_electricity(
@@ -816,9 +835,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=True,
         metavar="BOOL",
         help=(
-            "Approximate non-HP load curves for upgrade 02 via k-nearest-neighbor "
-            "HVAC substitution (default: True). Only runs when upgrade 02 is in "
-            "--upgrade-ids and load_curve_hourly is in --file-types."
+            "Approximate non-HP load curves via k-nearest-neighbor HVAC "
+            "substitution (default: True). Runs for each upgrade in "
+            "approx_upgrade_ids (config.yaml) that is also in --upgrade-ids, "
+            "and only when load_curve_hourly is in --file-types."
         ),
     )
     parser.add_argument(
@@ -982,7 +1002,7 @@ def main(argv: list[str] | None = None) -> None:
             file_types=args.file_types,
             upgrade_ids=args.upgrade_ids,
             approximate_non_hp_load=args.approximate_non_hp_load,
-            approx_upgrade=_APPROX_UPGRADE,
+            approx_upgrades=_APPROX_UPGRADES,
             adjust_mf_electricity=args.adjust_mf_electricity,
             mf_adj_upgrades=_MF_ADJ_UPGRADES,
             assign_utility=args.assign_utility,
@@ -1161,19 +1181,20 @@ def main(argv: list[str] | None = None) -> None:
 
         # ── 2c. Modify load curves ─────────────────────────────────────────────
 
-        # ── 2c-i. Approximate non-HP load for upgrade 02 ──────────────────────
+        # ── 2c-i. Approximate non-HP load for configured upgrades ─────────────
         if (
             args.approximate_non_hp_load
-            and _APPROX_UPGRADE in [u.zfill(2) for u in args.upgrade_ids]
+            and any(u.zfill(2) in _APPROX_UPGRADES for u in args.upgrade_ids)
             and "load_curve_hourly" in args.file_types
         ):
-            print("Approximating non-HP load curves (upgrade 02)...", flush=True)
-            _approximate_non_hp_load(
+            print("Approximating non-HP load curves...", flush=True)
+            processed_approx = _approximate_non_hp_load(
                 states=args.state,
                 path_sb=path_sb,
+                upgrade_ids=args.upgrade_ids,
                 sample=args.sample,
             )
-            record_step(run, "approximate_non_hp_load", upgrades=[_APPROX_UPGRADE])
+            record_step(run, "approximate_non_hp_load", upgrades=processed_approx)
             upsert_run(path_sb, run)
             gc.collect()
 
