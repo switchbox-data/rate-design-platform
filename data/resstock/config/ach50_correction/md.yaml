@@ -75,7 +75,7 @@ duct_mapping:
 # Clip prevents extreme corrections from outlier buildings.
 # ---------------------------------------------------------------------------
 frac_clip_lower: -0.5 # max 50% load increase
-frac_clip_upper: 1.0 # max 100% load decrease (to zero)
+frac_clip_upper: 1.0 # safety rail; fitted-ratio should not bind here
 # ---------------------------------------------------------------------------
 # Group classification rules.
 # Each group has filter conditions applied to metadata columns.
