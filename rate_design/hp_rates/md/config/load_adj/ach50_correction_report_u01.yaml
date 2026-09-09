@@ -3,7 +3,7 @@ upgrade_id: '01'
 input_release: res_2024_amy2018_2_sb
 output_release: res_2024_amy2018_2_sb_ach
 climate_zone: A_4
-elapsed_seconds: 223.8
+elapsed_seconds: 231.4
 n_buildings_total: 9996
 group_counts:
   Heat Pump: 9996
@@ -14,45 +14,14 @@ group_counts:
   unclassified: 0
 regressions:
   Heat Pump__elec_heating:
-    slope: !!python/object/apply:numpy._core.multiarray.scalar
-      - &id001 !!python/object/apply:numpy.dtype
-        args:
-          - f8
-          - false
-          - true
-        state: !!python/tuple
-          - 3
-          - <
-          - null
-          - null
-          - null
-          - -1
-          - -1
-          - 0
-      - !!binary |
-        VIuIYvIGvD8=
-    intercept: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        9MDHYMXp9T8=
-    r_squared: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        RpT2Bl+Y0D8=
+    slope: 0.109481
+    intercept: 1.369573
+    r_squared: 0.2593
     n: 9731
   Heat Pump__elec_cooling:
-    slope: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        zQaZZOQsnD8=
-    intercept: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        F7fRAN4C8z8=
-    r_squared: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        /Bhz1xLywT8=
+    slope: 0.027515
+    intercept: 1.1882
+    r_squared: 0.1402
     n: 9731
 correction_fractions:
   Heat Pump__elec_cooling:
