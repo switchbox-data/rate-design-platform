@@ -930,9 +930,9 @@ def _build_report(
     regression_report: dict[str, dict[str, object]] = {}
     for (group, enduse), reg in regressions.items():
         regression_report[f"{group}__{enduse}"] = {
-            "slope": round(reg.slope, 6),
-            "intercept": round(reg.intercept, 6),
-            "r_squared": round(reg.r_squared, 4),
+            "slope": round(float(reg.slope), 6),
+            "intercept": round(float(reg.intercept), 6),
+            "r_squared": round(float(reg.r_squared), 4),
             "n": reg.n,
         }
 
