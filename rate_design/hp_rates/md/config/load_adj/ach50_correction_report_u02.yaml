@@ -15,44 +15,44 @@ group_counts:
 regressions:
   Heat Pump__elec_heating:
     slope: !!python/object/apply:numpy._core.multiarray.scalar
-    - &id001 !!python/object/apply:numpy.dtype
-      args:
-      - f8
-      - false
-      - true
-      state: !!python/tuple
-      - 3
-      - <
-      - null
-      - null
-      - null
-      - -1
-      - -1
-      - 0
-    - !!binary |
-      bRrba0HvtT8=
+      - &id001 !!python/object/apply:numpy.dtype
+        args:
+          - f8
+          - false
+          - true
+        state: !!python/tuple
+          - 3
+          - <
+          - null
+          - null
+          - null
+          - -1
+          - -1
+          - 0
+      - !!binary |
+        bRrba0HvtT8=
     intercept: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      6KG2DaMg8z8=
+      - *id001
+      - !!binary |
+        6KG2DaMg8z8=
     r_squared: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      nzws1Jrm0T8=
+      - *id001
+      - !!binary |
+        nzws1Jrm0T8=
     n: 9730
   Heat Pump__elec_cooling:
     slope: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      fV2G/3QDlT8=
+      - *id001
+      - !!binary |
+        fV2G/3QDlT8=
     intercept: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      1ZelnZpL6j8=
+      - *id001
+      - !!binary |
+        1ZelnZpL6j8=
     r_squared: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      I9v5fmq8xD8=
+      - *id001
+      - !!binary |
+        I9v5fmq8xD8=
     n: 9730
 correction_fractions:
   Heat Pump__elec_cooling:

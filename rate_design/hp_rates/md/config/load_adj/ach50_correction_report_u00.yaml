@@ -14,128 +14,128 @@ group_counts:
 regressions:
   Heat Pump__elec_heating:
     slope: !!python/object/apply:numpy._core.multiarray.scalar
-    - &id001 !!python/object/apply:numpy.dtype
-      args:
-      - f8
-      - false
-      - true
-      state: !!python/tuple
-      - 3
-      - <
-      - null
-      - null
-      - null
-      - -1
-      - -1
-      - 0
-    - !!binary |
-      nIh+bf30vz8=
+      - &id001 !!python/object/apply:numpy.dtype
+        args:
+          - f8
+          - false
+          - true
+        state: !!python/tuple
+          - 3
+          - <
+          - null
+          - null
+          - null
+          - -1
+          - -1
+          - 0
+      - !!binary |
+        nIh+bf30vz8=
     intercept: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      7QxTW+rg9z8=
+      - *id001
+      - !!binary |
+        7QxTW+rg9z8=
     r_squared: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      oWez6nO10T8=
+      - *id001
+      - !!binary |
+        oWez6nO10T8=
     n: 2163
   Heat Pump__elec_cooling:
     slope: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      HQWIghlToD8=
+      - *id001
+      - !!binary |
+        HQWIghlToD8=
     intercept: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      nIwqw7jb9j8=
+      - *id001
+      - !!binary |
+        nIwqw7jb9j8=
     r_squared: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      dEaU9gZfwD8=
+      - *id001
+      - !!binary |
+        dEaU9gZfwD8=
     n: 2163
   Electric Resistance__elec_heating:
     slope: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      C7WmeccpzD8=
+      - *id001
+      - !!binary |
+        C7WmeccpzD8=
     intercept: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      yXGndLDeA0A=
+      - *id001
+      - !!binary |
+        yXGndLDeA0A=
     r_squared: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      io7k8h/Szz8=
+      - *id001
+      - !!binary |
+        io7k8h/Szz8=
     n: 2099
   Electric Resistance__elec_cooling:
     slope: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      LSY2H9eGmj8=
+      - *id001
+      - !!binary |
+        LSY2H9eGmj8=
     intercept: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      X9TuVwH+9T8=
+      - *id001
+      - !!binary |
+        X9TuVwH+9T8=
     r_squared: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      mN2Th4Vasz8=
+      - *id001
+      - !!binary |
+        mN2Th4Vasz8=
     n: 1907
   Natural Gas__gas_heating:
     slope: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      jX3JxoMt1T8=
+      - *id001
+      - !!binary |
+        jX3JxoMt1T8=
     intercept: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      1HyVfOw+EEA=
+      - *id001
+      - !!binary |
+        1HyVfOw+EEA=
     r_squared: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      XdxGA3gL1D8=
+      - *id001
+      - !!binary |
+        XdxGA3gL1D8=
     n: 4424
   Natural Gas__elec_cooling:
     slope: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      chk3NdB8nj8=
+      - *id001
+      - !!binary |
+        chk3NdB8nj8=
     intercept: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      +YTsvI1N9z8=
+      - *id001
+      - !!binary |
+        +YTsvI1N9z8=
     r_squared: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      E/JBz2bVtz8=
+      - *id001
+      - !!binary |
+        E/JBz2bVtz8=
     n: 4105
   Delivered Fuels__elec_heating:
     slope: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      7l7uk6MAgT8=
+      - *id001
+      - !!binary |
+        7l7uk6MAgT8=
     intercept: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      UKkSZW8ptz8=
+      - *id001
+      - !!binary |
+        UKkSZW8ptz8=
     r_squared: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      mEwVjErq0D8=
+      - *id001
+      - !!binary |
+        mEwVjErq0D8=
     n: 1046
   Delivered Fuels__elec_cooling:
     slope: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      jNr9KsB3mz8=
+      - *id001
+      - !!binary |
+        jNr9KsB3mz8=
     intercept: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      d4GSAgtg+j8=
+      - *id001
+      - !!binary |
+        d4GSAgtg+j8=
     r_squared: !!python/object/apply:numpy._core.multiarray.scalar
-    - *id001
-    - !!binary |
-      MlUwKqkTsD8=
+      - *id001
+      - !!binary |
+        MlUwKqkTsD8=
     n: 1056
 correction_fractions:
   Delivered Fuels__elec_cooling:
