@@ -3,10 +3,10 @@ upgrade_id: '00'
 input_release: res_2024_amy2018_2_sb
 output_release: res_2024_amy2018_2_sb_ach
 climate_zone: A_4
-elapsed_seconds: 222.5
-n_buildings_total: 9995
+elapsed_seconds: 140.1
+n_buildings_total: 9996
 group_counts:
-  Heat Pump: 2163
+  Heat Pump: 2164
   Electric Resistance: 2099
   Natural Gas: 4424
   Delivered Fuels: 1134
@@ -29,30 +29,30 @@ regressions:
           - -1
           - 0
       - !!binary |
-        nIh+bf30vz8=
+        fIFZoUj3vz8=
     intercept: !!python/object/apply:numpy._core.multiarray.scalar
       - *id001
       - !!binary |
-        7QxTW+rg9z8=
+        OV6B6EnZ9z8=
     r_squared: !!python/object/apply:numpy._core.multiarray.scalar
       - *id001
       - !!binary |
         oWez6nO10T8=
-    n: 2163
+    n: 2164
   Heat Pump__elec_cooling:
     slope: !!python/object/apply:numpy._core.multiarray.scalar
       - *id001
       - !!binary |
-        HQWIghlToD8=
+        2UC62LRSoD8=
     intercept: !!python/object/apply:numpy._core.multiarray.scalar
       - *id001
       - !!binary |
-        nIwqw7jb9j8=
+        Z33KMVnc9j8=
     r_squared: !!python/object/apply:numpy._core.multiarray.scalar
       - *id001
       - !!binary |
         dEaU9gZfwD8=
-    n: 2163
+    n: 2164
   Electric Resistance__elec_heating:
     slope: !!python/object/apply:numpy._core.multiarray.scalar
       - *id001
@@ -163,15 +163,15 @@ correction_fractions:
     min: -0.5
     max: 1.0
   Heat Pump__elec_cooling:
-    mean: 0.147278
-    median: 0.109795
-    std: 0.181527
-    min: -0.45476
+    mean: 0.147234
+    median: 0.109775
+    std: 0.181477
+    min: -0.454719
     max: 1.0
   Heat Pump__elec_heating:
-    mean: 0.288083
-    median: 0.241231
-    std: 0.335814
+    mean: 0.288436
+    median: 0.241384
+    std: 0.336056
     min: -0.5
     max: 1.0
   Natural Gas__elec_cooling:

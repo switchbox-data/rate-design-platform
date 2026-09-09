@@ -782,7 +782,7 @@ def _process_one_building(
     col_to_frac = _build_col_to_frac(bldg_corrections, group_def)
 
     if not col_to_frac:
-        shutil.copy2(str(input_path), str(output_path))
+        shutil.copyfile(str(input_path), str(output_path))
         return bldg_id
 
     df = pl.read_parquet(str(input_path))
@@ -875,7 +875,7 @@ def _copy_metadata_and_utility(
         output_meta_dir.mkdir(parents=True, exist_ok=True)
         for f in input_meta_dir.iterdir():
             if f.is_file():
-                shutil.copy2(str(f), str(output_meta_dir / f.name))
+                shutil.copyfile(str(f), str(output_meta_dir / f.name))
 
     # Utility assignment (shared across upgrades)
     input_ua = (
@@ -890,7 +890,9 @@ def _copy_metadata_and_utility(
         and not (output_ua_dir / "utility_assignment.parquet").exists()
     ):
         output_ua_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(str(input_ua), str(output_ua_dir / "utility_assignment.parquet"))
+        shutil.copyfile(
+            str(input_ua), str(output_ua_dir / "utility_assignment.parquet")
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1150,7 +1152,7 @@ def run_correction(
         def _copy_uncorrected(bid: int) -> int:
             src = input_hourly_dir / f"{bid}-{int(upgrade_id)}.parquet"
             dst = output_hourly_dir / f"{bid}-{int(upgrade_id)}.parquet"
-            shutil.copy2(str(src), str(dst))
+            shutil.copyfile(str(src), str(dst))
             return bid
 
         with ThreadPoolExecutor(max_workers=workers) as executor:
