@@ -20,10 +20,12 @@ resstock:
   mf_adj_upgrade_ids:
     - "00"
     - "02"
-  # Upgrade that receives the non-HP load approximation (k-nearest-neighbor
-  # HVAC substitution). This is the heat-pump upgrade in the ResStock release.
+  # Subset of upgrade_ids that receive the non-HP load approximation
+  # (k-nearest-neighbor HVAC substitution). Typically the heat-pump upgrades.
   # Update here when switching to a release with different upgrade numbering.
-  approx_upgrade_id: "02"
+  approx_upgrade_ids:
+    - "01"
+    - "02"
   # Upgrade used as the input for utility assignment. Assignment is per-state
   # (not per-upgrade), so only one upgrade's metadata is needed as input.
   utility_assign_upgrade_id: "00"
