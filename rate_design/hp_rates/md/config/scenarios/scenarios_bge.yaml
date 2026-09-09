@@ -12,7 +12,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_default.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_a/md_bge_default_r_uncalibrated_precalc_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_ach_mf/md_bge_default_r_uncalibrated_precalc_delivery
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -39,7 +39,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_default_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_a/md_bge_default_r_uncalibrated_precalc_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_ach_mf/md_bge_default_r_uncalibrated_precalc_supply
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false
@@ -66,7 +66,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_default.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_a/md_bge_default_r_uncalibrated_calibrated_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_ach_mf/md_bge_default_r_uncalibrated_calibrated_delivery
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -93,7 +93,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_default_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_a/md_bge_default_r_uncalibrated_calibrated_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_ach_mf/md_bge_default_r_uncalibrated_calibrated_supply
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false
@@ -120,7 +120,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_rd_default.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_a/md_bge_default_rd_uncalibrated_precalc_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_ach_mf/md_bge_default_rd_uncalibrated_precalc_delivery
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -147,7 +147,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_rd_default_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_a/md_bge_default_rd_uncalibrated_precalc_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_ach_mf/md_bge_default_rd_uncalibrated_precalc_supply
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false
@@ -174,7 +174,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_rd_default.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_a/md_bge_default_rd_uncalibrated_calibrated_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_ach_mf/md_bge_default_rd_uncalibrated_calibrated_delivery
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
@@ -201,7 +201,7 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/bge_rd_default_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_a/md_bge_default_rd_uncalibrated_calibrated_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/md/bge/md_20260909_ach_mf/md_bge_default_rd_uncalibrated_calibrated_supply
     utility_revenue_requirement: rev_requirement/bge_large_number_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false
