@@ -3,15 +3,20 @@
 Uses the Chan et al. (2013) regression to compute a per-building benchmark ACH50
 from vintage, climate zone, floor area, and building height. Then fits a weighted
 least-squares regression within ResStock itself (kWh/sqft ~ ACH50, per heating-type
-group × end-use) to measure the marginal kWh impact of each unit of ACH50. Finally,
-scales each building's hourly end-use columns by ``(1 - frac)``, where:
+group × end-use). Finally, scales each building's end-use columns by
+``(1 - frac)``, where frac is the fitted-ratio correction:
 
-    frac = slope × sqft × delta_ach50 / annual_enduse_kwh
-    delta_ach50 = resstock_ach50 - chan_predicted_ach50
+    pred_rs   = intercept + slope × ACH50_resstock
+    pred_chan = intercept + slope × ACH50_chan
+    frac      = 1 - pred_chan / pred_rs
 
-This is a non-destructive correction: it reads from an input release and writes
-corrected hourly parquet to a new output release. Metadata and utility assignment
-files are copied unchanged to the output release.
+Same ACH50 pair ⇒ same percent for every house in the group. This does not
+divide a typical-house kWh coupon by the building's actual annual kWh (the
+voucher formula), so low-intensity homes are not scaled to zero.
+
+Apply is a uniform hourly multiply; ``--skip-hourly`` applies the same factor
+to the annual parquet instead (identical HVAC kWh totals). Metadata and utility
+assignment files are copied unchanged to the output release.
 
 The correction addresses the systematic ACH50 overestimation in ResStock's LBNL
 ResDB-derived assignments, which inflates simulated heating and cooling loads.
@@ -33,7 +38,7 @@ Usage (from project root)::
         --path-local /ebs/data/nrel/resstock \\
         --path-s3 s3://data.sb/nrel/resstock \\
         --input-release res_2024_amy2018_2_sb \\
-        --output-release res_2024_amy2018_2_sb_ach \\
+        --output-release res_2024_amy2018_2_sb_ach_ratio \\
         --state MD --upgrade-ids "00 01" \\
         --path-chan-coefficients data/resstock/config/chan_2013_coefficients.yaml \\
         --path-context-config data/resstock/config/ach50_correction/md.yaml \\
@@ -354,6 +359,7 @@ class BuildingCorrection:
     frac: float
     delta_ach50: float
     slope: float
+    intercept: float
 
 
 def _parse_ach50(val: Any) -> float:
@@ -478,8 +484,8 @@ def _build_building_table(
         pl.Series("chan_ach50", chan_ach50),
     ).with_columns(
         # Sign convention: delta > 0 means ResStock overestimates infiltration.
-        # Downstream: frac = slope * sqft * delta / kwh, factor = 1 - frac.
-        # Positive delta → positive frac → factor < 1 → loads scaled DOWN.
+        # Fitted-ratio: frac = 1 - pred_chan / pred_rs, factor = 1 - frac.
+        # Positive delta → pred_rs > pred_chan → positive frac → loads scaled DOWN.
         (pl.col("ach50") - pl.col("chan_ach50")).alias("delta_ach50"),
     )
 
@@ -593,19 +599,22 @@ def _compute_correction_fractions(
     regressions: dict[tuple[str, str], WLSResult],
     ctx: ContextConfig,
 ) -> dict[int, list[BuildingCorrection]]:
-    """Compute per-building correction fractions for each end-use.
+    """Compute per-building fitted-ratio correction fractions for each end-use.
 
-    frac = clip(slope × sqft × delta_ach50 / annual_kwh, lower, upper)
+    pred_rs   = intercept + slope × ACH50_resstock
+    pred_chan = intercept + slope × ACH50_chan
+    frac      = clip(1 - pred_chan / pred_rs, lower, upper)
 
     Returns dict mapping bldg_id -> list of BuildingCorrection.
     """
-    # Build a lookup from group name to GroupDefinition for fast access
     group_lookup: dict[str, GroupDefinition] = {g.name: g for g in ctx.groups}
 
     bldg_ids = building_table["bldg_id"].to_list()
     groups_col = building_table["_group"].to_list()
     sqft_arr = building_table["sqft"].to_numpy().astype(np.float64)
     delta_ach50_arr = building_table["delta_ach50"].to_numpy().astype(np.float64)
+    ach50_arr = building_table["ach50"].to_numpy().astype(np.float64)
+    chan_ach50_arr = building_table["chan_ach50"].to_numpy().astype(np.float64)
 
     corrections: dict[int, list[BuildingCorrection]] = {}
 
@@ -614,6 +623,8 @@ def _compute_correction_fractions(
         group_name = groups_col[i]
         sqft = sqft_arr[i]
         delta = delta_ach50_arr[i]
+        ach50 = ach50_arr[i]
+        chan_ach50 = chan_ach50_arr[i]
         bldg_corrections: list[BuildingCorrection] = []
 
         group_def = group_lookup.get(group_name) if group_name else None
@@ -622,7 +633,6 @@ def _compute_correction_fractions(
             continue
 
         for eu in group_def.enduse_groups:
-            # Sum annual kWh for this enduse group
             annual_kwh = 0.0
             for col in eu.annual_kwh_cols:
                 if col in building_table.columns:
@@ -630,9 +640,21 @@ def _compute_correction_fractions(
 
             reg = regressions.get((group_name, eu.name))
             slope = reg.slope if reg is not None else 0.0
+            intercept = reg.intercept if reg is not None else 0.0
 
-            if annual_kwh > 0 and np.isfinite(delta) and np.isfinite(sqft):
-                raw_frac = slope * sqft * delta / annual_kwh
+            pred_rs = intercept + slope * ach50
+            pred_chan = intercept + slope * chan_ach50
+            usable = (
+                annual_kwh > 0
+                and np.isfinite(delta)
+                and np.isfinite(sqft)
+                and np.isfinite(ach50)
+                and np.isfinite(chan_ach50)
+                and pred_rs > 0
+                and pred_chan > 0
+            )
+            if usable:
+                raw_frac = 1.0 - pred_chan / pred_rs
                 frac = float(
                     np.clip(raw_frac, ctx.frac_clip_lower, ctx.frac_clip_upper)
                 )
@@ -646,12 +668,116 @@ def _compute_correction_fractions(
                     frac=frac,
                     delta_ach50=delta,
                     slope=slope,
+                    intercept=intercept,
                 )
             )
 
         corrections[bldg_id] = bldg_corrections
 
     return corrections
+
+
+# ---------------------------------------------------------------------------
+# Annual-only apply (--skip-hourly)
+# ---------------------------------------------------------------------------
+
+_FUEL_PREFIXES = (
+    "out.electricity.",
+    "out.natural_gas.",
+    "out.fuel_oil.",
+    "out.propane.",
+)
+_ANNUAL_KWH_SUFFIX = ".energy_consumption.kwh"
+_ELECTRICITY_ANNUAL_EXCLUDE = (".total.", ".net.", ".pv.")
+_OTHER_FUEL_ANNUAL_EXCLUDE = (".total.",)
+
+
+def _annual_fuel_consumption_cols(schema: list[str], fuel_prefix: str) -> list[str]:
+    """Individual (non-total/net/pv) annual ``*.energy_consumption.kwh`` columns."""
+    exclude = (
+        _ELECTRICITY_ANNUAL_EXCLUDE
+        if fuel_prefix == "out.electricity."
+        else _OTHER_FUEL_ANNUAL_EXCLUDE
+    )
+    return [
+        c
+        for c in schema
+        if c.startswith(fuel_prefix)
+        and c.endswith(_ANNUAL_KWH_SUFFIX)
+        and not any(ex in c for ex in exclude)
+    ]
+
+
+def _recompute_annual_fuel_totals(df: pl.DataFrame) -> pl.DataFrame:
+    """Recompute annual fuel and site-energy totals from individual end-use kWh."""
+    schema_names = df.columns
+    for fuel_prefix in _FUEL_PREFIXES:
+        total_col = f"{fuel_prefix}total.energy_consumption.kwh"
+        individual_cols = _annual_fuel_consumption_cols(schema_names, fuel_prefix)
+        present = [c for c in individual_cols if c in schema_names]
+        if total_col in schema_names and present:
+            df = df.with_columns(
+                pl.sum_horizontal([pl.col(c) for c in present]).alias(total_col)
+            )
+
+    site_total_col = "out.site_energy.total.energy_consumption.kwh"
+    fuel_total_cols = [
+        f"{p}total.energy_consumption.kwh"
+        for p in _FUEL_PREFIXES
+        if f"{p}total.energy_consumption.kwh" in schema_names
+    ]
+    if site_total_col in schema_names and fuel_total_cols:
+        df = df.with_columns(
+            pl.sum_horizontal([pl.col(c) for c in fuel_total_cols]).alias(
+                site_total_col
+            )
+        )
+    return df
+
+
+def _apply_corrections_to_annual(
+    annual: pl.DataFrame,
+    corrections: dict[int, list[BuildingCorrection]],
+    bldg_group_map: dict[int, str | None],
+    group_lookup: dict[str, GroupDefinition],
+) -> pl.DataFrame:
+    """Scale annual HVAC kWh columns by (1 - frac) and recompute fuel totals."""
+    col_factors: dict[str, dict[int, float]] = {}
+    for bid, corrs in corrections.items():
+        gname = bldg_group_map.get(bid)
+        gdef = group_lookup.get(gname) if gname else None
+        if gdef is None:
+            continue
+        eu_by_name = {eu.name: eu for eu in gdef.enduse_groups}
+        for corr in corrs:
+            eu = eu_by_name.get(corr.enduse_name)
+            if eu is None:
+                continue
+            factor = 1.0 - corr.frac
+            for col in eu.annual_kwh_cols:
+                if col in annual.columns:
+                    col_factors.setdefault(col, {})[bid] = factor
+
+    df = annual
+    bldg_ids = df["bldg_id"].to_list()
+    scale_exprs: list[pl.Expr] = []
+    for col, bid_map in col_factors.items():
+        factors = [bid_map.get(int(bid), 1.0) for bid in bldg_ids]
+        scale_exprs.append((pl.col(col) * pl.Series(factors)).alias(col))
+    if scale_exprs:
+        df = df.with_columns(scale_exprs)
+    return _recompute_annual_fuel_totals(df)
+
+
+def _production_ach_release(input_release: str) -> str:
+    """Existing voucher ACH release name (must not be overwritten)."""
+    return f"{input_release}_ach"
+
+
+def _report_yaml_name(output_release: str, upgrade_id: str) -> str:
+    """Report filename that includes the output-release suffix, not the voucher name."""
+    suffix = output_release.rsplit("_sb_", 1)[-1]
+    return f"ach50_correction_report_{suffix}_u{upgrade_id}.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -663,13 +789,6 @@ def _hourly_consumption_col_to_intensity(col: str) -> str:
     """Convert an energy_consumption column name to its intensity counterpart."""
     return col.replace(".energy_consumption", ".energy_consumption_intensity")
 
-
-_FUEL_PREFIXES = (
-    "out.electricity.",
-    "out.natural_gas.",
-    "out.fuel_oil.",
-    "out.propane.",
-)
 
 # Columns to exclude when recomputing fuel totals
 _ELECTRICITY_EXCLUDE_SUFFIXES = (".total.", ".net.", ".pv.")
@@ -979,9 +1098,77 @@ def _build_report(
     }
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
+def _process_hourly_files(
+    *,
+    upgrade_id: str,
+    input_hourly_dir: Path,
+    output_hourly_dir: Path,
+    corrections: dict[int, list[BuildingCorrection]],
+    bldg_group_map: dict[int, str | None],
+    group_lookup: dict[str, GroupDefinition],
+    workers: int,
+) -> None:
+    """Scale (or copy unchanged) every hourly parquet for one upgrade."""
+    output_hourly_dir.mkdir(parents=True, exist_ok=True)
+    if not input_hourly_dir.exists():
+        print(f"  ERROR: Input hourly directory does not exist: {input_hourly_dir}")
+        sys.exit(1)
+
+    bldg_ids_with_corrections = list(corrections.keys())
+    all_hourly_files = set(input_hourly_dir.glob(f"*-{int(upgrade_id)}.parquet"))
+    hourly_bldg_ids_on_disk: set[int] = set()
+    for f in all_hourly_files:
+        try:
+            hourly_bldg_ids_on_disk.add(int(f.stem.split("-")[0]))
+        except (ValueError, IndexError):
+            pass
+
+    orphan_bldg_ids = sorted(hourly_bldg_ids_on_disk - set(bldg_ids_with_corrections))
+    n_orphans = len(orphan_bldg_ids)
+    if n_orphans > 0:
+        print(
+            f"  WARNING: {n_orphans} orphan buildings on disk but not in "
+            f"building table. They will be copied unchanged."
+        )
+        print(f"    Orphan bldg_ids: {orphan_bldg_ids}")
+
+    n_total = len(bldg_ids_with_corrections) + n_orphans
+    print(
+        f"  Processing {len(bldg_ids_with_corrections):,} buildings with "
+        f"corrections, {n_orphans:,} copied unchanged ({n_total:,} total)"
+    )
+
+    def _process_corrected(bid: int) -> int:
+        g_name = bldg_group_map.get(bid)
+        return _process_one_building(
+            bldg_id=bid,
+            upgrade_id=upgrade_id,
+            input_hourly_dir=input_hourly_dir,
+            output_hourly_dir=output_hourly_dir,
+            bldg_corrections=corrections[bid],
+            group_def=group_lookup.get(g_name) if g_name else None,
+        )
+
+    def _copy_uncorrected(bid: int) -> int:
+        src = input_hourly_dir / f"{bid}-{int(upgrade_id)}.parquet"
+        dst = output_hourly_dir / f"{bid}-{int(upgrade_id)}.parquet"
+        shutil.copyfile(str(src), str(dst))
+        return bid
+
+    n_processed = 0
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {
+            executor.submit(_process_corrected, bid): bid
+            for bid in bldg_ids_with_corrections
+        }
+        futures.update(
+            {executor.submit(_copy_uncorrected, bid): bid for bid in orphan_bldg_ids}
+        )
+        for future in as_completed(futures):
+            n_processed += 1
+            future.result()
+            if n_processed % 500 == 0 or n_processed == n_total:
+                print(f"    {n_processed:,} / {n_total:,} hourly files processed")
 
 
 def run_correction(
@@ -995,8 +1182,17 @@ def run_correction(
     path_chan_coefficients: str | Path,
     path_context_config: str | Path,
     workers: int = 50,
+    skip_hourly: bool = False,
 ) -> None:
     """Run the full ACH50 correction pipeline."""
+    production_ach = _production_ach_release(input_release)
+    if output_release == production_ach:
+        msg = (
+            f"Refusing to write to production ACH release {output_release!r}. "
+            f"Use a distinct output (e.g. {input_release}_ach_ratio)."
+        )
+        raise SystemExit(msg)
+
     chan = _load_chan_coefficients(path_chan_coefficients)
     ctx = _load_context_config(path_context_config)
 
@@ -1077,52 +1273,6 @@ def run_correction(
         # ------------------------------------------------------------------
         corrections = _compute_correction_fractions(building_table, regressions, ctx)
 
-        # ------------------------------------------------------------------
-        # 5. Process hourly files in parallel
-        # ------------------------------------------------------------------
-        input_hourly_dir = (
-            input_local
-            / "load_curve_hourly"
-            / f"state={state_upper}"
-            / f"upgrade={upgrade_id}"
-        )
-        output_hourly_dir = (
-            output_local
-            / "load_curve_hourly"
-            / f"state={state_upper}"
-            / f"upgrade={upgrade_id}"
-        )
-        output_hourly_dir.mkdir(parents=True, exist_ok=True)
-
-        if not input_hourly_dir.exists():
-            print(f"  ERROR: Input hourly directory does not exist: {input_hourly_dir}")
-            sys.exit(1)
-
-        bldg_ids_with_corrections = list(corrections.keys())
-
-        # Find orphan buildings: present on disk but not in the building table
-        # (e.g. buildings that were filtered out during the metadata/annual join).
-        all_hourly_files = set(input_hourly_dir.glob(f"*-{int(upgrade_id)}.parquet"))
-        hourly_bldg_ids_on_disk: set[int] = set()
-        for f in all_hourly_files:
-            try:
-                bid = int(f.stem.split("-")[0])
-                hourly_bldg_ids_on_disk.add(bid)
-            except (ValueError, IndexError):
-                pass
-
-        orphan_bldg_ids = sorted(
-            hourly_bldg_ids_on_disk - set(bldg_ids_with_corrections)
-        )
-        n_orphans = len(orphan_bldg_ids)
-        if n_orphans > 0:
-            print(
-                f"  WARNING: {n_orphans} orphan buildings on disk but not in building table. "
-                f"They will be copied unchanged."
-            )
-            print(f"    Orphan bldg_ids: {orphan_bldg_ids}")
-
-        # Build bldg_id → group_name mapping for hourly processing
         bldg_group_map: dict[int, str | None] = dict(
             zip(
                 building_table["bldg_id"].to_list(),
@@ -1130,54 +1280,44 @@ def run_correction(
             )
         )
 
-        n_total = len(bldg_ids_with_corrections) + n_orphans
-        print(
-            f"  Processing {len(bldg_ids_with_corrections):,} buildings with corrections, "
-            f"{n_orphans:,} copied unchanged ({n_total:,} total)"
-        )
-
-        n_processed = 0
-
-        def _process_corrected(bid: int) -> int:
-            g_name = bldg_group_map.get(bid)
-            return _process_one_building(
-                bldg_id=bid,
+        if skip_hourly:
+            print("  --skip-hourly: scaling annual HVAC kWh only (no hourly write)")
+            annual_out = _apply_corrections_to_annual(
+                annual, corrections, bldg_group_map, group_lookup
+            )
+            out_annual_dir = output_local / annual_dir
+            out_annual_dir.mkdir(parents=True, exist_ok=True)
+            out_annual_path = out_annual_dir / annual_filename
+            annual_out.write_parquet(str(out_annual_path))
+            print(f"  Wrote annual: {out_annual_path}")
+            _copy_metadata_and_utility(
+                input_local, output_local, state_upper, upgrade_id
+            )
+            print("  Copied metadata and utility assignment to output release")
+        else:
+            _process_hourly_files(
                 upgrade_id=upgrade_id,
-                input_hourly_dir=input_hourly_dir,
-                output_hourly_dir=output_hourly_dir,
-                bldg_corrections=corrections[bid],
-                group_def=group_lookup.get(g_name) if g_name else None,
+                input_hourly_dir=(
+                    input_local
+                    / "load_curve_hourly"
+                    / f"state={state_upper}"
+                    / f"upgrade={upgrade_id}"
+                ),
+                output_hourly_dir=(
+                    output_local
+                    / "load_curve_hourly"
+                    / f"state={state_upper}"
+                    / f"upgrade={upgrade_id}"
+                ),
+                corrections=corrections,
+                bldg_group_map=bldg_group_map,
+                group_lookup=group_lookup,
+                workers=workers,
             )
-
-        def _copy_uncorrected(bid: int) -> int:
-            src = input_hourly_dir / f"{bid}-{int(upgrade_id)}.parquet"
-            dst = output_hourly_dir / f"{bid}-{int(upgrade_id)}.parquet"
-            shutil.copyfile(str(src), str(dst))
-            return bid
-
-        with ThreadPoolExecutor(max_workers=workers) as executor:
-            futures = {
-                executor.submit(_process_corrected, bid): bid
-                for bid in bldg_ids_with_corrections
-            }
-            futures.update(
-                {
-                    executor.submit(_copy_uncorrected, bid): bid
-                    for bid in orphan_bldg_ids
-                }
+            _copy_metadata_and_utility(
+                input_local, output_local, state_upper, upgrade_id
             )
-
-            for future in as_completed(futures):
-                n_processed += 1
-                future.result()
-                if n_processed % 500 == 0 or n_processed == n_total:
-                    print(f"    {n_processed:,} / {n_total:,} hourly files processed")
-
-        # ------------------------------------------------------------------
-        # 6. Copy metadata and utility assignment
-        # ------------------------------------------------------------------
-        _copy_metadata_and_utility(input_local, output_local, state_upper, upgrade_id)
-        print("  Copied metadata and utility assignment to output release")
+            print("  Copied metadata and utility assignment to output release")
 
         # ------------------------------------------------------------------
         # 7. Write report YAML
@@ -1206,7 +1346,7 @@ def run_correction(
             / "load_adj"
         )
         report_dir.mkdir(parents=True, exist_ok=True)
-        report_path = report_dir / f"ach50_correction_report_u{upgrade_id}.yaml"
+        report_path = report_dir / _report_yaml_name(output_release, upgrade_id)
         with open(report_path, "w") as f:
             yaml.dump(report, f, default_flow_style=False, sort_keys=False)
         print(f"  Report written to: {report_path}")
@@ -1246,7 +1386,8 @@ def main() -> None:
         "--output-release",
         type=str,
         required=True,
-        help="Output release name (e.g. res_2024_amy2018_2_sb_ach)",
+        help="Output release name (e.g. res_2024_amy2018_2_sb_ach_ratio). "
+        "Refuses to overwrite the production *_sb_ach voucher release.",
     )
     parser.add_argument(
         "--state",
@@ -1278,6 +1419,11 @@ def main() -> None:
         default=50,
         help="Number of parallel workers for hourly file processing (default: 50)",
     )
+    parser.add_argument(
+        "--skip-hourly",
+        action="store_true",
+        help="Apply fractions to the annual parquet only; do not write hourly files.",
+    )
 
     args = parser.parse_args()
 
@@ -1291,6 +1437,7 @@ def main() -> None:
         path_chan_coefficients=args.path_chan_coefficients,
         path_context_config=args.path_context_config,
         workers=args.workers,
+        skip_hourly=args.skip_hourly,
     )
 
 
