@@ -11,7 +11,7 @@ concurrent_variants: false
 # sample_size: 200  # optional, limits buildings for smoke testing
 
 resstock:
-  base: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb_ach
+  base: /ebs/data/nrel/resstock/res_2024_amy2018_2_sb_ach_ratio
   upgrade_precalc: "00"
   upgrade_calibrated: "01"
 marginal_costs:
@@ -34,6 +34,10 @@ scenarios:
     # Posted Schedule R billed as-is (CAIRO default mode + large-number RR).
     quartet: single_rate_uncalibrated
     tariff_base: default
+  default_rhp_flat_uncalibrated:
+    # Posted Schedule R billed as-is (CAIRO default mode + large-number RR).
+    quartet: single_rate_uncalibrated
+    tariff_base: rhp_flat
   default_rd_uncalibrated:
     # Posted Schedule RD billed as-is (CAIRO default mode + large-number RR).
     quartet: single_rate_uncalibrated

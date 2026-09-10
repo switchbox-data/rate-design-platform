@@ -78,6 +78,23 @@ fetch-default-electric-tariffs effective_date="2025-01-01" tariff_key="":
       --path-urdb-dir "{{ path_tariffs_electric }}" \
       {{ if tariff_key != "" { "--tariff-key \"" + tariff_key + "\"" } else { "" } }}
 
+# =============================================================================
+# MD-only: hand-specified custom-rate tariffs (e.g. proposed testimony rates)
+#
+# For rates that aren't derived from a utility's filed monthly rates (e.g. a
+# proposed rate design from expert testimony), rate inputs live in a small
+# YAML config under config/tariffs/electric/custom_rates/, not hardcoded in a
+# recipe. create_custom_flat_tariff.py reads the config and writes a flat
+# (single-period) URDB v7 delivery + delivery-supply pair.
+#
+#   just -f md/Justfile create-custom-flat-tariff custom_rates/bge_rhp_flat.yaml
+# =============================================================================
+
+create-custom-flat-tariff path_config:
+    uv run python {{ path_repo }}/utils/pre/create_custom_flat_tariff.py \
+      --config "{{ path_tariffs_electric }}/{{ path_config }}" \
+      --output-dir "{{ path_tariffs_electric }}"
+
 path_rateacuity_phase2_yaml := path_tariffs_gas / "rateacuity_tariffs_chesapeake_phase2.yaml"
 path_add_pgc := path_repo / "utils/data_prep/tariffs/add_pgc_to_gas_urdb.py"
 path_ugi_pgc_csv := path_tariffs_gas / "ugi_central_penn_pgc.csv"
