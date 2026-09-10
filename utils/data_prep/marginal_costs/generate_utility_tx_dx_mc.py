@@ -23,7 +23,9 @@ Output partitions written as:
     - RI default base: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
     - MD default base: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/
     - CT default base: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/
-    - Partition path: utility=X/year=YYYY/data.parquet
+    - Default partition: utility=X/year=YYYY/data.parquet
+    - Alternate-load-year base: <default_base_without_slash>_loadYYYY/
+      Example: dist_and_sub_tx_load2018/utility=X/year=2025/data.parquet
 
 Usage:
     # RI on ISO-NE native loads, inflates 2019$ → 2025$
@@ -64,10 +66,12 @@ import polars as pl
 from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
-from utils.file_io import get_aws_storage_options
 from utils.data_prep.marginal_costs.supply_utils import (
+    output_base_for_load_year,
+    remap_year_if_needed,
     warn_if_multiple_partition_parquets,
 )
+from utils.file_io import get_aws_storage_options
 
 
 def load_utility_load_profile(
@@ -467,7 +471,10 @@ def save_allocated_costs(
     Args:
         df: DataFrame with allocated costs
         utility: Utility name
-        year: Load year used
+        year: Output year for the Hive partition and timestamps. This is also
+            the default target dollar year of the allocated ``$/kW-yr`` (CPI
+            inflation to this year happens before save). Distinct from the
+            PoP allocation load year.
         s3_base: Base S3 path for marginal costs
         validation_results: Validation results (unused, kept for interface consistency)
         storage_options: Polars S3 storage options with AWS bucket region
@@ -571,7 +578,7 @@ def main():
     parser.add_argument(
         "--n-hours",
         type=int,
-        choices=range(0, 8761),
+        choices=range(8761),
         default=100,
         help="Number of top load hours for PoP allocation (0-8760, default: 100)",
     )
@@ -609,6 +616,11 @@ def main():
     target_dollar_year = (
         args.target_dollar_year if args.target_dollar_year else output_year
     )
+    output_s3_base = output_base_for_load_year(
+        args.output_s3_base,
+        output_year,
+        load_year,
+    )
 
     s3_base = args.utility_load_s3_base
 
@@ -621,6 +633,7 @@ def main():
     print(f"Output year: {output_year}")
     print(f"Load year:   {load_year}")
     print(f"Target dollar year: {target_dollar_year}")
+    print(f"Output S3 base: {output_s3_base}")
     print(f"Allocation window: Top {args.n_hours} hours")
     print(f"Upload to S3: {'Yes' if args.upload else 'No (inspection only)'}")
     print("=" * 60)
@@ -635,9 +648,7 @@ def main():
 
     if load_year != output_year:
         print(f"\n  Remapping load timestamps: {load_year} → {output_year}")
-        load_df = load_df.with_columns(
-            pl.col("timestamp").dt.offset_by(f"{output_year - load_year}y")
-        )
+        load_df = remap_year_if_needed(load_df, "timestamp", load_year, output_year)
 
     mc_df = load_marginal_cost_table(args.mc_table_path)
     mc_sub_tx_and_dist = get_marginal_cost_for_utility(mc_df, args.utility)
@@ -691,7 +702,7 @@ def main():
             load_df,
             args.utility,
             output_year,
-            args.output_s3_base,
+            output_s3_base,
             validation_results,
             storage_options,
         )

@@ -17,6 +17,10 @@ from utils.data_prep.marginal_costs.generate_utility_tx_dx_mc import (
     calculate_pop_weights,
     get_marginal_cost_for_utility,
 )
+from utils.data_prep.marginal_costs.supply_utils import (
+    output_base_for_load_year,
+    remap_year_if_needed,
+)
 
 
 def create_sample_load_profile(n_hours: int = 8760) -> pl.DataFrame:
@@ -156,6 +160,34 @@ def test_get_marginal_cost_for_utility_not_found():
         get_marginal_cost_for_utility(mc_df, "Nonexistent Utility")
 
 
+def test_default_load_year_preserves_canonical_output_base() -> None:
+    base = "s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/"
+
+    assert output_base_for_load_year(base, output_year=2025, load_year=2025) == base
+
+
+def test_alternate_load_year_uses_isolated_sibling_output_base() -> None:
+    base = "s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/"
+
+    assert (
+        output_base_for_load_year(
+            base,
+            output_year=2025,
+            load_year=2018,
+        )
+        == "s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx_load2018/"
+    )
+
+
+def test_bulk_tx_alternate_load_year_uses_sibling_output_base() -> None:
+    base = "s3://data.sb/switchbox/marginal_costs/md/bulk_tx"
+
+    assert (
+        output_base_for_load_year(base, output_year=2025, load_year=2018)
+        == "s3://data.sb/switchbox/marginal_costs/md/bulk_tx_load2018/"
+    )
+
+
 def test_leap_year_handling():
     """Test that allocation handles leap years correctly (8784 hours)."""
     start_date = datetime(2024, 1, 1)
@@ -213,7 +245,7 @@ def test_pop_timestamp_remap_preserves_allocation() -> None:
     df = calculate_pop_weights(df, n_hours=100)
     df = allocate_costs_to_hours(df, 18.0)
 
-    remapped = df.with_columns(pl.col("timestamp").dt.offset_by(f"{2025 - 2018}y"))
+    remapped = remap_year_if_needed(df, "timestamp", 2018, 2025)
 
     years = remapped["timestamp"].dt.year().unique().to_list()
     assert years == [2025]
