@@ -339,6 +339,7 @@ create-bulk-tx-mc-data utility_arg year_arg *extra_args:
       --iso pjm \
       --utility {{ utility_arg }} \
       --year {{ year_arg }} \
+      --load-year {{ bulk_tx_load_year }} \
       {{ extra_args }}
 
 # Generate bulk TX MC for all MD utilities across all available NITS years.
@@ -354,6 +355,7 @@ create-bulk-tx-mc-data-all *extra_args:
               --iso pjm \
               --utility "${utility}" \
               --year "${year}" \
+              --load-year {{ bulk_tx_load_year }} \
               {{ extra_args }}
         done
     done

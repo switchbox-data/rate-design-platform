@@ -12,6 +12,10 @@ Usage
     uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
         --iso pjm --utility bge --year 2025 --upload
 
+    # PJM / MD: 2025 NITS $/kW-yr, 2018 load for PCAF (sibling bulk_tx_load2018/)
+    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+        --iso pjm --utility bge --year 2025 --load-year 2018 --upload
+
     # ISO-NE / RI (inspect only)
     uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
         --iso isone --utility rie --year 2025 --load-year 2025
@@ -49,7 +53,6 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from utils.file_io import get_aws_storage_options
 from utils.data_prep.marginal_costs.bulk_tx_isone import (
     AESC_2024_AVOIDED_PTF_KW_YEAR,
     DEFAULT_N_PEAK_HOURS,
@@ -74,8 +77,10 @@ from utils.data_prep.marginal_costs.supply_utils import (
     ISONE_UTILITY_ZONES,
     VALID_ISONE_UTILITIES,
     VALID_NYISO_UTILITIES,
+    output_base_for_load_year,
     remap_year_if_needed,
 )
+from utils.file_io import get_aws_storage_options
 from utils.pre.season_config import (
     get_utility_periods_yaml_path,
     load_winter_months_from_periods,
@@ -113,13 +118,20 @@ def _parse_args() -> argparse.Namespace:
         "--year",
         type=int,
         required=True,
-        help="Target year for bulk Tx MC generation (e.g. 2025).",
+        help=(
+            "Output year for partition key and timestamps, and the dollar year "
+            "of the annual $/kW-yr (PJM NITS year, ISO-NE AESC year, NYISO "
+            "constraint-group costs). Example: 2025."
+        ),
     )
     parser.add_argument(
         "--load-year",
         type=int,
         default=None,
-        help="Year of zone loads for peak identification (defaults to --year).",
+        help=(
+            "Year of the hourly load used to identify and weight peak hours "
+            "(defaults to --year). Distinct from the NITS/AESC dollar year."
+        ),
     )
     # NYISO-only args
     parser.add_argument(
@@ -275,18 +287,27 @@ def main() -> None:
         )
         zone_loads_s3_base = args.zone_loads_s3_base or DEFAULT_ISONE_ZONE_LOADS_S3_BASE
 
+    output_s3_base = output_base_for_load_year(output_s3_base, year, load_year)
+
     print("=" * 60)
     print(f"BULK TRANSMISSION MARGINAL COST GENERATION ({iso.upper()})")
     print("=" * 60)
     print(f"  ISO:                  {iso.upper()}")
     print(f"  Utility:              {utility}")
-    print(f"  Year:                 {year}")
+    print(f"  Output / dollar year: {year}")
     print(f"  Load year:            {load_year}")
+    print(f"  Output S3 base:       {output_s3_base}")
     print(f"  Upload to S3:         {'Yes' if args.upload else 'No (inspect only)'}")
 
     if iso == "pjm":
         _run_pjm(
-            args, utility, year, output_s3_base, zone_loads_s3_base, storage_options
+            args,
+            utility,
+            year,
+            load_year,
+            output_s3_base,
+            zone_loads_s3_base,
+            storage_options,
         )
     elif iso == "nyiso":
         _run_nyiso(
@@ -314,6 +335,7 @@ def _run_pjm(
     args: argparse.Namespace,
     utility: str,
     year: int,
+    load_year: int,
     output_s3_base: str,
     utility_loads_s3_base: str,
     storage_options: dict[str, str],
@@ -332,6 +354,7 @@ def _run_pjm(
     output_df = compute_pjm_bulk_tx_mc(
         utility=utility,
         year=year,
+        load_year=load_year,
         k_peak_hours=k_peak_hours,
         s3_base=utility_loads_s3_base,
         storage_options=storage_options,

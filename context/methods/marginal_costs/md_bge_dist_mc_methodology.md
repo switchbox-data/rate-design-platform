@@ -42,6 +42,18 @@ reads the optional `dollar_year` column and CPI-inflates the value (CPIAUCSL) fr
 dollar year (defaults to `--year`). For a 2025 run that is roughly `$32` → `~$36/kW-yr`. No
 carrying-charge math is applied on our side — the figure is pre-levelized.
 
+`--year` and `--load-year` control separate concepts. `--year` is the output year: it determines
+the default target dollar year, the timestamps on the generated 8760, and the `year=YYYY` output
+partition. `--load-year` selects only the PJM utility load profile used to identify and weight the
+top peak hours; it defaults to `--year`. When the years differ, load timestamps are remapped to the
+output year (via `remap_year_if_needed`) before PoP allocation.
+
+To prevent a load-shape sensitivity from overwriting the canonical output or being combined by a
+recursive Parquet scan, a non-default load year is written to a sibling dataset root named
+`dist_and_sub_tx_load{load_year}/`. For example, `--year 2025 --load-year 2018` writes to
+`dist_and_sub_tx_load2018/utility=bge/year=2025/data.parquet`; the default remains
+`dist_and_sub_tx/utility=bge/year=2025/data.parquet`.
+
 Scope: the `$32` is electric **distribution**, which in BGE's ECOSS **includes 34 kV
 sub-transmission** (BGE treats 34 kV / 13 kV / secondary as distribution voltage levels;
 FERC transmission, 115 kV+, is excluded — see [bge_case9692_dist_mc.md](../../sources/mcos/bge_case9692_dist_mc.md)

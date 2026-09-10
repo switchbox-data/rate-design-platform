@@ -594,13 +594,21 @@ hardcoded) was chosen because:
 - [x] `generate_bulk_tx_mc.py` extended with `--iso pjm` path:
   ```
   uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
-      --iso pjm --utility bge --year 2025 [--upload]
+      --iso pjm --utility bge --year <YYYY> [--load-year <YYYY>] [--upload]
   ```
   Valid utilities: `bge`, `dpl`, `pepco`, `poted`. Optional `--k-peak-hours` (default 150).
+  `--year` is the NITS dollar year, output timestamps, and Hive `year=` partition.
+  `--load-year` selects the PJM utility load used for PCAF peak hours (defaults to `--year`).
+  When they differ, timestamps are remapped to `--year` and the 8760 is written under a sibling
+  root named `bulk_tx_load{load_year}/` so a recursive scan of `bulk_tx/` cannot mix two 8760s.
+  For example, `--year 2025 --load-year 2018` writes
+  `bulk_tx_load2018/utility=bge/year=2025/data.parquet`, while the default load year keeps the
+  canonical `bulk_tx/utility=bge/year=2025/data.parquet`.
 
 ### 4 — Create Justfile recipes for MD bulk TX MC (DONE)
 
 - [x] `create-bulk-tx-mc-data utility year [--upload]` added to `rate_design/hp_rates/md/Justfile`
+      (`--load-year` comes from `BULK_TX_LOAD_YEAR` in `md/state.env`; override with extra args)
 - [x] `create-bulk-tx-mc-data-all [--upload]` loops over all 4 IOU zones × 5 years (2021–2025)
 
   ```
