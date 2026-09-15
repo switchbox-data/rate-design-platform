@@ -50,6 +50,7 @@ import polars as pl
 from utils.data_prep.marginal_costs.supply_utils import (
     PJM_UTILITY_ZONES,
     build_cairo_8760_timestamps,
+    remap_year_if_needed,
 )
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -253,14 +254,20 @@ def compute_pjm_bulk_tx_mc(
     k_peak_hours: int = DEFAULT_K_PEAK_HOURS,
     s3_base: str = PJM_HOURLY_DEMAND_S3_BASE,
     storage_options: dict[str, str] | None = None,
+    load_year: int | None = None,
 ) -> pl.DataFrame:
     """End-to-end PJM bulk TX MC computation for a single utility and year.
 
+    ``year`` is the NITS dollar year, output timestamps, and Hive ``year=``
+    partition. ``load_year`` selects only the PJM utility load used for PCAF
+    peak hours; it defaults to ``year``. When they differ, load timestamps are
+    remapped onto the output year after the load is aligned.
+
     Steps:
-        1. Load NITS rates and compute blended annual $/kW-yr.
-        2. Load hourly demand for the utility.
+        1. Load NITS rates and compute blended annual $/kW-yr for ``year``.
+        2. Load hourly demand for ``load_year``.
         3. Run PCAF load-share allocation on top-K full-year hours.
-        4. Expand to full 8760 output.
+        4. Expand to full 8760 output on the ``year`` calendar.
         5. Validate sum equals blended rate.
 
     Returns:
@@ -271,7 +278,9 @@ def compute_pjm_bulk_tx_mc(
             f"Invalid utility '{utility}'. Valid: {sorted(VALID_PJM_UTILITIES)}"
         )
 
-    # Step 1: Blended NITS rate
+    load_year = year if load_year is None else load_year
+
+    # Step 1: Blended NITS rate (dollar year = output year)
     nits_zone = UTILITY_TO_NITS_ZONE[utility]
     nits_df = load_nits_rates(nits_csv_path)
     blended_rate = compute_blended_nits_rate(nits_df, nits_zone, year)
@@ -279,15 +288,19 @@ def compute_pjm_bulk_tx_mc(
     print("\n── PJM Bulk TX MC Configuration ──")
     print(f"  Utility:        {utility}")
     print(f"  NITS zone:      {nits_zone}")
-    print(f"  Year:           {year}")
+    print(f"  Output year:    {year}")
+    print(f"  Load year:      {load_year}")
     print(f"  Blended rate:   ${blended_rate:.4f}/kW-yr")
     print(f"  K peak hours:   {k_peak_hours}")
     print("  Method:         PCAF load-share, full-year (E3 ICC-VDER)")
 
-    # Step 2: Load hourly demand
+    # Step 2: Load hourly demand for PCAF allocation
     print("\n── Loading hourly demand ──")
-    load_df = load_hourly_demand(utility, year, s3_base, storage_options)
-    print(f"  Loaded {load_df.height} hours")
+    load_df = load_hourly_demand(utility, load_year, s3_base, storage_options)
+    print(f"  Loaded {load_df.height} hours (load year {load_year})")
+    if load_year != year:
+        print(f"  Remapping load timestamps: {load_year} → {year}")
+        load_df = remap_year_if_needed(load_df, "timestamp", load_year, year)
 
     # Step 3: PCAF allocation on full-year load
     print("\n── PCAF Allocation ──")
