@@ -1,0 +1,103 @@
+state: MD
+upgrade_id: '00'
+input_release: res_2024_amy2018_2_sb
+output_release: res_2024_amy2018_2_sb_ach
+climate_zone: A_4
+elapsed_seconds: 236.4
+n_buildings_total: 9996
+group_counts:
+  Heat Pump: 2164
+  Electric Resistance: 2099
+  Natural Gas: 4424
+  Delivered Fuels: 1134
+  unclassified: 175
+regressions:
+  Heat Pump__elec_heating:
+    slope: 0.124867
+    intercept: 1.490549
+    r_squared: 0.2767
+    n: 2164
+  Heat Pump__elec_cooling:
+    slope: 0.031881
+    intercept: 1.428796
+    r_squared: 0.1279
+    n: 2164
+  Electric Resistance__elec_heating:
+    slope: 0.220025
+    intercept: 2.483735
+    r_squared: 0.2486
+    n: 2099
+  Electric Resistance__elec_cooling:
+    slope: 0.025905
+    intercept: 1.374513
+    r_squared: 0.0756
+    n: 1907
+  Natural Gas__gas_heating:
+    slope: 0.330903
+    intercept: 4.061449
+    r_squared: 0.3132
+    n: 4424
+  Natural Gas__elec_cooling:
+    slope: 0.029773
+    intercept: 1.456434
+    r_squared: 0.0931
+    n: 4105
+  Delivered Fuels__elec_heating:
+    slope: 0.008302
+    intercept: 0.090476
+    r_squared: 0.2643
+    n: 1046
+  Delivered Fuels__elec_cooling:
+    slope: 0.026824
+    intercept: 1.648448
+    r_squared: 0.0628
+    n: 1056
+correction_fractions:
+  Delivered Fuels__elec_cooling:
+    mean: 0.122576
+    median: 0.069255
+    std: 0.196637
+    min: -0.279238
+    max: 1.0
+  Delivered Fuels__elec_heating:
+    mean: 0.249773
+    median: 0.188777
+    std: 0.356069
+    min: -0.5
+    max: 1.0
+  Electric Resistance__elec_cooling:
+    mean: 0.143704
+    median: 0.089093
+    std: 0.205199
+    min: -0.418575
+    max: 1.0
+  Electric Resistance__elec_heating:
+    mean: 0.332923
+    median: 0.258121
+    std: 0.366142
+    min: -0.5
+    max: 1.0
+  Heat Pump__elec_cooling:
+    mean: 0.147234
+    median: 0.109775
+    std: 0.181477
+    min: -0.454719
+    max: 1.0
+  Heat Pump__elec_heating:
+    mean: 0.288436
+    median: 0.241384
+    std: 0.336056
+    min: -0.5
+    max: 1.0
+  Natural Gas__elec_cooling:
+    mean: 0.148741
+    median: 0.089961
+    std: 0.214673
+    min: -0.5
+    max: 1.0
+  Natural Gas__gas_heating:
+    mean: 0.285013
+    median: 0.231491
+    std: 0.330488
+    min: -0.5
+    max: 1.0
