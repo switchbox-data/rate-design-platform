@@ -31,8 +31,10 @@ methodology for Maryland. Key uses:
    marginal transmission cost estimates — the RTO pushback that justifies using the embedded-cost
    proxy.
 3. **Appendix C**: Defines the PCAF (Peak Capacity Allocation Factor) methodology with K=150
-   peak hours for transmission and distribution, and K=100 for generation capacity. Verbatim
-   source for our allocation method.
+   peak hours for transmission and distribution, and K=100 for generation capacity. Source for
+   our allocation method — but note that Appendix C's prose and its Figure 42 give **two
+   different weighting formulas** (load-share vs. threshold-excess). See the warning in the
+   Appendix C section below before citing either one.
 
 ---
 
@@ -192,15 +194,39 @@ net load**.[^41]
 
 [DIAGRAM DESCRIPTION: PCAF Equation — Figure 42]
 
-A mathematical formula graphic showing the Peak Capacity Allocation Factor calculation. The
-formula defines the allocation factor $PCAF_h$ for each hour $h$ in the top-K peak hours as the
-load in that hour divided by the sum of load across all K top peak hours:
+A mathematical formula graphic, verbatim from the figure. The formula defines the allocation
+factor for area $a$ and hour $h$ as that hour's load **in excess of a threshold**, divided by the
+sum of all positive excess amounts:
 
-$$PCAF_h = \frac{L_h}{\sum_{k \in \text{top-}K} L_k} \quad \text{for } h \in \text{top-}K \text{ hours}$$
+$$PCAF_{a,h} = \frac{\text{Load}_{a,h} - \text{Threshold}_a}{\text{Sum of all positive values for } (\text{Load}_{a,h} - \text{Threshold}_a)}$$
+
+Where (also verbatim from the figure):
+
+- $a$ is the applicable utility service territory area
+- $h$ is hour of the year
+- Load is the net system load (applied to both distribution and transmission in this instance)
+- Threshold: The 150th largest load value
 
 All other hours receive an allocation factor of zero.
 
 [→ See original PDF page 98 for visual rendering]
+
+> **⚠️ The report contradicts itself here — read this before citing either form.**
+>
+> The Appendix C **prose** (paragraph above) describes a **raw load-share** allocation: each
+> hour's share of total load across the top 150 hours, i.e.
+> $PCAF_h = L_h / \sum_{k \in \text{top-}K} L_k$. **Figure 42** (this figure) instead describes a
+> **threshold-excess** allocation, with the threshold set at the 150th-largest load value — so the
+> 150th hour receives a factor of exactly zero.
+>
+> Likely explanation: Table 23 (stakeholder feedback, p. 91) records the comment "PCAFs are not
+> weighted appropriately across the hours," to which E3 responded "E3 has updated the model PCAF
+> weighting." Figure 42 appears to reflect the updated weighting while the surrounding prose was
+> not revised.
+>
+> **The two are not interchangeable.** Our platform implements the prose (load-share) form; see
+> `context/methods/marginal_costs/md_bulk_transmission.md` for the choice, and for the measured
+> magnitude of the difference on BGE's load shape.
 
 The sum of the resulting allocation factors for all top hours is equal to 1, while all other hours of the
 year were assigned allocation factors of zero. The total avoided cost of capacity for each component

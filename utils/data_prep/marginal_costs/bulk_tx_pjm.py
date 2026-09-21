@@ -18,7 +18,9 @@ Key design choices (see context/methods/marginal_costs/md_bulk_transmission.md):
    tractability (see methodology doc for full rationale).
 3. **Allocation method**: PCAF load-share (not exceedance). Each of the top-K
    hours receives a share proportional to its load divided by total load across
-   all K peak hours.
+   all K peak hours. This follows E3's Appendix C *prose*; E3's Figure 42 on the
+   same page states a threshold-excess formula instead, and the two are not
+   equivalent (see the methodology doc for the measured difference).
 4. **K = 150**: Following E3's ICC-VDER Appendix C which uses top-150 hours for
    transmission and distribution capacity allocation.
 
