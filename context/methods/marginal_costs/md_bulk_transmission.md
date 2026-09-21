@@ -330,8 +330,10 @@ use it to restrict which hours are eligible for PCAF allocation.
 
 ### Step 3 — Hourly allocation: PCAF (Peak Capacity Allocation Factor) method, K = 150
 
-Apply the **PCAF load-share** method (following E3's ICC-VDER Appendix C) to allocate the
-blended annual $/kW-yr across the top-K hours of the full year:
+Apply the **PCAF load-share** method (following E3's ICC-VDER Appendix C prose — note that E3's
+Figure 42 gives a different, threshold-excess formula; see
+[E3's Figure 42 says something different](#e3s-figure-42-says-something-different--and-the-difference-is-not-small))
+to allocate the blended annual $/kW-yr across the top-K hours of the full year:
 
 1. Load the PJM zone hourly demand for the relevant utility and year.
    Source: `s3://data.sb/pjm/hourly_demand/utilities/utility={name}/year={year}/data.parquet`
@@ -427,18 +429,17 @@ Our existing platform uses PoP exceedance weighting (`allocate_annual_exceedance
 `supply_utils.py`), which allocates proportionally to each hour's exceedance above a threshold.
 For MD bulk TX, we instead use **PCAF load-share** weighting because:
 
-1. **E3 precedent:** E3's Illinois methodology (the official source) uses raw load-share
-   weighting, not exceedance. Quote from Appendix C: _"based on the share of load in each
-   of these hours divided by the total load across these 150 top load hours."_
+1. **E3 precedent:** E3's Illinois methodology (the official source) describes raw load-share
+   weighting in its Appendix C prose: _"based on the share of load in each of these hours
+   divided by the total load across these 150 top load hours."_ **Caveat:** E3's Figure 42, on
+   the same page, gives a _threshold-excess_ formula instead (see below). The report is
+   internally inconsistent; we follow the prose.
 2. **Simplicity and transparency:** PCAF is easier to explain — each peak hour's share is
    simply its proportion of total peak load. No threshold parameter to calibrate.
-3. **Practical difference is small:** For K = 150, exceedance vs. load-share produces nearly
-   identical results (peak hours are close in magnitude, so the threshold is near the floor
-   of the top-150 set). The choice is about defensibility, not material outcome.
-4. **Matching official methodology:** When an official state-commissioned study exists for the
+3. **Matching official methodology:** When an official state-commissioned study exists for the
    same RTO (PJM) and cost component (transmission capacity), we follow it.
 
-**PCAF formula (from E3 Appendix C, Figure 42):**
+**PCAF formula (as implemented, per E3 Appendix C prose):**
 
     PCAF_h = L_h / Σ_{k ∈ top-K} L_k     for h in top-K hours
     PCAF_h = 0                              for all other hours
@@ -448,7 +449,34 @@ For MD bulk TX, we instead use **PCAF load-share** weighting because:
 Where `L_h` is the hourly load (MW) in hour `h`. The resulting hourly costs sum to the annual rate.
 
 **Source:** [E3 ICC-VDER Report, Illinois, Jan 2025](https://www.ethree.com/wp-content/uploads/2025/01/ICC-VDER-Report-FINAL-2025-1-17.pdf),
-Appendix C, pp. 98-99, Figure 42.
+Appendix C, pp. 98-99.
+
+#### E3's Figure 42 says something different — and the difference is not small
+
+Figure 42 (p. 98) states the allocation as a share of load **in excess of a threshold**, where the
+threshold is the 150th-largest load value:
+
+    PCAF_{a,h} = (Load_{a,h} - Threshold_a) / Σ positive (Load_{a,h} - Threshold_a)
+
+Table 23 (stakeholder feedback, p. 91) likely explains the inconsistency: a commenter objected that
+"PCAFs are not weighted appropriately across the hours," and E3 responded "E3 has updated the model
+PCAF weighting." Figure 42 appears to reflect the updated weighting while the prose was not revised.
+
+An earlier version of this doc claimed the two formulas produce "nearly identical results." That is
+wrong. Measured on BGE's actual 2025 zonal load (peak 6,585 MW; 150th-largest hour 5,583 MW, so the
+threshold sits ~15% below the peak):
+
+| Metric (blended rate $57.74/kW-yr)   | Load-share | Threshold-excess |
+| ------------------------------------ | ---------- | ---------------- |
+| Peak hour $/kWh                      | 0.4276     | 1.1194 (2.6×)    |
+| 150th hour $/kWh                     | 0.3626     | 0.0000           |
+| Share of annual cost in top 10 hours | 7.3%       | 17.1%            |
+| Share of annual cost in winter hours | 17.9%      | 15.8%            |
+
+Threshold-excess concentrates the cost signal far more heavily on the highest-load hours. The
+_seasonal_ split is much less sensitive, because BGE's top-150 set in 2025 is 27 January hours and
+123 summer hours under either weighting — which is why the choice has only a modest effect on
+heat-pump marginal cost recovery in the MD analysis.
 
 ---
 
@@ -594,13 +622,21 @@ hardcoded) was chosen because:
 - [x] `generate_bulk_tx_mc.py` extended with `--iso pjm` path:
   ```
   uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
-      --iso pjm --utility bge --year 2025 [--upload]
+      --iso pjm --utility bge --year <YYYY> [--load-year <YYYY>] [--upload]
   ```
   Valid utilities: `bge`, `dpl`, `pepco`, `poted`. Optional `--k-peak-hours` (default 150).
+  `--year` is the NITS dollar year, output timestamps, and Hive `year=` partition.
+  `--load-year` selects the PJM utility load used for PCAF peak hours (defaults to `--year`).
+  When they differ, timestamps are remapped to `--year` and the 8760 is written under a sibling
+  root named `bulk_tx_load{load_year}/` so a recursive scan of `bulk_tx/` cannot mix two 8760s.
+  For example, `--year 2025 --load-year 2018` writes
+  `bulk_tx_load2018/utility=bge/year=2025/data.parquet`, while the default load year keeps the
+  canonical `bulk_tx/utility=bge/year=2025/data.parquet`.
 
 ### 4 — Create Justfile recipes for MD bulk TX MC (DONE)
 
 - [x] `create-bulk-tx-mc-data utility year [--upload]` added to `rate_design/hp_rates/md/Justfile`
+      (`--load-year` comes from `BULK_TX_LOAD_YEAR` in `md/state.env`; override with extra args)
 - [x] `create-bulk-tx-mc-data-all [--upload]` loops over all 4 IOU zones × 5 years (2021–2025)
 
   ```

@@ -203,13 +203,27 @@ echo
 SSH_KEY_NAME="rate_design_platform_ec2"
 SSH_KEY=~/.ssh/${SSH_KEY_NAME}.pub
 SSH_KEY_PRIVATE=~/.ssh/${SSH_KEY_NAME}
+SSH_KEY_HOST=$(hostname -s 2>/dev/null || hostname)
+SSH_KEY_HOST=${SSH_KEY_HOST%%.*}
+SSH_KEY_HOST=$(printf '%s' "$SSH_KEY_HOST" | tr -c 'A-Za-z0-9._-' '-')
+SSH_KEY_HOST=${SSH_KEY_HOST:-unknown-host}
 if [ ! -f "$SSH_KEY" ] || [ ! -f "$SSH_KEY_PRIVATE" ]; then
   echo "🔑 Generating dedicated SSH keypair for EC2 access..."
   mkdir -p ~/.ssh
   chmod 700 ~/.ssh
-  ssh-keygen -t ed25519 -f "$SSH_KEY_PRIVATE" -N "" -C "rate-design-platform-ec2-$(date +%Y%m%d)" >/dev/null 2>&1
+  ssh-keygen -t ed25519 -f "$SSH_KEY_PRIVATE" -N "" \
+    -C "rate-design-platform-ec2-${SSH_KEY_HOST}-$(date +%Y%m%d)" >/dev/null 2>&1
   echo "   SSH keypair: $SSH_KEY_PRIVATE"
   echo ""
+elif [ -f "$SSH_KEY" ] && [ -f "$SSH_KEY_PRIVATE" ]; then
+  # Relabel an existing key so authorized_keys can tell laptops apart. Does not
+  # change key material, so other machines' keys are unaffected.
+  OLD_COMMENT=$(awk '{print $3}' "$SSH_KEY" 2>/dev/null || true)
+  if [ -n "$OLD_COMMENT" ] && [[ "$OLD_COMMENT" != *"$SSH_KEY_HOST"* ]]; then
+    OLD_DATE=$(printf '%s' "$OLD_COMMENT" | grep -oE '[0-9]{8}' | tail -1 || true)
+    ssh-keygen -c -f "$SSH_KEY_PRIVATE" \
+      -C "rate-design-platform-ec2-${SSH_KEY_HOST}-${OLD_DATE:-$(date +%Y%m%d)}" >/dev/null 2>&1 || true
+  fi
 fi
 
 if [ "$NEEDS_SETUP" = true ]; then
@@ -434,23 +448,6 @@ if [ "$NEEDS_SETUP" = true ]; then
     done
   fi
 
-  # Push public key to instance (local keypair ensured before this block)
-  echo "Setting up SSH access for Cursor..."
-  echo "   Using SSH keypair: $SSH_KEY_PRIVATE"
-
-  if [ -f "$SSH_KEY" ]; then
-    SSH_KEY_CONTENT=$(cat "$SSH_KEY" | sed 's/"/\\"/g')
-    aws ssm send-command \
-      --instance-ids "$INSTANCE_ID" \
-      --document-name "AWS-RunShellScript" \
-      --parameters "commands=[
-            'bash -c \"set -eu; USER_HOME=\\\"$USER_HOME\\\"; LINUX_USERNAME=\\\"$LINUX_USERNAME\\\"; SSH_KEY=\\\"$SSH_KEY_CONTENT\\\"; mkdir -p \\\"\\\$USER_HOME/.ssh\\\"; chmod 700 \\\"\\\$USER_HOME/.ssh\\\"; chown \\\"\\\$LINUX_USERNAME:\\\$LINUX_USERNAME\\\" \\\"\\\$USER_HOME/.ssh\\\"; if ! grep -qF \\\"\\\$SSH_KEY\\\" \\\"\\\$USER_HOME/.ssh/authorized_keys\\\" 2>/dev/null; then echo \\\"\\\$SSH_KEY\\\" >> \\\"\\\$USER_HOME/.ssh/authorized_keys\\\"; chmod 600 \\\"\\\$USER_HOME/.ssh/authorized_keys\\\"; chown \\\"\\\$LINUX_USERNAME:\\\$LINUX_USERNAME\\\" \\\"\\\$USER_HOME/.ssh/authorized_keys\\\"; fi\"'
-        ]" \
-      --output text >/dev/null
-    sleep 2
-    echo "   SSH key configured on instance"
-  fi
-
   echo "   Writing instance setup marker (fast path next time)..."
   MARKER_TOUCH_ID=$(aws ssm send-command \
     --instance-ids "$INSTANCE_ID" \
@@ -472,6 +469,69 @@ if [ "$NEEDS_SETUP" = true ]; then
   fi
 
 fi
+
+# Push public key to instance on every login. The home dir lives on the persistent
+# EBS volume, so a stale authorized_keys survives instance teardown and the setup
+# marker; if the local keypair is ever regenerated, only re-pushing every time
+# keeps Cursor's SSH working (the interactive SSM session below does not use SSH,
+# so a key mismatch is otherwise invisible).
+echo "🔑 Setting up SSH access for Cursor..."
+echo "   Using SSH keypair: $SSH_KEY_PRIVATE"
+if [ -f "$SSH_KEY" ]; then
+  KEY_PUSH_TEMP=$(mktemp)
+  {
+    echo '#!/bin/bash'
+    echo 'set -eu'
+    printf 'USER_HOME=%q\n' "$USER_HOME"
+    printf 'LINUX_USERNAME=%q\n' "$LINUX_USERNAME"
+    printf 'SSH_KEY=%q\n' "$(cat "$SSH_KEY")"
+    cat <<'EOF'
+mkdir -p "$USER_HOME/.ssh"
+chmod 700 "$USER_HOME/.ssh"
+AK="$USER_HOME/.ssh/authorized_keys"
+touch "$AK"
+KEY_ID=$(printf '%s\n' "$SSH_KEY" | awk '{print $1 " " $2}')
+if grep -qF "$KEY_ID" "$AK" 2>/dev/null; then
+  TMP=$(mktemp)
+  awk -v id="$KEY_ID" -v line="$SSH_KEY" '$1 " " $2 == id { print line; next } { print }' "$AK" >"$TMP"
+  mv "$TMP" "$AK"
+  echo "key already present"
+else
+  echo "$SSH_KEY" >>"$AK"
+  echo "key added"
+fi
+chmod 600 "$AK"
+chown -R "$LINUX_USERNAME:$LINUX_USERNAME" "$USER_HOME/.ssh"
+EOF
+  } >"$KEY_PUSH_TEMP"
+  KEY_PUSH_B64=$(base64 <"$KEY_PUSH_TEMP" | tr -d '\n')
+  rm -f "$KEY_PUSH_TEMP"
+  KEY_PUSH_ID=$(aws ssm send-command \
+    --instance-ids "$INSTANCE_ID" \
+    --document-name "AWS-RunShellScript" \
+    --parameters "commands=[\"echo $KEY_PUSH_B64 | base64 -d | bash\"]" \
+    --query 'Command.CommandId' \
+    --output text 2>/dev/null || echo "")
+  if [ -n "$KEY_PUSH_ID" ]; then
+    for _ in {1..20}; do
+      KSTATUS=$(aws ssm get-command-invocation \
+        --command-id "$KEY_PUSH_ID" \
+        --instance-id "$INSTANCE_ID" \
+        --query 'Status' \
+        --output text 2>/dev/null || echo "InProgress")
+      [ "$KSTATUS" = "InProgress" ] || [ "$KSTATUS" = "Pending" ] || break
+      sleep 2
+    done
+    if [ "${KSTATUS:-}" = "Success" ]; then
+      echo "   ✅ SSH key configured on instance"
+    else
+      echo "   ⚠️  Could not confirm SSH key install (status: ${KSTATUS:-unknown})"
+    fi
+  else
+    echo "   ⚠️  Failed to send SSH key install command"
+  fi
+fi
+echo
 
 # Configure SSH config with SSM ProxyCommand (replaces port-forwarding, which
 # had a busy-polling loop that macOS killed under load via CPU wake limits)
@@ -518,7 +578,9 @@ done
 
 if [ "$SSH_TEST_SUCCESS" = false ]; then
   echo "   ⚠️  SSH connection test failed, but continuing..."
-  echo "   You may need to manually reconnect in Cursor"
+  echo "   Cursor's remote connection will likely fail too (the interactive"
+  echo "   session below uses SSM, not SSH, so it may still work)."
+  echo "   Diagnose with: ssh -v rate-design-platform"
 fi
 echo ""
 

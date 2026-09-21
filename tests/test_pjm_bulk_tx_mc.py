@@ -254,6 +254,79 @@ class TestAllocatePcaf:
         assert set(result.columns) == {"timestamp", "bulk_tx_cost_enduse"}
 
 
+# ── compute_pjm_bulk_tx_mc load year vs NITS year ─────────────────────────────
+
+
+class TestComputePjmBulkTxLoadYear:
+    def test_load_year_selects_demand_and_remaps_to_output_year(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """NITS comes from --year; PCAF peaks come from --load-year."""
+        from datetime import datetime as dt
+
+        from utils.data_prep.marginal_costs.bulk_tx_pjm import compute_pjm_bulk_tx_mc
+        from utils.data_prep.marginal_costs.supply_utils import remap_year_if_needed
+
+        monkeypatch.setattr(
+            "utils.data_prep.marginal_costs.bulk_tx_pjm.load_nits_rates",
+            lambda nits_csv_path=None: _make_nits_df(2025, "BGE", 40.0, 50.0),
+        )
+
+        peak_2018 = dt(2018, 7, 3, 17, 0, 0)
+        peak_2025 = dt(2025, 1, 15, 7, 0, 0)
+
+        def _load_with_spike(year: int, spike: dt) -> pl.DataFrame:
+            return _make_load_df(year, base_mw=100.0).with_columns(
+                pl.when(pl.col("timestamp") == spike)
+                .then(pl.lit(1_000_000.0))
+                .otherwise(pl.col("load_mw"))
+                .alias("load_mw")
+            )
+
+        loads = {
+            2018: _load_with_spike(2018, peak_2018),
+            2025: _load_with_spike(2025, peak_2025),
+        }
+
+        def fake_load(
+            utility: str,
+            year: int,
+            s3_base: str = "",
+            storage_options: dict[str, str] | None = None,
+        ) -> pl.DataFrame:
+            assert utility == "bge"
+            return loads[year]
+
+        monkeypatch.setattr(
+            "utils.data_prep.marginal_costs.bulk_tx_pjm.load_hourly_demand",
+            fake_load,
+        )
+
+        out = compute_pjm_bulk_tx_mc(
+            utility="bge",
+            year=2025,
+            load_year=2018,
+            k_peak_hours=1,
+        )
+
+        assert out.height == 8760
+        assert out["timestamp"].dt.year().unique().to_list() == [2025]
+        expected_rate = (151 * 40.0 + 214 * 50.0) / 365
+        assert float(out["bulk_tx_cost_enduse"].sum()) == pytest.approx(
+            expected_rate, rel=1e-9
+        )
+
+        remapped_peak = remap_year_if_needed(
+            pl.DataFrame({"timestamp": [peak_2018]}),
+            "timestamp",
+            2018,
+            2025,
+        )["timestamp"][0]
+        top = out.sort("bulk_tx_cost_enduse", descending=True).head(1)
+        assert top["timestamp"][0] == remapped_peak
+        assert remapped_peak != peak_2025
+
+
 # ── utility → NITS zone mapping ───────────────────────────────────────────────
 
 

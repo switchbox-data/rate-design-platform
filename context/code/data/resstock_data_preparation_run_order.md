@@ -170,7 +170,7 @@ just -f data/resstock/Justfile approximate-non-hp-load <STATE> <UPGRADE_ID> res_
   - `K`: number of nearest neighbors (e.g. 15).
   - `UPDATE_MF`: `True` to update non-HP MF buildings.
   - `UPDATE_OTHER_FUEL`: `True` to update “other fuel type” non-HP buildings.
-- **Result:** In `res_2024_amy2018_2_sb`, load curves and metadata for the selected non-HP buildings are replaced with approximated (HP-like) loads and metadata (postprocess_group.has_hp, heating_type, has_natgas_connection, etc.). In the current end-to-end shortcut recipes, this is run for upgrade `02`.
+- **Result:** In `res_2024_amy2018_2_sb`, load curves and metadata for the selected non-HP buildings are replaced with approximated (HP-like) loads and metadata (postprocess_group.has_hp, heating_type, has_natgas_connection, etc.). The unified `main.py` pipeline runs this for every upgrade in `approx_upgrade_ids` (currently `01` and `02`). The legacy Justfile recipe still takes a single upgrade ID.
 
 ---
 

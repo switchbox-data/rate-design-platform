@@ -1,0 +1,52 @@
+# Baltimore Gas and Electric proposed Limited Income Discount Program rates.
+#
+# Status:
+#   - Proposed July 1, 2026 in Supplement 753 (electric Rider 14) and
+#     Supplement 528 (gas Rider 17).
+#   - Filed without effective dates; not Commission-approved or in force.
+#   - This schedule is available only for explicit sensitivity runs.
+#
+# Source:
+#   Maryland PSC Administrative Docket PC 59, entry 121 (July 1, 2026):
+#   "Baltimore Gas and Electric Company - its Revised Tariff Pages. The Company
+#   Proposes to Introduce its Limited Income Discount Mechanism."
+#   https://webpscxb.pscmaryland.com/DMS/pc/pc59
+#   Original PDF filename: Johnston_BGE Supplement 753_528_wATT_712026_F.pdf
+#   - Electric values: Attachment 2, Rider 14 tariff page 91; PDF pp. 15 and 22
+#   - Gas values: Attachment 2, Rider 17 tariff page 92-I; PDF pp. 27 and 31
+#   Markdown transcription:
+#   context/sources/BGE-LIM-Suppl-753-528-2026-07-01.md
+utility: bge
+filing_date: "2026-07-01"
+status: proposed
+electric:
+  unit: usd_per_kwh
+  rates:
+    - ohep_poverty_level: 1
+      electric_heat: 0.08372
+      non_electric_heat: 0.13507
+    - ohep_poverty_level: 2
+      electric_heat: 0.08351
+      non_electric_heat: 0.12595
+    - ohep_poverty_level: 3
+      electric_heat: 0.05237
+      non_electric_heat: 0.10726
+    - ohep_poverty_level: 4
+      electric_heat: 0.01388
+      non_electric_heat: 0.08166
+    - ohep_poverty_level: 5
+      electric_heat: 0.0
+      non_electric_heat: 0.05803
+gas:
+  unit: usd_per_therm
+  rates:
+    - ohep_poverty_level: 1
+      rate: 0.5768
+    - ohep_poverty_level: 2
+      rate: 0.5079
+    - ohep_poverty_level: 3
+      rate: 0.3404
+    - ohep_poverty_level: 4
+      rate: 0.0361
+    - ohep_poverty_level: 5
+      rate: 0.0

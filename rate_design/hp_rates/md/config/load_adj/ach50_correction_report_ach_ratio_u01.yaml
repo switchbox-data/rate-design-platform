@@ -1,0 +1,38 @@
+state: MD
+upgrade_id: '01'
+input_release: res_2024_amy2018_2_sb
+output_release: res_2024_amy2018_2_sb_ach_ratio
+climate_zone: A_4
+elapsed_seconds: 227.1
+n_buildings_total: 9996
+group_counts:
+  Heat Pump: 9996
+  Heat Pump__approximated: 265
+  Electric Resistance: 0
+  Natural Gas: 0
+  Delivered Fuels: 0
+  unclassified: 0
+regressions:
+  Heat Pump__elec_heating:
+    slope: 0.109481
+    intercept: 1.369573
+    r_squared: 0.2593
+    n: 9731
+  Heat Pump__elec_cooling:
+    slope: 0.027515
+    intercept: 1.1882
+    r_squared: 0.1402
+    n: 9731
+correction_fractions:
+  Heat Pump__elec_cooling:
+    mean: 0.118853
+    median: 0.110909
+    std: 0.121681
+    min: -0.260025
+    max: 0.46651
+  Heat Pump__elec_heating:
+    mean: 0.209831
+    median: 0.225016
+    std: 0.212115
+    min: -0.5
+    max: 0.695432

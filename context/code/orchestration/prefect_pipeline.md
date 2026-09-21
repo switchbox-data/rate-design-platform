@@ -6,18 +6,20 @@ Status: redesigned pipeline with generic quartet-based orchestration, structure 
 
 - **Scenario** — one rate design to evaluate (`default`, `hp_seasonal_percustomer_passthrough`, …), declared with a `quartet` kind in the pipeline YAML.
 - **Variant** — the cost scope of one CAIRO run: `delivery` (`billing_kwh=True`) or `supply` (`billing_kwh=False`).
-- **Stage** — calibration lifecycle position: `precalc` (CAIRO solves tariffs on baseline population) then `calibrated` (target population uses promoted `*_calibrated.json` as input).
+- **Stage** — orchestration slot: `precalc` (upgrade 00) then `calibrated` (upgrade 02). For `single_rate` / multi-rate quartets, precalc is CAIRO `run_type: precalc` (solves tariffs) and calibrated is `run_type: default` (bills the promoted `*_calibrated.json`). For `single_rate_uncalibrated`, **both** stages are `run_type: default` and bill the posted tariff; the large-number RR YAML is used so CAIRO does not error on revenue sufficiency.
 - **Run** — one CAIRO invocation = one (stage, variant) pair. Identified by a canonical run name.
 - **Quartet** — the four runs that fully evaluate one scenario: 2 stages × 2 variants.
-- **Tariff promotion seam** — the handoff joining precalc → calibrated: precalc outputs' `tariff_final_config.json` → `*_calibrated.json` files written to config dir.
+- **Tariff promotion seam** — the handoff joining precalc → calibrated: precalc outputs' `tariff_final_config.json` → `*_calibrated.json` files written to config dir. Skipped for `single_rate_uncalibrated`.
 
 ### Quartet kinds
 
-| quartet                | precalc | calibrated | subgroups | description                                             |
-| ---------------------- | ------- | ---------- | --------- | ------------------------------------------------------- |
-| `single_rate`          | single  | single     | no        | Calibrate one tariff on up00, evaluate on up02          |
-| `multi_rate_collapsed` | multi   | single     | yes       | Calibrate per-subgroup, promote one to calibrated stage |
-| `multi_rate_preserved` | multi   | multi      | yes       | Keep all subgroup tariffs through calibrated stage      |
+| quartet                    | precalc | calibrated | subgroups | description                                                                                                                                                            |
+| -------------------------- | ------- | ---------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `single_rate`              | single  | single     | no        | Calibrate one tariff on up00, evaluate on up02                                                                                                                         |
+| `single_rate_uncalibrated` | single  | single     | no        | Bill a posted tariff unchanged (`run_type: default` both stages, large-number RR so CAIRO does not error)                                                              |
+| `multi_rate_collapsed`     | multi   | single     | yes       | Calibrate per-subgroup, promote one to calibrated stage                                                                                                                |
+| `multi_rate_preserved`     | multi   | multi      | yes       | Keep all subgroup tariffs through calibrated stage                                                                                                                     |
+| `multi_rate_fixed`         | multi   | single     | yes       | Copy already-built tariffs (no redesign); subclass RR from a candidate-tariff run. See [`multi_rate_fixed_candidate_tariff.md`](multi_rate_fixed_candidate_tariff.md). |
 
 ## Files
 
@@ -36,20 +38,26 @@ run_batch @flow (master)
   │    ├─ validate inputs (FUSE mount, MC paths, ResStock, RR YAMLs, tariff JSONs)
   │    ├─ generate scenarios YAML (pipeline YAML → per-run format for run_scenario.py)
   │    └─ generate electric tariff maps (write_tariff_maps_from_scenario)
-  ├─ independent scenarios (no depends_on):
-  │    └─ run_quartet @flow
-  │         ├─ precalc: cairo_run(delivery) → cairo_run(supply)
-  │         ├─ tariff promotion seam
-  │         └─ calibrated: cairo_run(delivery) → cairo_run(supply)
-  └─ dependent scenarios (has depends_on):
-       ├─ check_dependency (verify dependency's quartet completed)
-       ├─ derive_tariffs (compute subclass RR + dispatch tariff creation by structure)
-       └─ run_quartet @flow
+  ├─ independent scenarios (no depends_on, not multi_rate_fixed):
+       │    └─ run_quartet @flow
+       │         ├─ precalc: cairo_run(delivery) → cairo_run(supply)
+       │         ├─ tariff promotion seam (skipped for single_rate_uncalibrated)
+       │         └─ calibrated: cairo_run(delivery) → cairo_run(supply)
+       ├─ dependent scenarios (collapsed/preserved; one depends_on parent):
+       │    ├─ check_dependency (verify that parent's quartet completed)
+       │    ├─ derive_tariffs (compute subclass RR + dispatch tariff creation by structure)
+       │    └─ run_quartet @flow
+       └─ multi_rate_fixed (depends_on is a list of prerequisite scenarios):
+            ├─ check_dependency for each name in depends_on
+            ├─ compute_candidate_tariff_rr_for_fixed
+            ├─ prepare_fixed_tariffs (relabel-copy; or use tariff_json_path)
+            └─ run_quartet @flow
 ```
 
 - `cairo_run` is the atomic `@task`: shells out to `run_scenario.py` as a subprocess for full memory isolation.
 - `run_quartet` is a `@flow` with `ThreadPoolTaskRunner(max_workers=2)`. Whether each stage's delivery + supply pair actually overlaps is controlled by `concurrent_variants` (see below); the arrows above show the default sequential mode.
-- `derive_tariffs` dispatches to `pipeline_derive.py` handlers (no if-chains in the pipeline).
+- `derive_tariffs` dispatches to `pipeline_derive.py` handlers (no if-chains in the pipeline). Seasonal/flat HP rates use that path.
+- `multi_rate_fixed` is a third dispatch: copy already-built tariffs and a candidate-tariff subclass RR, then CAIRO. See [`multi_rate_fixed_candidate_tariff.md`](multi_rate_fixed_candidate_tariff.md).
 
 ## Canonical run naming
 
@@ -171,6 +179,7 @@ marginal_costs:
 revenue_requirement:
   single_rate: rev_requirement/bge_rate_case_test_year.yaml
   single_rate_calibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
+  single_rate_uncalibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
   multi_rate_calibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
 scenarios:
   default:
@@ -183,20 +192,26 @@ scenarios:
     residual_allocation:
       delivery: percustomer
       supply: passthrough
-    subclass_config:
-      group_col: has_hp
-      subgroups:
-        hp:   { values: ["true"],  structure: seasonal }
+      subclass_config:
+        group_col: has_hp
+        subgroups:
+          hp:   { values: ["true"],  structure: seasonal }
         non-hp: { values: ["false"], structure: base }
+bill_change_baseline:
+  scenario: default
+  stage: precalc
 ```
 
 ### Key config fields
 
 - `output_base` — root S3/FUSE path for outputs; batch dir = `{output_base}/{state}/{utility}/{batch}`
-- `tariff_base` — explicit stem component for single-rate tariff filenames (required for `single_rate` quartet)
+- `tariff_base` — explicit stem component for single-rate tariff filenames (required for `single_rate` and `single_rate_uncalibrated`)
+- `revenue_requirement.single_rate_uncalibrated` — required when a `single_rate_uncalibrated` scenario is declared. The large-number RR YAML used for both stages of that quartet (do not reuse `single_rate_calibrated` implicitly).
 - `periods_yaml` — utility periods config (winter months); defaults to `periods/{utility}.yaml`
-- `depends_on` — names the dependency scenario whose outputs feed `derive_tariffs`
+- `depends_on` — prerequisite scenario name(s). YAML accepts a string or a list. Collapsed/preserved quartets take one name (the parent whose outputs feed `derive_tariffs`); `multi_rate_fixed` takes the list of scenarios that must finish before prep.
 - `promote` — which subgroup's calibrated tariff to promote for `multi_rate_collapsed`
+- `bat_allocation_scenario` — for `multi_rate_fixed` with a derived RR: the prerequisite scenario (usually `default`) whose precalc outputs supply the BAT-based allocation methods. Must be in `depends_on`
+- `bill_change_baseline` — the one `(scenario, stage)` every run's bills are compared against. Read only by post-processing, so the pipeline runs without it; the master-table builders raise if it is missing. It is a single stage, not a quartet: usually `default` + `precalc`, i.e. today's rates on the pre-upgrade population.
 
 ## Invocation
 
@@ -236,6 +251,134 @@ uv run python -m rate_design.hp_rates.run_pipeline \
 ```
 
 The `--scenarios` filter restricts which scenarios run (preflight is also scoped). Omit for all.
+
+## Post-processing: master tables
+
+Once a batch finishes, two builders consolidate its CAIRO outputs into the master tables that notebooks and reports read. They are plain CLIs driven by Just — not Prefect flows — and one invocation covers a whole batch:
+
+```bash
+cd rate_design/hp_rates
+just s md build-all-master-prefect md_20260803_a
+```
+
+That runs bills then BAT (in that order, because BAT joins the baseline bills). Either can be run alone with `build-master-bills-prefect` / `build-master-bat-prefect`, and both accept `--scenarios` to narrow the work.
+
+To build Maryland master bills with FY26 OHEP MEAP/EUSP columns for multiple participation scenarios:
+
+```bash
+just s md build-master-bills-prefect <batch> \
+  --calculate-lmi \
+  --lmi-participation-rates 1.0 0.48 \
+  --lmi-participation-mode weighted \
+  --lmi-calculation-type monthly
+```
+
+For MD, `monthly` means that annual grants are allocated proportionally across Jan–Dec bills; it does not mean equal twelfths. The command appends both p100 and p48 column sets in one pass. It rewrites master-bill outputs but does not alter CAIRO run directories.
+
+The current Prefect builder writes each per-utility table before applying LMI, then applies LMI to the concatenated table before its final write. Therefore MD OHEP columns are present only in the `all_utilities` table:
+
+```
+{output_base}/md/all_utilities/{batch}/{segment}/comb_bills_year_target/
+```
+
+Use that path for MD LMI analysis. See [LMI discounts in master bills](lmi_master_bills_workflow.md) for the complete data flow and column definitions.
+
+| Script                                     | Output                            | Grain             |
+| ------------------------------------------ | --------------------------------- | ----------------- |
+| `utils/post/build_master_bills_prefect.py` | `comb_bills_year_target/`         | building × month  |
+| `utils/post/build_master_bat_prefect.py`   | `cross_subsidization_BAT_values/` | building (annual) |
+
+### One master table per segment
+
+A **segment** is one `{scenario}_{stage}` pair — `default_precalc`, `hp_seasonal_percustomer_passthrough_calibrated`, and so on. Each becomes its own master table, written twice: once per utility and once for the batch:
+
+```
+{output_base}/{state}/{utility}/{batch}/{segment}/{table}/
+{output_base}/{state}/all_utilities/{batch}/{segment}/{table}/
+```
+
+The `all_utilities` copy is Hive-partitioned by `sb.electric_utility` and is what analysis reads. This replaces the legacy Justfile layout, which keyed tables by `run_{delivery}+{supply}` and needed one invocation per run pair.
+
+The delivery and supply runs of a segment are **joined**, not kept separate: the delivery-only run supplies electric delivery (and gas/oil/propane) figures, the delivery+supply run supplies electric supply, and supply-only BAT is derived as `total − delivery`.
+
+### Run discovery
+
+Builders never take run numbers. For each utility they load `{state}/config/scenarios/pipeline_{utility}.yaml` by convention, expand its scenarios into segments, and look up each run's output directory in the batch's run index (`{batch_dir}/.runs/{canonical_run_name}.path`). Index files hold FUSE paths, which `utils/post/pipeline_runs.py` maps to `s3://` URIs.
+
+A segment whose **both** variants are missing is skipped with a log line, so a partially-run batch still post-processes. A segment with **one** variant missing raises: that table can never be built, and skipping it would hide a failed CAIRO run.
+
+### Baseline bill columns
+
+Every row in both tables carries the baseline segment's annual electric bill, so bill changes can be computed without a second read:
+
+`baseline_elec_fixed_charge`, `baseline_elec_delivery_bill`, `baseline_elec_supply_bill`
+
+The baseline segment comes from `bill_change_baseline` in the pipeline YAML, and its table is built first so the others can join it. On the baseline segment itself, the columns are copies of its own `elec_*` values. The builders assert that the baseline table's `upgrade` matches the upgrade its configured stage implies, so a mismatched or stale baseline fails loudly instead of silently attaching the wrong bills.
+
+Building BAT without the baseline bills raises with the path to build first — hence `build-all-master-prefect`.
+
+### Building attributes come from upgrade 00
+
+`postprocess_group.has_hp`, `postprocess_group.heating_type`, the `heats_with_*` flags, income, and cooling are read from the **baseline** upgrade's `metadata-sb.parquet` on every segment, joined to `utility_assignment.parquet` for the utility mapping. ResStock marks every building in the heat-pump upgrade as a heat pump, so a calibrated segment's own metadata would erase what the home heated with before the retrofit — the dimension most analyses slice on. The `upgrade` column identifies the stage instead.
+
+### Reading the BAT tables
+
+BAT metrics in **calibrated** segments are dominated by the deliberately large revenue requirement those runs use (`residual_share_total` lands in the hundreds of thousands per customer, versus roughly a thousand in precalc). Bills in calibrated segments are unaffected and correct. The builders write what CAIRO produced without special-casing; interpret cross-subsidy metrics from precalc segments.
+
+## End-to-end example: MD/BGE with Just recipes
+
+The invocation and post-processing steps above are the generic, state-agnostic path (raw `python -m` / `uv run python`). `rate_design/hp_rates/Justfile` and `rate_design/hp_rates/md/Justfile` wrap them into a handful of recipes, and MD's adds a composed recipe for its OHEP (MEAP/EUSP) LMI columns. This section walks the full MD/BGE flow using those recipes; see [Justfiles](../../rate_design/hp_rates/Justfile) for the recipes themselves.
+
+### 1. Start the Prefect server (once per session, separate terminal)
+
+```bash
+cd rate_design/hp_rates
+just serve-prefect
+```
+
+`serve-prefect` is a thin wrapper around `uv run prefect server start --port {{ port }}` (default port `4200`). It is state-agnostic — one server serves every state/utility batch — so it lives in the shared Justfile and does not need `just s md ...` dispatch. Leave this terminal open for the duration of the batch.
+
+### 2. Point the pipeline at the server (in your working terminal)
+
+```bash
+export PREFECT_API_URL=http://127.0.0.1:4200/api
+```
+
+`run-pipeline` checks this at the top of its recipe body and fails fast with a reminder if it is unset, rather than silently falling back to an ephemeral server that loses run history.
+
+### 3. Run the batch
+
+For MD, use the composed recipe to get the pipeline run and both LMI-aware master tables in one command:
+
+```bash
+just s md run-with-lmi md_20260803_a
+```
+
+This chains three recipes, stopping at the first failure:
+
+1. `run-pipeline md_20260803_a` — runs every scenario in `md/config/scenarios/pipeline_bge.yaml` (equivalent to the `uv run python -m rate_design.hp_rates.run_pipeline ...` invocation above, minus typing the `--yaml` path).
+2. `build-master-bills-prefect md_20260803_a --calculate-lmi --lmi-participation-rates 1.0 0.48 --lmi-participation-mode weighted --lmi-calculation-type monthly` — MD's standard OHEP participation scenarios (see [Post-processing: master tables](#post-processing-master-tables) above for what these flags do).
+3. `build-master-bat-prefect md_20260803_a` — BAT for the batch, joining the baseline bills the previous step wrote.
+
+To restrict to one scenario (e.g. while iterating on a single scenario's tariff derivation), pass it after the batch name — it is forwarded to all three steps:
+
+```bash
+just s md run-with-lmi md_20260803_a default
+```
+
+If you don't need LMI columns (e.g. a non-MD state, or a quick check of raw bills), use the uncomposed recipes directly — `just s <state> run-pipeline <batch>` followed by `just s <state> build-all-master-prefect <batch>`.
+
+### 4. Resuming after a failure or partial run
+
+Re-running the same batch name is always safe and cheap: `cairo_run` skips any run whose `.runs/{name}.path` index file already exists (see [Run index](#run-index-resume-mechanism) above), so `just s md run-with-lmi md_20260803_a` only redoes what's missing or failed. `*scenarios` only narrows which scenarios are considered at all — it is not required for a fast rerun of the same batch.
+
+### 5. Where the LMI columns land
+
+As noted in [Post-processing: master tables](#post-processing-master-tables), MD OHEP columns are written only to the `all_utilities` master-bills table, not the per-utility one:
+
+```
+{output_base}/md/all_utilities/{batch}/{segment}/comb_bills_year_target/
+```
 
 ## Derived path anatomy
 

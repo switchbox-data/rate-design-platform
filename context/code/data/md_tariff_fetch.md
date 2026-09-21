@@ -63,6 +63,8 @@ their Genability tariff IDs (populated automatically by the fetch script).
 just -f md/Justfile fetch-default-electric-tariffs
 ```
 
+The recipe default `effective_date` is `2025-01-01`. Pass a date as the first argument to override.
+
 This runs `fetch_electric_tariffs_genability.py` with `--urdb`, writing:
 
 - Snapshot → `top-ups/default_tariffs/`
@@ -78,6 +80,21 @@ For electric tariffs, CAIRO requires separate files:
 The Genability filter maps `chargeClass` to one of these two output files. A charge appears
 in the supply file if it is classified `SUPPLY` or `CONTRACTED`; all other charges go into
 the delivery-only file (and are also present in the supply file).
+
+### BGE Schedule RD
+
+Optional TOU rate (Residential Delivery and Energy Time-Of-Use Pilot). URDB files:
+
+- `config/tariffs/electric/bge_rd_default.json`
+- `config/tariffs/electric/bge_rd_default_supply.json`
+
+Pinned in `tariffs_by_utility.yaml` as `bge_rd: 3350180`. Use the integer `masterTariffId`, not a name substring: Arcadia's "Residential - Time of Use" is Schedule **RL**, not RD.
+
+These JSONs were fetched with **`--effective-date 2026-01-01`**, not the Justfile default `2025-01-01`. The 2025 Arcadia versions of this tariff have the wrong TOU windows (missing the non-summer evening on-peak block; summer peak shifted one hour). Re-fetch with:
+
+```bash
+just -f md/Justfile fetch-default-electric-tariffs 2026-01-01 bge_rd
+```
 
 ### Genability bug patches
 

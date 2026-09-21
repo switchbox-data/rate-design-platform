@@ -20,10 +20,10 @@ from utils.data_prep.marginal_costs.generate_utility_tx_dx_mc import (
 )
 
 
-def _write_partition(path: Path, n: int = 48) -> None:
+def _write_partition(path: Path, n: int = 48, year: int = 2025) -> None:
     """Write a small (timestamp, load_mw) parquet at an exact partition dir."""
     path.mkdir(parents=True, exist_ok=True)
-    start = datetime(2025, 1, 1)
+    start = datetime(year, 1, 1)
     ts = [start + timedelta(hours=i) for i in range(n)]
     df = pl.DataFrame({"timestamp": ts, "load_mw": [100.0 + i for i in range(n)]})
     df.write_parquet(path / "data.parquet")
@@ -56,3 +56,23 @@ def test_missing_profile_raises(tmp_path):
             utility="rie",
             storage_options={},
         )
+
+
+def test_requested_load_year_selects_only_that_partition(tmp_path) -> None:
+    """The allocation load year is independent of the output/dollar year."""
+    base = tmp_path / "pjm"
+    _write_partition(
+        base / "utility=bge" / "year=2018" / "month=01",
+        year=2018,
+    )
+    _write_partition(base / "utility=bge" / "year=2025" / "month=01")
+
+    df = load_utility_load_profile(
+        s3_base=str(base),
+        year_load=2018,
+        utility="bge",
+        storage_options={},
+    )
+
+    assert df.height == 48
+    assert df["year"].unique().to_list() == [2018]

@@ -6,7 +6,9 @@
 # Larger co-ops (smeco, choptank) are likely in Arcadia; verify on first run.
 # Small co-ops/municipals (somerset_rec, berlin_muni, hagerstown_muni, easton_muni)
 # may not be in Arcadia; see context/code/data/md_tariff_fetch.md for fallback options.
-bge: default
+bge:
+  bge: default
+  bge_rd: 3350180 # Schedule RD;
 pepco: default
 poted: default
 dpl: default

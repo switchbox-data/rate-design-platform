@@ -389,6 +389,28 @@ def remap_year_if_needed(
     )
 
 
+def output_base_for_load_year(
+    output_s3_base: str,
+    output_year: int,
+    load_year: int,
+) -> str:
+    """Return an isolated output base when allocation uses another load year.
+
+    The canonical base remains unchanged when ``load_year == output_year`` so
+    existing production paths continue to resolve. Sensitivity outputs use a
+    sibling dataset root instead of another parquet below the canonical Hive
+    partition, preventing recursive scans from combining two 8760s.
+
+    ``output_s3_base`` must be the canonical component root, such as
+    ``.../dist_and_sub_tx/`` or ``.../bulk_tx/``. For example, output year 2025
+    allocated with 2018 load writes beneath ``.../dist_and_sub_tx_load2018/``.
+    """
+    canonical_base = output_s3_base.rstrip("/")
+    if load_year == output_year:
+        return f"{canonical_base}/"
+    return f"{canonical_base}_load{load_year}/"
+
+
 def build_cairo_8760_timestamps(year: int) -> pl.DataFrame:
     """Build Cairo-compatible 8760 naive Eastern wall-clock timestamps.
 

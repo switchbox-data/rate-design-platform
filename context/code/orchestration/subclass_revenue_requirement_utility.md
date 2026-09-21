@@ -1,5 +1,10 @@
 # Subclass Revenue Requirement Utility (`compute_subclass_rr.py`)
 
+Prefect `multi_rate_fixed` scenarios (BGE HP on posted Schedule RD) use a
+**different** split: HP delivery RR = weighted HP bills on a candidate-tariff
+run, not `sum(bills) − sum(BAT_*)`. See
+[`multi_rate_fixed_candidate_tariff.md`](multi_rate_fixed_candidate_tariff.md).
+
 ## Purpose
 
 `utils/mid/compute_subclass_rr.py` computes revenue requirement totals for any customer subclass defined in CAIRO `customer_metadata.csv` (typically a `postprocess_group.*` column).

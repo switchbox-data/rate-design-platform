@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -41,9 +42,12 @@ from rate_design.hp_rates.pipeline_config import (
     multi_rate_rr_path,
     tariff_stem,
 )
+from rate_design.hp_rates.pipeline_derive import DeriveContext, derive_subgroup_tariff
 from utils.mid.compute_subclass_rr import (
+    CANDIDATE_TARIFF_SUPPLY_METHODS,
     SUBCLASS_RR_ALLOCATION_METHODS,
     _write_revenue_requirement_yamls,
+    compute_candidate_tariff_subclass_rr,
     compute_subclass_rr,
 )
 from utils.mid.copy_calibrated_tariff_from_run import (
@@ -51,9 +55,6 @@ from utils.mid.copy_calibrated_tariff_from_run import (
 )
 from utils.pre.season_config import load_winter_months_from_periods
 from utils.scenario_config import _parse_resstock_overrides
-
-from rate_design.hp_rates.pipeline_derive import DeriveContext, derive_subgroup_tariff
-
 
 log = logging.getLogger(__name__)
 
@@ -329,7 +330,7 @@ def _derive_subgroup_tariffs(
     assert scenario.depends_on is not None
     rd = config.run_defaults
 
-    dep_scenario = config.scenario(scenario.depends_on)
+    dep_scenario = config.scenario(scenario.depends_on[0])
     group_col = scenario.subclass_config.group_col
     gv2s = _group_value_to_subclass(scenario)
 
@@ -474,6 +475,212 @@ def derive_tariffs(
 
 
 # ---------------------------------------------------------------------------
+# Prep tasks for multi_rate_fixed quartets
+# ---------------------------------------------------------------------------
+
+
+def _resolve_state_path(config: PipelineConfig, path_str: str) -> Path:
+    """Resolve a manual-override path: absolute as-is, else relative to the
+    state config dir.
+
+    ``pathlib`` treats an absolute rhs as overriding the lhs entirely, so a
+    plain ``/`` join is correct for both cases.
+    """
+    return config.state_config_dir / path_str
+
+
+@task(log_prints=True)
+def compute_candidate_tariff_rr_for_fixed(
+    config: PipelineConfig,
+    scenario: ScenarioConfig,
+    req_outputs: dict[str, dict[str, Path]],
+) -> Path:
+    """Compute and write the candidate-tariff subclass RR YAML.
+
+    If ``scenario.candidate_tariff_rr_yaml_path`` is set, that file is copied
+    to the canonical destination verbatim — no derivation, no dependency on
+    ``req_outputs``.
+
+    Otherwise, reads the candidate_tariff_scenario's precalc bills to derive
+    the HP/non-HP revenue requirement split (delivery + supply).  Also
+    computes the standard BAT-based methods from ``bat_allocation_scenario``'s
+    precalc outputs so the YAML contains all available allocation methods.
+
+    Returns the path to the written RR YAML.
+    """
+    assert scenario.subclass_config is not None
+    out_path = config.state_config_dir / multi_rate_rr_path(config, scenario)
+
+    if scenario.candidate_tariff_rr_yaml_path is not None:
+        manual_path = _resolve_state_path(
+            config, scenario.candidate_tariff_rr_yaml_path
+        )
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(manual_path, out_path)
+        log.info(
+            "compute_candidate_tariff_rr_for_fixed[%s]: using manual RR yaml %s -> %s",
+            scenario.name,
+            manual_path,
+            out_path,
+        )
+        return out_path
+
+    assert scenario.candidate_tariff_scenario is not None
+    assert scenario.bat_allocation_scenario is not None
+    rd = config.run_defaults
+
+    ct_scenario = scenario.candidate_tariff_scenario
+    ct_dirs = req_outputs[ct_scenario]
+    ct_delivery_dir = ct_dirs["precalc_delivery"]
+    bat_allocation_scenario = scenario.bat_allocation_scenario
+
+    group_col = scenario.subclass_config.group_col
+    gv2s = _group_value_to_subclass(scenario)
+    cols = tuple(SUBCLASS_RR_ALLOCATION_METHODS)
+
+    # Load base RR for total targets
+    base_rr_path = config.state_config_dir / rd.rr_single_rate
+    base_rr = yaml.safe_load(base_rr_path.read_text(encoding="utf-8"))
+    total_delivery_rr = float(base_rr["total_delivery_revenue_requirement"])
+    total_delivery_and_supply_rr = float(
+        base_rr["total_delivery_and_supply_revenue_requirement"]
+    )
+    overrides = _parse_resstock_overrides(base_rr)
+
+    # Compute standard BAT-based delivery and supply breakdowns from the
+    # BAT-allocation scenario's precalc outputs (for reference methods in the YAML).
+    bat_dirs = req_outputs[bat_allocation_scenario]
+    delivery_breakdowns = compute_subclass_rr(
+        run_dir=bat_dirs["precalc_delivery"],
+        group_col=group_col,
+        cross_subsidy_cols=cols,
+    )
+    total_breakdowns = compute_subclass_rr(
+        run_dir=bat_dirs["precalc_supply"],
+        group_col=group_col,
+        cross_subsidy_cols=cols,
+    )
+
+    # Compute candidate_tariff delivery (HP bill sums on the candidate tariff)
+    # and supply (class supply RR distributed by candidate_tariff_supply_method).
+    # Passthrough supply shares use the candidate-tariff (e.g.
+    # default_rd_uncalibrated) delivery and delivery+supply bills so they
+    # match the delivery rule. Other methods (percustomer / volumetric /
+    # epmc) use the BAT-allocation scenario (usually default): those shares
+    # come from customer counts, kWh, and MC.
+    supply_method = scenario.candidate_tariff_supply_method or "passthrough"
+    if supply_method not in CANDIDATE_TARIFF_SUPPLY_METHODS:
+        msg = (
+            f"Scenario {scenario.name!r}: candidate_tariff_supply_method "
+            f"{supply_method!r} is not one of {CANDIDATE_TARIFF_SUPPLY_METHODS}."
+        )
+        raise ValueError(msg)
+    if supply_method == "passthrough":
+        supply_run_dir = ct_dirs["precalc_supply"]
+        alloc_run_dir = ct_delivery_dir
+    else:
+        supply_run_dir = None
+        alloc_run_dir = bat_dirs["precalc_delivery"]
+    ct_result = compute_candidate_tariff_subclass_rr(
+        candidate_tariff_run_dir=ct_delivery_dir,
+        total_delivery_rr=total_delivery_rr,
+        candidate_tariff_supply_run_dir=supply_run_dir,
+        total_delivery_and_supply_rr=total_delivery_and_supply_rr,
+        supply_method=supply_method,
+        allocation_run_dir=alloc_run_dir,
+        group_col=group_col,
+    )
+
+    differentiated_yaml_path, _ = _write_revenue_requirement_yamls(
+        delivery_breakdowns=delivery_breakdowns,
+        run_dir=bat_dirs["precalc_delivery"],
+        group_col=group_col,
+        utility=config.utility,
+        default_revenue_requirement=total_delivery_rr,
+        differentiated_yaml_path=out_path,
+        default_yaml_path=base_rr_path,
+        group_value_to_subclass=gv2s,
+        total_breakdowns=total_breakdowns,
+        total_delivery_rr=total_delivery_rr,
+        total_delivery_and_supply_rr=total_delivery_and_supply_rr,
+        customer_count_override=overrides.customer_count_override,
+        kwh_scale_factor=overrides.kwh_scale_factor,
+        candidate_tariff_rr=ct_result.delivery,
+        candidate_tariff_supply_rr=ct_result.supply,
+    )
+    log.info(
+        "compute_candidate_tariff_rr_for_fixed[%s]: wrote %s",
+        scenario.name,
+        differentiated_yaml_path,
+    )
+    return differentiated_yaml_path
+
+
+@task(log_prints=True)
+def prepare_fixed_tariffs(
+    config: PipelineConfig,
+    scenario: ScenarioConfig,
+    req_outputs: dict[str, dict[str, Path]],
+) -> list[Path]:
+    """Relabel-copy each subgroup's source tariff into this scenario's stems.
+
+    For each subgroup in a ``multi_rate_fixed`` scenario, the source tariff is
+    either:
+
+    * ``copy_from``: the tariff from a prerequisite scenario
+      (``*_calibrated.json`` for ``single_rate``, posted JSON for
+      ``single_rate_uncalibrated``), or
+    * ``tariff_json_path`` / ``tariff_json_supply_path``: an explicit path to
+      use verbatim, bypassing any scenario dependency.
+
+    Either way this is a pure filename relabelling — no tariff modification.
+
+    Returns all written tariff JSON paths.
+    """
+    assert scenario.subclass_config is not None
+    json_dir = config.state_config_dir / "tariffs" / "electric"
+    written: list[Path] = []
+
+    for sg in scenario.subclass_config.subgroups:
+        for is_supply in (False, True):
+            manual_source = (
+                sg.tariff_json_supply_path if is_supply else sg.tariff_json_path
+            )
+            if manual_source is not None:
+                source_path = _resolve_state_path(config, manual_source)
+            else:
+                assert sg.copy_from is not None
+                source_scenario = config.scenario(sg.copy_from)
+                source_stem = tariff_stem(
+                    config.utility,
+                    source_scenario,
+                    supply=is_supply,
+                    calibrated=not source_scenario.is_uncalibrated,
+                )
+                source_path = json_dir / f"{source_stem}.json"
+
+            # Destination: this scenario's precalc stem for this subgroup
+            dest_stem = tariff_stem(
+                config.utility,
+                scenario,
+                sg.alias,
+                supply=is_supply,
+                calibrated=False,
+            )
+            dest_path = json_dir / f"{dest_stem}.json"
+
+            _relabel_tariff_copy(source_path, dest_path, dest_stem)
+            written.append(dest_path)
+
+    log.info(
+        "prepare_fixed_tariffs[%s]: wrote %d tariff JSONs",
+        scenario.name,
+        len(written),
+    )
+    return written
+
+
+# ---------------------------------------------------------------------------
 # Quartet flow
 # ---------------------------------------------------------------------------
 
@@ -529,6 +736,7 @@ def run_quartet(
     batch_dir: Path,
     process_workers: int,
     concurrent: bool,
+    promote_tariffs: bool = True,
 ) -> dict[str, Path]:
     """Run one scenario's full quartet: 2 stages × 2 variants = 4 CAIRO runs.
 
@@ -537,6 +745,8 @@ def run_quartet(
     1. **Precalc stage** — run delivery and supply ``cairo_run`` tasks.
     2. **Tariff promotion** — extract ``*_calibrated.json`` from precalc
        outputs so they are available as inputs for the calibrated stage.
+       Skipped when ``promote_tariffs`` is False (uncalibrated quartets:
+       both stages bill the posted tariff).
     3. **Calibrated stage** — run delivery and supply ``cairo_run`` tasks.
 
     All run configurations are already materialised in the scenario YAML by
@@ -571,6 +781,9 @@ def run_quartet(
             when ``concurrent`` is True (see above).
         concurrent: ``concurrent_variants`` from the pipeline YAML. Whether
             each stage's delivery and supply runs overlap.
+        promote_tariffs: If False, skip writing ``*_calibrated.json`` from
+            precalc outputs. Used by ``single_rate_uncalibrated`` quartets,
+            whose calibrated stage still bills the posted tariff.
 
     Returns:
         Mapping of ``{stage}_{variant}`` to the output directory path for
@@ -595,13 +808,21 @@ def run_quartet(
     results["precalc_supply"] = precalc_s_dir
 
     # --- Tariff promotion seam ---
-    promoted = _promote_calibrated_tariffs([precalc_d_dir, precalc_s_dir], state=state)
-    log.info(
-        "run_quartet[%s]: promoted %d calibrated tariffs: %s",
-        scenario_name,
-        len(promoted),
-        [p.name for p in promoted],
-    )
+    if promote_tariffs:
+        promoted = _promote_calibrated_tariffs(
+            [precalc_d_dir, precalc_s_dir], state=state
+        )
+        log.info(
+            "run_quartet[%s]: promoted %d calibrated tariffs: %s",
+            scenario_name,
+            len(promoted),
+            [p.name for p in promoted],
+        )
+    else:
+        log.info(
+            "run_quartet[%s]: skipping tariff promotion (uncalibrated)",
+            scenario_name,
+        )
 
     # --- Stage 2: calibrated ---
     cal_d_dir, cal_s_dir = _run_stage(
@@ -681,6 +902,33 @@ def preflight(
     return yaml_path
 
 
+def _partition_scenarios(
+    selected: list[ScenarioConfig],
+) -> tuple[list[ScenarioConfig], list[ScenarioConfig], list[ScenarioConfig]]:
+    """Split selected scenarios into independent / derive-dependent / fixed.
+
+    Every selected scenario must land in exactly one bucket so a new quartet
+    kind (or a new ``depends_on`` shape) cannot be skipped by ``run_batch``.
+    """
+    fixed = [s for s in selected if s.quartet == "multi_rate_fixed"]
+    dependent = [
+        s
+        for s in selected
+        if s.quartet != "multi_rate_fixed" and s.depends_on is not None
+    ]
+    independent = [
+        s for s in selected if s.quartet != "multi_rate_fixed" and s.depends_on is None
+    ]
+    dispatched = {s.name for s in independent + dependent + fixed}
+    missing = sorted({s.name for s in selected} - dispatched)
+    if missing:
+        raise RuntimeError(
+            f"run_batch: scenarios were not dispatched: {missing}. "
+            "Update the independent/dependent/fixed partition."
+        )
+    return independent, dependent, fixed
+
+
 # ---------------------------------------------------------------------------
 # Master flow
 # ---------------------------------------------------------------------------
@@ -696,8 +944,10 @@ def run_batch(
     """Master flow: load config, preflight, run scenarios in dependency order.
 
     Scenarios without ``depends_on`` (independent) are run first; scenarios
-    with dependencies run after their dependency has completed (with a
-    ``derive_tariffs`` step in between).
+    with a single ``depends_on`` parent run after that parent has completed
+    (with a ``derive_tariffs`` step in between).  ``multi_rate_fixed``
+    scenarios wait on every name in ``depends_on``, then run their prep
+    tasks.
 
     Args:
         yaml_path: Path to the pipeline YAML (e.g. ``pipeline_bge.yaml``).
@@ -719,13 +969,12 @@ def run_batch(
     # unmounted /data.sb.
     batch_dir.mkdir(parents=True, exist_ok=True)
 
-    # --- Partition scenarios into independent and dependent ---
+    # --- Partition scenarios into independent, dependent, and fixed ---
     selected = list(config.scenarios.values())
     if scenarios is not None:
         selected = [s for s in selected if s.name in scenarios]
 
-    independent = [s for s in selected if s.depends_on is None]
-    dependent = [s for s in selected if s.depends_on is not None]
+    independent, dependent, fixed = _partition_scenarios(selected)
 
     # --- Run independent scenarios ---
     for scenario in independent:
@@ -737,13 +986,14 @@ def run_batch(
             batch_dir=batch_dir,
             process_workers=config.process_workers,
             concurrent=config.concurrent_variants,
+            promote_tariffs=not scenario.is_uncalibrated,
         )
 
     # --- Run dependent scenarios (after dependency + derive step) ---
     for scenario in dependent:
         assert scenario.depends_on is not None
         dep_outputs = check_dependency(
-            batch_dir, config.state, config.utility, scenario.depends_on
+            batch_dir, config.state, config.utility, scenario.depends_on[0]
         )
         dep_precalc = {
             "precalc_delivery": dep_outputs["precalc_delivery"],
@@ -758,6 +1008,35 @@ def run_batch(
             batch_dir=batch_dir,
             process_workers=config.process_workers,
             concurrent=config.concurrent_variants,
+            promote_tariffs=not scenario.is_uncalibrated,
+        )
+
+    # --- Run fixed scenarios (multi_rate_fixed: separate prep tasks) ---
+    for scenario in fixed:
+        # Check all required scenarios have completed. May be empty/None when
+        # both the RR yaml and every subgroup's tariff are manually supplied.
+        req_outputs: dict[str, dict[str, Path]] = {}
+        for req_name in scenario.depends_on or []:
+            req_outputs[req_name] = check_dependency(
+                batch_dir, config.state, config.utility, req_name
+            )
+
+        # Task 1: Compute candidate-tariff subclass RR
+        compute_candidate_tariff_rr_for_fixed(config, scenario, req_outputs)
+
+        # Task 2: Prepare tariff JSONs (relabel-copy from source scenarios)
+        prepare_fixed_tariffs(config, scenario, req_outputs)
+
+        # Task 3: Run the quartet (no file modification, only CAIRO execution)
+        run_quartet(
+            scenario.name,
+            state=config.state,
+            utility=config.utility,
+            yaml_path=scenarios_yaml,
+            batch_dir=batch_dir,
+            process_workers=config.process_workers,
+            concurrent=config.concurrent_variants,
+            promote_tariffs=not scenario.is_uncalibrated,
         )
 
     log.info("run_batch: all scenarios complete for batch %s", batch)

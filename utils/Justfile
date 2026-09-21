@@ -98,7 +98,7 @@ sweep-tou-window path_supply_energy_mc path_supply_capacity_mc state utility yea
 # =============================================================================
 
 # Revenue requirement YAML outputs from CAIRO BAT results.
-compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yaml_path run_num="1" group_col="has_hp" group_value_to_subclass="" base_rr_yaml="" run_dir_supply="" resstock_base="" upgrade="00":
+compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yaml_path run_num="1" group_col="has_hp" group_value_to_subclass="" base_rr_yaml="" run_dir_supply="" resstock_base="" upgrade="00" candidate_tariff_run_dir="" candidate_tariff_supply_run_dir="" candidate_tariff_supply_method="passthrough":
     uv run python {{ project_root }}/utils/mid/compute_subclass_rr.py \
       --run-dir "{{ run_dir }}" \
       --run-num "{{ run_num }}" \
@@ -110,7 +110,10 @@ compute-subclass-rr run_dir scenario_config differentiated_yaml_path default_yam
       {{ if base_rr_yaml != "" { "--base-rr-yaml \"" + base_rr_yaml + "\"" } else { "" } }} \
       {{ if run_dir_supply != "" { "--run-dir-supply \"" + run_dir_supply + "\"" } else { "" } }} \
       {{ if resstock_base != "" { "--resstock-base \"" + resstock_base + "\"" } else { "" } }} \
-      {{ if resstock_base != "" { "--upgrade \"" + upgrade + "\"" } else { "" } }}
+      {{ if resstock_base != "" { "--upgrade \"" + upgrade + "\"" } else { "" } }} \
+      {{ if candidate_tariff_run_dir != "" { "--candidate-tariff-run-dir \"" + candidate_tariff_run_dir + "\"" } else { "" } }} \
+      {{ if candidate_tariff_supply_run_dir != "" { "--candidate-tariff-supply-run-dir \"" + candidate_tariff_supply_run_dir + "\"" } else { "" } }} \
+      {{ if candidate_tariff_run_dir != "" { "--candidate-tariff-supply-method \"" + candidate_tariff_supply_method + "\"" } else { "" } }}
 
 # Seasonal discount inputs from run outputs + ResStock loads.
 # Uses hive partitions (resstock_base + state + upgrade); building_ids from run metadata.

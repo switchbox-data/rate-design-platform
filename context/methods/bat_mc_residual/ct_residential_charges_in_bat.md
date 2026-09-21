@@ -324,8 +324,7 @@ UTILITY=ct_ui            just s ct classify-charges
 # (the generic name-based classifier would mis-fire on Rate 7's TOU splits and
 # the "Energy Charge" mislabeling -- see the Rate 5/7 section above). Instead,
 # decisions were carried over from ct_eversource_charge_decisions.json by
-# matching rate_group_name (dev/carry_over_ct_elecheat_tou_decisions.py, gitignored
-# one-off script).
+# matching rate_group_name (one-off script, not committed).
 
 # After editing *_charge_decisions.json
 UTILITY=ct_eversource    just s ct fetch-monthly-rates 2025-01 2025-12

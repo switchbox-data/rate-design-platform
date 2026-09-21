@@ -45,7 +45,7 @@ Release-level defaults are loaded from `data/resstock/config.yaml`. State-specif
 | `--identify-heating-type`      | `True`                                         | Add heating-type columns                                                            |
 | `--identify-natgas-connection` | `True`                                         | Add `has_natgas_connection`                                                         |
 | `--add-vulnerability-columns`  | per-state from `state_configs.yaml`            | Add LMI columns; defaults True for NY, False for RI. Pass True/False to override.   |
-| `--approximate-non-hp-load`    | `True`                                         | Run k-nearest-neighbor HVAC substitution for upgrade 02                             |
+| `--approximate-non-hp-load`    | `True`                                         | Run k-nearest-neighbor HVAC substitution for each upgrade in `approx_upgrade_ids`   |
 | `--adjust-mf-electricity`      | `True`                                         | Apply MF non-HVAC electricity adjustment (00 and 02)                                |
 | `--assign-utility`             | `True`                                         | Assign electric/gas utilities (NY, RI only)                                         |
 | `--electric-poly-filename`     | from `state_configs.yaml`                      | Electric utility polygon CSV; overrides config default                              |
@@ -298,15 +298,15 @@ Logic is in `_assign_utility()`. For each state:
 
 **Pre-flight validation:** `validate_utility_assignment_args()` (called in step 0) checks that the utility-assignment upgrade is in `--upgrade-ids` and that all requested states are in `SUPPORTED_UTILITY_STATES`. Unsupported states or missing upgrades halt the pipeline before any data is fetched.
 
-### Step 2c-i: Approximate non-HP load (upgrade 02)
+### Step 2c-i: Approximate non-HP load
 
 Runs only when all three conditions are met:
 
 - `--approximate-non-hp-load True`
-- upgrade `02` is in `--upgrade-ids`
+- at least one of `approx_upgrade_ids` (from `data/resstock/config.yaml`; currently `01` and `02`) is in `--upgrade-ids`
 - `load_curve_hourly` is in `--file-types`
 
-Logic is in `_approximate_non_hp_load()`. For each state:
+Logic is in `_approximate_non_hp_load()`. For each (state, upgrade) pair in the intersection of `--upgrade-ids` and `approx_upgrade_ids`:
 
 1. **Identify targets.** Reads `metadata-sb.parquet` from `path_sb` (which already has `has_hp` and `heats_with_*` columns from step 2a). Finds non-HP multifamily buildings and non-HP "other fuel type" buildings via `_identify_non_hp_mf` and `_identify_other_fuel_types`.
 

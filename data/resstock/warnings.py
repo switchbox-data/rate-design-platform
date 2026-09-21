@@ -16,7 +16,7 @@ def collect_run_warnings(
     file_types: list[str],
     upgrade_ids: list[str],
     approximate_non_hp_load: bool,
-    approx_upgrade: str,
+    approx_upgrades: list[str],
     adjust_mf_electricity: bool,
     mf_adj_upgrades: list[str],
     assign_utility: bool,
@@ -36,8 +36,8 @@ def collect_run_warnings(
         Upgrade IDs requested via ``--upgrade-ids``.
     approximate_non_hp_load:
         Whether the non-HP load approximation step is enabled.
-    approx_upgrade:
-        The upgrade ID that the approximation step targets (from config).
+    approx_upgrades:
+        Upgrade IDs targeted by the non-HP load approximation (from config).
     adjust_mf_electricity:
         Whether the MF electricity adjustment step is enabled.
     mf_adj_upgrades:
@@ -71,13 +71,13 @@ def collect_run_warnings(
             "'load_curve_hourly' to --file-types if you want non-HP load curves approximated."
         )
 
-    if approximate_non_hp_load and approx_upgrade not in [
-        u.zfill(2) for u in upgrade_ids
-    ]:
+    if approximate_non_hp_load and not any(
+        u.zfill(2) in approx_upgrades for u in upgrade_ids
+    ):
         _warn(
-            f"--approximate-non-hp-load is enabled but upgrade {approx_upgrade!r} is not "
-            f"in --upgrade-ids. The approximation step will be skipped. Add "
-            f"upgrade {approx_upgrade!r} to --upgrade-ids if you want non-HP load curves approximated."
+            f"--approximate-non-hp-load is enabled but none of the requested upgrade IDs "
+            f"are in approx_upgrade_ids {approx_upgrades}. The approximation step will "
+            f"be skipped. Check --upgrade-ids or approx_upgrade_ids in config.yaml."
         )
 
     if adjust_mf_electricity and "load_curve_hourly" not in file_types:

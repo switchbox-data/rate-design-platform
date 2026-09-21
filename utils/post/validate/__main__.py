@@ -29,8 +29,8 @@ from utils.post.validate import (
     check_bat_near_zero,
     check_bills_increase_with_supply,
     check_flex_subclass_revenue_expectations,
-    check_hp_subclass_revenue_lower_with_flex,
     check_hp_bat_increases_with_supply,
+    check_hp_subclass_revenue_lower_with_flex,
     check_nonhp_calibrated_above_original,
     check_nonhp_customers_in_upgrade02,
     check_output_completeness,
@@ -790,25 +790,38 @@ def _validate_block(
                 _record(check_result, run_num=run_num)
 
             if config.has_subclasses or config.elasticity != 0.0:
-                operative_bat = bat_col_for_allocation(
-                    config.residual_allocation_delivery
-                )
-                check_result, ok = _safe_execute(
-                    f"check_bat_near_zero(run {run_num})",
-                    check_bat_near_zero,
-                    bat,
-                    meta,
-                    subclass_spec=config.subclass_spec or block_subclass_spec,
-                    bat_metric=operative_bat,
-                )
-                if ok and check_result is not None:
-                    check_result = _maybe_downgrade_bat_near_zero(
-                        check_result,
-                        cost_scope=config.cost_scope,
-                        residual_allocation_delivery=config.residual_allocation_delivery,
-                        residual_allocation_supply=config.residual_allocation_supply,
+                if config.residual_allocation_delivery == "candidate_tariff":
+                    # Skip BAT near-zero check for candidate_tariff allocation.
+                    # In candidate_tariff scenarios (e.g. hp_rd_vs_default), subclass
+                    # revenue requirements are derived from bills customers actually pay
+                    # on the candidate tariff (e.g. RD for HP, R for non-HP), not from
+                    # a formulaic residual allocation. BAT in precalc candidate_tariff
+                    # runs measures cross-subsidy on those posted tariffs, so the
+                    # operative BAT metric is not expected to be near zero.
+                    #
+                    # See context/code/orchestration/multi_rate_fixed_candidate_tariff.md
+                    # for the full explanation of the candidate_tariff method.
+                    pass
+                else:
+                    operative_bat = bat_col_for_allocation(
+                        config.residual_allocation_delivery
                     )
-                    _record(check_result, run_num=run_num)
+                    check_result, ok = _safe_execute(
+                        f"check_bat_near_zero(run {run_num})",
+                        check_bat_near_zero,
+                        bat,
+                        meta,
+                        subclass_spec=config.subclass_spec or block_subclass_spec,
+                        bat_metric=operative_bat,
+                    )
+                    if ok and check_result is not None:
+                        check_result = _maybe_downgrade_bat_near_zero(
+                            check_result,
+                            cost_scope=config.cost_scope,
+                            residual_allocation_delivery=config.residual_allocation_delivery,
+                            residual_allocation_supply=config.residual_allocation_supply,
+                        )
+                        _record(check_result, run_num=run_num)
 
             bat_summary, summary_ok = _safe_execute(
                 f"summarize_bat_by_subclass(run {run_num})",

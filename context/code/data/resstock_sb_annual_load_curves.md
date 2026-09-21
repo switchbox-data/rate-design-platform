@@ -20,7 +20,7 @@ use or fall back to raw NREL annual totals.
 
 The `_sb` release modifies **hourly** load curves in place:
 
-1. Non-HP approximation (upgrade 02): rewrites heating/cooling energy consumption and `out.load.{heating,cooling}.energy_delivered.kbtu` for selected MF highrise buildings.
+1. Non-HP approximation (`approx_upgrade_ids`, currently 01 and 02): rewrites heating/cooling energy consumption and `out.load.{heating,cooling}.energy_delivered.kbtu` for selected MF highrise buildings.
 2. Multifamily electricity adjustment: scales selected electricity columns.
 
 NREL’s shipped `load_curve_annual` is computed from **unmodified** 15-minute/hourly simulations. Copying raw annual into `_sb` would disagree with `_sb` hourly. Raw annual remains listed in `SB_CLONE_EXCLUDED_FILE_TYPES` so **clone** never copies it; `_sb` annual is generated from modified hourly instead.
@@ -120,7 +120,7 @@ There are **50** such end-use/fuel columns in 2024.2 (electricity, natural gas, 
 
 Same names in hourly and annual (already `.kbtu`).
 
-**Why include them:** Heating/cooling delivered are rewritten by non-HP approximation on upgrade 02; hot water is not rewritten there but is still a physical annual total that should stay consistent with the (corrected) hourly series. After bsf ≥ 1.6.6, Σ(hourly) matches NREL annual for unmodified buildings.
+**Why include them:** Heating/cooling delivered are rewritten by non-HP approximation on `approx_upgrade_ids` (currently 01 and 02); hot water is not rewritten there but is still a physical annual total that should stay consistent with the (corrected) hourly series. After bsf ≥ 1.6.6, Σ(hourly) matches NREL annual for unmodified buildings.
 
 **No unit conversion:** Do not apply a kWh↔kBtu factor; both schemas label these columns as kBtu.
 

@@ -9,6 +9,8 @@
 #   just s ny run-all-utilities-sequential                      # all utilities for a state
 #   UTILITY=rie just -f ri/Justfile all-pre                     # via state wrapper directly
 #   set -a && source ny/state.env && set +a && UTILITY=nyseg just all-pre  # manual source
+#   just s md serve-prefect                                     # start Prefect server (separate terminal)
+#   PREFECT_API_URL=http://127.0.0.1:4200/api just s md run-pipeline md_20260803_a  # run Prefect pipeline batch
 # =============================================================================
 # Tier 1: Identity (set by state wrapper, dispatch, or manual source)
 # =============================================================================
@@ -41,6 +43,7 @@ cambium_ba := env_var_or_default('CAMBIUM_BA', 'p133')
 year := env_var_or_default('YEAR', '2025')
 mc_year := env_var_or_default('MC_YEAR', year)
 dist_load_year := env_var_or_default('DIST_LOAD_YEAR', year)
+bulk_tx_load_year := env_var_or_default('BULK_TX_LOAD_YEAR', year)
 upgrade := env_var_or_default('UPGRADE', '00')
 monthly_rates_year := env_var_or_default('MONTHLY_RATES_YEAR', '2025')
 upstream_hours := env_var_or_default('UPSTREAM_HOURS', '100')
@@ -74,6 +77,7 @@ path_tariffs_gas := path_config / "tariffs/gas"
 path_rateacuity_yaml := path_tariffs_gas / "rateacuity_tariffs.yaml"
 path_scenarios := path_config / "scenarios"
 path_scenario_config := path_scenarios / "scenarios_" + utility + ".yaml"
+path_pipeline_yaml := path_scenarios / ("pipeline_" + utility + ".yaml")
 path_periods_yaml := path_config / "periods" / utility + ".yaml"
 path_rev_requirement := path_config / "rev_requirement"
 path_default_rev_requirement := path_rev_requirement / utility + ".yaml"
@@ -388,7 +392,7 @@ create-dist-and-sub-tx-mc-data-all:
 # MID-CONFIG: generate between runs (using outputs from earlier runs)
 # =============================================================================
 
-compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" differentiated_yaml=path_differentiated_rev_requirement default_yaml=path_default_rev_requirement group_value_to_subclass="true=hp,false=non-hp" base_rr_yaml=path_default_rev_requirement run_dir_supply="" resstock_base="" upgrade="00":
+compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" differentiated_yaml=path_differentiated_rev_requirement default_yaml=path_default_rev_requirement group_value_to_subclass="true=hp,false=non-hp" base_rr_yaml=path_default_rev_requirement run_dir_supply="" resstock_base="" upgrade="00" candidate_tariff_run_dir="" candidate_tariff_supply_run_dir="" candidate_tariff_supply_method="passthrough":
     just -f {{ path_repo }}/utils/Justfile compute-subclass-rr \
       "{{ run_dir }}" \
       "{{ scenario_config }}" \
@@ -400,7 +404,10 @@ compute-subclass-rr run_dir scenario_config run_num="1" group_col="has_hp" diffe
       "{{ base_rr_yaml }}" \
       "{{ run_dir_supply }}" \
       "{{ resstock_base }}" \
-      "{{ upgrade }}"
+      "{{ upgrade }}" \
+      "{{ candidate_tariff_run_dir }}" \
+      "{{ candidate_tariff_supply_run_dir }}" \
+      "{{ candidate_tariff_supply_method }}"
 
 compute-seasonal-discount-inputs run_dir resstock_base state upgrade cross_subsidy_col="BAT_percustomer" output_dir="" base_tariff_json="" group_col="has_hp" subclass_value="true" group_value_to_subclass="":
     just -f {{ path_repo }}/utils/Justfile compute-seasonal-discount-inputs \
@@ -1449,7 +1456,77 @@ build-master-bat batch run_delivery run_supply *batch_overrides:
 
 # script_args: optional trailing args passed to the script as-is. Use to pass
 # per-utility batch overrides (for example, --batch-override cenhud=ny_20260306_r1-8)
-# and optional LMI flags (for example, --calculate-lmi --lmi-participation-rate 0.4).
+# and optional LMI flags (for example, --calculate-lmi --lmi-participation-rates 1.0 0.48).
+
+# =============================================================================
+# PREFECT PIPELINE
+#
+# Runs scenarios defined in a per-utility pipeline YAML
+# (config/scenarios/pipeline_{utility}.yaml) via Prefect. See
+# context/code/orchestration/prefect_pipeline.md for the full architecture
+# and a state-specific end-to-end example.
+# =============================================================================
+
+# Start a local Prefect server to track flows/tasks/run state for pipeline
+# batches. Long-lived infra meant to survive across many batches, so this is
+# kept foreground-only and separate from run-pipeline: start it once in its
+# own terminal, then export PREFECT_API_URL in the terminal you run
+# run-pipeline from (see run-pipeline's own precondition check below).
+#
+# just s md serve-prefect
+serve-prefect port="4200":
+    uv run prefect server start --port {{ port }}
+
+# Run (or resume) a Prefect pipeline batch for the current state/utility.
+# Re-running with the same batch name resumes: cairo_run skips any run whose
+# .runs/{name}.path index file already exists, so a rerun only redoes what's
+# missing or failed. Pass scenario names to additionally restrict which
+# scenarios preflight/the run considers at all (omit to run every scenario
+# in the pipeline YAML).
+#
+#   just s md run-pipeline md_20260803_a
+# just s md run-pipeline md_20260803_a default          # single scenario
+run-pipeline batch *scenarios:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${PREFECT_API_URL:?Set PREFECT_API_URL before running (see: just serve-prefect). e.g. export PREFECT_API_URL=http://127.0.0.1:4200/api}"
+    uv run python -m rate_design.hp_rates.run_pipeline \
+      --yaml "{{ path_pipeline_yaml }}" \
+      --batch "{{ batch }}" \
+      {{ if scenarios != "" { "--scenarios " + scenarios } else { "" } }}
+
+# =============================================================================
+# POST-PROCESSING: master tables for Prefect pipeline batches
+#
+# One command covers a whole batch: every scenario/stage in each utility's
+# pipeline YAML becomes its own master table under {scenario}_{stage}/.
+# Runs are discovered from the batch's .runs/ index, so no run numbers.
+#
+#   just s md build-master-bills-prefect md_20260803_a
+#   just s md build-all-master-prefect md_20260803_a
+# =============================================================================
+
+# Build master bills for every completed scenario/stage in a Prefect batch.
+build-master-bills-prefect batch *script_args:
+    uv run python {{ path_repo }}/utils/post/build_master_bills_prefect.py \
+        --state "{{ state }}" \
+        --batch "{{ batch }}" \
+        --utilities "{{ utilities }}" \
+        --path-heating-fuel-prices "{{ path_heating_fuel_prices }}" \
+        --price-year "{{ price_year }}" \
+        {{ script_args }}
+
+# Build master BAT for a Prefect batch (needs the baseline segment's master bills).
+build-master-bat-prefect batch *script_args:
+    uv run python {{ path_repo }}/utils/post/build_master_bat_prefect.py \
+        --state "{{ state }}" \
+        --batch "{{ batch }}" \
+        --utilities "{{ utilities }}" \
+        {{ script_args }}
+
+# Both master tables for a batch, bills first (BAT joins the baseline bills).
+build-all-master-prefect batch: (build-master-bills-prefect batch) (build-master-bat-prefect batch)
+    @echo ">> Master bills and BAT complete for batch {{ batch }}" >&2
 
 validate-master-bills batch filter *batch_overrides:
     uv run python {{ path_repo }}/utils/post/validate_master_bills.py \

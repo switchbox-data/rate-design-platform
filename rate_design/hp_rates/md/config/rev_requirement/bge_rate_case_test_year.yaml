@@ -70,7 +70,7 @@ resstock_total_residential_kwh: 15883418277.59 # sum(grid_cons * weight) where u
 resstock_customer_count: 1235521.12 # sum(weight) where utility = bge
 resstock_customer_scale_factor: 0.9892750074479504 # test_year_customer_count / resstock_customer_count
 resstock_total_residential_kwh_scaled_customer: 15713068734.86 # resstock_total_residential_kwh * resstock_customer_scale_factor
-resstock_kwh_scale_factor: 0.8280035547183955 # test_year_residential_kwh / resstock_total_residential_kwh_scaled_customer
+resstock_kwh_scale_factor: 1 #0.8280035547183955 # test_year_residential_kwh / resstock_total_residential_kwh_scaled_customer
 resstock_total_residential_kwh_scaled_customer_kwh: 13010476768.0 # = test_year_residential_kwh (sanity check)
 resstock_monthly_kwh_scaled_customer_kwh:
   1: 1788661993.14

@@ -496,6 +496,31 @@ def load_config(yaml_path: Path) -> dict[str, dict[str, str | int]]:
     return utilities
 
 
+def filter_config_by_tariff_keys(
+    utilities: dict[str, dict[str, str | int]],
+    tariff_keys: set[str] | None,
+) -> dict[str, dict[str, str | int]]:
+    """Return only requested tariff keys, preserving their utility grouping."""
+    if not tariff_keys:
+        return utilities
+
+    available = {key for tariffs in utilities.values() for key in tariffs}
+    missing = tariff_keys - available
+    if missing:
+        raise ValueError(
+            f"Tariff key(s) not found in config: {sorted(missing)}. "
+            f"Available tariff keys: {sorted(available)}"
+        )
+
+    return {
+        utility: {
+            key: identifier for key, identifier in tariffs.items() if key in tariff_keys
+        }
+        for utility, tariffs in utilities.items()
+        if tariff_keys.intersection(tariffs)
+    }
+
+
 def _filename_stem(tariff_key: str, identifier: str | int, effective_date: date) -> str:
     """Return the output filename stem, e.g. rie_default_2025-01-01."""
     date_str = effective_date.isoformat()
@@ -605,6 +630,7 @@ def fetch_genability_tariffs(
     *,
     urdb: bool = False,
     path_urdb_dir: Path | None = None,
+    tariff_keys: set[str] | None = None,
 ) -> None:
     """Load YAML config and fetch all listed Genability tariffs.
 
@@ -627,7 +653,7 @@ def fetch_genability_tariffs(
     log.info("Loading config from %s", yaml_path)
     log.info("Effective date: %s", effective_date.isoformat())
     state_upper = state.upper()
-    utilities_config = load_config(yaml_path)
+    utilities_config = filter_config_by_tariff_keys(load_config(yaml_path), tariff_keys)
     total_tariffs = sum(len(m) for m in utilities_config.values())
     log.info(
         "Config: state=%s, %d utilit(ies), %d tariff(s) to fetch",
@@ -769,6 +795,12 @@ def main() -> None:
         help="Output directory for URDB JSON files. Defaults to path_output_dir.",
     )
     parser.add_argument(
+        "--tariff-key",
+        action="append",
+        dest="tariff_keys",
+        help="Fetch only this exact tariff key from the YAML. Repeat for multiple keys.",
+    )
+    parser.add_argument(
         "--list-utilities",
         action="store_true",
         help="Load YAML and list utilities (no fetch)",
@@ -797,6 +829,7 @@ def main() -> None:
         args.effective_date,
         urdb=args.urdb,
         path_urdb_dir=args.path_urdb_dir,
+        tariff_keys=set(args.tariff_keys) if args.tariff_keys else None,
     )
 
 
