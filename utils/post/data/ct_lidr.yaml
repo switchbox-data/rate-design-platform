@@ -88,3 +88,14 @@ smi:
 usage_cap_kwh:
   non_electric_heat: 800
   electric_heat: 1200
+# Participation sampling (not applied from this file -- wired as the
+# CLI/Justfile default DEFAULT_PARTICIPATION_RATES = [1.0, 0.53]):
+#   1.00 -- policy / full take-up among income-eligible households
+#   0.53 -- observed Eversource LIDR take-up (CY2025)
+# 53% = 199,390 enrolled (Eversource Order 10 compliance in Docket
+# 26-01-03, March 2026) / ~379,000 estimated eligible Eversource
+# households (ACS 1-year 2023 PUMS, inflated to 2026$, under the 60%
+# HHS LIHEAP SMI cap above, allocated by EIA-861 2024 residential
+# account share). See lmi_discounts_in_ct.md Section 4.2.
+# Keep 45-60% as a future sensitivity range around that estimate;
+# do not emit those as default column sets.

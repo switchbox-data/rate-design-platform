@@ -1,6 +1,6 @@
 # Connecticut low-income / energy affordability programs
 
-**Status:** LIDR's five-tier structure, discount percentages, fuel scope (electric only), and 800/1200 kWh usage caps are confirmed against PURA's primary decision record and PURA's own program comparison table. FPL% uses HHS poverty guidelines for `--fpl-year`. Tier 1 SMI% uses the DSS/CEAP **60% HHS LIHEAP SMI** dollar table in `ct_lidr.yaml` (not HUD SMI) — that table is an annually updated guideline (see §2.2). **Implemented** at 100% participation in `utils/post/apply_ct_lidr_to_master_bills.py` (config: `utils/post/data/ct_lidr.yaml`; tests: `tests/test_ct_lidr_discounts.py`), wired into `build_master_bills_prefect.py`. The usage-cap proration mechanic (§3.1) is confirmed by a utility customer-facing FAQ (exact source citation pending — see §3.1) as **volumetric-only**: the discount applies to at most 800/1200 kWh of usage, and the fixed/customer charge is never discounted, whether the household is above or below the cap. This still uses a locally-linear average $/kWh approximation per building-month (no per-tariff block-rate detail in master bills). Still needed: current enrollment by utility and tier (to validate the 100% participation default), and optional CEAP / Operation Fuel modeling inputs.
+**Status:** LIDR's five-tier structure, discount percentages, fuel scope (electric only), and 800/1200 kWh usage caps are confirmed against PURA's primary decision record and PURA's own program comparison table. FPL% uses HHS poverty guidelines for `--fpl-year`. Tier 1 SMI% uses the DSS/CEAP **60% HHS LIHEAP SMI** dollar table in `ct_lidr.yaml` (not HUD SMI) — that table is an annually updated guideline (see §2.2). **Implemented** in `utils/post/apply_ct_lidr_to_master_bills.py` (config: `utils/post/data/ct_lidr.yaml`; tests: `tests/test_ct_lidr_discounts.py`), wired into `build_master_bills_prefect.py`. Production participation defaults are **p100 and p53** (`--lmi-participation-rates 1.0 0.53`), matching RI/NY/MD's two-rate pattern; 53% is observed Eversource take-up (§4.2). The usage-cap proration mechanic (§3.1) is confirmed by a utility customer-facing FAQ (exact source citation pending — see §3.1) as **volumetric-only**: the discount applies to at most 800/1200 kWh of usage, and the fixed/customer charge is never discounted, whether the household is above or below the cap. This still uses a locally-linear average $/kWh approximation per building-month (no per-tariff block-rate detail in master bills). Still needed: UI enrollment by tier, and optional CEAP / Operation Fuel modeling inputs.
 
 **Utilities in scope:** `ct_eversource` (electric; Yankee Gas for gas), `ct_ui` (electric; Avangrid gas affiliates CNG/SCG as relevant).
 
@@ -249,17 +249,55 @@ PURA's 2024 Annual Report confirms three enrollment pathways:
 
 Enrollment lasts **12 months** and is reverified annually. Customers can provide proof during that period to move to a higher discount tier.
 
-The best numbers located so far describe the 2024 DSS expansion and the redesign projections, not current September 2026 enrollment:
+### 4.1 Actual Eversource enrollment by tier (calendar year 2025)
 
-- In February 2024, Eversource estimated **115,000 additional DSS-identified customers** were eligible for the then-50% tier. PURA temporarily placed newly DSS-identified customers at 10% while redesigning the program.
-- Docket reporting cited publicly during the redesign described roughly **91,000 Eversource** and **30,492 UI** customers then qualifying for the old 50% tier. The utilities projected that approximately **14,000 Eversource** and **1,597 UI** customers would land in the new 50% tier; the rest would move among lower five-tier discounts.
+Eversource reports LIDR enrollment annually to PURA under Order 10 of Docket 17-12-03RE11, filed into the RAM docket. The calendar-year 2025 report is [`ES Order Compliance 10 (March 2026).pdf`](https://www.dpuc.state.ct.us/dockcurr.nsf/8e6fc37a54110e3e852576190052b64d/c2c4fb73fe0ddda785258daf005d1910/$FILE/ES%20Order%20Compliance%2010%20(March%202026).pdf), filed 03/03/2026 in **Docket 26-01-03** (Annual Review of the Rate Adjustment Mechanisms of CL&P). Its response to sub-part (c), "The number of customers enrolled in each LIDR Tier":
 
-These are **not current total enrollment counts** and should not be used as participation-rate inputs. Current enrollment by utility and tier remains needed from Dockets 26-01-03 / 26-01-04 (RAM) or 26-05-01 (affordability review).
+| Tier | Discount | Eversource customers enrolled (2025) |
+| ---- | -------- | ------------------------------------ |
+| 1    | 5%       | 20,211                               |
+| 2    | 15%      | 57,524                               |
+| 3    | 20%      | 66,438                               |
+| 4    | 40%      | 2,233                                |
+| 5    | 50%      | 52,984                               |
+| All  | —        | **199,390**                          |
+
+The same filing reports total LIDR implementation cost of **$107,883,542** (of which $102,564,630 is the discount itself), against total billed revenues of **$4.9 B** — **2.18%** of revenue, above the 1.6%-of-revenue budgetary target PURA used when sizing the five tiers (§2.2).
+
+No equivalent UI count has been located; UI's March 2026 RAM filing in Docket 26-01-04 does not carry the Order 10 exhibit, and UI only moved to the five-tier design in August 2026.
+
+### 4.2 Implied participation rate
+
+There is no published "eligible customers" denominator, so we estimate it from Census PUMS against the same income rules the model applies (`utils/post/data/ct_lidr.yaml`). Using ACS 1-year 2023 CT housing microdata (`s3://data.sb/census/pums/acs1/2023/housing/state=CT/`), restricted to occupied housing units, with household income inflated to 2026 dollars by CPI-U (`s3://data.sb/fred/cpi/`, 330.5/304.7 = 1.085) and compared to the 60% HHS LIHEAP SMI table by household size:
+
+- CT occupied households: **1,442,969**
+- Households at or below 60% SMI (LIDR's outer eligibility cap): **487,511** — **33.8%** of all households
+
+Allocating that statewide eligible count to CL&P by its share of CT residential electric accounts (1,174,420 of ~1.51 M, EIA-861 2024, `s3://data.sb/eia/861/electric_utility_stats/`) gives roughly **379,000 eligible Eversource households**. Against 199,390 enrolled:
+
+> **Estimated Eversource LIDR participation rate ≈ 53% (range 45–60%).**
+
+**Modeling defaults:** CT follows the same two-rate pattern as RI (p100 / p40), NY (p100 / p40), and MD (p100 / p48):
+
+| Scenario | Rate | Role                                                   |
+| -------- | ---- | ------------------------------------------------------ |
+| p100     | 100% | Policy / full take-up among income-eligible households |
+| p53      | 53%  | Observed-behavior case — the second production default |
+
+Wired as `DEFAULT_PARTICIPATION_RATES = [1.0, 0.53]` in `apply_ct_lidr_to_master_bills.py` and as `--lmi-participation-rates 1.0 0.53` in `rate_design/hp_rates/ct/Justfile` (`run-with-lmi`). Use a **single overall rate**, not tier-specific take-up: utilities assign tiers by categorical benefit match, so enrolled-by-tier ÷ PUMS-eligible-by-tier is not identifiable (Tier 3 would exceed 100%, Tier 4 would be 7%).
+
+**45–60% is a future sensitivity range, not a default column set.** The range is the uncertainty on the denominator (see caveats below). When a report needs a robustness check around the observed-behavior case, rerun with `--lmi-participation-rates 1.0 0.45 0.53 0.60` — do not bake 45/60 into production defaults.
+
+Caveats that set the range:
+
+- **Territory allocation is uniform.** UI's service territory (New Haven, Bridgeport) is poorer than CL&P's, so CL&P's true low-income share is likely below 33.8%, which would push participation _above_ 53%.
+- **Master-metered units inflate the denominator.** Eligible households without their own electric account cannot enroll, which also biases the estimate low.
+- **PUMS is a 2023 sample inflated to 2026 dollars**, not a 2026 measurement.
 
 **Still needed:**
 
-- [ ] Current Eversource / UI LIDR enrollment by five-tier level
-- [ ] Eligible population estimate → implied participation rate
+- [ ] UI LIDR enrollment by five-tier level (its Order 10 equivalent, or Docket 26-05-01)
+- [ ] A territory-resolved eligible denominator (PUMA-to-utility crosswalk) to tighten the 45–60% range
 - [ ] Hardship and MPP counts
 
 ---
@@ -277,7 +315,7 @@ Implementation implications from the sources reviewed above:
 | Discount shape           | Percentage (**5–50%**), **not** NY-style fixed `$`/month credit ([DocumentCloud p. 1](https://www.documentcloud.org/documents/28561820-utility-bill-payment-assistance-2026/#document/p1/a2826849))                               | High                                                                   |
 | Cap                      | Need heating-type flag (electric vs. non-electric heat) to choose **800** vs. **1200** kWh/mo ([DocumentCloud p. 1](https://www.documentcloud.org/documents/28561820-utility-bill-payment-assistance-2026/#document/p1/a2826850)) | High                                                                   |
 | Eligibility for ResStock | Income supports direct placement into the highest qualifying tier; categorical benefit pathways cannot all be observed in ResStock, so tiers are assigned income-only (documented simplification, §2.2)                           | High for income placement; design choice for categorical eligibility   |
-| Participation sampling   | **100% take-up among income-eligible households** adopted as the modeling default (no enrollment data yet to support a lower rate) — see §6                                                                                       | Design decision                                                        |
+| Participation sampling   | **p100 and p53** are the production defaults (`[1.0, 0.53]`), matching RI/NY/MD. 53% is observed Eversource take-up (§4.2). Keep **45–60% as a later sensitivity range**, not extra default columns                               | High for the two-rate pattern; 53% is an estimate (§4.2)               |
 | Script / wiring          | **Implemented**: `apply_ct_lidr_to_master_bills.py` (+ `ct_lidr.yaml` config), reusing `lmi_common.py`, dispatched from `build_master_bills_prefect.py` for `state_upper == "CT"`                                                 | Implemented                                                            |
 
 ---
@@ -286,8 +324,8 @@ Implementation implications from the sources reviewed above:
 
 1. **(Resolved)** How do the current tariffs prorate fixed and volumetric discounts when usage exceeds the **800 / 1200 kWh cap**? Implemented as "Interpretation A" (§3.1), confirmed by a utility FAQ describing the discount as applied to "the first N kWh of your monthly electric usage": the discount applies only to the volumetric charge, for at most 800/1200 kWh; the fixed/customer charge is never discounted, above or below the cap. Uses a locally-linear-rate approximation since master bills carry only aggregate totals. Still need the exact FAQ source URL to complete the citation (§3.1).
 2. Are third-party supply charges discounted under consolidated billing?
-3. What is the current enrollment by utility and five-tier level? (Needed to validate the 100% participation default below, not to unblock initial implementation.)
-4. **(Resolved)** What observed **participation rate** should be used for sampling? Adopted **100% take-up among income-eligible households** (`participation_rates=[1.0]`, the default in `apply_ct_lidr_to_master_bills.py`), matching how other states' LMI modules in this repo default before enrollment data is available.
+3. **(Resolved for Eversource)** What is the current enrollment by utility and five-tier level? Eversource's CY2025 counts by tier (199,390 total) are in its Order 10 compliance filing in Docket 26-01-03 — see §4.1. UI's equivalent is still outstanding.
+4. **(Resolved)** What observed **participation rate** should be used for sampling? Production defaults are **p100 and p53** (`[1.0, 0.53]`), matching RI/NY/MD. 53% is Eversource enrolled ÷ estimated eligible (§4.2). Keep **45–60% as a future sensitivity range** around that estimate; do not emit those as default columns.
 5. What allocation and participation assumptions are defensible for the optional CEAP and Operation Fuel toggles? (Not yet implemented — LIDR only, so far.)
 6. **(Resolved)** How should the income-ceiling dollar table be parameterized so it doesn't silently go stale? FPL% still uses `--fpl-year` + `fpl_guidelines.yaml`. Tier 1 SMI% uses the DSS/CEAP **60% HHS LIHEAP SMI** table in `ct_lidr.yaml` (not HUD SMI) — replace `smi.by_household_size` and bump `dollar_year` when HHS/DSS publish a new vintage. Pair `--fpl-year` with `smi.dollar_year` (currently 2026).
 
@@ -309,12 +347,12 @@ Implementation implications from the sources reviewed above:
 
 ### A.2 Regulatory dockets (tiers + participation)
 
-| Source                                                                                                 | Why look here                          |
-| ------------------------------------------------------------------------------------------------------ | -------------------------------------- |
-| **PURA Docket 17-12-03RE11**                                                                           | LIDR design / five-tier redesign       |
-| **PURA Docket 25-05-01**                                                                               | Affordability annual review            |
-| Eversource / UI **RAM** / public-benefits filings                                                      | Enrollment and cost statistics         |
-| [PURA Q1 2025 Newsletter](https://portal.ct.gov/-/media/pura/1---website-media/q1-2025-newsletter.pdf) | Notes 5/15/20/40/50% LIDR modification |
+| Source                                                                                                 | Why look here                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PURA Docket 17-12-03RE11**                                                                           | LIDR design / five-tier redesign                                                                                                                                             |
+| **PURA Docket 25-05-01**                                                                               | Affordability annual review                                                                                                                                                  |
+| Eversource / UI **RAM** / public-benefits filings                                                      | Enrollment and cost statistics — **Eversource's Order 10 compliance exhibit is the one that carries per-tier enrollment**; see §4.1 for the CY2025 filing in Docket 26-01-03 |
+| [PURA Q1 2025 Newsletter](https://portal.ct.gov/-/media/pura/1---website-media/q1-2025-newsletter.pdf) | Notes 5/15/20/40/50% LIDR modification                                                                                                                                       |
 
 ### A.3 In-repo context
 
@@ -329,5 +367,5 @@ Implementation implications from the sources reviewed above:
 ### A.4 Remaining research order
 
 1. Pull current LIDR tariff / billing specifications for 800 / 1200 kWh cap mechanics.
-2. Pull 2026 RAM / affordability filings for current enrollment by utility and tier.
+2. ~~Pull 2026 RAM / affordability filings for current enrollment by utility and tier.~~ Done for Eversource (§4.1); UI still outstanding.
 3. Implement `apply_ct_lmi_*` with LIDR on by default, independent opt-in CEAP and Operation Fuel components, and no MPP current-bill adjustment.

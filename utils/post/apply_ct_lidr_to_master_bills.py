@@ -34,11 +34,12 @@ volumetric rate for the month, which is an approximation for any
 tiered/seasonal block rate (CT's own Eversource Rate 6, for example, has a
 700 kWh winter block break).
 
-Currently supports arbitrary participation rates (matching the RI/NY/MD
-calling convention), but the modeling default documented in
-lmi_discounts_in_ct.md Section 5/6 is 100% participation: assign the
-discount to every income-eligible household, with no observed-enrollment
-haircut, since current CT enrollment-by-tier data is not yet available.
+Default participation scenarios match RI/NY/MD's two-rate pattern:
+100% take-up (policy / full-eligibility case) and 53% take-up (observed
+Eversource enrollment). The 53% is enrolled / estimated-eligible from
+Eversource's CY2025 Order 10 filing vs ACS PUMS -- see
+lmi_discounts_in_ct.md Section 4.2. Keep 45-60% as a future sensitivity
+range; do not emit those as default column sets.
 
 Uses polars lazy execution for metadata reads; collects once to build
 eligibility tiers, matching the RI/NY/MD LMI modules' pattern.
@@ -75,6 +76,11 @@ from utils.post.lmi_common import (
 
 ANNUAL_MONTH = "Annual"
 BLDG_ID = "bldg_id"
+
+# Production defaults: p100 (full take-up) then p53 (observed Eversource
+# participation). Derivation and the 45-60% sensitivity range: see
+# context/domain/charges/lmi_discounts_in_ct.md Section 4.2.
+DEFAULT_PARTICIPATION_RATES: list[float] = [1.0, 0.53]
 
 REQUIRED_MASTER_COLS = {
     "elec_total_bill",
@@ -180,7 +186,7 @@ def _sample_ct_participation(
     """Add participation flags and a participation-adjusted tier column.
 
     Sampling uses LIDR eligibility (lidr_tier_raw >= 1) as the pool. At
-    participation_rate=1.0 (the documented CT default), every eligible
+    participation_rate=1.0 (the p100 policy scenario), every eligible
     household participates.
 
     Returns bldg_id, elec_lmi_tier (participation-adjusted), lidr_tier_raw,
@@ -243,9 +249,14 @@ def _apply_lidr_discount(
     applied_col = f"applied_discount_elec_{pct_label}"
 
     if "elec_lmi_tier" in master.columns:
-        joined = master.join(
-            tier_info.select(BLDG_ID, "participates"), on=BLDG_ID, how="left"
-        ).with_columns(pl.col("participates").fill_null(False))
+        # ``master`` may be the output of a prior participation scenario.
+        # Never reuse its temporary ``participates`` flag: each rate must join
+        # the independently sampled flag from its own ``tier_info``.
+        joined = (
+            master.drop("participates", strict=False)
+            .join(tier_info.select(BLDG_ID, "participates"), on=BLDG_ID, how="left")
+            .with_columns(pl.col("participates").fill_null(False))
+        )
     else:
         joined = master.join(
             tier_info.select(BLDG_ID, "elec_lmi_tier", "is_lmi_elec", "participates"),
@@ -313,7 +324,7 @@ def _apply_lidr_discount(
         .then(pl.col("_annual_elec_lmi"))
         .otherwise(pl.col(elec_col))
         .alias(elec_col)
-    ).drop("_annual_elec_lmi")
+    ).drop("_annual_elec_lmi", "participates")
 
 
 def apply_ct_lidr_to_master(
@@ -442,9 +453,12 @@ def main() -> None:
         "--participation-rates",
         type=float,
         nargs="+",
-        default=[1.0],
-        help="One or more participation fractions (0-1). Default 1.0 matches "
-        "the CT modeling default (100%% take-up among income-eligible households).",
+        default=DEFAULT_PARTICIPATION_RATES,
+        help="One or more participation fractions (0-1). Default 1.0 0.53 "
+        "matches RI/NY/MD's two-rate pattern: 100%% take-up (policy case) "
+        "then 53%% (observed Eversource LIDR participation; see "
+        "lmi_discounts_in_ct.md Section 4.2). Keep 45-60%% as a later "
+        "sensitivity range, not as extra default columns.",
     )
     parser.add_argument(
         "--participation-mode", choices=["uniform", "weighted"], default="uniform"

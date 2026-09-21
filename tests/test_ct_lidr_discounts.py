@@ -6,6 +6,7 @@ import polars as pl
 import pytest
 
 from utils.post.apply_ct_lidr_to_master_bills import (
+    DEFAULT_PARTICIPATION_RATES,
     _apply_lidr_discount,
     _sample_ct_participation,
 )
@@ -354,6 +355,37 @@ def test_apply_lidr_discount_non_participant_unchanged() -> None:
         assert jan["applied_discount_elec_100"][0] is False
 
 
+def test_multiple_participation_scenarios_use_independent_flags() -> None:
+    """A later partial-participation scenario must not reuse p100 flags."""
+    master = _synthetic_master((1, 900.0, False), (2, 900.0, False))
+    config = load_ct_lidr_config()
+    disc_by_tier = discount_fractions_for_ct(config)
+
+    p100 = _apply_lidr_discount(
+        master,
+        _tier_info([1, 2], [5, 5]),
+        100,
+        disc_by_tier,
+        config,
+        n_expected_rows=master.height,
+    )
+    result = _apply_lidr_discount(
+        p100,
+        _tier_info([1, 2], [5, 5], participates=[True, False]),
+        53,
+        disc_by_tier,
+        config,
+        n_expected_rows=master.height,
+    )
+
+    jan = result.filter(pl.col("month") == "Jan").sort("bldg_id")
+    assert jan["applied_discount_elec_100"].to_list() == [True, True]
+    assert jan["applied_discount_elec_53"].to_list() == [True, False]
+    assert jan["elec_total_bill_lmi_53"][0] < jan["elec_total_bill"][0]
+    assert jan["elec_total_bill_lmi_53"][1] == jan["elec_total_bill"][1]
+    assert "participates" not in result.columns
+
+
 def test_apply_lidr_discount_zero_usage_no_divide_by_zero() -> None:
     """A building with zero electric usage in a month (e.g. vacant, or data
     gap) must not blow up the volumetric-rate division and should see no
@@ -429,8 +461,17 @@ def test_bill_change_by_income_level_end_to_end() -> None:
         )
 
 
+def test_default_participation_rates_are_p100_and_p53() -> None:
+    """CT production defaults match RI/NY/MD's two-rate pattern: 100% then
+    the observed-behavior rate. 53% is Eversource enrolled / estimated
+    eligible (lmi_discounts_in_ct.md Section 4.2); 45-60% stays a later
+    sensitivity range, not extra default columns.
+    """
+    assert DEFAULT_PARTICIPATION_RATES == [1.0, 0.53]
+
+
 def test_sample_ct_participation_full_takeup() -> None:
-    """At rate=1.0, every eligible building participates (the CT default)."""
+    """At rate=1.0, every eligible building participates (the p100 scenario)."""
     raw_tiers = pl.DataFrame(
         {
             "bldg_id": [1, 2, 3],
