@@ -38,6 +38,10 @@ scenarios:
     # Posted Schedule R billed as-is (CAIRO default mode + large-number RR).
     quartet: single_rate_uncalibrated
     tariff_base: rhp_flat
+  default_rhp_flat_scaled_uncalibrated:
+    # Schedule R-HP with RS-release-comp-scaled delivery rates (CAIRO default mode + large-number RR).
+    quartet: single_rate_uncalibrated
+    tariff_base: rhp_flat_scaled
   default_rd_uncalibrated:
     # Posted Schedule RD billed as-is (CAIRO default mode + large-number RR).
     quartet: single_rate_uncalibrated
