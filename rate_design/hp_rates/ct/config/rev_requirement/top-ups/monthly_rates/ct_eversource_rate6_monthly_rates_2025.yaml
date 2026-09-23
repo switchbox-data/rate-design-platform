@@ -1,0 +1,177 @@
+# CL&P/Eversource Rate 6 (Optional Residential Space Heating) — proposed, Docket 26-05-10.
+# Rate 6 is identical to Rate 1 (Residential, ML 614) EXCEPT for the two rate-class-specific
+# delivery components in already_in_drr below: the fixed customer charge and the core
+# distribution rate. All system-wide riders (ESI, transmission, CTA, CAM, RE, non-bypassable
+# FMCC), the bundled supply commodity, and the excluded-charge decisions are carried over
+# unchanged from ct_eversource_monthly_rates_2025.yaml — including Rate 1's treatment of the
+# negative credits:
+#   - System Benefits Charge (a per-kWh credit): excluded via exclude_eligibility, as in Rate 1,
+#     so it never enters the final rate.
+#   - CTA: kept at its filed value including the summer negative (-0.00029), as in Rate 1; it
+#     nets into the delivery revenue requirement rather than being floored at zero.
+# Rate-6-specific values are from the filed tariff (Exhibit CLP-Rates-3):
+#   - customer_charge: $30.95/month (Distribution Customer Charge).
+#   - core_delivery_rate: $0.09431/kWh (Distribution per kWh). In the heating season (Nov–Mar),
+#     consumption over 700 kWh/month is billed at the discounted $0.07517/kWh. The flat
+#     monthly_rates shape cannot encode the >700 kWh winter block, so only the first-block /
+#     non-heating rate ($0.09431) is shown here; the >700 kWh winter tier lives in the tariff
+#     JSON (ct_eversource_rate6.json).
+# master_tariff_id is null because Rate 6 is a proposed rate with no RateAcuity ID.
+utility: ct_eversource_rate6
+master_tariff_id: null
+start_month: 2025-01
+end_month: 2025-12
+add_to_drr:
+  rate_structure: flat
+  charges:
+    electric_system_improvements_esi:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.01967
+        2025-02: 0.01967
+        2025-03: 0.01967
+        2025-04: 0.01967
+        2025-05: 0.01911
+        2025-06: 0.01911
+        2025-07: 0.01911
+        2025-08: 0.01911
+        2025-09: 0.01911
+        2025-10: 0.01911
+        2025-11: 0.01911
+        2025-12: 0.01911
+    transmission_charge:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.03401
+        2025-02: 0.03401
+        2025-03: 0.03401
+        2025-04: 0.03401
+        2025-05: 0.04433
+        2025-06: 0.04433
+        2025-07: 0.04433
+        2025-08: 0.04433
+        2025-09: 0.04433
+        2025-10: 0.04433
+        2025-11: 0.04433
+        2025-12: 0.04433
+    competitive_transition_assessment_cta:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.00038
+        2025-02: 0.00038
+        2025-03: 0.00038
+        2025-04: 0.00038
+        2025-05: -0.00029
+        2025-06: -0.00029
+        2025-07: -0.00029
+        2025-08: -0.00029
+        2025-09: -0.00029
+        2025-10: -0.00029
+        2025-11: -0.00029
+        2025-12: -0.00029
+    conservation_adjustment_mechanism_cam:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.006
+        2025-02: 0.006
+        2025-03: 0.006
+        2025-04: 0.006
+        2025-05: 0.006
+        2025-06: 0.006
+        2025-07: 0.006
+        2025-08: 0.006
+        2025-09: 0.006
+        2025-10: 0.006
+        2025-11: 0.006
+        2025-12: 0.006
+    renewable_energy_investment_clean_energy_fund:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.001
+        2025-02: 0.001
+        2025-03: 0.001
+        2025-04: 0.001
+        2025-05: 0.001
+        2025-06: 0.001
+        2025-07: 0.001
+        2025-08: 0.001
+        2025-09: 0.001
+        2025-10: 0.001
+        2025-11: 0.001
+        2025-12: 0.001
+    non_bypassable_fmcc_nbfmcc:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.04791
+        2025-02: 0.04791
+        2025-03: 0.04791
+        2025-04: 0.04791
+        2025-05: 0.02355
+        2025-06: 0.02355
+        2025-07: 0.02355
+        2025-08: 0.02355
+        2025-09: 0.01871
+        2025-10: 0.01871
+        2025-11: 0.01871
+        2025-12: 0.01871
+add_to_srr:
+  rate_structure: flat
+  charges:
+    supply_commodity_bundled:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.1119
+        2025-02: 0.1119
+        2025-03: 0.1119
+        2025-04: 0.1119
+        2025-05: 0.1119
+        2025-06: 0.1119
+        2025-07: 0.09748
+        2025-08: 0.09748
+        2025-09: 0.09748
+        2025-10: 0.09748
+        2025-11: 0.09748
+        2025-12: 0.09748
+already_in_drr:
+  rate_structure: flat
+  charges:
+    customer_charge:
+      charge_unit: $/month
+      monthly_rates:
+        2025-01: 30.95
+        2025-02: 30.95
+        2025-03: 30.95
+        2025-04: 30.95
+        2025-05: 30.95
+        2025-06: 30.95
+        2025-07: 30.95
+        2025-08: 30.95
+        2025-09: 30.95
+        2025-10: 30.95
+        2025-11: 30.95
+        2025-12: 30.95
+    core_delivery_rate:
+      charge_unit: $/kWh
+      # $0.09431 = winter first-700 / all-other-months distribution rate.
+      # Heating season (Nov–Mar) consumption over 700 kWh/month is billed at 0.07517
+      # (see ct_eversource_rate6.json); the flat shape here cannot encode that block.
+      monthly_rates:
+        2025-01: 0.09431
+        2025-02: 0.09431
+        2025-03: 0.09431
+        2025-04: 0.09431
+        2025-05: 0.09431
+        2025-06: 0.09431
+        2025-07: 0.09431
+        2025-08: 0.09431
+        2025-09: 0.09431
+        2025-10: 0.09431
+        2025-11: 0.09431
+        2025-12: 0.09431
+excluded:
+  revenue_adjustment_mechanism:
+    decision: exclude_trueup
+  systems_benefits_charge:
+    decision: exclude_eligibility
+  minimum_charge:
+    decision: exclude_redundant
