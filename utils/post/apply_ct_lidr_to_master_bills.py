@@ -1,38 +1,42 @@
 """Apply CT LIDR (Low-Income Discount Rate) discounts to master bills.
 
-Five-tier percentage discount (5/15/20/40/50%) on the volumetric portion of
-the monthly electric bill, per PURA's 2024 Annual Report, Table 14 (the
-regulatory decision binding on both Eversource and UI -- see
+Five-tier percentage discount (5/15/20/40/50%) on the **total** monthly
+electric bill, per PURA's 2024 Annual Report, Table 14 (the regulatory
+decision binding on both Eversource and UI -- see
 context/domain/charges/lmi_discounts_in_ct.md Section 2.2 for full sourcing).
-The discount applies to at most 800 kWh/month of usage (non-electric-heat
-households) or 1200 kWh/month (electric-heat households); the fixed/customer
-charge is never discounted.
+The discount is capped at the dollar amount a customer using exactly
+800 kWh/month (non-electric-heat) or 1200 kWh/month (electric-heat)
+would receive on their total bill (including the fixed/customer charge).
 
 LIDR is electric-only: there is no CT gas LIDR, so gas bills are untouched.
-CT's other affordability programs (CEAP, Operation Fuel, MPP) are
-independently toggleable and out of scope for this module -- see
-lmi_discounts_in_ct.md Section 1 for why they are not folded into this
-discount.
+An ``energy_total_bill_lmi_{pct}`` column is also emitted (discounted elec +
+unchanged gas/oil/propane) so downstream reports can use the same
+``energy_total_bill_lmi`` column pattern as MD.
+CT's other affordability programs (CEAP, Operation Fuel, MPP) are out of
+scope for this module -- see lmi_discounts_in_ct.md Section 1 for why they
+are not folded into this discount.  CEAP and Operation Fuel could
+theoretically be toggled on later as independent components, but are not
+implemented.
 
 Tier 1 eligibility uses the DSS/CEAP **60% HHS LIHEAP SMI** dollar table
 encoded in ``ct_lidr.yaml`` (not HUD SMI). Tiers 2-5 use HHS FPL% for
 ``--fpl-year``. Pair ``--fpl-year 2026`` with the current YAML vintage.
 
 Usage-cap proration mechanic (documented in lmi_discounts_in_ct.md Section
-3.1 as "Interpretation A", confirmed by a utility customer-facing FAQ
-describing the discount as "applied to the first 800/1200 kWh of your
-monthly electric usage"):
+3.1):
 
-    discount = discount_pct * avg_volumetric_rate * min(usage, cap)
+    bill_at_cap = fixed_charge + avg_volumetric_rate * cap_kwh
+    discount = discount_pct * min(total_bill, bill_at_cap)
 
-where ``avg_volumetric_rate`` is derived per building-month as
-``(elec_total_bill - elec_fixed_charge) / elec_grid_kwh``. The discount
-applies only to the volumetric charge, for at most ``cap`` kWh of usage --
-the fixed/customer charge is **never** discounted, whether the household is
-above or below the cap. This also assumes a locally linear (single average)
-volumetric rate for the month, which is an approximation for any
-tiered/seasonal block rate (CT's own Eversource Rate 6, for example, has a
-700 kWh winter block break).
+The discount applies to the **whole bill** (fixed + volumetric).  For
+households using more than the cap, the discount is capped at what a
+cap-kWh customer's total bill (including fixed charge) would yield.  For
+households at or below the cap, the full bill is discounted at the tier
+percentage.  ``avg_volumetric_rate`` is derived per building-month as
+``(elec_total_bill - elec_fixed_charge) / elec_grid_kwh``, a locally linear
+approximation that is exact for flat volumetric rates and an approximation
+for any tiered/seasonal block rate (CT's own Eversource Rate 6, for example,
+has a 700 kWh winter block break).
 
 Default participation scenarios match RI/NY/MD's two-rate pattern:
 100% take-up (policy / full-eligibility case) and 53% take-up (observed
@@ -246,6 +250,7 @@ def _apply_lidr_discount(
     convention.
     """
     elec_col = f"elec_total_bill_lmi_{pct_label}"
+    energy_col = f"energy_total_bill_lmi_{pct_label}"
     applied_col = f"applied_discount_elec_{pct_label}"
 
     if "elec_lmi_tier" in master.columns:
@@ -281,20 +286,20 @@ def _apply_lidr_discount(
         )
 
     cap_kwh = ct_usage_cap_kwh_expr("heats_with_electricity", config)
-    # Locally linear average $/kWh for the month, from the total bill net of
-    # the fixed charge -- an approximation for any tiered/seasonal block
-    # rate (see module docstring). The discount applies only to this
-    # volumetric portion, for at most cap_kwh of usage; the fixed/customer
-    # charge is never discounted, whether the household is above or below
-    # the cap.
+    # The discount applies to the whole bill (fixed + volumetric), but the
+    # dollar discount is capped at what a cap-kWh customer would receive on
+    # their total bill.  See module docstring and lmi_discounts_in_ct.md §3.1.
+    # avg_rate is a locally linear $/kWh approximation (exact for flat rates;
+    # approximation for tiered/seasonal block rates).
     avg_rate = (
         (pl.col("elec_total_bill") - pl.col("elec_fixed_charge"))
         / pl.when(pl.col("elec_grid_kwh") > 0)
         .then(pl.col("elec_grid_kwh"))
         .otherwise(None)
     ).fill_null(0.0)
-    capped_usage = pl.min_horizontal(pl.col("elec_grid_kwh"), cap_kwh)
-    discount_amount = disc_pct * avg_rate * capped_usage
+    bill_at_cap = pl.col("elec_fixed_charge") + avg_rate * cap_kwh
+    discountable_bill = pl.min_horizontal(pl.col("elec_total_bill"), bill_at_cap)
+    discount_amount = disc_pct * discountable_bill
 
     joined = joined.with_columns(
         pl.when(pl.col("month") != ANNUAL_MONTH)
@@ -307,11 +312,27 @@ def _apply_lidr_discount(
         .alias(elec_col),
         pl.col("participates").alias(applied_col),
     )
+    # energy_total_bill_lmi = discounted elec + unchanged gas/oil/propane.
+    # LIDR is electric-only so the other fuels pass through.
+    joined = joined.with_columns(
+        pl.when(pl.col("month") != ANNUAL_MONTH)
+        .then(
+            pl.col(elec_col)
+            + pl.col("gas_total_bill")
+            + pl.col("propane_total_bill")
+            + pl.col("oil_total_bill")
+        )
+        .otherwise(pl.lit(None))
+        .alias(energy_col),
+    )
 
     monthly_sums = (
         joined.filter(pl.col("month") != ANNUAL_MONTH)
         .group_by(BLDG_ID)
-        .agg(pl.col(elec_col).sum().alias("_annual_elec_lmi"))
+        .agg(
+            pl.col(elec_col).sum().alias("_annual_elec_lmi"),
+            pl.col(energy_col).sum().alias("_annual_energy_lmi"),
+        )
     )
     joined = joined.join(monthly_sums, on=BLDG_ID, how="left")
     if joined.height != n_expected_rows:
@@ -323,8 +344,12 @@ def _apply_lidr_discount(
         pl.when(pl.col("month") == ANNUAL_MONTH)
         .then(pl.col("_annual_elec_lmi"))
         .otherwise(pl.col(elec_col))
-        .alias(elec_col)
-    ).drop("_annual_elec_lmi", "participates")
+        .alias(elec_col),
+        pl.when(pl.col("month") == ANNUAL_MONTH)
+        .then(pl.col("_annual_energy_lmi"))
+        .otherwise(pl.col(energy_col))
+        .alias(energy_col),
+    ).drop("_annual_elec_lmi", "_annual_energy_lmi", "participates")
 
 
 def apply_ct_lidr_to_master(
@@ -353,6 +378,9 @@ def apply_ct_lidr_to_master(
         is_lmi_elec (Bool)                  -- shared; added on first rate
         applied_discount_elec_{pct} (Bool)
         elec_total_bill_lmi_{pct} (Float64)
+        energy_total_bill_lmi_{pct} (Float64) -- discounted elec + unchanged
+            gas/oil/propane, so downstream reports can use the same
+            ``energy_total_bill_lmi_{pct}`` column pattern as MD.
 
     No gas columns are added: LIDR has no gas component.
     """

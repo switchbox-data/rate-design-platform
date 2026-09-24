@@ -123,6 +123,9 @@ def _bldg_rows(
     heats_elec: bool,
     fixed: float = 20.0,
     rate: float = 0.25,
+    gas_total_bill: float = 0.0,
+    propane_total_bill: float = 0.0,
+    oil_total_bill: float = 0.0,
 ) -> list[dict[str, object]]:
     """Jan-Dec + Annual rows for one building at a constant monthly usage/rate.
 
@@ -134,6 +137,9 @@ def _bldg_rows(
     for month in MONTHS:
         u = annual_usage if month == "Annual" else monthly_usage
         f = fixed * 12 if month == "Annual" else fixed
+        gas = gas_total_bill * 12 if month == "Annual" else gas_total_bill
+        propane = propane_total_bill * 12 if month == "Annual" else propane_total_bill
+        oil = oil_total_bill * 12 if month == "Annual" else oil_total_bill
         row: dict[str, object] = {
             "bldg_id": bldg_id,
             "month": month,
@@ -141,6 +147,9 @@ def _bldg_rows(
             "elec_fixed_charge": f,
             "elec_grid_kwh": u,
             "heats_with_electricity": heats_elec,
+            "gas_total_bill": gas,
+            "propane_total_bill": propane,
+            "oil_total_bill": oil,
         }
         rows.append(row)
     return rows
@@ -169,19 +178,23 @@ def _tier_info(
     )
 
 
-def test_apply_lidr_discount_matches_interpretation_a() -> None:
+def test_apply_lidr_discount_whole_bill_with_cap() -> None:
     """Verify the capped discount formula against a hand-computed expectation.
 
-    The discount applies only to the volumetric charge, up to the cap; the
-    fixed charge is never discounted (per the utility FAQ: "a discount
-    applied to the first N kWh of your monthly electric usage").
+    The discount applies to the whole bill (fixed + volumetric), but is
+    capped at the dollar discount a cap-kWh customer would receive on
+    their total bill (including fixed charge).
 
     bldg 1: 1200 kWh/month, 800 kWh cap (non-electric heat), Tier 5 (50%).
-      discount = 0.50 * 0.25 * min(1200, 800) = 0.50*0.25*800 = 100
-      bill after = (20 + 0.25*1200) - 100 = 320 - 100 = 220
+      bill_at_cap = 20 + 0.25*800 = 220
+      bill = 20 + 0.25*1200 = 320 (over cap)
+      discount = 0.50 * min(320, 220) = 0.50 * 220 = 110
+      bill after = 320 - 110 = 210
     bldg 2: 400 kWh/month (under cap), Tier 5 (50%).
-      discount = 0.50 * 0.25 * min(400, 800) = 0.50*0.25*400 = 50
-      bill after = (20 + 0.25*400) - 50 = 120 - 50 = 70
+      bill = 20 + 0.25*400 = 120
+      bill_at_cap = 20 + 0.25*800 = 220 (bill < bill_at_cap: under cap)
+      discount = 0.50 * min(120, 220) = 0.50 * 120 = 60
+      bill after = 120 - 60 = 60
     """
     master = _synthetic_master((1, 1200.0, False), (2, 400.0, False))
     tier_info = _tier_info([1, 2], [5, 5])
@@ -194,25 +207,31 @@ def test_apply_lidr_discount_matches_interpretation_a() -> None:
 
     jan_bldg1 = result.filter((pl.col("bldg_id") == 1) & (pl.col("month") == "Jan"))
     jan_bldg2 = result.filter((pl.col("bldg_id") == 2) & (pl.col("month") == "Jan"))
-    assert jan_bldg1["elec_total_bill_lmi_100"][0] == 220.0
-    assert jan_bldg2["elec_total_bill_lmi_100"][0] == 70.0
+    assert jan_bldg1["elec_total_bill_lmi_100"][0] == 210.0
+    assert jan_bldg2["elec_total_bill_lmi_100"][0] == 60.0
+
+    # energy_total_bill_lmi = discounted elec + unchanged gas/oil/propane.
+    # gas/oil/propane are 0 in this fixture, so energy == elec.
+    assert jan_bldg1["energy_total_bill_lmi_100"][0] == 210.0
+    assert jan_bldg2["energy_total_bill_lmi_100"][0] == 60.0
 
     # Annual row must equal the sum of the 12 monthly discounted bills, not a
     # cap applied to the annual total usage (9,600 kWh/yr vs. the monthly cap).
     annual_bldg1 = result.filter(
         (pl.col("bldg_id") == 1) & (pl.col("month") == "Annual")
     )
-    assert annual_bldg1["elec_total_bill_lmi_100"][0] == 220.0 * 12
+    assert annual_bldg1["elec_total_bill_lmi_100"][0] == 210.0 * 12
+    assert annual_bldg1["energy_total_bill_lmi_100"][0] == 210.0 * 12
 
 
 @pytest.mark.parametrize(
     ("tier", "discount_pct", "expected_discount"),
     [
-        (5, 0.50, 75.0),
-        (4, 0.40, 60.0),
-        (3, 0.20, 30.0),
-        (2, 0.15, 22.5),
-        (1, 0.05, 7.5),
+        (5, 0.50, 85.0),
+        (4, 0.40, 68.0),
+        (3, 0.20, 34.0),
+        (2, 0.15, 25.5),
+        (1, 0.05, 8.5),
         (0, 0.0, 0.0),
     ],
 )
@@ -225,9 +244,10 @@ def test_apply_lidr_discount_by_income_tier_under_cap(
     Tier 0 (ineligible / ineligible-but-passed-through) gets no discount at
     all -- the bill before and after must be identical.
 
+    Under cap, the whole bill is discounted.
     Shared inputs: fixed=$20, rate=$0.25/kWh, usage=600 kWh/month (< 800 cap).
     bill_before = 20 + 0.25*600 = 170.
-    discount = discount_pct * 0.25 * 600 = discount_pct * 150.
+    discount = discount_pct * 170 (whole bill).
     """
     master = _synthetic_master((1, 600.0, False))
     tier_info = _tier_info([1], [tier])
@@ -250,20 +270,21 @@ def test_apply_lidr_discount_by_income_tier_under_cap(
 @pytest.mark.parametrize(
     ("tier", "discount_pct", "expected_discount"),
     [
-        (5, 0.50, 100.0),
-        (3, 0.20, 40.0),
-        (1, 0.05, 10.0),
+        (5, 0.50, 110.0),
+        (3, 0.20, 44.0),
+        (1, 0.05, 11.0),
     ],
 )
 def test_apply_lidr_discount_by_income_tier_over_cap_non_electric_heat(
     tier: int, discount_pct: float, expected_discount: float
 ) -> None:
     """Same income-tier sweep as the under-cap test, but usage (1000 kWh/mo)
-    exceeds the 800 kWh non-electric-heat cap, so the discount is computed
-    on the capped 800 kWh, not the full 1000 kWh billed.
+    exceeds the 800 kWh non-electric-heat cap, so the discount is capped at
+    what an 800 kWh customer's total bill would yield.
 
     bill_before = 20 + 0.25*1000 = 270.
-    discount = discount_pct * 0.25 * min(1000, 800) = discount_pct * 200.
+    bill_at_cap = 20 + 0.25*800 = 220.
+    discount = discount_pct * min(270, 220) = discount_pct * 220.
     """
     master = _synthetic_master((1, 1000.0, False))
     tier_info = _tier_info([1], [tier])
@@ -283,15 +304,16 @@ def test_apply_lidr_discount_by_income_tier_over_cap_non_electric_heat(
 
 def test_apply_lidr_discount_electric_heat_higher_cap() -> None:
     """At the same usage and tier, an electric-heat household is capped at
-    1200 kWh instead of 800, so it keeps more of its usage discounted and
-    ends up with a bigger dollar discount than a non-electric-heat
-    household at identical usage/rate/tier.
+    1200 kWh instead of 800, so its cap bill is higher and its discount is
+    bigger than a non-electric-heat household at identical usage/rate/tier.
 
     Both buildings: 1000 kWh/month, fixed=$20, rate=$0.25/kWh, Tier 5 (50%).
     bldg 1 (non-electric heat, 800 kWh cap):
-      discount = 0.50 * 0.25 * min(1000, 800) = 100
+      bill_at_cap = 20 + 0.25*800 = 220; bill = 270 (over cap)
+      discount = 0.50 * 220 = 110
     bldg 2 (electric heat, 1200 kWh cap):
-      discount = 0.50 * 0.25 * min(1000, 1200) = 125 (uncapped: full usage)
+      bill_at_cap = 20 + 0.25*1200 = 320; bill = 270 (under cap)
+      discount = 0.50 * 270 = 135 (whole bill discounted)
     """
     master = _synthetic_master((1, 1000.0, False), (2, 1000.0, True))
     tier_info = _tier_info([1, 2], [5, 5])
@@ -305,8 +327,8 @@ def test_apply_lidr_discount_electric_heat_higher_cap() -> None:
     jan_bldg2 = result.filter((pl.col("bldg_id") == 2) & (pl.col("month") == "Jan"))
 
     bill_before = 270.0  # 20 + 0.25*1000, same for both
-    assert bill_before - jan_bldg1["elec_total_bill_lmi_100"][0] == pytest.approx(100.0)
-    assert bill_before - jan_bldg2["elec_total_bill_lmi_100"][0] == pytest.approx(125.0)
+    assert bill_before - jan_bldg1["elec_total_bill_lmi_100"][0] == pytest.approx(110.0)
+    assert bill_before - jan_bldg2["elec_total_bill_lmi_100"][0] == pytest.approx(135.0)
 
 
 def test_apply_lidr_discount_savings_monotonic_in_income_tier() -> None:
@@ -388,8 +410,9 @@ def test_multiple_participation_scenarios_use_independent_flags() -> None:
 
 def test_apply_lidr_discount_zero_usage_no_divide_by_zero() -> None:
     """A building with zero electric usage in a month (e.g. vacant, or data
-    gap) must not blow up the volumetric-rate division and should see no
-    discount -- there's no volumetric charge to discount.
+    gap) must not blow up the volumetric-rate division.  Since the whole bill
+    (including fixed charge) is discounted, even a zero-usage month sees a
+    discount on the fixed charge alone.
     """
     master = _synthetic_master((1, 0.0, False))
     tier_info = _tier_info([1], [5])
@@ -401,7 +424,54 @@ def test_apply_lidr_discount_zero_usage_no_divide_by_zero() -> None:
     )
     jan = result.filter(pl.col("month") == "Jan")
     assert jan["elec_total_bill"][0] == 20.0  # fixed charge only
-    assert jan["elec_total_bill_lmi_100"][0] == 20.0  # unchanged: no volumetric charge
+    # Whole-bill discount: 50% of the $20 fixed charge = $10 discount
+    assert jan["elec_total_bill_lmi_100"][0] == pytest.approx(10.0)
+    # energy = discounted elec + 0 gas/oil/propane
+    assert jan["energy_total_bill_lmi_100"][0] == pytest.approx(10.0)
+
+
+def test_energy_total_bill_lmi_includes_unchanged_gas() -> None:
+    """energy_total_bill_lmi_{pct} = discounted elec + unchanged gas/oil/propane.
+
+    LIDR only discounts the electric bill.  Gas and delivered fuels pass through
+    unchanged.  This test uses a non-zero gas bill to verify the identity.
+
+    bldg 1: 600 kWh/month (under 800 cap), non-electric heat, Tier 5 (50%).
+      elec bill = 20 + 0.25*600 = 170.  Discount = 0.50 * 170 = 85.
+      elec after = 170 - 85 = 85.
+      gas = 40/month (unchanged).
+      energy_lmi = 85 + 40 + 0 + 0 = 125.
+    bldg 2: same usage, Tier 0 (ineligible).
+      elec after = 170 (unchanged). energy_lmi = 170 + 40 = 210.
+    """
+    rows_1 = _bldg_rows(1, 600.0, False, gas_total_bill=40.0)
+    rows_2 = _bldg_rows(2, 600.0, False, gas_total_bill=40.0)
+    master = pl.DataFrame(rows_1 + rows_2)
+    tier_info = _tier_info([1, 2], [5, 0])
+    config = load_ct_lidr_config()
+    disc_by_tier = discount_fractions_for_ct(config)
+
+    result = _apply_lidr_discount(
+        master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height
+    )
+    jan = result.filter(pl.col("month") == "Jan").sort("bldg_id")
+
+    # bldg 1: discounted
+    assert jan.filter(pl.col("bldg_id") == 1)["elec_total_bill_lmi_100"][0] == 85.0
+    assert jan.filter(pl.col("bldg_id") == 1)["energy_total_bill_lmi_100"][0] == 125.0
+
+    # bldg 2: no discount, energy_lmi == energy (elec + gas)
+    assert jan.filter(pl.col("bldg_id") == 2)["elec_total_bill_lmi_100"][0] == 170.0
+    assert jan.filter(pl.col("bldg_id") == 2)["energy_total_bill_lmi_100"][0] == 210.0
+
+    # Annual rows
+    annual = result.filter(pl.col("month") == "Annual").sort("bldg_id")
+    assert annual.filter(pl.col("bldg_id") == 1)["energy_total_bill_lmi_100"][
+        0
+    ] == pytest.approx(125.0 * 12)
+    assert annual.filter(pl.col("bldg_id") == 2)["energy_total_bill_lmi_100"][
+        0
+    ] == pytest.approx(210.0 * 12)
 
 
 def test_bill_change_by_income_level_end_to_end() -> None:
@@ -419,7 +489,9 @@ def test_bill_change_by_income_level_end_to_end() -> None:
       E: 110% FPL            -> Tier 4 (40%)
       F: 60%  FPL            -> Tier 5 (50%)
     All households: 1000 kWh/month, non-electric heat (800 kWh cap),
-    fixed=$20, rate=$0.25/kWh -> bill_before = 270, capped_usage=800.
+    fixed=$20, rate=$0.25/kWh -> bill_before = 270.
+    bill_at_cap = 20 + 0.25*800 = 220 (over cap for all households).
+    discount = discount_pct * 220.
     """
     incomes = pl.DataFrame(
         {
@@ -447,11 +519,11 @@ def test_bill_change_by_income_level_end_to_end() -> None:
 
     expected_bill_after = {
         1: 270.0,  # Tier 0: unchanged
-        2: 260.0,  # Tier 1: 270 - 0.05*0.25*800 = 270 - 10
-        3: 240.0,  # Tier 2: 270 - 0.15*0.25*800 = 270 - 30
-        4: 230.0,  # Tier 3: 270 - 0.20*0.25*800 = 270 - 40
-        5: 190.0,  # Tier 4: 270 - 0.40*0.25*800 = 270 - 80
-        6: 170.0,  # Tier 5: 270 - 0.50*0.25*800 = 270 - 100
+        2: 259.0,  # Tier 1: 270 - 0.05*220 = 270 - 11
+        3: 237.0,  # Tier 2: 270 - 0.15*220 = 270 - 33
+        4: 226.0,  # Tier 3: 270 - 0.20*220 = 270 - 44
+        5: 182.0,  # Tier 4: 270 - 0.40*220 = 270 - 88
+        6: 160.0,  # Tier 5: 270 - 0.50*220 = 270 - 110
     }
     for bldg_id, expected in expected_bill_after.items():
         row = jan.filter(pl.col("bldg_id") == bldg_id)

@@ -77,14 +77,13 @@ smi:
     6: 123658
     7: 126469
     8: 129279
-# Discount applies to at most this many kWh/month of usage ("discount
-# limited to N kWh", per PURA PA 2026's LIDR row, confirmed by a utility
-# customer-facing FAQ: "a discount applied to the first N kWh of your
-# monthly electric usage"). See lmi_discounts_in_ct.md Section 3.1 for the
-# proration mechanic this implies (Interpretation A: discount =
-# discount_pct * avg_volumetric_rate * min(usage, cap) -- the discount
-# applies only to the volumetric charge, up to the cap; the fixed/customer
-# charge is never discounted).
+# Discount applies to the whole bill (fixed + volumetric) but is capped at
+# what a customer using exactly N kWh/month would receive on their total
+# bill.  N = 800 (non-electric heat) or 1200 (electric heat), per PURA PA
+# 2026's LIDR row.  See lmi_discounts_in_ct.md Section 3.1 for the
+# proration mechanic: discount = discount_pct * min(total_bill,
+# fixed_charge + avg_rate * cap).  Over-cap households are capped at the
+# dollar discount a cap-kWh customer would receive on their total bill.
 usage_cap_kwh:
   non_electric_heat: 800
   electric_heat: 1200
