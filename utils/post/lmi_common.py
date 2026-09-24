@@ -395,6 +395,125 @@ def get_md_bge_proposed_lim_rates_df(
 
 
 # ---------------------------------------------------------------------------
+# CT LIDR helpers
+# ---------------------------------------------------------------------------
+
+
+def load_ct_lidr_config(config_name: str = "ct_lidr.yaml") -> dict[str, Any]:
+    """Load CT LIDR five-tier config from YAML.
+
+    See context/domain/charges/lmi_discounts_in_ct.md Section 2.2 for sourcing
+    (PURA 2024 Annual Report, Table 14; DSS/HHS LIHEAP 60% SMI dollar table)
+    and Section 3.1 for the usage-cap proration assumption this config's
+    ``usage_cap_kwh`` encodes.
+    """
+    path = _data_dir() / config_name
+    with path.open() as f:
+        config = yaml.safe_load(f)
+    if not isinstance(config, dict):
+        raise ValueError(f"CT LIDR config invalid in {path}")  # noqa: TRY004
+    required = {"tiers", "usage_cap_kwh", "smi"}
+    missing = sorted(required - config.keys())
+    if missing:
+        raise ValueError(f"CT LIDR config missing keys {missing} in {path}")
+    smi = config["smi"]
+    if not isinstance(smi, dict) or "by_household_size" not in smi:
+        raise ValueError(f"CT LIDR config missing smi.by_household_size in {path}")
+    sizes = {int(k) for k in smi["by_household_size"]}
+    if sizes != set(range(1, 9)):
+        raise ValueError(
+            f"CT LIDR smi.by_household_size must have keys 1-8, got {sorted(sizes)} in {path}"
+        )
+    return config
+
+
+def ct_lidr_smi_100_by_hh_size(
+    config: dict[str, Any] | None = None,
+) -> dict[int, float]:
+    """100% SMI by household size, inferred from the published 60% table.
+
+    CT LIDR Tier 1 is ``smi_pct <= 60``, with
+    ``smi_pct = income / (100% SMI_n) * 100``. DSS/UI publish **60% SMI**
+    dollars, not 100% SMI, so ``100% SMI_n = table_n / 0.60``. Households
+    larger than 8 reuse the 8-person amount (same convention as HUD SMI).
+
+    Do not use ``load_smi_for_state`` / HUD SMI here -- that is a different
+    series than the LIHEAP/CEAP table encoded in ``ct_lidr.yaml``.
+    """
+    if config is None:
+        config = load_ct_lidr_config()
+    smi_60 = config["smi"]["by_household_size"]
+    return {int(hh): float(amount) / 0.60 for hh, amount in smi_60.items()}
+
+
+def assign_ct_lidr_tier_expr(
+    fpl_pct_col: str,
+    smi_pct_col: str,
+    config: dict[str, Any] | None = None,
+) -> pl.Expr:
+    """Assign CT LIDR tier 0-5 from FPL% and SMI% columns. 0 = ineligible.
+
+    Tiers 2-5 are bounded by FPL% (PURA 2024 Annual Report, Table 14); Tier 1
+    is bounded by SMI% (up to 60% of HHS LIHEAP / DSS CEAP SMI, not HUD SMI).
+    Assignment is nested highest-discount-first:
+    a household passing a more generous (lower-FPL%) tier's bound is assigned
+    that tier even though it would also pass a less generous tier's bound,
+    matching ``assign_ri_tier_expr``'s pattern of sorting bounds descending
+    and letting the last-applied (most generous) match win.
+    """
+    if config is None:
+        config = load_ct_lidr_config()
+    fpl = pl.col(fpl_pct_col)
+    smi = pl.col(smi_pct_col)
+    fpl_tiers = [t for t in config["tiers"] if "fpl_upper_bound" in t]
+    smi_tiers = [t for t in config["tiers"] if "smi_upper_bound" in t]
+
+    expr = pl.lit(0, dtype=pl.Int32)
+    # SMI-bound tier(s) are the base assignment; FPL-bound tiers (applied
+    # next, most-generous-last) override it for any lower-income household.
+    for t in sorted(smi_tiers, key=lambda t: t["smi_upper_bound"], reverse=True):
+        expr = (
+            pl.when(smi <= t["smi_upper_bound"])
+            .then(pl.lit(int(t["tier"]), dtype=pl.Int32))
+            .otherwise(expr)
+        )
+    for t in sorted(fpl_tiers, key=lambda t: t["fpl_upper_bound"], reverse=True):
+        expr = (
+            pl.when(fpl <= t["fpl_upper_bound"])
+            .then(pl.lit(int(t["tier"]), dtype=pl.Int32))
+            .otherwise(expr)
+        )
+    return expr
+
+
+def discount_fractions_for_ct(config: dict[str, Any] | None = None) -> dict[int, float]:
+    """Return {tier: discount_pct} for CT LIDR (tiers 1-5)."""
+    if config is None:
+        config = load_ct_lidr_config()
+    return {int(t["tier"]): float(t["discount_pct"]) for t in config["tiers"]}
+
+
+def ct_usage_cap_kwh_expr(
+    heats_with_electricity_col: str,
+    config: dict[str, Any] | None = None,
+) -> pl.Expr:
+    """CT LIDR monthly usage cap (kWh): higher cap for electric-heat households.
+
+    Per PURA PA 2026's LIDR row: "Discount limited to 800 kWh for
+    non-electric heating customers and 1200 kWh for electric heating
+    customers per month."
+    """
+    if config is None:
+        config = load_ct_lidr_config()
+    caps = config["usage_cap_kwh"]
+    return (
+        pl.when(pl.col(heats_with_electricity_col).fill_null(False))
+        .then(pl.lit(float(caps["electric_heat"])))
+        .otherwise(pl.lit(float(caps["non_electric_heat"])))
+    )
+
+
+# ---------------------------------------------------------------------------
 # NY EAP / EEAP helpers
 # ---------------------------------------------------------------------------
 
