@@ -217,31 +217,18 @@ bill_change_baseline:
 
 ### 1. Start the Prefect server
 
-The pipeline requires a running Prefect server to track flows, tasks, and run state. Start it in a **separate terminal** before launching any pipeline runs:
+The pipeline requires a running Prefect server to track flows, tasks, and run state. From `rate_design/hp_rates`, start it in a **separate terminal** before launching any pipeline runs:
 
 ```bash
-uv run prefect server start --port 4200
+cd rate_design/hp_rates
+just serve-prefect
 ```
 
-The server UI is then available at `http://127.0.0.1:4200`. Keep this terminal open for the duration of the batch.
+This runs `prefect config set PREFECT_API_URL=http://127.0.0.1:4200/api` (or the port you pass) and then `prefect server start`. The UI is at `http://127.0.0.1:4200`. Keep this terminal open for the duration of the batch.
 
-### 2. Point the pipeline at the server
+`run-pipeline` defaults to `http://127.0.0.1:4200/api` when `PREFECT_API_URL` is unset, so you normally do **not** need a manual `export` in your working terminal. For a non-default port, use `just serve-prefect 4201` once so the profile URL matches the server port.
 
-In the terminal where you will launch the pipeline, tell the Prefect client where to send flow/task state. Either set it for the current shell session:
-
-```bash
-export PREFECT_API_URL=http://127.0.0.1:4200/api
-```
-
-Or persist it in a Prefect profile (survives new shells):
-
-```bash
-prefect config set PREFECT_API_URL=http://127.0.0.1:4200/api
-```
-
-If the port differs (e.g. another Prefect instance is already using 4200), pass a different `--port` to `server start` and update `PREFECT_API_URL` to match. The port in both commands must agree — if they don't, the pipeline will either fail to connect or silently fall back to an ephemeral server that loses all run history.
-
-### 3. Launch the pipeline
+### 2. Launch the pipeline
 
 ```bash
 uv run python -m rate_design.hp_rates.run_pipeline \
@@ -336,17 +323,11 @@ cd rate_design/hp_rates
 just serve-prefect
 ```
 
-`serve-prefect` is a thin wrapper around `uv run prefect server start --port {{ port }}` (default port `4200`). It is state-agnostic — one server serves every state/utility batch — so it lives in the shared Justfile and does not need `just s md ...` dispatch. Leave this terminal open for the duration of the batch.
+`serve-prefect` sets `PREFECT_API_URL` in your active Prefect profile, then starts `uv run prefect server start --port {{ port }}` (default `4200`). It is state-agnostic — one server serves every state/utility batch — so it lives in the shared Justfile and does not need `just s md ...` dispatch. Leave this terminal open for the duration of the batch.
 
-### 2. Point the pipeline at the server (in your working terminal)
+In your working terminal, run pipeline recipes directly; `run-pipeline` uses the profile URL or falls back to `http://127.0.0.1:4200/api`.
 
-```bash
-export PREFECT_API_URL=http://127.0.0.1:4200/api
-```
-
-`run-pipeline` checks this at the top of its recipe body and fails fast with a reminder if it is unset, rather than silently falling back to an ephemeral server that loses run history.
-
-### 3. Run the batch
+### 2. Run the batch
 
 For MD, use the composed recipe to get the pipeline run and both LMI-aware master tables in one command:
 
@@ -366,19 +347,57 @@ To restrict to one scenario (e.g. while iterating on a single scenario's tariff 
 just s md run-with-lmi md_20260803_a default
 ```
 
-If you don't need LMI columns (e.g. a non-MD state, or a quick check of raw bills), use the uncomposed recipes directly — `just s <state> run-pipeline <batch>` followed by `just s <state> build-all-master-prefect <batch>`.
+If you don't need LMI columns (e.g. a quick check of raw bills), use the uncomposed recipes directly — `just s <state> run-pipeline <batch>` followed by `just s <state> build-all-master-prefect <batch>`.
 
-### 4. Resuming after a failure or partial run
+### 3. Resuming after a failure or partial run
 
 Re-running the same batch name is always safe and cheap: `cairo_run` skips any run whose `.runs/{name}.path` index file already exists (see [Run index](#run-index-resume-mechanism) above), so `just s md run-with-lmi md_20260803_a` only redoes what's missing or failed. `*scenarios` only narrows which scenarios are considered at all — it is not required for a fast rerun of the same batch.
 
-### 5. Where the LMI columns land
+### 4. Where the LMI columns land
 
 As noted in [Post-processing: master tables](#post-processing-master-tables), MD OHEP columns are written only to the `all_utilities` master-bills table, not the per-utility one:
 
 ```
 {output_base}/md/all_utilities/{batch}/{segment}/comb_bills_year_target/
 ```
+
+## End-to-end example: CT/Eversource with Just recipes
+
+Connecticut's composed recipe mirrors MD's but targets **Eversource (CL&P) LIDR** only. `run-with-lmi` exports `UTILITY=ct_eversource` and `UTILITIES=ct_eversource` so the pipeline reads `pipeline_ct_eversource.yaml` and master-table builders do not require completed `ct_ui` runs (CT LIDR apply logic requires exactly one utility per segment).
+
+### 1. Start the Prefect server
+
+Same as MD: `just serve-prefect` in a separate terminal.
+
+### 2. Run the batch
+
+```bash
+just s ct run-with-lmi ct_YYYYMMDD_a
+```
+
+This chains:
+
+1. `run-pipeline ct_YYYYMMDD_a` — scenarios in `ct/config/scenarios/pipeline_ct_eversource.yaml`.
+2. `build-master-bills-prefect … --calculate-lmi --lmi-fpl-year 2026 --lmi-participation-rates 1.0 0.53 --lmi-participation-mode uniform --lmi-calculation-type monthly --lmi-seed 42` — p100 and p53 column sets in one pass. Participation provenance: [LMI discounts in Connecticut](../../domain/charges/lmi_discounts_in_ct.md) Section 4.2 (53% Eversource enrolled ÷ estimated eligible; uniform sampling among LIDR-eligible buildings; monthly calculation for 800/1200 kWh usage caps).
+3. `build-master-bat-prefect ct_YYYYMMDD_a`.
+
+Restrict to one scenario:
+
+```bash
+just s ct run-with-lmi ct_YYYYMMDD_a default
+```
+
+When a `pipeline_ct_ui.yaml` exists, override utility for that LDC only: `UTILITY=ct_ui UTILITIES=ct_ui just s ct run-with-lmi …` (UI participation is not 53%).
+
+### 3. Resume and LMI output path
+
+Resume behavior matches MD (`.runs/{name}.path` index). LIDR columns land under:
+
+```
+{output_base}/ct/all_utilities/{batch}/{segment}/comb_bills_year_target/
+```
+
+Sensitivity at 45% or 60% participation: re-run `build-master-bills-prefect` with `--lmi-participation-rates 1.0 0.45` (or `0.60`) — not baked into the default recipe.
 
 ## Derived path anatomy
 

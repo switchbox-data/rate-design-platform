@@ -25,9 +25,8 @@ import '../Justfile'
 # first failure (set -euo pipefail), so a broken CAIRO run never reaches
 # post-processing.
 #
-# Setup (once per session):
-#   1. just serve-prefect                                   # separate terminal, keep it open
-#   2. export PREFECT_API_URL=http://127.0.0.1:4200/api     # in this terminal
+# Setup (once per session): just serve-prefect in a separate terminal (keep it open).
+# It sets PREFECT_API_URL in your Prefect profile; no manual export in this terminal.
 #
 # Then:
 #   just s md run-with-lmi md_20260803_a                    # full batch, all scenarios
