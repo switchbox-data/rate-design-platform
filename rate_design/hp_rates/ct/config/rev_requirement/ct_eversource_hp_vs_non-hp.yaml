@@ -1,31 +1,31 @@
 utility: ct_eversource
 group_col: has_hp
-source_run_dir: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20260816_a/20260816_150659_ct_ct_eversource_default_precalc_delivery
-test_year_customer_count: 1046314.6
-resstock_kwh_scale_factor: 0.9434543138570481
-total_delivery_revenue_requirement: 1433688020.83
-total_delivery_and_supply_revenue_requirement: 2318468090.05
+source_run_dir: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20260925_a/20260925_151009_ct_ct_eversource_default_precalc_delivery
+test_year_customer_count: 1182119.1
+resstock_kwh_scale_factor: 0.9935444283506427
+total_delivery_revenue_requirement: 1689584509.3
+total_delivery_and_supply_revenue_requirement: 2742274995.0
 subclass_revenue_requirements:
   delivery:
     percustomer:
-      non-hp: 1386132488.284502
-      hp: 47555532.54549781
+      non-hp: 1633529947.959927
+      hp: 56054561.340073064
     epmc:
-      non-hp: 1374292404.5153828
-      hp: 59395616.31461647
+      non-hp: 1619587472.4360075
+      hp: 69997036.86399277
     volumetric:
-      non-hp: 1353983324.0948265
-      hp: 79704696.73517331
+      non-hp: 1595672197.6627436
+      hp: 93912311.63725628
     passthrough:
-      non-hp: 1354597659.5181627
-      hp: 79090361.3118362
+      non-hp: 1596231837.10693
+      hp: 93352672.19307567
   supply:
     passthrough:
-      non-hp: 834242315.9752913
-      hp: 50537753.24470751
+      non-hp: 992561380.9702995
+      hp: 60129104.72970189
     percustomer:
-      non-hp: 856029092.1190395
-      hp: 28750977.100960724
+      non-hp: 1018483250.3636055
+      hp: 34207235.336394474
     volumetric:
-      non-hp: 834567019.8945673
-      hp: 50213049.32543333
+      non-hp: 992948182.3618755
+      hp: 59742303.338125035

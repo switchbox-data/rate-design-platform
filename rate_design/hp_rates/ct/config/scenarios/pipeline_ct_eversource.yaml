@@ -25,12 +25,21 @@ marginal_costs:
 revenue_requirement:
   single_rate: rev_requirement/ct_eversource_rate_case_test_year.yaml
   single_rate_calibrated: rev_requirement/ct_eversource_large_number_rate_case_test_year.yaml
+  single_rate_uncalibrated: rev_requirement/ct_eversource_large_number_rate_case_test_year.yaml
   # multi_rate: DERIVED from utility + subgroup aliases (e.g. ct_eversource_hp_vs_nonhp.yaml)
   multi_rate_calibrated: rev_requirement/ct_eversource_large_number_rate_case_test_year.yaml
 scenarios:
   default:
     quartet: single_rate
     tariff_base: default
+  default_ry1_r1_uncalibrated:
+    # Posted Schedule R billed as-is (CAIRO default mode + large-number RR).
+    quartet: single_rate_uncalibrated
+    tariff_base: rate1_proposed
+  default_ry1_r6_uncalibrated:
+    # Posted Schedule R billed as-is (CAIRO default mode + large-number RR).
+    quartet: single_rate_uncalibrated
+    tariff_base: rate6
   hp_seasonal_percustomer_passthrough:
     quartet: multi_rate_collapsed
     depends_on: default
@@ -47,22 +56,22 @@ scenarios:
         non-hp:
           values: ["false"]
           structure: base
-  hp_seasonal_epmc_passthrough:
-    quartet: multi_rate_collapsed
-    depends_on: default
-    promote: hp
-    residual_allocation:
-      delivery: epmc
-      supply: passthrough
-    subclass_config:
-      group_col: has_hp
-      subgroups:
-        hp:
-          values: ["true"]
-          structure: seasonal
-        non-hp:
-          values: ["false"]
-          structure: base
+  # hp_seasonal_epmc_passthrough:
+  #   quartet: multi_rate_collapsed
+  #   depends_on: default
+  #   promote: hp
+  #   residual_allocation:
+  #     delivery: epmc
+  #     supply: passthrough
+  #   subclass_config:
+  #     group_col: has_hp
+  #     subgroups:
+  #       hp:
+  #         values: ["true"]
+  #         structure: seasonal
+  #       non-hp:
+  #         values: ["false"]
+  #         structure: base
   hp_flat_percustomer_passthrough:
     quartet: multi_rate_collapsed
     depends_on: default
@@ -79,22 +88,22 @@ scenarios:
         non-hp:
           values: ["false"]
           structure: base
-  hp_flat_epmc_passthrough:
-    quartet: multi_rate_collapsed
-    depends_on: default
-    promote: hp
-    residual_allocation:
-      delivery: epmc
-      supply: passthrough
-    subclass_config:
-      group_col: has_hp
-      subgroups:
-        hp:
-          values: ["true"]
-          structure: flat
-        non-hp:
-          values: ["false"]
-          structure: base
+          # hp_flat_epmc_passthrough:
+          #   quartet: multi_rate_collapsed
+          #   depends_on: default
+          #   promote: hp
+          #   residual_allocation:
+          #     delivery: epmc
+          #     supply: passthrough
+          #   subclass_config:
+          #     group_col: has_hp
+          #     subgroups:
+          #       hp:
+          #         values: ["true"]
+          #         structure: flat
+          #       non-hp:
+          #         values: ["false"]
+          #         structure: base
 # The one stage every other run's bills are compared against, joined onto the
 # master tables as baseline_elec_* columns by post-processing.
 bill_change_baseline:

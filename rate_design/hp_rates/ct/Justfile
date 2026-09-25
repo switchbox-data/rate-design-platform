@@ -21,20 +21,42 @@ import '../Justfile'
 # FULL FLOW RUN - Prefect pipeline batch + LMI master tables, end to end
 #
 # One command for the full CT LIDR flow: run the Prefect pipeline batch,
-# then build master bills with LMI columns, then master BAT.
+# then build master bills with LMI columns, then master BAT. Stops at the
+# first failure (set -euo pipefail), so a broken CAIRO run never reaches
+# post-processing.
 #
-# LMI participation defaults match RI/NY/MD's two-rate pattern:
+# Defaults to ct_eversource only (state.env lists ct_ui too, but no
+# pipeline_ct_ui.yaml yet). When UI exists, override:
+#   UTILITY=ct_ui UTILITIES=ct_ui just s ct run-with-lmi ...
+# (UI participation rate is not 53%; see lmi_discounts_in_ct.md Section 4.2.)
+#
+# Setup (once per session): just serve-prefect in a separate terminal (keep it open).
+# It sets PREFECT_API_URL in your Prefect profile; no manual export in this terminal.
+#
+# Then:
+#   just s ct run-with-lmi ct_YYYYMMDD_a                    # full batch, all scenarios
+#   just s ct run-with-lmi ct_YYYYMMDD_a default             # just the "default" scenario
+#
+# Re-running with the same batch name resumes: run-pipeline skips any CAIRO
+# run that already completed (via its .runs/{name}.path index file), so a
+# rerun after a fix only redoes what's missing or failed. *scenarios narrows
+# which scenarios are considered at all -- it is not required for a fast
+# rerun of the same batch.
+#
+# LMI (LIDR) columns land only in the all_utilities master-bills table, not
+# the per-utility one -- see context/code/orchestration/prefect_pipeline.md.
+#
+# LMI participation defaults (Eversource CL&P):
 #   1.0  -- full take-up among income-eligible households (policy case)
 #   0.53 -- observed Eversource LIDR participation (CY2025 enrolled /
 #           estimated eligible; see context/domain/charges/lmi_discounts_in_ct.md
 #           Section 4.2). Keep 45-60% as a later sensitivity range -- do
-#           not add those as extra default columns.
-#
-#   just s ct run-with-lmi ct_YYYYMMDD_a
-# just s ct run-with-lmi ct_YYYYMMDD_a default
+# not add those as extra default columns.
 run-with-lmi batch *scenarios:
     #!/usr/bin/env bash
     set -euo pipefail
+    export UTILITY="${UTILITY:-ct_eversource}"
+    export UTILITIES="${UTILITIES:-ct_eversource}"
     just run-pipeline "{{ batch }}" {{ scenarios }}
     just build-master-bills-prefect "{{ batch }}" \
       --calculate-lmi \
@@ -42,6 +64,7 @@ run-with-lmi batch *scenarios:
       --lmi-participation-rates 1.0 0.53 \
       --lmi-participation-mode uniform \
       --lmi-calculation-type monthly \
+      --lmi-seed 42 \
       {{ if scenarios != "" { "--scenarios " + scenarios } else { "" } }}
     just build-master-bat-prefect "{{ batch }}" {{ if scenarios != "" { "--scenarios " + scenarios } else { "" } }}
 

@@ -9,8 +9,8 @@
 #   just s ny run-all-utilities-sequential                      # all utilities for a state
 #   UTILITY=rie just -f ri/Justfile all-pre                     # via state wrapper directly
 #   set -a && source ny/state.env && set +a && UTILITY=nyseg just all-pre  # manual source
-#   just s md serve-prefect                                     # start Prefect server (separate terminal)
-#   PREFECT_API_URL=http://127.0.0.1:4200/api just s md run-pipeline md_20260803_a  # run Prefect pipeline batch
+#   just serve-prefect                                          # start Prefect server (separate terminal; sets API URL in profile)
+#   just s md run-pipeline md_20260803_a                        # run Prefect pipeline batch (no manual export)
 # =============================================================================
 # Tier 1: Identity (set by state wrapper, dispatch, or manual source)
 # =============================================================================
@@ -28,10 +28,24 @@ utility := env_var_or_default('UTILITY', '')
 s state_arg +recipe:
     #!/usr/bin/env bash
     set -euo pipefail
+    jf_dir="{{ justfile_directory() }}"
+    state_arg="{{ state_arg }}"
+    # justfile_directory() is the *invoked* Justfile dir (e.g. ct/ when cwd is ct/).
+    # Resolve {state}/state.env from hp_rates/ or from inside {state}/ already.
+    if [[ -f "${jf_dir}/state.env" && "$(basename "${jf_dir}")" == "${state_arg}" ]]; then
+        state_dir="${jf_dir}"
+    elif [[ -f "${jf_dir}/${state_arg}/state.env" ]]; then
+        state_dir="${jf_dir}/${state_arg}"
+    elif [[ -f "$(dirname "${jf_dir}")/${state_arg}/state.env" ]]; then
+        state_dir="$(dirname "${jf_dir}")/${state_arg}"
+    else
+        echo "error: cannot find ${state_arg}/state.env (justfile dir: ${jf_dir})" >&2
+        exit 1
+    fi
     set -a
-    source "{{ justfile_directory() }}/{{ state_arg }}/state.env"
+    source "${state_dir}/state.env"
     set +a
-    just -f "{{ justfile_directory() }}/{{ state_arg }}/Justfile" {{ recipe }}
+    just -f "${state_dir}/Justfile" {{ recipe }}
 
 # =============================================================================
 # Tier 2: Config from env vars (state.env via dotenv, or explicit env override)
@@ -1470,11 +1484,18 @@ build-master-bat batch run_delivery run_supply *batch_overrides:
 # Start a local Prefect server to track flows/tasks/run state for pipeline
 # batches. Long-lived infra meant to survive across many batches, so this is
 # kept foreground-only and separate from run-pipeline: start it once in its
-# own terminal, then export PREFECT_API_URL in the terminal you run
-# run-pipeline from (see run-pipeline's own precondition check below).
+# own terminal. Also runs `prefect config set PREFECT_API_URL` for the chosen
+# port so run-pipeline / run-with-lmi work in other shells without export.
 #
-# just s md serve-prefect
+#   just serve-prefect
+# just serve-prefect 4201   # non-default port (URL in profile matches)
 serve-prefect port="4200":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    api_url="http://127.0.0.1:{{ port }}/api"
+    echo ">> Setting PREFECT_API_URL=$api_url (prefect config set)..." >&2
+    uv run prefect config set "PREFECT_API_URL=$api_url"
+    echo ">> Pipeline recipes use this URL; no manual export needed in other terminals." >&2
     uv run prefect server start --port {{ port }}
 
 # Run (or resume) a Prefect pipeline batch for the current state/utility.
@@ -1489,7 +1510,10 @@ serve-prefect port="4200":
 run-pipeline batch *scenarios:
     #!/usr/bin/env bash
     set -euo pipefail
-    : "${PREFECT_API_URL:?Set PREFECT_API_URL before running (see: just serve-prefect). e.g. export PREFECT_API_URL=http://127.0.0.1:4200/api}"
+    if [[ -z "${PREFECT_API_URL:-}" ]]; then
+        export PREFECT_API_URL="http://127.0.0.1:4200/api"
+        echo ">> Using default PREFECT_API_URL=$PREFECT_API_URL (start server: just serve-prefect)" >&2
+    fi
     uv run python -m rate_design.hp_rates.run_pipeline \
       --yaml "{{ path_pipeline_yaml }}" \
       --batch "{{ batch }}" \
