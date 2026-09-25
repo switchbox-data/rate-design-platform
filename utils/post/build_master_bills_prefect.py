@@ -58,6 +58,7 @@ from rate_design.hp_rates.pipeline_config import PipelineConfig, load_pipeline_c
 from utils.file_io import get_aws_storage_options
 from utils.loads import ELECTRIC_LOAD_COL, ELECTRIC_PV_COL, grid_consumption_expr
 from utils.post import apply_ny_lmi_to_master_bills as ny_lmi_master_bills
+from utils.post.apply_ct_lidr_to_master_bills import apply_ct_lidr_to_master
 from utils.post.apply_md_ohep_to_master_bills import apply_md_ohep_to_master
 from utils.post.apply_ny_lmi_to_master_bills import apply_ny_lmi_to_master
 from utils.post.apply_ri_lmi_discounts_to_bills import apply_ri_lmi_to_master
@@ -459,9 +460,33 @@ def _apply_lmi_discounts_to_master(
             opts=opts,
         )
 
+    if state_upper == "CT":
+        if len(utilities) != 1:
+            raise ValueError(
+                f"CT LIDR expects exactly one utility in the run; got {utilities}"
+            )
+        if lmi_calculation_type != "monthly":
+            _log(
+                "  CT LIDR's usage cap is inherently monthly; "
+                f"ignoring LMI calculation type {lmi_calculation_type!r}"
+            )
+        return apply_ct_lidr_to_master(
+            master,
+            utility=utilities[0],
+            state_upper=state_upper,
+            upgrade=upgrade,
+            path_resstock_release=path_resstock_release,
+            lmi_fpl_year=lmi_fpl_year,
+            lmi_cpi_s3_path=lmi_cpi_s3_path,
+            participation_rates=lmi_participation_rates,
+            participation_mode=lmi_participation_mode,
+            seed=lmi_seed,
+            opts=opts,
+        )
+
     raise ValueError(
         f"--calculate-lmi is not supported for state {state_upper!r}. "
-        "Supported states: MD, NY, RI."
+        "Supported states: CT, MD, NY, RI."
     )
 
 

@@ -18,6 +18,34 @@ path_s3_utility_loads := "s3://data.sb/isone/hourly_demand/utilities/"
 import '../Justfile'
 
 # =============================================================================
+# FULL FLOW RUN - Prefect pipeline batch + LMI master tables, end to end
+#
+# One command for the full CT LIDR flow: run the Prefect pipeline batch,
+# then build master bills with LMI columns, then master BAT.
+#
+# LMI participation defaults match RI/NY/MD's two-rate pattern:
+#   1.0  -- full take-up among income-eligible households (policy case)
+#   0.53 -- observed Eversource LIDR participation (CY2025 enrolled /
+#           estimated eligible; see context/domain/charges/lmi_discounts_in_ct.md
+#           Section 4.2). Keep 45-60% as a later sensitivity range -- do
+#           not add those as extra default columns.
+#
+#   just s ct run-with-lmi ct_YYYYMMDD_a
+# just s ct run-with-lmi ct_YYYYMMDD_a default
+run-with-lmi batch *scenarios:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just run-pipeline "{{ batch }}" {{ scenarios }}
+    just build-master-bills-prefect "{{ batch }}" \
+      --calculate-lmi \
+      --lmi-fpl-year 2026 \
+      --lmi-participation-rates 1.0 0.53 \
+      --lmi-participation-mode uniform \
+      --lmi-calculation-type monthly \
+      {{ if scenarios != "" { "--scenarios " + scenarios } else { "" } }}
+    just build-master-bat-prefect "{{ batch }}" {{ if scenarios != "" { "--scenarios " + scenarios } else { "" } }}
+
+# =============================================================================
 # CT-only: bulk transmission marginal costs (ISO-NE AESC PTF)
 #
 # Uses AESC 2024 avoided PTF cost ($69/kW-yr) allocated to the top-100 NE

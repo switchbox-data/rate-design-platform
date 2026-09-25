@@ -21,3 +21,6 @@
 2025:
   base: 15650
   increment: 5500
+2026:
+  base: 15960
+  increment: 5680

@@ -1,0 +1,18 @@
+# BGE Schedule R-HP: proposed flat heat pump delivery rate (RS release comp scaled)
+# Source: MD PSC filing, PC44, Switchbox testimony (expert_testimony.qmd)
+# Delivery rates derived from representative_home.qmd with
+# SCALE_HEATING_BY_RS_RELEASE_COMP = True (sb_ach_ratio factors applied to
+# BGE heating kWh, reducing annual after-HP consumption and raising per-kWh rates).
+label: rhp_flat_scaled
+utility: bge
+fixed_charge: 10.0 # $/month, same as Schedule R
+# Delivery components ($/kWh) — summed for the total delivery volumetric rate.
+# Values are the rounded 1-decimal-cent figures from the scaled analysis; kept
+# broken out by component for traceability even though the tariff itself only
+# needs the sum.
+delivery:
+  delivery_service: 0.039 # Distribution: core_delivery_rate + environmental_surcharge
+  transmission: 0.019 # Rider 1: transmission_rate_adjustment
+  energy_efficiency: 0.009 # Rider 8 / EmPOWER Maryland: empower_maryland_charge
+# Supply rate ($/kWh) — unchanged from Schedule R (supply_commodity_bundled)
+supply_rate: 0.117
