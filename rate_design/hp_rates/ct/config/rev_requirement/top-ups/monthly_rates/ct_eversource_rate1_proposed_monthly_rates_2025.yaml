@@ -1,0 +1,208 @@
+# CL&P/Eversource proposed Rate 1 (Residential) — matched comparison baseline, PURA Docket 26-05-10.
+#
+# Hand-encoded from the FILED 2026 rate-case exhibits (delivery vintage), NOT RateAcuity. This is a
+# DISTINCT rate keyed ct_eversource_rate1_proposed; the current-vintage RateAcuity ct_eversource
+# default is left untouched. It exists so downstream analysis can decompose the delivery bill
+# (inclusive of transmission) for Rate 1 vs Rate 6 on a matched basis: only the customer charge and
+# core distribution rate below differ from ct_eversource_rate6; every shared rider cancels in the delta.
+# Full per-number provenance: context/code/data/ct_eversource_custom_rates.md.
+#
+# Filed-vintage decisions (identical to ct_eversource_rate6_monthly_rates_2025.yaml):
+#   - ESI and RDM are rolled into base distribution in the proposed rates, so they are zeroed here.
+#   - SBC (-0.00196) is INCLUDED as a real per-kWh bill component (the current ct_eversource top-up
+#     drops it via exclude_eligibility); these are bill-calc / comparison tariffs.
+#   - CTA (0.00496) and FMCC-Delivery (-0.01911) keep their filed values, including the negative credit.
+#   - transmission (0.05050) is the FILED value; it differs from RateAcuity 2025 (0.03401/0.04433) by
+#     ~1 year of Transmission Adjustment Clause resets (see context doc).
+#
+# The _2025 suffix is a naming convention only: these hand-built tariffs are not consumed by the
+# year-driven fetch pipeline. Delivery is filed-2026 vintage; supply is Genability 2025.
+# master_tariff_id is null because this is a proposed rate with no RateAcuity ID.
+utility: ct_eversource_rate1_proposed
+master_tariff_id: null
+start_month: 2025-01
+end_month: 2025-12
+add_to_drr:
+  rate_structure: flat
+  charges:
+    # ESI is rolled into base distribution in the proposed rates -> zeroed.
+    electric_system_improvements_esi:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.0
+        2025-02: 0.0
+        2025-03: 0.0
+        2025-04: 0.0
+        2025-05: 0.0
+        2025-06: 0.0
+        2025-07: 0.0
+        2025-08: 0.0
+        2025-09: 0.0
+        2025-10: 0.0
+        2025-11: 0.0
+        2025-12: 0.0
+    # RDM (revenue decoupling) is rolled into base distribution in the proposed rates -> zeroed.
+    revenue_decoupling_mechanism_rdm:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.0
+        2025-02: 0.0
+        2025-03: 0.0
+        2025-04: 0.0
+        2025-05: 0.0
+        2025-06: 0.0
+        2025-07: 0.0
+        2025-08: 0.0
+        2025-09: 0.0
+        2025-10: 0.0
+        2025-11: 0.0
+        2025-12: 0.0
+    transmission_charge:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.05050
+        2025-02: 0.05050
+        2025-03: 0.05050
+        2025-04: 0.05050
+        2025-05: 0.05050
+        2025-06: 0.05050
+        2025-07: 0.05050
+        2025-08: 0.05050
+        2025-09: 0.05050
+        2025-10: 0.05050
+        2025-11: 0.05050
+        2025-12: 0.05050
+    competitive_transition_assessment_cta:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.00496
+        2025-02: 0.00496
+        2025-03: 0.00496
+        2025-04: 0.00496
+        2025-05: 0.00496
+        2025-06: 0.00496
+        2025-07: 0.00496
+        2025-08: 0.00496
+        2025-09: 0.00496
+        2025-10: 0.00496
+        2025-11: 0.00496
+        2025-12: 0.00496
+    system_benefits_charge_sbc:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: -0.00196
+        2025-02: -0.00196
+        2025-03: -0.00196
+        2025-04: -0.00196
+        2025-05: -0.00196
+        2025-06: -0.00196
+        2025-07: -0.00196
+        2025-08: -0.00196
+        2025-09: -0.00196
+        2025-10: -0.00196
+        2025-11: -0.00196
+        2025-12: -0.00196
+    conservation_adjustment_mechanism_cam:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.006
+        2025-02: 0.006
+        2025-03: 0.006
+        2025-04: 0.006
+        2025-05: 0.006
+        2025-06: 0.006
+        2025-07: 0.006
+        2025-08: 0.006
+        2025-09: 0.006
+        2025-10: 0.006
+        2025-11: 0.006
+        2025-12: 0.006
+    renewable_energy_investment_clean_energy_fund:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.001
+        2025-02: 0.001
+        2025-03: 0.001
+        2025-04: 0.001
+        2025-05: 0.001
+        2025-06: 0.001
+        2025-07: 0.001
+        2025-08: 0.001
+        2025-09: 0.001
+        2025-10: 0.001
+        2025-11: 0.001
+        2025-12: 0.001
+    non_bypassable_fmcc_delivery:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: -0.01911
+        2025-02: -0.01911
+        2025-03: -0.01911
+        2025-04: -0.01911
+        2025-05: -0.01911
+        2025-06: -0.01911
+        2025-07: -0.01911
+        2025-08: -0.01911
+        2025-09: -0.01911
+        2025-10: -0.01911
+        2025-11: -0.01911
+        2025-12: -0.01911
+add_to_srr:
+  rate_structure: flat
+  charges:
+    # Genability 2025 seasonal bundled supply commodity (same as ct_eversource default).
+    supply_commodity_bundled:
+      charge_unit: $/kWh
+      monthly_rates:
+        2025-01: 0.1119
+        2025-02: 0.1119
+        2025-03: 0.1119
+        2025-04: 0.1119
+        2025-05: 0.1119
+        2025-06: 0.1119
+        2025-07: 0.09748
+        2025-08: 0.09748
+        2025-09: 0.09748
+        2025-10: 0.09748
+        2025-11: 0.09748
+        2025-12: 0.09748
+already_in_drr:
+  rate_structure: flat
+  charges:
+    customer_charge:
+      charge_unit: $/month
+      monthly_rates:
+        2025-01: 12.36
+        2025-02: 12.36
+        2025-03: 12.36
+        2025-04: 12.36
+        2025-05: 12.36
+        2025-06: 12.36
+        2025-07: 12.36
+        2025-08: 12.36
+        2025-09: 12.36
+        2025-10: 12.36
+        2025-11: 12.36
+        2025-12: 12.36
+    core_delivery_rate:
+      charge_unit: $/kWh
+      # 0.12196 = flat Rate Year Proposed distribution rate (incl. GET, ESI/RDM folded in).
+      monthly_rates:
+        2025-01: 0.12196
+        2025-02: 0.12196
+        2025-03: 0.12196
+        2025-04: 0.12196
+        2025-05: 0.12196
+        2025-06: 0.12196
+        2025-07: 0.12196
+        2025-08: 0.12196
+        2025-09: 0.12196
+        2025-10: 0.12196
+        2025-11: 0.12196
+        2025-12: 0.12196
+excluded:
+  # RDM/RAM revenue is rolled into base distribution in the proposed rates (see add_to_drr note).
+  revenue_adjustment_mechanism:
+    decision: exclude_redundant
+  minimum_charge:
+    decision: exclude_redundant
