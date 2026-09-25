@@ -1,0 +1,100 @@
+# CT Low-Income Discount Rate (LIDR) -- five-tier structure.
+#
+# Source: PURA 2024 Annual Report, Table 14 (pp. 81-82), the regulatory
+# decision binding on both Eversource and UI -- not either utility's own
+# website. See context/domain/charges/lmi_discounts_in_ct.md Section 2.2.
+#
+# Tier 1 is defined by 60% SMI (Table 14: "212-275% FPL | 60% SMI"); tiers
+# 2-5 are defined by FPL% only. Assignment is nested: a household is
+# assigned the *highest discount* tier for which it qualifies (see
+# lmi_common.assign_ct_lidr_tier_expr).
+#
+# FPL% uses HHS poverty guidelines for --fpl-year (utils/post/data/fpl_guidelines.yaml).
+# SMI% does NOT use HUD State Median Income. HUD SMI is a different series
+# (statewide median family income with HUD household-size adjustments) and
+# understates CT's 4-person 60% SMI by ~$19k relative to the table DSS and
+# the EDCs actually apply. See smi: below.
+tiers:
+  - tier: 5
+    discount_pct: 0.50
+    fpl_upper_bound: 100
+  - tier: 4
+    discount_pct: 0.40
+    fpl_upper_bound: 125
+  - tier: 3
+    discount_pct: 0.20
+    fpl_upper_bound: 160
+  - tier: 2
+    discount_pct: 0.15
+    fpl_upper_bound: 211
+  - tier: 1
+    discount_pct: 0.05
+    smi_upper_bound: 60 # defined by SMI%, not FPL%
+# 60% of HHS LIHEAP State Median Income, by household size -- the dollars
+# Connecticut uses for LIDR Tier 1 (and for CEAP hardship).
+#
+# Why this table, not HUD SMI:
+#   PURA set LIDR's outer eligibility cap at 60% SMI. DSS administers that
+#   cap as the same 60% SMI schedule used for CEAP / LIHEAP, which HHS
+#   publishes annually (LIHEAP IM Attachment 4). UI's LIDR income table and
+#   DSS's CEAP "Who Is Eligible" page reprint that schedule exactly.
+#   HUD's il/statedata SMI (s3://data.sb/hud/smi/) is Section 8 median-family
+#   income with a different 4-person median and different size factors
+#   (70/80/90/100% of 4-person, vs LIHEAP's 52/68/84/100/116/132/135/138%
+#   under 45 CFR 96.85). Using HUD would mis-assign Tier 1.
+#
+# Vintage: FFY 2027 / 2026-27 heating season (HHS LIHEAP IM-2026-01;
+# optional in FY26, mandatory in FY27). Dollar year is 2026 -- inflate
+# ResStock in.representative_income to 2026 via --fpl-year 2026 so FPL
+# (2026 HHS FPG) and this SMI table are in the same year's dollars.
+# When DSS/HHS publish a new 60% SMI table, replace the eight amounts
+# below and bump dollar_year / fpl_guideline_year.
+#
+# Households larger than 8 use the 8-person amount (ResStock occupants
+# clip at 10; DSS publishes 1-8).
+#
+# Sources (all print the same eight dollars):
+#   - DSS CEAP eligibility (HTML):
+#     https://portal.ct.gov/dss/economic-security/winter-heating-assistance/energy-assistance---winter-heating/who-is-eligible
+#   - DSS Heating Help CEAP page:
+#     https://portal.ct.gov/heatinghelp/connecticut-energy-assistance-program-ceap
+#   - FFY 2027 LIHEAP Allocation Plan (PDF, "60% OF 2026 STATE MEDIAN INCOME GUIDELINES"):
+#     https://www.cga.ct.gov/APP/related/20260225_2026%20Block%20Grants%20and%20Waivers/FFY%202027%20LIHEAP%20Allocation%20Plan.pdf
+#   - UI LIDR page (Sept 2026 live fetch; Tier 1 column):
+#     https://www.uinet.com/low-income-discount-rate
+#   - Underlying federal construction (4-person ACS median x 60% x 45 CFR 96.85 size factors):
+#     https://acf.gov/ocs/policy-guidance/liheap-im2026-01-federal-poverty-guidelines-fpg-and-state-median-income-smi
+smi:
+  dollar_year: 2026
+  fpl_guideline_year: 2026
+  program_year: FFY2027
+  by_household_size:
+    1: 48714
+    2: 63703
+    3: 78692
+    4: 93681
+    5: 108669
+    6: 123658
+    7: 126469
+    8: 129279
+# Discount applies to the whole bill (fixed + volumetric) but is capped at
+# what a customer using exactly N kWh/month would receive on their total
+# bill.  N = 800 (non-electric heat) or 1200 (electric heat), per PURA PA
+# 2026's LIDR row.  See lmi_discounts_in_ct.md Section 3.1 for the
+# proration mechanic: discount = discount_pct * min(total_bill,
+# fixed_charge + avg_rate * cap).  Over-cap households are capped at the
+# dollar discount a cap-kWh customer would receive on their total bill.
+usage_cap_kwh:
+  non_electric_heat: 800
+  electric_heat: 1200
+# Participation sampling (not applied from this file -- wired as the
+# CLI/Justfile default DEFAULT_PARTICIPATION_RATES = [1.0, 0.53]):
+#   1.00 -- policy / full take-up among income-eligible households
+#   0.53 -- observed Eversource LIDR take-up (CY2025)
+# 53% = 199,390 enrolled (Eversource Order 10 compliance in Docket
+# 26-01-03, March 2026) / ~379,000 estimated eligible Eversource
+# households (ACS 1-year 2023 PUMS, inflated to 2026$, under the 60%
+# HHS LIHEAP SMI cap above, allocated by EIA-861 2024 residential
+# account share). See lmi_discounts_in_ct.md Section 4.2.
+# Keep 45-60% as a future sensitivity range around that estimate;
+# do not emit those as default column sets.
