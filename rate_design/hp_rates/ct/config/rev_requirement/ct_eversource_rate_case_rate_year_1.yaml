@@ -1,0 +1,119 @@
+# CT Eversource (CL&P) — WHOLE residential rate class, rate-case RATE-YEAR 1 YAML (Track 2).
+#
+# Models every CL&P residential ResStock upgrade-0 dwelling on PROPOSED Rate 1 (incl. GET), sized to
+# the WHOLE residential class Rate-Year revenue requirement, kWh, and customer count — the sum of
+# Rate 1 + Rate 5 + Rate 7 at Proposed+GET rates, NOT Rate 1 alone. This is the rate-year companion
+# to ct_eversource_rate_case_test_year.yaml (test year, current rates).
+#
+# NOT wired into the year-driven `build-rate-case-test-year` recipe (which hardcodes the current
+# monthly_rates file and the canonical output name). Regenerate with a direct script call:
+#   uv run python utils/pre/rev_requirement/build_rate_case_test_year.py \
+#     --path-partial-yaml rate_design/hp_rates/ct/config/rev_requirement/ct_eversource_rate_case_rate_year_1.yaml \
+#     --path-monthly-rates rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate1_proposed_monthly_rates_2025.yaml \
+#     --path-resstock-release /ebs/data/nrel/resstock/res_2024_amy2018_2_sb --state CT \
+#     --output rate_design/hp_rates/ct/config/rev_requirement/ct_eversource_rate_case_rate_year_1.yaml
+#
+# The ResStock population (sum over sb.electric_utility == ct_eversource — the only CL&P residential
+# assignment in CT ResStock) and both scale factors are always recomputed; only the seeded keys and
+# their comments below are hand-maintained across re-runs.
+#
+# Source: PURA Docket 26-05-10, Exhibit CLP-RATES-2 (residential extract:
+#   context/sources/exhibit_clp_rates_2_residential.md).
+#   Full per-number provenance: context/code/data/ct_eversource_class_rev_requirement.md
+#   Rate-Year Proposed+GET distribution functionals are the Exh 2.4 functional-category rollups
+#   (R1: exhibit line 92; R5: build at lines 116-117; R7: line 165).
+utility: ct_eversource
+# --- Whole-class base delivery RR at PROPOSED+GET rates (Customer Charge + Distribution), Rate Year ---
+# Exh 2.4 Distribution functional (Proposed + GET), summed across residential rates.
+delivery_revenue_requirement_from_rate_case: 1427326050.0 # 1,222,814,890.00 (R1) + 203,307,450.00 (R5) + 1,203,710.00 (R7) RY Proposed+GET Dist. functional
+delivery_revenue_requirement_topups: 427107865.64 # sum(delivery_top_ups.total_budget)
+total_delivery_revenue_requirement: 1854433915.64 # delivery_revenue_requirement_from_rate_case + delivery_revenue_requirement_topups
+supply_revenue_requirement_topups: 1081668308.07 # sum(supply_top_ups.total_budget)
+total_delivery_and_supply_revenue_requirement: 2936102223.71 # total_delivery_revenue_requirement + supply_revenue_requirement_topups
+delivery_revenue_requirement:
+  customer_charge:
+    charge_unit: $/month
+    budget_method: rate_case
+    total_budget: 179841107.3
+  core_delivery_rate:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 1258518368.99
+delivery_top_ups:
+  electric_system_improvements_esi:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 0.0
+  revenue_decoupling_mechanism_rdm:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 0.0
+  transmission_charge:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 521114936.33
+  competitive_transition_assessment_cta:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 51182773.94
+  system_benefits_charge_sbc:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: -20225450.99
+  conservation_adjustment_mechanism_cam:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 61914645.9
+  renewable_energy_investment_clean_energy_fund:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: 10319107.65
+  non_bypassable_fmcc_delivery:
+    charge_unit: $/kWh
+    budget_method: rate_case
+    total_budget: -197198147.19
+supply_top_ups:
+  supply_commodity_bundled:
+    charge_unit: $/kWh
+    budget_method: resstock
+    total_budget: 1081668308.07
+# --- Whole-class Rate-Year forecast sales (Exh 2.10 p.2 RY Forecasted Sales MWh × 1000), summed ---
+test_year_residential_kwh: 10319107650.0 # 8,716,970,840.00 (R1) + 1,593,009,920.00 (R5, unchanged TY→RY) + 9,126,890.00 (R7)
+# --- Whole-class Rate-Year average monthly customer bills (Exh 2.4 RY / Exh 2.10 p.2), summed ---
+test_year_customer_count: 1212520.95 # 1,076,695.40 (R1) + 135,073.20 (R5, unchanged) + 752.35 (R7)
+# Fixed charge is Rate 1's proposed+GET customer charge (all buildings are modeled on Rate 1).
+test_year_fixed_charge_from_rate_case: 12.36 # $/month — Exh 2.4 R1 RY Proposed+GET Customer Charge
+resstock_total_residential_kwh: 7634855865.62 # sum(grid_cons * weight) where utility = ct_eversource
+resstock_customer_count: 892895.5 # sum(weight) where utility = ct_eversource
+resstock_customer_scale_factor: 1.35796512662978 # test_year_customer_count / resstock_customer_count
+resstock_total_residential_kwh_scaled_customer: 10367868012.35 # resstock_total_residential_kwh * resstock_customer_scale_factor
+resstock_kwh_scale_factor: 0.9952969730812103 # test_year_residential_kwh / resstock_total_residential_kwh_scaled_customer
+resstock_total_residential_kwh_scaled_customer_kwh: 10319107650.0 # = test_year_residential_kwh (sanity check)
+resstock_monthly_kwh_scaled_customer_kwh:
+  1: 1260104123.89
+  2: 925155731.2
+  3: 938605247.15
+  4: 764989612.27
+  5: 671181384.51
+  6: 693895547.56
+  7: 910558824.34
+  8: 904845198.43
+  9: 696554699.43
+  10: 689979411.87
+  11: 846590184.31
+  12: 1016647685.05
+supply_commodity_bundled_rates:
+  charge_unit: $/kWh
+  monthly_rates:
+    2025-01: 0.1119
+    2025-02: 0.1119
+    2025-03: 0.1119
+    2025-04: 0.1119
+    2025-05: 0.1119
+    2025-06: 0.1119
+    2025-07: 0.09748
+    2025-08: 0.09748
+    2025-09: 0.09748
+    2025-10: 0.09748
+    2025-11: 0.09748
+    2025-12: 0.09748
