@@ -12,6 +12,7 @@ from utils.pre.gas_tariff_mapper import (
     _default_path_load_curve_annual,
     map_gas_tariff,
 )
+from utils.types import ElectricUtility
 
 
 def test_excluded_gas_utilities_compiled_from_state_configs():
@@ -833,6 +834,75 @@ def test_map_gas_tariff_ct_norwich_two_classes():
         "norwich_muni_general",
         "norwich_muni_general",
     ]
+
+
+_CT_BUILDING_TYPES = [
+    "Single-Family Detached",
+    "Single-Family Attached",
+    "Multi-Family with 2 - 4 Units",
+    "Multi-Family with 5+ units",
+]
+_CT_LANDLORD_TARIFF_KEYS = {
+    "ct_natural_gas_mf",
+    "southern_ct_gas_mf",
+    "yankee_gas_mf",
+    "norwich_muni_mf",
+}
+
+
+def test_map_gas_tariff_ct_building_size_does_not_change_key():
+    """Every CT dwelling gets the individually metered schedule, at any building size.
+
+    Crosses each gas utility with each ResStock building type and both heating
+    flags, for both electric IOUs. Master-meter keys are never produced, and a
+    5+ unit building gets the same key as a single-family building with the
+    same gas utility and heating fuel.
+    """
+    gas_utilities: list[str | None] = [
+        "ct_natural_gas",
+        "southern_ct_gas",
+        "yankee_gas",
+        "norwich_muni",
+        None,
+    ]
+    cases: list[tuple[str | None, str, bool]] = [
+        (gas, building_type, heats)
+        for gas in gas_utilities
+        for building_type in _CT_BUILDING_TYPES
+        for heats in (True, False)
+    ]
+    bldg_ids = list(range(1, len(cases) + 1))
+
+    def expected_key(gas: str | None, heats: bool) -> str:
+        if gas is None:
+            return "null_gas_tariff"
+        if gas == "norwich_muni":
+            return "norwich_muni_general"
+        return f"{gas}_{'heating' if heats else 'nonheating'}"
+
+    expected = {
+        bldg_id: expected_key(gas, heats)
+        for bldg_id, (gas, _, heats) in zip(bldg_ids, cases, strict=True)
+    }
+
+    electric_utilities: tuple[ElectricUtility, ...] = ("ct_eversource", "ct_ui")
+    for electric_utility in electric_utilities:
+        metadata = _ct_metadata(
+            bldg_ids=bldg_ids,
+            gas_utilities=[gas for gas, _, _ in cases],
+            building_types=[building_type for _, building_type, _ in cases],
+            heats_with_natgas=[heats for _, _, heats in cases],
+            electric_utility=electric_utility,
+        )
+        df = map_gas_tariff(
+            SB_metadata=metadata,
+            electric_utility_name=electric_utility,
+        ).collect()
+        got = dict(
+            zip(df["bldg_id"].to_list(), df["tariff_key"].to_list(), strict=True)
+        )
+        assert got == expected
+        assert _CT_LANDLORD_TARIFF_KEYS.isdisjoint(got.values())
 
 
 def test_map_gas_tariff_ct_null_gas_utility():
