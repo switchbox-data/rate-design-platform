@@ -760,7 +760,7 @@ def _ct_metadata(
 
 
 def test_map_gas_tariff_ct_iou_three_classes():
-    """CT IOUs (CNG, SCG, Yankee) map to nonheating / heating / mf."""
+    """CT IOUs map every dwelling, including 5+ buildings, to heating or nonheating."""
     metadata = _ct_metadata(
         bldg_ids=[1, 2, 3, 4, 5, 6, 7, 8, 9],
         gas_utilities=[
@@ -802,18 +802,18 @@ def test_map_gas_tariff_ct_iou_three_classes():
     assert df["tariff_key"].to_list() == [
         "ct_natural_gas_nonheating",
         "ct_natural_gas_heating",
-        "ct_natural_gas_mf",
+        "ct_natural_gas_heating",
         "southern_ct_gas_heating",
         "southern_ct_gas_nonheating",
-        "southern_ct_gas_mf",
+        "southern_ct_gas_nonheating",
         "yankee_gas_heating",
-        "yankee_gas_mf",
+        "yankee_gas_nonheating",
         "yankee_gas_nonheating",
     ]
 
 
 def test_map_gas_tariff_ct_norwich_two_classes():
-    """Norwich maps to general (≤5 units, any heating status) / mf (5+)."""
+    """Norwich maps every dwelling, including 5+ buildings, to GRES."""
     metadata = _ct_metadata(
         bldg_ids=[1, 2, 3, 4],
         gas_utilities=["norwich_muni"] * 4,
@@ -831,7 +831,7 @@ def test_map_gas_tariff_ct_norwich_two_classes():
         "norwich_muni_general",
         "norwich_muni_general",
         "norwich_muni_general",
-        "norwich_muni_mf",
+        "norwich_muni_general",
     ]
 
 

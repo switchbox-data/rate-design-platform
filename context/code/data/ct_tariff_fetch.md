@@ -100,32 +100,21 @@ brochure also in Zotero as
 
 These rules are implemented in `gas_tariff_mapper.py` (`_tariff_key_expr`).
 
-**IOU mapping (CNG, SCG, Yankee — three classes each):**
+Each ResStock `bldg_id` is one dwelling unit, so a unit inside a 5+ building is
+treated as individually metered. The master-meter schedules (CNG/SCG RMDS,
+Yankee Rate 03, Norwich GSHRES) bill the owner of a building with 6+ units on
+one meter, and the mapper does not assign them.
 
-| ResStock situation                             | Tariff key suffix | Rationale      |
-| ---------------------------------------------- | ----------------- | -------------- |
-| `heats_with_natgas = False`, not MF 5+         | `_nonheating`     | RSG / Rate 01  |
-| `heats_with_natgas = True`, not MF 5+          | `_heating`        | RSH / Rate 02  |
-| `in.geometry_building_type_recs` contains "5+" | `_mf`             | RMDS / Rate 03 |
+**IOU mapping (CNG, SCG, Yankee):**
 
-**Norwich mapping (two classes, no heating split):**
+| ResStock situation          | Tariff key suffix | Rationale                        |
+| --------------------------- | ----------------- | -------------------------------- |
+| `heats_with_natgas = False` | `_nonheating`     | RSG / Rate 01, any building size |
+| `heats_with_natgas = True`  | `_heating`        | RSH / Rate 02, any building size |
 
-| ResStock situation                             | Tariff key             | Rationale                           |
-| ---------------------------------------------- | ---------------------- | ----------------------------------- |
-| Not MF 5+ (any heating status)                 | `norwich_muni_general` | GRES = all household uses, ≤5 units |
-| `in.geometry_building_type_recs` contains "5+" | `norwich_muni_mf`      | GSHRES = 6+ units on a single meter |
-
-**Known proxy mismatch (5+ vs 6+):** All four CT gas utilities define their
-multi-dwelling class at **6+ units** on a single meter, but ResStock's
-`in.geometry_building_type_recs` field only distinguishes "Multi-Family with 5+
-units" (i.e. 5 or more). There is no ResStock bucket that isolates exactly 6+.
-The mapper uses the "5+" bucket as a proxy for 6+, meaning 5-unit buildings are
-assigned the MF tariff when the utility's actual threshold would keep them in
-the ≤5-unit class. This is the same approach used for KEDNY/KEDLI in NY (whose
-SC 3 threshold is also 6+, not 5+; see
-`context/domain/charges/gas_heating_rates_in_ny.md`). The impact is small: the
-"MF 5+" bucket in ResStock represents a small fraction of the residential
-sample, and 5-unit buildings are a subset of that.
+**Norwich mapping (no heating split):** every Norwich building, including 5+
+unit buildings, maps to `norwich_muni_general` (GRES). GRES is the
+individually metered residential schedule and covers all household uses.
 
 ---
 
@@ -195,19 +184,14 @@ uses to qualify. NPU kept the legacy "Space Heating" name on GSHRES, but
 functionally it is the multi-dwelling class, directly analogous to RMDS (CNG/SCG)
 and Rate 03 (Yankee). `_mf` reflects what the rate actually does, not its title.
 
-**Coverage is complete, by construction:** every residential dwelling is either
-≤5 units on a single meter (→ GRES) or 6+ units on a single meter (→ GSHRES) —
-the two availability clauses partition all residential customers with no gap and
-no overlap. GRES covers **both** heating and non-heating uses for ≤5-unit
+**Coverage of the filed tariffs is complete, by construction:** every residential
+dwelling is either ≤5 units on a single meter (→ GRES) or 6+ units on a single
+meter (→ GSHRES). GRES covers **both** heating and non-heating uses for ≤5-unit
 dwellings (there is no separate Norwich heating/non-heating split, unlike the
-IOUs). Intended future mapper routing (not this ticket): any ≤5-unit dwelling
-(regardless of `heats_with_natgas`) → `norwich_muni_general`; master-metered 6+
-unit buildings → `norwich_muni_mf`.
-
-| ResStock situation (Norwich)                        | Tariff key             | Rationale                           |
-| --------------------------------------------------- | ---------------------- | ----------------------------------- |
-| Not master-metered 6+ (any heating status)          | `norwich_muni_general` | GRES = all household uses, ≤5 units |
-| Master-metered multi-dwelling (6+ units, one meter) | `norwich_muni_mf`      | GSHRES = 6+ units on a single meter |
+IOUs). The mapper assigns every Norwich ResStock building to
+`norwich_muni_general`, including units in 5+ buildings, because each
+`bldg_id` is one dwelling unit rather than the master-metered building GSHRES
+is written for.
 
 ---
 

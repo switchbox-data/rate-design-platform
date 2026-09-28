@@ -201,31 +201,25 @@ def _tariff_key_expr() -> pl.Expr:
         .when((gas_utility_col == "sandpiper") & chesapeake_is_res2)
         .then(pl.lit("chesapeake_worcester_res2"))
         #### MD: Chesapeake territory ####
-        #### CT: CNG / SCG / Yankee (3-class IOUs: nonheating / heating / mf) ####
-        # MF threshold is 6+ units on one meter; ResStock's "5+" bucket is the
-        # closest proxy (same approach as kedny/kedli above).
+        #### CT: CNG / SCG / Yankee ####
+        # Each ResStock bldg_id is one dwelling unit, so a unit in a 5+ building
+        # is individually metered. The master-meter schedules (CNG/SCG RMDS,
+        # Yankee Rate 03) bill the building owner and are not assigned.
         .when(
             gas_utility_col.is_in(["ct_natural_gas", "southern_ct_gas", "yankee_gas"])
-            & is_mf
-        )
-        .then(pl.concat_str([gas_utility_col, pl.lit("_mf")]))
-        .when(
-            gas_utility_col.is_in(["ct_natural_gas", "southern_ct_gas", "yankee_gas"])
-            & ~is_mf
             & heats_with_natgas_column.eq(True)
         )
         .then(pl.concat_str([gas_utility_col, pl.lit("_heating")]))
         .when(
             gas_utility_col.is_in(["ct_natural_gas", "southern_ct_gas", "yankee_gas"])
-            & ~is_mf
             & heats_with_natgas_column.eq(False)
         )
         .then(pl.concat_str([gas_utility_col, pl.lit("_nonheating")]))
         #### CT: CNG / SCG / Yankee ####
-        #### CT: Norwich (2-class: general / mf; no heating split) ####
-        .when((gas_utility_col == "norwich_muni") & is_mf)
-        .then(pl.lit("norwich_muni_mf"))
-        .when((gas_utility_col == "norwich_muni") & ~is_mf)
+        #### CT: Norwich ####
+        # GRES covers all household uses for an individually metered dwelling.
+        # GSHRES is the 6+ single-meter building tariff and is not assigned.
+        .when(gas_utility_col == "norwich_muni")
         .then(pl.lit("norwich_muni_general"))
         #### CT: Norwich ####
         ### Null value in the gas_utility column gets assigned to "null_gas_tariff" ####
