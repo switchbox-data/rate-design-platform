@@ -11,6 +11,7 @@
 #   just -f data/isone/hourly_demand/Justfile fetch-zone-data
 #   just -f data/isone/hourly_demand/Justfile aggregate-all-utility-loads 2025
 #   just -f data/isone/hourly_demand/Justfile validate
+#   just -f data/isone/hourly_demand/Justfile compare-ct-eversource-sales
 #   just -f data/isone/hourly_demand/Justfile upload
 # Or from this dir: just <recipe>
 
@@ -21,6 +22,7 @@ path_local_utilities := path_local_base + "/utilities"
 path_s3_zones := "s3://data.sb/isone/hourly_demand/zones/"
 path_s3_utilities := "s3://data.sb/isone/hourly_demand/utilities/"
 path_zone_mapping_csv := path_local_repo + "/data/isone/zone_mapping/csv/isone_utility_zone_mapping.csv"
+path_eversource_sales_csv := path_local_base + "/ct_eversource_ciec020_kwh_ty2025.csv"
 
 # Defaults (override: just start=2020-01 end=2025-02 fetch-zone-data)
 start := "2018-01"
@@ -37,6 +39,16 @@ fetch-zone-data:
 validate:
     uv run python "{{ path_local_base }}/validate_isone_demand_parquet.py" \
         --path-local-zones "{{ path_local_zones }}"
+
+# Compare the Connecticut zone series stored as ct_eversource to Eversource
+# billed kWh (CIEC-020 Attachment 2 Total row). Requires local utility parquet
+# (download or aggregate-all-utility-loads first).
+compare-ct-eversource-sales year="2025":
+    uv run python "{{ path_local_base }}/compare_ct_zone_load_to_eversource_sales.py" \
+        --path-csv "{{ path_eversource_sales_csv }}" \
+        --path-local-utilities "{{ path_local_utilities }}" \
+        --year {{ year }} \
+        --utility ct_eversource
 
 # Fetch + validate (no upload)
 prepare: fetch-zone-data validate
