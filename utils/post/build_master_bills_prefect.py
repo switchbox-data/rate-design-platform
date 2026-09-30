@@ -81,6 +81,7 @@ from utils.post.io import (
     ANNUAL_MONTH,
     BILL_LEVEL,
     BLDG_ID,
+    path_or_s3,
     scan,
     scan_load_curves_for_utility,
 )
@@ -290,6 +291,55 @@ def _resolve_tariff_map_path(dir_delivery: str) -> str:
             "path_tariff_maps_electric field"
         )
     return str(path)
+
+
+_MONTH_INT_TO_STR: dict[int, str] = {
+    1: "Jan",
+    2: "Feb",
+    3: "Mar",
+    4: "Apr",
+    5: "May",
+    6: "Jun",
+    7: "Jul",
+    8: "Aug",
+    9: "Sep",
+    10: "Oct",
+    11: "Nov",
+    12: "Dec",
+}
+
+
+def _billing_kwh_monthly_from_8760(dir_delivery: str) -> pl.DataFrame | None:
+    """Roll up CAIRO's ``billing_kwh_8760.parquet`` into monthly + annual kWh.
+
+    Returns a DataFrame with ``(bldg_id, month, elec_grid_kwh)`` using the same
+    month-string convention ("Jan"…"Dec", "Annual") as the rest of the master
+    bill builder.  Returns ``None`` if the file does not exist (pre-May-2026
+    batches that were run without ``--billing-kwh``).
+    """
+    uri = f"{dir_delivery.rstrip('/')}/billing_kwh_8760.parquet"
+    p = path_or_s3(uri)
+    if not p.exists():
+        return None
+
+    monthly = (
+        pl.scan_parquet(uri)
+        .with_columns(pl.col("timestamp").dt.month().alias("_month_int"))
+        .group_by(BLDG_ID, "_month_int")
+        .agg(pl.col("grid_cons_kwh").sum().alias("elec_grid_kwh"))
+        .with_columns(
+            pl.col("_month_int")
+            .replace_strict(_MONTH_INT_TO_STR, return_dtype=pl.String)
+            .alias("month")
+        )
+        .drop("_month_int")
+        .collect()
+    )
+    annual = monthly.group_by(BLDG_ID).agg(
+        pl.lit(ANNUAL_MONTH).alias("month"),
+        pl.col("elec_grid_kwh").sum(),
+    )
+    return pl.concat([monthly, annual]).select(BLDG_ID, "month", "elec_grid_kwh")
 
 
 def _assert_building_match(
@@ -730,41 +780,65 @@ def _process_utility(
     _assert_no_nulls(fuel_bills, ["oil_total_bill", "propane_total_bill"], utility)
 
     # --- Monthly consumption (elec grid kWh + gas therms) ---
-    monthly_consumption = load_curves.select(
-        pl.col(BLDG_ID),
-        pl.col("month"),
-        grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL)
-        .fill_null(0.0)
-        .alias("elec_grid_kwh"),
-        (pl.col(GAS_CONSUMPTION_COL).fill_null(0.0) / KWH_PER_THERM).alias(
-            "gas_therms"
-        ),
-    ).collect()
-    month_int_to_str: dict[int, str] = {
-        1: "Jan",
-        2: "Feb",
-        3: "Mar",
-        4: "Apr",
-        5: "May",
-        6: "Jun",
-        7: "Jul",
-        8: "Aug",
-        9: "Sep",
-        10: "Oct",
-        11: "Nov",
-        12: "Dec",
-    }
-    monthly_consumption = monthly_consumption.with_columns(
-        pl.col("month").replace_strict(month_int_to_str, return_dtype=pl.String)
+    # Electric grid kWh: prefer CAIRO's billing_kwh_8760.parquet (delivery run),
+    # which has kwh_scale_factor already applied.  Fall back to raw ResStock load
+    # curves if the file is absent (pre-May-2026 batches).
+    t = _log("  Reading billing kWh from delivery run...")
+    elec_kwh = _billing_kwh_monthly_from_8760(run.dir_delivery)
+    if elec_kwh is not None:
+        _log_done("  Billing kWh (from CAIRO 8760)", t, f"{elec_kwh.height} rows")
+    else:
+        _log(
+            "  WARNING: billing_kwh_8760.parquet not found in delivery run; "
+            "falling back to unscaled ResStock load curves for elec_grid_kwh"
+        )
+        elec_kwh_monthly = (
+            load_curves.select(
+                pl.col(BLDG_ID),
+                pl.col("month"),
+                grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL)
+                .fill_null(0.0)
+                .alias("elec_grid_kwh"),
+            )
+            .collect()
+            .with_columns(
+                pl.col("month").replace_strict(
+                    _MONTH_INT_TO_STR, return_dtype=pl.String
+                )
+            )
+        )
+        elec_kwh_annual = elec_kwh_monthly.group_by(BLDG_ID).agg(
+            pl.lit(ANNUAL_MONTH).alias("month"),
+            pl.col("elec_grid_kwh").sum(),
+        )
+        elec_kwh = pl.concat([elec_kwh_monthly, elec_kwh_annual]).select(
+            BLDG_ID, "month", "elec_grid_kwh"
+        )
+        _log_done("  Billing kWh (fallback, unscaled)", t, f"{elec_kwh.height} rows")
+
+    # Gas therms: always from raw ResStock load curves (no electric scale factor).
+    gas_therms_monthly = (
+        load_curves.select(
+            pl.col(BLDG_ID),
+            pl.col("month"),
+            (pl.col(GAS_CONSUMPTION_COL).fill_null(0.0) / KWH_PER_THERM).alias(
+                "gas_therms"
+            ),
+        )
+        .collect()
+        .with_columns(
+            pl.col("month").replace_strict(_MONTH_INT_TO_STR, return_dtype=pl.String)
+        )
     )
-    annual_consumption = monthly_consumption.group_by(BLDG_ID).agg(
+    gas_therms_annual = gas_therms_monthly.group_by(BLDG_ID).agg(
         pl.lit(ANNUAL_MONTH).alias("month"),
-        pl.col("elec_grid_kwh").sum(),
         pl.col("gas_therms").sum(),
     )
-    consumption = pl.concat([monthly_consumption, annual_consumption]).select(
-        BLDG_ID, "month", "elec_grid_kwh", "gas_therms"
+    gas_therms = pl.concat([gas_therms_monthly, gas_therms_annual]).select(
+        BLDG_ID, "month", "gas_therms"
     )
+
+    consumption = elec_kwh.join(gas_therms, on=[BLDG_ID, "month"], how="inner")
 
     # --- Join all components ---
     t = _log("  Joining components...")
