@@ -8,7 +8,7 @@
 # Rate 6 == Rate 1 (Residential) EXCEPT the two rate-class-specific delivery components in
 # already_in_drr below: the customer charge and the core distribution rate. All system-wide
 # riders, the supply commodity, and the excluded-charge decisions are shared with
-# ct_eversource_rate1_proposed_monthly_rates_2025.yaml.
+# ct_eversource_rate1_proposed_monthly_rates_ry1.yaml.
 #
 # Filed-vintage decisions (these differ from the current RateAcuity ct_eversource top-up):
 #   - ESI and RDM are rolled into base distribution in the proposed rates, so they are zeroed
