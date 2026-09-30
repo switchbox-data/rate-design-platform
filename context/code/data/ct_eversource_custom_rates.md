@@ -159,4 +159,4 @@ take transmission (and all riders) as a single filed-2026 set so the two rates s
 - `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate6.json` (+ `_supply.json`)
 - `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate1_proposed.json` (+ `_supply.json`)
 - `rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate6_monthly_rates_2025.yaml`
-- `rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate1_proposed_monthly_rates_2025.yaml`
+- `rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate1_proposed_monthly_rates_ry1.yaml`
