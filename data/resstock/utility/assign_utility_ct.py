@@ -25,6 +25,16 @@ The filtered polygons are spatially intersected with Census PUMAs to compute
 per-PUMA utility probability distributions, which are then used to sample a
 utility assignment for each ResStock building.
 
+Electric probabilities are each utility's share of the PUMA's land area. Gas
+probabilities are each utility's share of the PUMA's homes heated with utility
+gas (ACS 2016-2020 table B25040 by block group, spread to 2020 census blocks
+by housing units): every block is placed, by its internal point, in a PUMA and
+a gas territory. The same gas probabilities are used for every building with a
+gas connection, including ones that do not heat with gas, since gas-heated
+homes mark where the mains are. Land area and total housing units both
+over-assign Yankee Gas, whose territory covers much of the state but has a low
+share of homes on gas.
+
 CT electric utilities (IOUs + municipals):
   - Eversource Energy CT (std_name ``ct_eversource``; HIFLD still
     ``CONNECTICUT LIGHT & POWER CO``)
@@ -51,22 +61,26 @@ from typing import cast
 import geopandas as gpd
 import polars as pl
 
-from data.resstock.utils import (
-    load_state_configs,
-    select_puma_and_heating_fuel_metadata,
-)
 from data.resstock.utility.utils import (
     GIS_CACHE_DIR,
+    add_block_gas_heated_homes,
     calculate_prior_distributions,
+    calculate_puma_utility_housing_overlap,
     calculate_puma_utility_overlap,
     calculate_utility_probabilities,
+    fetch_acs_gas_heated_homes_by_block_group,
     fill_missing_puma_probabilities,
     filter_hifld_for_state,
+    load_census_blocks,
     load_national_hifld,
     load_pumas,
     print_comparison_summary,
     sample_utility_per_building,
     zero_excluded_gas_utilities_and_renormalize,
+)
+from data.resstock.utils import (
+    load_state_configs,
+    select_puma_and_heating_fuel_metadata,
 )
 
 # ── CT-specific constants ─────────────────────────────────────────────────────
@@ -77,6 +91,7 @@ _CT_CFG = _STATE_CONFIGS[_STATE]["utility_assignment"]["kwargs"]
 
 CT_STATE_CRS: int = _CT_CFG["state_crs"]
 CT_PUMA_YEAR: int = _CT_CFG["puma_year"]
+CT_STATE_FIPS: str = _STATE_CONFIGS[_STATE]["state_fips"]
 
 
 # ── Pipeline entry point ──────────────────────────────────────────────────────
@@ -131,12 +146,19 @@ def assign_utility(
     )
     pumas = pumas.to_crs(epsg=state_crs)
 
+    print("    Loading CT 2020 Census blocks and ACS gas-heated homes ...", flush=True)
+    blocks = add_block_gas_heated_homes(
+        load_census_blocks(_STATE),
+        fetch_acs_gas_heated_homes_by_block_group(CT_STATE_FIPS),
+    )
+
     return assign_utility_ct(
         input_metadata=metadata,
         electric_polygons=elec_ct,
         gas_polygons=gas_ct,
         pumas=pumas,
         state_crs=state_crs,
+        gas_blocks=blocks,
         excluded_gas_utilities=frozenset(excluded_gas_utilities)
         if excluded_gas_utilities is not None
         else frozenset(),
@@ -153,11 +175,13 @@ def assign_utility_ct(
     pumas: gpd.GeoDataFrame,
     state_crs: int,
     excluded_gas_utilities: frozenset[str] = frozenset(),
+    gas_blocks: gpd.GeoDataFrame | None = None,
 ) -> pl.LazyFrame:
     """Assign electric and gas utilities to ResStock buildings in CT.
 
-    Both electric and gas utilities are assigned via PUMA-polygon area
-    overlap on HIFLD service territory shapes.
+    Electric utilities are assigned via PUMA-polygon area overlap on HIFLD
+    service territory shapes. Gas utilities use gas-heated-home overlap when
+    ``gas_blocks`` is given, and area overlap otherwise.
 
     Args:
         input_metadata: ResStock metadata LazyFrame.
@@ -171,6 +195,9 @@ def assign_utility_ct(
         state_crs: EPSG code for the CT projected CRS.
         excluded_gas_utilities: Gas utility names whose PUMA probabilities
             are zeroed before sampling (default: empty).
+        gas_blocks: Census block internal points with ``gas_heated_homes``
+            (from :func:`load_census_blocks` and
+            :func:`add_block_gas_heated_homes`).
 
     Returns:
         LazyFrame with all original metadata columns plus
@@ -190,7 +217,14 @@ def assign_utility_ct(
     puma_elec_overlap = calculate_puma_utility_overlap(
         pumas, electric_polygons, state_crs
     )
-    puma_gas_overlap = calculate_puma_utility_overlap(pumas, gas_polygons, state_crs)
+    if gas_blocks is not None:
+        puma_gas_overlap = calculate_puma_utility_housing_overlap(
+            pumas, gas_polygons, gas_blocks, state_crs, weight_col="gas_heated_homes"
+        )
+    else:
+        puma_gas_overlap = calculate_puma_utility_overlap(
+            pumas, gas_polygons, state_crs
+        )
 
     puma_elec_probs = calculate_utility_probabilities(
         puma_elec_overlap,
