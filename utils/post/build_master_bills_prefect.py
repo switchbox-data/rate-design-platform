@@ -339,7 +339,8 @@ def _billing_kwh_monthly_from_8760(dir_delivery: str) -> pl.DataFrame | None:
         pl.lit(ANNUAL_MONTH).alias("month"),
         pl.col("elec_grid_kwh").sum(),
     )
-    return pl.concat([monthly, annual]).select(BLDG_ID, "month", "elec_grid_kwh")
+    cols = [BLDG_ID, "month", "elec_grid_kwh"]
+    return pl.concat([monthly.select(cols), annual.select(cols)])
 
 
 def _assert_building_match(
