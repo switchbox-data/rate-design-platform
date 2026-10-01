@@ -22,6 +22,7 @@ def collect_run_warnings(
     assign_utility: bool,
     add_monthly_loads: bool,
     add_annual_loads: bool = True,
+    adjust_gas_usage: bool = False,
 ) -> list[str]:
     """Run all pre-run argument/file-type mismatch checks.
 
@@ -48,6 +49,8 @@ def collect_run_warnings(
         Whether the monthly load aggregation step is enabled.
     add_annual_loads:
         Whether the annual load aggregation step is enabled.
+    adjust_gas_usage:
+        Whether the natural gas scaling to EIA-176 step is enabled.
     """
     warnings: list[str] = []
 
@@ -94,6 +97,23 @@ def collect_run_warnings(
             f"--adjust-mf-electricity is enabled but none of the requested upgrade IDs "
             f"are in mf_adj_upgrade_ids {mf_adj_upgrades}. The MF electricity adjustment "
             f"step will be skipped. Check --upgrade-ids or mf_adj_upgrade_ids in config.yaml."
+        )
+
+    if adjust_gas_usage and "load_curve_hourly" not in file_types:
+        _warn(
+            "--adjust-gas-usage is enabled but 'load_curve_hourly' is not in "
+            "--file-types. The gas usage adjustment step will be skipped."
+        )
+
+    if adjust_gas_usage and (
+        "load_curve_annual" not in file_types
+        or "00" not in [u.zfill(2) for u in upgrade_ids]
+    ):
+        _warn(
+            "--adjust-gas-usage is enabled but this run does not fetch the raw "
+            "upgrade-00 load_curve_annual (needs 0 in --upgrade-ids and "
+            "'load_curve_annual' in --file-types). The gas scale factor will use "
+            "the copy already on disk; pre-flight fails if there is none."
         )
 
     if assign_utility and "metadata" not in file_types:

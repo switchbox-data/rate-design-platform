@@ -178,6 +178,42 @@ def validate_utility_assignment_args(
         )
 
 
+def validate_gas_usage_inputs(
+    states: list[str],
+    upgrade_ids: list[str],
+    file_types: list[str],
+    adjust_gas_usage: bool,
+    path_raw: Path,
+) -> None:
+    """Raise RuntimeError if the gas scale factor's upgrade-00 annual file is unavailable.
+
+    The factor is computed from the raw upgrade-00 ``load_curve_annual``. It is
+    available if this run fetches it (upgrade 00 in ``upgrade_ids`` and
+    ``load_curve_annual`` in ``file_types``) or if it is already on disk for
+    every requested state. Skipped when the step would not run anyway
+    (``load_curve_hourly`` not requested).
+    """
+    if not adjust_gas_usage or "load_curve_hourly" not in file_types:
+        return
+    if "00" in [u.zfill(2) for u in upgrade_ids] and "load_curve_annual" in file_types:
+        return
+
+    missing: list[str] = []
+    for s in states:
+        lca_dir = path_raw / "load_curve_annual" / f"state={s}" / "upgrade=00"
+        if not any(lca_dir.glob("*.parquet")):
+            missing.append(str(lca_dir))
+    if missing:
+        raise RuntimeError(
+            "--adjust-gas-usage needs the raw upgrade-00 load_curve_annual to "
+            "compute the gas scale factor, but it is not on disk and this run "
+            "will not fetch it:\n"
+            + "\n".join(f"  {m}" for m in missing)
+            + "\nAdd 0 to --upgrade-ids and 'load_curve_annual' to --file-types, "
+            "or disable the step with --adjust-gas-usage False."
+        )
+
+
 def validate_no_stale_aggregate_loads(
     state: list[str],
     upgrade_ids: list[str],

@@ -499,6 +499,7 @@ _STEP_FILE_TYPES: dict[str, frozenset[str]] = {
     "assign_utility": frozenset({"metadata_utility"}),
     "approximate_non_hp_load": frozenset({"load_curve_hourly"}),
     "adjust_mf_electricity": frozenset({"load_curve_hourly"}),
+    "adjust_gas_usage": frozenset({"load_curve_hourly"}),
     "add_monthly_loads": frozenset({"load_curve_monthly"}),
     "add_annual_loads": frozenset({"load_curve_annual"}),
     "add_aggregate_loads": frozenset({"load_curve_monthly", "load_curve_annual"}),
