@@ -228,7 +228,7 @@ resource "aws_instance" "main" {
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
   subnet_id              = local.subnet_id
   iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
-  user_data              = local.user_data
+  user_data_base64       = base64gzip(local.user_data)
 
   root_block_device {
     volume_type = "gp3"
@@ -258,6 +258,8 @@ resource "aws_cloudwatch_metric_alarm" "idle_stop" {
   alarm_description   = "Stop instance after ${var.idle_minutes} min of CPU below ${var.idle_cpu_threshold}%"
   comparison_operator = "LessThanThreshold"
   evaluation_periods  = var.idle_minutes / 5
+  datapoints_to_alarm = var.idle_minutes / 5
+  treat_missing_data  = "notBreaching"
   metric_name         = "CPUUtilization"
   namespace           = "AWS/EC2"
   period              = 300
