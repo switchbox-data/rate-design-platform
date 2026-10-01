@@ -51,6 +51,11 @@ from data.resstock.load_curve.adjust_mf_electricity import (
     BUILDING_TYPE_RECS_COL,
     adjust_mf_electricity_parquet,
 )
+from data.resstock.load_curve.adjust_gas_usage import (
+    adjust_gas_usage_hourly_dir,
+    load_eia176_residential_kwh,
+    resstock_weighted_gas_kwh,
+)
 from data.resstock.load_curve.approximate_non_hp_load import (
     _find_nearest_neighbors,
     _identify_non_hp_mf,
@@ -89,6 +94,7 @@ from data.resstock.validations import (
     validate_metadata_columns,
     validate_metadata_output,
     validate_metadata_readable,
+    validate_gas_usage_inputs,
     validate_no_stale_aggregate_loads,
     validate_s3_objects,
     validate_utility_assignment_args,
@@ -411,6 +417,70 @@ def _adjust_mf_electricity(
             gc.collect()
 
     return processed_upgrades
+
+
+def _adjust_gas_usage(
+    *,
+    states: list[str],
+    path_raw: Path,
+    path_sb: Path,
+    upgrade_ids: list[str],
+    eia_year: int,
+    sample: int,
+) -> dict[str, float]:
+    """Scale _sb hourly natural gas columns so weighted ResStock gas matches EIA-176.
+
+    For each state, the factor is EIA-176 residential sales plus transportation
+    in ``eia_year``
+    divided by weighted upgrade-00 gas from the raw ``load_curve_annual``. That
+    one factor is applied to the hourly gas columns of every requested upgrade.
+
+    Returns the factor applied per state.
+    """
+    factors: dict[str, float] = {}
+    for s in states:
+        lca_dir = path_raw / "load_curve_annual" / f"state={s}" / "upgrade=00"
+        if not any(lca_dir.glob("*.parquet")):
+            raise RuntimeError(
+                f"Upgrade 00 load_curve_annual not found at {lca_dir}; cannot "
+                f"compute the gas scale factor for state={s}."
+            )
+        if sample > 0:
+            print(
+                "  WARNING: --sample active — weighted ResStock gas covers only the "
+                "sampled buildings, so the gas scale factor will be too large. "
+                "Run without --sample for production use.",
+                flush=True,
+            )
+
+        resstock_kwh = resstock_weighted_gas_kwh(pl.scan_parquet(str(lca_dir)))
+        eia_kwh = load_eia176_residential_kwh(state=s, year=eia_year)
+        factor = eia_kwh / resstock_kwh
+        print(
+            f"  state={s}: EIA-176 {eia_year} residential sales + transport "
+            f"{eia_kwh:,.0f} kWh / "
+            f"ResStock upgrade 00 {resstock_kwh:,.0f} kWh = factor {factor:.4f}",
+            flush=True,
+        )
+
+        for uid in upgrade_ids:
+            uid_padded = uid.zfill(2)
+            lc_hourly_dir = (
+                path_sb / "load_curve_hourly" / f"state={s}" / f"upgrade={uid_padded}"
+            )
+            if not lc_hourly_dir.exists():
+                print(
+                    f"  WARNING: {lc_hourly_dir} not found, skipping "
+                    f"state={s} upgrade={uid_padded}.",
+                    flush=True,
+                )
+                continue
+            print(f"  Scaling gas for state={s} upgrade={uid_padded}...", flush=True)
+            adjust_gas_usage_hourly_dir(lc_hourly_dir, factor)
+        factors[s] = factor
+        gc.collect()
+
+    return factors
 
 
 def _assign_utility(
@@ -853,6 +923,27 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--adjust-gas-usage",
+        type=parse_bool,
+        default=True,
+        metavar="BOOL",
+        help=(
+            "Scale hourly natural gas columns of every requested upgrade by one "
+            "statewide factor: EIA-176 residential sales + transport in "
+            "--gas-usage-eia-year "
+            "divided by weighted upgrade-00 ResStock gas (default: True). Runs "
+            "after adjust-mf-electricity. Requires load_curve_hourly and "
+            "load_curve_annual in --file-types."
+        ),
+    )
+    parser.add_argument(
+        "--gas-usage-eia-year",
+        type=int,
+        default=2018,
+        metavar="YEAR",
+        help="EIA-176 report year to scale ResStock gas to (default: 2018).",
+    )
+    parser.add_argument(
         "--assign-utility",
         type=parse_bool,
         default=True,
@@ -974,6 +1065,8 @@ def main(argv: list[str] | None = None) -> None:
             },
             "approximate_non_hp_load": args.approximate_non_hp_load,
             "adjust_mf_electricity": args.adjust_mf_electricity,
+            "adjust_gas_usage": args.adjust_gas_usage,
+            "gas_usage_eia_year": args.gas_usage_eia_year,
             "assign_utility": args.assign_utility,
             "add_monthly_loads": args.add_monthly_loads,
             "add_annual_loads": args.add_annual_loads,
@@ -1005,6 +1098,7 @@ def main(argv: list[str] | None = None) -> None:
             approx_upgrades=_APPROX_UPGRADES,
             adjust_mf_electricity=args.adjust_mf_electricity,
             mf_adj_upgrades=_MF_ADJ_UPGRADES,
+            adjust_gas_usage=args.adjust_gas_usage,
             assign_utility=args.assign_utility,
             add_monthly_loads=args.add_monthly_loads,
             add_annual_loads=args.add_annual_loads,
@@ -1025,6 +1119,13 @@ def main(argv: list[str] | None = None) -> None:
             assign_utility=args.assign_utility,
             utility_assign_upgrade=_UTILITY_ASSIGN_UPGRADE,
             supported_states=SUPPORTED_UTILITY_STATES,
+        )
+        validate_gas_usage_inputs(
+            states=args.state,
+            upgrade_ids=args.upgrade_ids,
+            file_types=args.file_types,
+            adjust_gas_usage=args.adjust_gas_usage,
+            path_raw=path_raw,
         )
 
         # ── 1. Fetch ──────────────────────────────────────────────────────────
@@ -1213,6 +1314,27 @@ def main(argv: list[str] | None = None) -> None:
                 sample=args.sample,
             )
             record_step(run, "adjust_mf_electricity", upgrades=processed_upgrades)
+            upsert_run(path_sb, run)
+            gc.collect()
+
+        # ── 2c-iii. Scale natural gas to EIA-176 residential deliveries ───────
+        if args.adjust_gas_usage and "load_curve_hourly" in args.file_types:
+            print("Adjusting natural gas usage to EIA-176...", flush=True)
+            gas_factors = _adjust_gas_usage(
+                states=args.state,
+                path_raw=path_raw,
+                path_sb=path_sb,
+                upgrade_ids=args.upgrade_ids,
+                eia_year=args.gas_usage_eia_year,
+                sample=args.sample,
+            )
+            record_step(
+                run,
+                "adjust_gas_usage",
+                eia_year=args.gas_usage_eia_year,
+                scale_factors=gas_factors,
+                upgrades=[u.zfill(2) for u in args.upgrade_ids],
+            )
             upsert_run(path_sb, run)
             gc.collect()
 
