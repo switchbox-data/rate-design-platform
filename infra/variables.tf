@@ -1,7 +1,7 @@
 variable "instance_type" {
   description = "EC2 instance type"
   type        = string
-  default     = "m7i.xlarge"
+  default     = "m7i.2xlarge"
 }
 
 variable "root_volume_size" {
