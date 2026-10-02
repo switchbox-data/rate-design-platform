@@ -252,7 +252,8 @@ if [ "$NEEDS_SETUP" = true ]; then
   echo "   Command ID: $COMMAND_ID"
   echo "   Waiting for user creation to complete..."
 
-  for i in {1..30}; do
+  USER_CREATED=false
+  for i in {1..60}; do
     STATUS=$(aws ssm get-command-invocation \
       --command-id "$COMMAND_ID" \
       --instance-id "$INSTANCE_ID" \
@@ -268,6 +269,7 @@ if [ "$NEEDS_SETUP" = true ]; then
       if [ -n "$OUTPUT" ]; then
         echo "   $OUTPUT"
       fi
+      USER_CREATED=true
       break
     elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
       ERROR_OUTPUT=$(aws ssm get-command-invocation \
@@ -281,8 +283,17 @@ if [ "$NEEDS_SETUP" = true ]; then
       fi
       exit 1
     fi
-    sleep 1
+    if [ $((i % 10)) -eq 0 ]; then
+      echo "   Still waiting for user creation... ($i/60)"
+    fi
+    sleep 2
   done
+
+  if [ "$USER_CREATED" = false ]; then
+    echo "   ERROR: User creation timed out after 2 minutes" >&2
+    echo "   The instance may still be running user-data (first boot). Wait a minute and re-run." >&2
+    exit 1
+  fi
 
   # Set up oh-my-zsh for this user
   echo "🐚 Setting up oh-my-zsh for $LINUX_USERNAME..."
