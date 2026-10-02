@@ -40,6 +40,14 @@ scenarios:
     # Posted Schedule R billed as-is (CAIRO default mode + large-number RR).
     quartet: single_rate_uncalibrated
     tariff_base: rate6
+  default_ry1_r6_ratemc_uncalibrated:
+    # Rate 6 RATE=MC: winter Block 2 = marginal cost only (no reconciliation adj).
+    quartet: single_rate_uncalibrated
+    tariff_base: rate6_ratemc
+  default_ry1_r6_fixed_ratemc_uncalibrated:
+    # Rate 6 FIXED+RATE=MC: MFC in fixed charge, winter Block 2 = MC only.
+    quartet: single_rate_uncalibrated
+    tariff_base: rate6_fixed_ratemc
   hp_seasonal_percustomer_passthrough:
     quartet: multi_rate_collapsed
     depends_on: default
