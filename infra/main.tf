@@ -236,6 +236,17 @@ resource "aws_instance" "main" {
     encrypted   = true
   }
 
+  # Prevent Terraform from replacing the instance when Canonical publishes a
+  # newer Ubuntu AMI.  The data.aws_ami lookup always resolves to the latest
+  # image, so without this guard any `terraform apply` (or `-target` that
+  # pulls in the instance as a dependency) would destroy and recreate the
+  # instance — losing the root volume, breaking mounts, and requiring a full
+  # dev-login rebuild.  Upgrade the AMI intentionally with:
+  #   terraform taint aws_instance.main && terraform apply
+  lifecycle {
+    ignore_changes = [ami, user_data_base64]
+  }
+
   tags = {
     Name    = var.project_name
     Project = var.project_name
