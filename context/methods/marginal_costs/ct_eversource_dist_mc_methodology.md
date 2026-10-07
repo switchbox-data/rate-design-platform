@@ -197,8 +197,8 @@ substation series: OCC-863 says no forecasted hourly system loads are available.
 4. **Rate year 1 uses `$21.22` with no CPI adjustment.** An earlier run deflated the pre-loss
    Table 3 scalar from 2026$ to the 2025 load year (`$20.17 → $19.65`, CPI factor 0.9740). The
    same factor on `$21.22` would be about `$20.67`. The CT analysis is rate year 1, so the recipe
-   now passes `--target-dollar-year 2026` and the allocator keeps `$21.22`. The S3 parquet from
-   that earlier run still has the deflated pre-loss scalar until `create-dist-mc-data` is re-run.
+   now passes `--target-dollar-year 2026` and the allocator keeps `$21.22`. The earlier run's
+   parquet keeps the deflated pre-loss scalar (point 7).
 5. **Ran the standard PoP allocation** via the new `just -f ct/Justfile create-dist-mc-data 2025
    --upload` recipe (§3.5):
    ```bash
@@ -207,7 +207,7 @@ substation series: OCC-863 says no forecasted hourly system loads are available.
        --target-dollar-year 2026 \
        --mc-table-path rate_design/hp_rates/ct/config/marginal_costs/ct_marginal_costs_2025.csv \
        --path-utility-load s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet/system_load.parquet \
-       --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \
+       --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/ \
        --upload
    ```
 6. **Validated** (against the pre-loss `$20.17` scalar; re-run after the `$21.22` change): the
@@ -217,11 +217,22 @@ substation series: OCC-863 says no forecasted hourly system loads are available.
    finding of concentrated summer peak-probability, though the specific split differs somewhat from
    CL&P's multi-year-normalized ~80% Jul–Aug / ~20% Jun–Sep because that run used a single year
    (2025) of ISO-NE CT zone load. The recipe now ranks the OCC-863 substation series instead;
-   its 2025 top 100 hours are 28 in June, 66 in July, and 6 in August (§3.3). The S3 parquet
-   still reflects the zone-load run until task 7 is re-run.
-7. **Output**: same schema as all other states (`timestamp, utility, year, mc_total_per_kwh`) at
-   `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet`.
-   Downstream CAIRO wiring is unchanged.
+   its 2025 top 100 hours are 28 in June, 66 in July, and 6 in August (§3.3).
+7. **Output**: same schema as all other states (`timestamp, utility, year, mc_total_per_kwh`).
+   There are two CT datasets, so the OCC-863 run does not overwrite the earlier one:
+
+   | Dataset                                                            | Scalar                                | Allocation load                        |
+   | ------------------------------------------------------------------ | ------------------------------------- | -------------------------------------- |
+   | `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/`        | `$20.17` deflated to `$19.65` (2025$) | ISO-NE CT zone load, 2025              |
+   | `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/` | `$21.22`, rate year 1, no CPI         | OCC-863 Attachment 3 system load, 2025 |
+
+   Both use `utility=ct_eversource/year=2025/data.parquet`. The `_occ863` suffix names the
+   source of both changes: the secondary loss factor (Attachment 2) and the system load
+   (Attachment 3). It follows the sibling-prefix pattern of `dist_and_sub_tx_load{year}/`, so a
+   recursive scan of one dataset never picks up the other's 8760. `create-dist-mc-data` writes
+   only the `_occ863` dataset. The earlier one cannot be rebuilt from the current inputs, since
+   the config CSV and the load both changed. The CT scenario YAMLs still read `dist_and_sub_tx/`;
+   switching a scenario to the new 8760 means changing its `path_dist_and_sub_tx_mc`.
 8. **Wired a `just` recipe**, `create-dist-mc-data`, in `rate_design/hp_rates/ct/Justfile`
    (mirrors `create-bulk-tx-mc-data`'s style, but scoped to `ct_eversource` only — see §3.5).
 9. **Added tests** in `tests/test_ct_dist_mc.py`: ISO-NE zone-mapping coverage for both CT
@@ -292,17 +303,14 @@ allocation or as a direct replacement. This is a nice-to-have, not a blocker for
 1. ~~Add `"CT"` to `--state` choices in `generate_utility_tx_dx_mc.py`.~~ Done.
 2. ~~Create `rate_design/hp_rates/ct/config/marginal_costs/ct_marginal_costs_2025.csv` (§2.3).~~ Done.
 3. ~~Wire a `just` recipe in `rate_design/hp_rates/ct/Justfile` (`create-dist-mc-data`).~~ Done.
-4. ~~Run PoP allocation and validate (§3.4).~~ Done — output at
+4. ~~Run PoP allocation and validate (§3.4).~~ Done for the earlier zone-load run, at
    `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet`.
 5. ~~Add tests (8760-hour coverage, annual reconciliation, seasonal concentration check).~~ Done —
    `tests/test_ct_dist_mc.py`.
 6. ~~Update this doc and [dist_mc_definition_choice.md](dist_mc_definition_choice.md) §2–3, adding CT
    to the source-number and per-state tables.~~ Done.
-7. **Remaining**: re-run `create-dist-mc-data 2025 --upload`. The parquet at
-   `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet`
-   was built from the pre-loss `$20.17/kW-yr` scalar after a CPI deflation to 2025$, on ISO-NE zone
-   load. The recipe now allocates the unadjusted rate year 1 scalar, `$21.22/kW-yr`, on the OCC-863
-   substation series (§3.3).
+7. **Remaining**: run `create-dist-mc-data 2025 --upload`. It writes the OCC-863 8760 (§3.4 point 7)
+   to `dist_and_sub_tx_occ863/` and leaves the earlier `dist_and_sub_tx/` parquet in place.
 8. **Remaining**: wire `path_dist_and_sub_tx_mc` into a CT scenario config (`scenarios_ct_eversource.yaml`
    or equivalent) once CT scenario YAMLs exist, so a CAIRO run actually consumes this MC output. No CT
    scenario configs exist yet in `rate_design/hp_rates/ct/config/scenarios/` — that's a separate,

@@ -15,6 +15,8 @@ state := env_var_or_default('STATE', 'ct')
 
 path_s3_utility_loads := "s3://data.sb/isone/hourly_demand/utilities/"
 path_s3_occ863_system_load := "s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet/system_load.parquet"
+# Sibling of dist_and_sub_tx/, which keeps the earlier ISO-NE-zone-load 8760.
+path_s3_dist_mc_occ863 := "s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/"
 
 import '../Justfile'
 
@@ -124,6 +126,12 @@ create-bulk-tx-mc-data-all *extra_args:
 # distribution-substation load (top-100 hours by default). That file is one
 # multi-year parquet, so this recipe passes --path-utility-load rather than
 # the hive --utility-load-s3-base the other states use.
+#
+# Output goes to dist_and_sub_tx_occ863/, not dist_and_sub_tx/. The suffix
+# names the source of both inputs: the secondary loss factor (Attachment 2)
+# and the system load (Attachment 3). dist_and_sub_tx/ keeps the earlier
+# 8760 ($20.17 deflated to 2025$, on ISO-NE CT zone load), which this recipe
+# can no longer reproduce. Scenario YAMLs still point at dist_and_sub_tx/.
 # See context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md.
 #
 # CL&P's MCOS-2 covers ct_eversource only; ct_ui has no MCOS-derived value yet
@@ -144,7 +152,7 @@ create-dist-mc-data year_arg *extra_args:
       --target-dollar-year 2026 \
       --mc-table-path {{ path_config }}/marginal_costs/ct_marginal_costs_{{ year_arg }}.csv \
       --path-utility-load {{ path_s3_occ863_system_load }} \
-      --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \
+      --output-s3-base {{ path_s3_dist_mc_occ863 }} \
       --n-hours {{ upstream_hours }} \
       {{ extra_args }}
 

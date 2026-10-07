@@ -22,6 +22,8 @@ Output partitions written as:
     - RI default base: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
     - MD default base: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/
     - CT default base: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/
+      (earlier ISO-NE zone-load run; the OCC-863 run writes to
+      dist_and_sub_tx_occ863/)
     - Default partition: utility=X/year=YYYY/data.parquet
     - Alternate-load-year base: <default_base_without_slash>_loadYYYY/
       Example: dist_and_sub_tx_load2018/utility=X/year=2025/data.parquet
@@ -54,7 +56,7 @@ Usage:
         --target-dollar-year 2026 \
         --mc-table-path rate_design/hp_rates/ct/config/marginal_costs/ct_marginal_costs_2025.csv \
         --path-utility-load s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet/system_load.parquet \
-        --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \
+        --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/ \
         --upload
 """
 
