@@ -155,38 +155,37 @@ CL&P's MCOS used an hourly probability-of-peak analysis (MCOS-1, p. 14)(https://
 
 We don't have CL&P's underlying hourly PoP curve (the MCOS-2 back-up tables, including Back-Up 36
 "Probabilities of peak by month and time of day period," were listed in the table of contents but not
-included in the 17-page exhibit we have). However, the standard PoP method on CT zone load is a
-reasonable proxy — CT is summer-peaking (CL&P's testimony confirms ~80% of annual peak probability
-falls in July–August, ~20% in June/September, <1% winter) [DocumentCloud p. 20](https://www.documentcloud.org/documents/28540606-exhibit-clp-mcos-1/#document/p20/a2826759), which our PoP allocator will naturally
-reproduce from the load data.
+included in the 17-page exhibit we have). The PoP run uses the substation series from OCC-863
+Attachment 3 page 2 (§3.3). CT is summer-peaking (CL&P's testimony confirms ~80% of annual peak
+probability falls in July–August, ~20% in June/September, <1% winter) [DocumentCloud p. 20](https://www.documentcloud.org/documents/28540606-exhibit-clp-mcos-1/#document/p20/a2826759).
 
 ### 3.3 Load data source
 
-Use the CT zone hourly load already on S3 for the CT bulk-TX pipeline:
-`s3://data.sb/isone/hourly_demand/zones/`, zone label `CT`. Both `ct_eversource` and `ct_ui` map to
-the single `CT` ISO-NE zone. `generate_utility_tx_dx_mc.py` loads **utility-level** (not zone-level)
-data from `s3://data.sb/isone/hourly_demand/utilities/utility=ct_eversource/...` via the
-`--utility-load-s3-base` argument — the same layout NY/RI/MD use.
+PoP ranks the top 100 hours of Eversource's distribution-substation load: OCC-863 Attachment 3
+page 2, stored as `system_load.parquet` (`timestamp`, `load_mw`, 2022–2025). `create-dist-mc-data`
+passes that file as `--path-utility-load`. `normalize_load_to_cairo_8760` keeps `--load-year`.
+The hive reader `--utility-load-s3-base` stays what NY, RI, and MD use. The OCC-863 prefix is one
+multi-year file, so it is not a valid value for that flag.
 
-That utility-level partition **did not exist** before this implementation (only `utility=rie` was
-present under `s3://data.sb/isone/hourly_demand/utilities/`); CT bulk-TX reads zone-level data
-directly via `load_isone_zone_loads()` and never needed the utility-level aggregation. To fill the
-gap:
+This is the substation-sum series behind CL&P's own probability-of-peak (MCOS-1, p. 14). The
+`$21.22/kW-yr` scalar prices upstream station and trunkline capacity, which is added when that
+system load peaks. On the 2025 series the top 100 hours are 28 in June, 66 in July, and 6 in August.
 
-1. Added `ct_eversource` and `ct_ui` rows (zone `CT`, location 4004) to
-   `data/isone/zone_mapping/generate_zone_mapping_csv.py` and regenerated
-   `data/isone/zone_mapping/csv/isone_utility_zone_mapping.csv`.
-2. Ran `data/isone/hourly_demand/aggregate_isone_utility_loads.py` (via the
-   `aggregate-utility-loads` Justfile recipe) for `ct_eversource` and `ct_ui`, year 2025 — a 1:1
-   zone→utility relabel (both utilities share the single CT zone, same as RI's `rie`→`RI`).
-3. Uploaded the resulting `utility=ct_eversource/year=2025/` and `utility=ct_ui/year=2025/`
-   partitions to `s3://data.sb/isone/hourly_demand/utilities/`.
+Attachment 4 (Rates 1, 5, and 7 summed) is the residential class shape. We do not rank it. The
+upstream investment is sized to the substation sum, which includes non-residential load, so the
+system series is the cost driver. The rate-class parquets are stored on the same local clock as
+`system_load.parquet` (see
+[ct_occ863_system_load.md](../../code/data/ct_occ863_system_load.md)). On that clock the two 2025
+top-100 lists share 84 hours. The residential class peaks at 17:00 on June 24. The system peaks
+at 18:00 on July 29. The rate-class parquets stay available for class-shape work.
 
-**Caveat**: this is CT-zone transmission-level load (both utilities combined), not CL&P's
-substation-level distribution load. It doesn't reflect CL&P's BTM-solar/HP-adoption forward
-adjustments. This is the same trade-off as in other states where we use zone-level rather than
-utility-specific substation data — sufficient for the BAT, and matches the approach used for CT
-bulk-TX MC.
+The first run ranked ISO-NE Connecticut zone load
+(`s3://data.sb/isone/hourly_demand/utilities/utility=ct_eversource/`). That series is
+transmission-level load for both CT utilities combined. It is still the bulk-transmission load.
+Building it required a `ct_eversource` / `ct_ui` zone-mapping row (zone `CT`, location 4004) and
+`aggregate_isone_utility_loads.py` for 2025, because that hive partition did not exist before. It
+does not include CL&P's BTM-solar or heat-pump forward adjustments, and neither does the
+substation series: OCC-863 says no forecasted hourly system loads are available.
 
 ### 3.4 Implementation notes
 
@@ -207,7 +206,7 @@ bulk-TX MC.
        --state CT --utility ct_eversource --year 2025 \
        --target-dollar-year 2026 \
        --mc-table-path rate_design/hp_rates/ct/config/marginal_costs/ct_marginal_costs_2025.csv \
-       --utility-load-s3-base s3://data.sb/isone/hourly_demand/utilities/ \
+       --path-utility-load s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet/system_load.parquet \
        --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \
        --upload
    ```
@@ -216,8 +215,10 @@ bulk-TX MC.
    exactly ($19.6460/kW-yr, 0.0000% error). The top-100 PoP hours for 2025 fall entirely in
    June–August (30 in June, 62 in July, 8 in August, 0 elsewhere) — consistent with CL&P's own
    finding of concentrated summer peak-probability, though the specific split differs somewhat from
-   CL&P's multi-year-normalized ~80% Jul–Aug / ~20% Jun–Sep because this uses a single year (2025)
-   of CT zone load rather than CL&P's normalized 2022–2025 substation analysis.
+   CL&P's multi-year-normalized ~80% Jul–Aug / ~20% Jun–Sep because that run used a single year
+   (2025) of ISO-NE CT zone load. The recipe now ranks the OCC-863 substation series instead;
+   its 2025 top 100 hours are 28 in June, 66 in July, and 6 in August (§3.3). The S3 parquet
+   still reflects the zone-load run until task 7 is re-run.
 7. **Output**: same schema as all other states (`timestamp, utility, year, mc_total_per_kwh`) at
    `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet`.
    Downstream CAIRO wiring is unchanged.
@@ -249,7 +250,7 @@ as a rate. The system-wide annual average is `$0.00241/kWh` primary vs `$0.00242
 The secondary "Annual Average" `$1.768/kW-mo` row is the same `$21.22/kW-yr` we store
 (`$1.768 × 12`). Our PoP-allocated 8760 should still produce the seasonal concentration Table 2A
 shows (nearly all cost in summer, near-zero winter). The hours that concentration lands on come from
-CT zone load, not from Table 2A's own probability-of-peak weights.
+the OCC-863 substation series (§3.3), not from Table 2A's own probability-of-peak weights.
 
 ### 3.7 Back-Up 36 (if obtainable)
 
@@ -272,11 +273,11 @@ allocation or as a direct replacement. This is a nice-to-have, not a blocker for
   only the config-CSV row is missing.
 - **Locational sensitivity.** Confirm whether we want `$86.58/kW-yr` carried as a formal sensitivity
   run (§2.2 point 3) or just documented here. Not yet run.
-- **`--n-hours` parameter.** Ran with the platform default of `100` for 2025: the resulting top-100
-  hours fall entirely in June–August (30/62/8 split), directionally consistent with but not an exact
-  match to CL&P's normalized ~80% Jul–Aug / ~20% Jun–Sep testimony finding (see §3.4 point 6 for why
-  the exact split differs). Not tuned further; revisit if a closer match to CL&P's own split matters
-  for a given analysis.
+- **`--n-hours` parameter.** Platform default of `100`. On the 2025 OCC-863 substation series the
+  top 100 hours are 28 in June, 66 in July, and 6 in August (§3.3). That is close to, but not
+  the same as, CL&P's normalized ~80% Jul–Aug / ~20% Jun–Sep testimony finding, which pools
+  2022–2025. Not tuned further; revisit if a closer match to CL&P's own split matters for a given
+  analysis.
 - **Whether "marginal customer/facilities cost" should ever get its own BAT MC term.** Not a
   CT-specific question, but CT's MCOS happens to compute Bonbright-style customer/facilities marginal
   costs explicitly (Tables 4–7), which makes the gap visible. Worth raising with the team as a
@@ -299,8 +300,9 @@ allocation or as a direct replacement. This is a nice-to-have, not a blocker for
    to the source-number and per-state tables.~~ Done.
 7. **Remaining**: re-run `create-dist-mc-data 2025 --upload`. The parquet at
    `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet`
-   was built from the pre-loss `$20.17/kW-yr` scalar after a CPI deflation to 2025$. The recipe now
-   allocates the unadjusted rate year 1 scalar, `$21.22/kW-yr`.
+   was built from the pre-loss `$20.17/kW-yr` scalar after a CPI deflation to 2025$, on ISO-NE zone
+   load. The recipe now allocates the unadjusted rate year 1 scalar, `$21.22/kW-yr`, on the OCC-863
+   substation series (§3.3).
 8. **Remaining**: wire `path_dist_and_sub_tx_mc` into a CT scenario config (`scenarios_ct_eversource.yaml`
    or equivalent) once CT scenario YAMLs exist, so a CAIRO run actually consumes this MC output. No CT
    scenario configs exist yet in `rate_design/hp_rates/ct/config/scenarios/` — that's a separate,
@@ -329,12 +331,11 @@ page 2 value at 1:00 a.m. Page 1's monthly "Max MW" matches page 2, including th
 `parquet/system_load.parquet` (`timestamp`, `load_mw`) is page 2. `parquet/system_monthly_peak_mw.parquet`
 (`year`, `month`, `peak_mw`) is page 1. 2024 includes February 29 (8784 hours). Attachment 4, the
 2025 residential class 8760, is `parquet/rate_1_load.parquet`, `rate_5_load.parquet`, and
-`rate_7_load.parquet` (`timestamp`, `load_kw`, `load_mw`). The sheet's interval-ending stamps are
-shifted back one hour.
+`rate_7_load.parquet` (`timestamp`, `load_kw`, `load_mw`). Interval-ending stamps are shifted
+back one hour, then mapped from Eastern Standard Time onto local wall-clock time.
 
-Neither file is an input to the PoP allocator yet. That run still reads ISO-NE CT zone load via
-`--utility-load-s3-base`. When CT switches to this substation series, read `system_load.parquet`,
-filter to the load year, and pass the table to `normalize_load_to_cairo_8760`. Do not point
-`--utility-load-s3-base` at the OCC-863 prefix: that flag expects the hive `utility`/`year` layout
-the other states use. How to rebuild the parquets:
+`create-dist-mc-data` reads `system_load.parquet` through `--path-utility-load` and keeps the
+load year inside `normalize_load_to_cairo_8760` (§3.3). The rate-class files are not the PoP
+load. `--utility-load-s3-base` still expects the hive `utility`/`year` layout the other states
+use. How to rebuild the parquets:
 [ct_occ863_system_load.md](../../code/data/ct_occ863_system_load.md).

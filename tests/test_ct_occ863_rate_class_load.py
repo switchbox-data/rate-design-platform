@@ -54,6 +54,7 @@ def test_shifts_interval_ending_back_one_hour_and_drops_the_summary() -> None:
     assert set(loads) == {1, 5, 7}
     rate1 = loads[1]
     assert rate1.columns == ["timestamp", "load_kw", "load_mw"]
+    assert rate1.schema["timestamp"] == pl.Datetime("us")
     assert rate1.height == 8760
     assert (
         rate1["timestamp"][0]
@@ -66,6 +67,28 @@ def test_shifts_interval_ending_back_one_hour_and_drops_the_summary() -> None:
     first = rate1.row(0, named=True)
     assert first["load_kw"] == 1000.0
     assert first["load_mw"] == pytest.approx(1.0)
+
+
+def _kw_at(load: pl.DataFrame, stamp: str) -> float:
+    row = load.filter(pl.col("timestamp") == pl.lit(stamp).str.to_datetime())
+    assert row.height == 1
+    return float(row["load_kw"][0])
+
+
+def test_maps_standard_time_onto_local_clock() -> None:
+    """Winter hours stay put. Summer hours move forward one hour.
+
+    The synthetic load is 1000 plus the standard-time hour of day. Local
+    16:00 in July therefore carries the 15:00 standard-time value.
+    """
+    rate1 = rate_class_loads(_sheet())[1]
+    assert _kw_at(rate1, "2025-01-15 15:00:00") == 1015.0
+    assert _kw_at(rate1, "2025-07-15 16:00:00") == 1015.0
+    # Spring-forward 02:00 is the average of local 01:00 (EST 01:00) and
+    # local 03:00 (EST 02:00): (1001 + 1002) / 2.
+    assert _kw_at(rate1, "2025-03-09 02:00:00") == pytest.approx(1001.5)
+    # Fall-back local 01:00 is the average of EST 00:00 and EST 01:00.
+    assert _kw_at(rate1, "2025-11-02 01:00:00") == pytest.approx(1000.5)
 
 
 def test_rejects_a_peak_that_does_not_match_the_hourly_column() -> None:

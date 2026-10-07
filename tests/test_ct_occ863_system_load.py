@@ -87,6 +87,8 @@ def test_rounds_a_timestamp_that_excel_stored_just_before_the_hour() -> None:
 def test_keeps_the_leap_day_and_names_the_load_column_in_mw() -> None:
     load = hourly_system_load(_page2([2022, 2023, 2024, 2025]))
     assert load.columns == ["timestamp", "load_mw"]
+    # Same unit as the rate-class files and the ISO-NE loads, so joins need no cast.
+    assert load.schema["timestamp"] == pl.Datetime("us")
     counts = dict(
         load.with_columns(pl.col("timestamp").dt.year().alias("year"))
         .group_by("year")

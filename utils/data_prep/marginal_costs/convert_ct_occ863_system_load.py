@@ -45,7 +45,7 @@ def hourly_system_load(raw: pl.DataFrame) -> pl.DataFrame:
             pl.col("Actual Load").cast(pl.Float64).alias("load_mw"),
         )
         .drop_nulls(subset=["timestamp", "load_mw"])
-        .with_columns(pl.col("timestamp").dt.round("1h"))
+        .with_columns(pl.col("timestamp").dt.round("1h").cast(pl.Datetime("us")))
         .sort("timestamp")
     )
     _validate_system_load(load)

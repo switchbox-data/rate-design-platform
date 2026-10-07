@@ -66,18 +66,22 @@ Then sync the `occ-863/` directory to the S3 prefix above. Attachment 2 is archi
 
 Attachment 4 is the 2025 hourly class load for residential Rates 1, 5, and 7, in kW. Excel row 8
 is the header `Interval Ending EST`. The hourly rows begin on the next row. Each stamp is the end
-of the hour, in Eastern Standard Time, so the parquet timestamp is one hour earlier:
+of the hour, in Eastern Standard Time, so the first step is one hour earlier:
 `2025-01-01 01:00:00` becomes `2025-01-01 00:00:00`, and `2026-01-01 00:00:00` becomes
 `2025-12-31 23:00:00`. The sheet already has 8,760 stamps, including a normal 24-hour day on both
-the spring-forward and fall-back Sundays, so this is a one-hour shift rather than a timezone
-conversion.
+the spring-forward and fall-back Sundays.
 
 The title block, Peak Demand, Total Usage, and the footer check are not stored. The converter
-checks that the hourly maximum equals Peak Demand and the hourly sum equals Total Usage, then
-drops those rows.
+checks that the hourly maximum equals Peak Demand and the hourly sum equals Total Usage while the
+stamps are still Eastern Standard Time, then drops those rows.
 
-Each parquet has `timestamp` (hour-beginning, no timezone), `load_kw`, and `load_mw` (`load_kw /
-1000`):
+The stored `timestamp` is then local wall-clock time, with no timezone, matching
+`system_load.parquet`. Winter hours are unchanged. Summer hours move forward one hour. On the
+fall-back morning the two standard-time hours that share local 01:00 are averaged. The
+spring-forward 02:00 hour, which the standard-time series does not have, is the average of local
+01:00 and 03:00.
+
+Each parquet has `timestamp`, `load_kw`, and `load_mw` (`load_kw / 1000`).
 
 ```bash
 just -f rate_design/hp_rates/ct/Justfile convert-occ863-rate-class-load \
@@ -87,10 +91,14 @@ just -f rate_design/hp_rates/ct/Justfile convert-occ863-rate-class-load \
 
 ## Using this load for CT distribution marginal cost
 
-The distribution marginal-cost recipe still reads ISO-NE Connecticut zone load through
-`--utility-load-s3-base` (`s3://data.sb/isone/hourly_demand/utilities/`). That flag scans a
-hive-partitioned folder and filters on `utility` and `year`. Do not point it at this prefix.
+`create-dist-mc-data` passes `system_load.parquet` as `--path-utility-load`. The allocator keeps
+the requested year and ranks the top 100 hours of that substation series. The residential
+rate-class files are a class shape; they are not the PoP load. See
+`context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md` §3.3.
 
-When the CT run should use this substation series instead, read `system_load.parquet`, keep the
-load year, and pass that table to `normalize_load_to_cairo_8760`. That function already requires
-`timestamp` and `load_mw`. The ISO-NE reader stays as it is for the other states.
+`--utility-load-s3-base` still scans a hive `utility`/`year` folder for the other states. This
+prefix is one multi-year file, so it is not a value for that flag.
+
+```bash
+just -f rate_design/hp_rates/ct/Justfile create-dist-mc-data 2025 --upload
+```

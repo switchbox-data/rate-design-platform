@@ -6,9 +6,12 @@ stamp "Interval Ending EST". The hour that stamp closes is the previous hour,
 so 2025-01-01 01:00:00 becomes a hour-beginning timestamp of 2025-01-01 00:00:00.
 The last stamp, 2026-01-01 00:00:00, becomes 2025-12-31 23:00:00.
 
-The series is already 8760 hours in standard time. Spring-forward and fall-back
-days each have 24 stamps, so the conversion is a one-hour shift and not a
-timezone conversion.
+Those hour-beginning stamps are Eastern Standard Time all year. The other
+hourly files (``system_load.parquet``, the CAIRO 8760) are local wall-clock
+time with no timezone stored. This converter maps standard time onto that
+clock: winter hours stay put, summer hours move forward one hour, the
+fall-back hour is the average of the two standard-time hours that land on it,
+and the missing spring-forward hour is the average of the hours on either side.
 
 Title rows, the Peak Demand and Total Usage summaries, and the footer check
 are dropped. Those summaries are checked against the hourly column before
@@ -89,7 +92,89 @@ def _one_rate(
         .sort("timestamp")
     )
     _validate_rate_load(load, peak_kw, usage_kwh)
-    return load
+    local = est_hour_beginning_to_local(load)
+    _validate_local_clock(local)
+    return local
+
+
+def est_hour_beginning_to_local(load: pl.DataFrame) -> pl.DataFrame:
+    """Map hour-beginning Eastern Standard Time onto local wall-clock time.
+
+    ``load`` has ``timestamp``, ``load_kw``, and ``load_mw``. The timestamps
+    are naive and mean Eastern Standard Time (UTC-5), which is how Attachment
+    4 labels the year. The returned timestamps are naive ``America/New_York``
+    wall time, matching ``system_load.parquet``.
+
+    Two clock-change hours are not a one-hour shift. On the fall-back morning
+    two standard-time hours share local 01:00; those loads are averaged. On
+    the spring-forward morning local 02:00 does not exist in the standard-time
+    series; it is filled with the average of local 01:00 and 03:00.
+    """
+    local = load.with_columns(
+        pl.col("timestamp")
+        .dt.replace_time_zone("Etc/GMT+5")
+        .dt.convert_time_zone("America/New_York")
+        .dt.replace_time_zone(None)
+        .cast(pl.Datetime("us"))
+        .alias("timestamp")
+    )
+    local = (
+        local.group_by("timestamp")
+        .agg(pl.col("load_kw").mean(), pl.col("load_mw").mean())
+        .sort("timestamp")
+    )
+    year = local["timestamp"][0].year
+    expected_n = 8784 if year % 4 == 0 else 8760
+    if local.height != expected_n - 1:
+        raise ValueError(
+            f"expected {expected_n - 1} local hours before the spring-forward "
+            f"fill, got {local.height}"
+        )
+
+    start = pl.select(pl.lit(f"{year}-01-01 00:00:00").str.to_datetime()).item()
+    end = pl.select(pl.lit(f"{year}-12-31 23:00:00").str.to_datetime()).item()
+    expected = pl.DataFrame(
+        {"timestamp": pl.datetime_range(start, end, interval="1h", eager=True)}
+    ).with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
+    joined = expected.join(local, on="timestamp", how="left").sort("timestamp")
+    missing = joined.filter(pl.col("load_kw").is_null())
+    if missing.height != 1:
+        raise ValueError(
+            f"expected one missing local hour (spring-forward 02:00), got {missing.height}"
+        )
+    gap = missing["timestamp"][0]
+    if (gap.month, gap.hour) != (3, 2):
+        raise ValueError(f"unexpected gap in local rate-class load: {gap}")
+    # One missing hour between its neighbors is their average.
+    filled = joined.with_columns(
+        pl.col("load_kw").interpolate(),
+        pl.col("load_mw").interpolate(),
+    )
+    if filled.filter(pl.col("load_kw").is_null()).height:
+        raise ValueError("spring-forward hour was not filled")
+    return filled
+
+
+def _validate_local_clock(load: pl.DataFrame) -> None:
+    if load["timestamp"].n_unique() != load.height:
+        raise ValueError("local rate-class timestamps are not unique")
+    start = load["timestamp"][0]
+    end = load["timestamp"][-1]
+    year = start.year
+    expected = 8784 if year % 4 == 0 else 8760
+    if load.height != expected:
+        raise ValueError(
+            f"expected {expected} local hours in {year}, got {load.height}"
+        )
+    if (start.month, start.day, start.hour) != (1, 1, 0):
+        raise ValueError(f"local series does not start at Jan 1 hour 0: {start}")
+    if (end.year, end.month, end.day, end.hour) != (year, 12, 31, 23):
+        raise ValueError(f"local series does not end at Dec 31 hour 23: {end}")
+    steps = load.select(
+        pl.col("timestamp").diff().dt.total_hours().alias("dh")
+    ).drop_nulls()
+    if steps.filter(pl.col("dh") != 1).height:
+        raise ValueError("local rate-class timestamps are not one hour apart")
 
 
 def _validate_rate_load(load: pl.DataFrame, peak_kw: float, usage_kwh: float) -> None:

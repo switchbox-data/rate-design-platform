@@ -12,6 +12,7 @@ See context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md.
 from __future__ import annotations
 
 import argparse
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -26,7 +27,9 @@ from utils.data_prep.marginal_costs.generate_utility_tx_dx_mc import (
     allocate_costs_to_hours,
     calculate_pop_weights,
     get_marginal_cost_for_utility,
+    load_utility_load_file,
     normalize_load_to_cairo_8760,
+    resolve_utility_load,
 )
 
 CT_MC_TABLE_PATH = (
@@ -92,6 +95,67 @@ class TestCtMarginalCostTable:
         mc_df = pl.read_csv(CT_MC_TABLE_PATH)
         with pytest.raises(ValueError, match="No marginal cost data found"):
             get_marginal_cost_for_utility(mc_df, "ct_ui")
+
+
+# ── OCC-863 system load as the PoP profile ──────────────────────────────────
+
+
+class TestCtSystemLoadSource:
+    def test_resolve_rejects_both_load_sources(self) -> None:
+        with pytest.raises(ValueError, match="not both"):
+            resolve_utility_load(
+                "system_load.parquet",
+                "s3://data.sb/isone/hourly_demand/utilities/",
+                2025,
+                "ct_eversource",
+                {},
+            )
+
+    def test_resolve_rejects_a_missing_load_source(self) -> None:
+        with pytest.raises(ValueError, match="path-utility-load"):
+            resolve_utility_load(None, None, 2025, "ct_eversource", {})
+
+    def test_load_file_reads_a_single_parquet(self) -> None:
+        df = pl.DataFrame(
+            {
+                "timestamp": ["2025-01-01 00:00:00", "2025-01-01 01:00:00"],
+                "load_mw": [10.0, 11.0],
+            }
+        ).with_columns(pl.col("timestamp").str.to_datetime())
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "system_load.parquet"
+            df.write_parquet(path)
+            loaded = load_utility_load_file(str(path), {})
+        assert loaded.height == 2
+        assert set(loaded.columns) >= {"timestamp", "load_mw"}
+
+    def test_millisecond_timestamps_normalize_to_8760(self) -> None:
+        """A datetime[ms] load still normalizes; the 8760 index is datetime[us].
+
+        A few hours are enough: the join fails as soon as an ms stamp meets
+        the us index. Missing 2025 hours are interpolated.
+        """
+        df = pl.DataFrame(
+            {
+                "timestamp": pl.select(
+                    pl.datetime_range(
+                        pl.lit("2024-12-31 22:00:00").str.to_datetime(time_unit="ms"),
+                        pl.lit("2025-01-02 02:00:00").str.to_datetime(time_unit="ms"),
+                        interval="1h",
+                        time_unit="ms",
+                    )
+                ).to_series(),
+                "load_mw": 1000.0,
+            }
+        )
+        assert df.schema["timestamp"] == pl.Datetime("ms")
+        normalized = normalize_load_to_cairo_8760(df, "ct_eversource", 2025)
+        assert normalized.height == 8760
+        assert normalized.schema["timestamp"] == pl.Datetime("us")
+        kept = normalized.filter(
+            pl.col("timestamp") == pl.lit("2025-01-01 00:00:00").str.to_datetime()
+        )
+        assert float(kept["load_mw"][0]) == pytest.approx(1000.0)
 
 
 # ── End-to-end PoP allocation on synthetic CT-shaped load ───────────────────

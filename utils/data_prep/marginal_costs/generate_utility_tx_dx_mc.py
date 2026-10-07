@@ -48,11 +48,12 @@ Usage:
         --output-s3-base s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/ \
         --upload
 
-    # CT/Eversource (CL&P): rate year 1 keeps the filed 2026$ scalar (no CPI adjustment)
+    # CT/Eversource (CL&P): rate year 1 keeps the filed 2026$ scalar (no CPI adjustment).
+    # PoP hours come from OCC-863 Attachment 3 page 2, not the ISO-NE hive layout.
     python generate_utility_tx_dx_mc.py --state CT --utility ct_eversource --year 2025 \
         --target-dollar-year 2026 \
         --mc-table-path rate_design/hp_rates/ct/config/marginal_costs/ct_marginal_costs_2025.csv \
-        --utility-load-s3-base s3://data.sb/isone/hourly_demand/utilities/ \
+        --path-utility-load s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet/system_load.parquet \
         --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \
         --upload
 """
@@ -117,6 +118,67 @@ def load_utility_load_profile(
     return df
 
 
+def load_utility_load_file(
+    path: str,
+    storage_options: dict[str, str],
+) -> pl.DataFrame:
+    """Load one load parquet that is not in the hive utility/year layout.
+
+    The file must have ``timestamp`` and ``load_mw``. Year filtering happens
+    in ``normalize_load_to_cairo_8760``. CT uses this for the OCC-863
+    Eversource system load, which is one multi-year file.
+
+    Args:
+        path: Local path or ``s3://`` URI of the parquet.
+        storage_options: Polars S3 storage options. Ignored for a local path.
+
+    Returns:
+        DataFrame with at least timestamp and load_mw.
+    """
+    if path.startswith("s3://"):
+        lf = pl.scan_parquet(path, storage_options=storage_options)
+    else:
+        lf = pl.scan_parquet(path)
+    collected = lf.collect()
+    if not isinstance(collected, pl.DataFrame):
+        raise TypeError("Expected DataFrame from utility load file collect()")
+    df = collected
+    missing = {"timestamp", "load_mw"} - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"Utility load file {path} is missing columns: {sorted(missing)}"
+        )
+    if df.is_empty():
+        raise FileNotFoundError(f"Utility load file is empty: {path}")
+    print(f"Loaded {len(df):,} hourly load records from {path}")
+    return df
+
+
+def resolve_utility_load(
+    path_utility_load: str | None,
+    utility_load_s3_base: str | None,
+    year_load: int,
+    utility: str,
+    storage_options: dict[str, str],
+) -> pl.DataFrame:
+    """Load the PoP profile from one parquet or from the hive utility/year scan.
+
+    Exactly one of the two sources must be set. The hive scan is what NY, RI,
+    and MD use. The single file is the CT OCC-863 system load.
+    """
+    if path_utility_load and utility_load_s3_base:
+        raise ValueError(
+            "Pass either --path-utility-load or --utility-load-s3-base, not both."
+        )
+    if path_utility_load:
+        return load_utility_load_file(path_utility_load, storage_options)
+    if utility_load_s3_base:
+        return load_utility_load_profile(
+            utility_load_s3_base, year_load, utility, storage_options
+        )
+    raise ValueError("Pass --path-utility-load or --utility-load-s3-base.")
+
+
 def normalize_load_to_cairo_8760(
     load_df: pl.DataFrame, utility: str, year_load: int
 ) -> pl.DataFrame:
@@ -153,6 +215,10 @@ def normalize_load_to_cairo_8760(
             .dt.replace_time_zone(None)
             .alias("timestamp")
         )
+
+    # The expected 8760 index is datetime[us]. A load file in another unit
+    # (e.g. ms from an Excel-sourced parquet) would fail the join without this.
+    df = df.with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
 
     # Keep only requested load year.
     df = df.filter(pl.col("timestamp").dt.year() == year_load)
@@ -197,7 +263,9 @@ def normalize_load_to_cairo_8760(
         cur += timedelta(hours=1)
     if has_feb29:
         expected = [t for t in expected if not (t.month == 12 and t.day == 31)]
-    expected_df = pl.DataFrame({"timestamp": expected})
+    expected_df = pl.DataFrame({"timestamp": expected}).with_columns(
+        pl.col("timestamp").cast(pl.Datetime("us"))
+    )
 
     # Reindex and fill any missing hours.
     df = expected_df.join(df, on="timestamp", how="left").sort("timestamp")
@@ -563,10 +631,20 @@ def main():
         "--nyiso-s3-base",
         dest="utility_load_s3_base",
         type=str,
-        required=True,
+        default=None,
         help=(
-            "Base S3 path for utility loads "
-            "(e.g. s3://data.sb/eia/hourly_demand/utilities/)"
+            "Base S3 path for hive-partitioned utility loads "
+            "(utility=X/year=YYYY). Required unless --path-utility-load is set."
+        ),
+    )
+    parser.add_argument(
+        "--path-utility-load",
+        dest="path_utility_load",
+        type=str,
+        default=None,
+        help=(
+            "Single parquet with timestamp and load_mw, used instead of the "
+            "hive scan. CT passes the OCC-863 system_load.parquet."
         ),
     )
     parser.add_argument(
@@ -622,8 +700,6 @@ def main():
         load_year,
     )
 
-    s3_base = args.utility_load_s3_base
-
     print("=" * 60)
     print("MARGINAL COST ALLOCATION")
     print(f"State: {args.state}")
@@ -634,12 +710,17 @@ def main():
     print(f"Load year:   {load_year}")
     print(f"Target dollar year: {target_dollar_year}")
     print(f"Output S3 base: {output_s3_base}")
+    if args.path_utility_load:
+        print(f"Load file: {args.path_utility_load}")
+    else:
+        print(f"Load hive base: {args.utility_load_s3_base}")
     print(f"Allocation window: Top {args.n_hours} hours")
     print(f"Upload to S3: {'Yes' if args.upload else 'No (inspection only)'}")
     print("=" * 60)
 
-    load_df = load_utility_load_profile(
-        s3_base,
+    load_df = resolve_utility_load(
+        args.path_utility_load,
+        args.utility_load_s3_base,
         load_year,
         args.utility,
         storage_options,
