@@ -12,11 +12,10 @@ Input:
     - Load year (determines which load profile year to use)
 
 The optional ``dollar_year`` column in the MC table specifies the dollar year of
-the cost estimate.  When present, the script inflates the value to
-``--target-dollar-year`` (defaults to ``--year``) using the annual-average
-CPIAUCSL index stored at ``--cpi-s3-base`` (default:
-``s3://data.sb/fred/cpi/``).  If the column is absent (e.g. the existing NY
-table), the raw value is used as-is with no inflation applied.
+the cost estimate.  When it differs from ``--target-dollar-year`` (default:
+``--year``), the script inflates the value using the annual-average CPIAUCSL
+index stored at ``--cpi-s3-base`` (default: ``s3://data.sb/fred/cpi/``).  When
+the years match, or the column is absent (the NY table), the raw value is used.
 
 Output partitions written as:
     - NY default base: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/
@@ -49,8 +48,9 @@ Usage:
         --output-s3-base s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/ \
         --upload
 
-    # CT/Eversource (CL&P) on ISO-NE native loads, inflates 2026$ → 2025$
+    # CT/Eversource (CL&P): rate year 1 keeps the filed 2026$ scalar (no CPI adjustment)
     python generate_utility_tx_dx_mc.py --state CT --utility ct_eversource --year 2025 \
+        --target-dollar-year 2026 \
         --mc-table-path rate_design/hp_rates/ct/config/marginal_costs/ct_marginal_costs_2025.csv \
         --utility-load-s3-base s3://data.sb/isone/hourly_demand/utilities/ \
         --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \

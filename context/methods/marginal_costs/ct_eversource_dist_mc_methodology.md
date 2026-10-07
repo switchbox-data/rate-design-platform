@@ -3,8 +3,9 @@
 **Status: IMPLEMENTED.** This document lays out how the `sub_tx_and_dist` BAT marginal-cost input
 for Eversource CT (CL&P) is derived from the two MCOS exhibits, and how it is allocated to an 8760
 hourly signal. The config CSV, allocator wiring, and S3 output described below exist and have been
-run; see §3.4 for the implementation notes (including two upstream data gaps — ISO-NE utility-level
-load and 2026 CPI data — that had to be filled first). Only CT **bulk transmission** MC was
+run; see §3.4 for the implementation notes (including the ISO-NE utility-level load gap that
+had to be filled first). Rate year 1 uses the filed `$21.22/kW-yr` with no CPI adjustment (§2.3).
+Only CT **bulk transmission** MC was
 implemented before this
 ([ct_bulk_transmission_marginal_cost.md](ct_bulk_transmission_marginal_cost.md)).
 
@@ -204,6 +205,7 @@ bulk-TX MC.
    ```bash
    uv run python utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py \
        --state CT --utility ct_eversource --year 2025 \
+       --target-dollar-year 2026 \
        --mc-table-path rate_design/hp_rates/ct/config/marginal_costs/ct_marginal_costs_2025.csv \
        --utility-load-s3-base s3://data.sb/isone/hourly_demand/utilities/ \
        --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \
