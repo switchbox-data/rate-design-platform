@@ -306,3 +306,33 @@ allocation or as a direct replacement. This is a nice-to-have, not a blocker for
    or equivalent) once CT scenario YAMLs exist, so a CAIRO run actually consumes this MC output. No CT
    scenario configs exist yet in `rate_design/hp_rates/ct/config/scenarios/` — that's a separate,
    larger piece of CT onboarding beyond this MC-generation task.
+
+---
+
+## 6. OCC-863 source files
+
+OCC-863 (Docket 26-05-10, filed October 6, 2026) asked for three historical years and three
+forecast years of: (a) average hourly system load by month, (b) average hourly marginal cost by
+month, (c) maximum monthly system peak, and (d) an 8760 for the residential class. Eversource
+answered with four workbooks. Subparts (a) and (c) are historical only: both are built from hourly
+distribution-substation loads for the last three years, and the response says no forecasted hourly
+system loads are available. Subpart (b) is the system-wide marginal distribution substation and
+trunkline cost per kW, assigned to each hour type within the month. That workbook is also where the
+secondary loss factor behind the `$21.22/kW-yr` scalar comes from (§2.2).
+
+The raw workbooks and the discovery-request PDF live at
+`s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/`, mirrored locally at
+`/ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/`.
+
+The hourly series we keep is Attachment 3 page 2, not Attachment 1. Page 2 is the substation sum
+for 2022–2025. Attachment 1 covers 2023–2025 and, on the three fall-back Sundays, stores twice the
+page 2 value at 1:00 a.m. Page 1's monthly "Max MW" matches page 2, including those Novembers.
+`parquet/system_load.parquet` (`timestamp`, `load_mw`) is page 2. `parquet/system_monthly_peak_mw.parquet`
+(`year`, `month`, `peak_mw`) is page 1. 2024 includes February 29 (8784 hours).
+
+Neither file is an input to the PoP allocator yet. That run still reads ISO-NE CT zone load via
+`--utility-load-s3-base`. When CT switches to this substation series, read `system_load.parquet`,
+filter to the load year, and pass the table to `normalize_load_to_cairo_8760`. Do not point
+`--utility-load-s3-base` at the OCC-863 prefix: that flag expects the hive `utility`/`year` layout
+the other states use. How to rebuild the parquets:
+[ct_occ863_system_load.md](../../code/data/ct_occ863_system_load.md).

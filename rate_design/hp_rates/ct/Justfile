@@ -142,6 +142,22 @@ create-dist-mc-data year_arg *extra_args:
       {{ extra_args }}
 
 # =============================================================================
+# CT-only: OCC-863 Attachment 3 → hourly system load and monthly peaks (MW)
+#
+# Page 2 is the hourly distribution-substation load for 2022–2025 (2024 keeps
+# the leap day). Page 1 is each month's maximum MW. Writes
+# system_load.parquet and system_monthly_peak_mw.parquet. See
+# context/code/data/ct_occ863_system_load.md.
+#
+#   just -f ct/Justfile convert-occ863-system-load <path_xlsx> <path_output_dir>
+# =============================================================================
+
+convert-occ863-system-load path_xlsx path_output_dir:
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/convert_ct_occ863_system_load.py \
+      --path-xlsx {{ path_xlsx }} \
+      --path-output-dir {{ path_output_dir }}
+
+# =============================================================================
 # CT-only: gas tariff fetch
 #
 # Fetches URDB v7 JSONs for all CT gas LDCs (CNG, Yankee, SCG, Norwich muni)
