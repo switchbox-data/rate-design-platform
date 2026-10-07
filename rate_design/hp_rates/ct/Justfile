@@ -161,6 +161,22 @@ convert-occ863-system-load path_xlsx path_output_dir:
       --path-output-dir {{ path_output_dir }}
 
 # =============================================================================
+# CT-only: OCC-863 Attachment 4 → 2025 hourly load for Rates 1, 5, and 7
+#
+# Interval Ending EST is shifted back one hour to a hour-beginning timestamp.
+# Writes rate_1_load.parquet, rate_5_load.parquet, and rate_7_load.parquet
+# with columns timestamp, load_kw, load_mw. See
+# context/code/data/ct_occ863_system_load.md.
+#
+#   just -f ct/Justfile convert-occ863-rate-class-load <path_xlsx> <path_output_dir>
+# =============================================================================
+
+convert-occ863-rate-class-load path_xlsx path_output_dir:
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/convert_ct_occ863_rate_class_load.py \
+      --path-xlsx {{ path_xlsx }} \
+      --path-output-dir {{ path_output_dir }}
+
+# =============================================================================
 # CT-only: gas tariff fetch
 #
 # Fetches URDB v7 JSONs for all CT gas LDCs (CNG, Yankee, SCG, Norwich muni)

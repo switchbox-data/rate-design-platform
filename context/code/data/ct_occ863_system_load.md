@@ -9,7 +9,7 @@ within the month.
 
 ## Where the files are
 
-Raw workbooks, the discovery-request PDF, and the parquets built from Attachment 3:
+Raw workbooks, the discovery-request PDF, and the parquets built from Attachments 3 and 4:
 
 ```text
 s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/
@@ -21,7 +21,10 @@ s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/
 ├── xlsx/attachment-4.xlsx    # (d) 2025 hourly kW for Rates 1, 5, and 7
 └── parquet/
     ├── system_load.parquet
-    └── system_monthly_peak_mw.parquet
+    ├── system_monthly_peak_mw.parquet
+    ├── rate_1_load.parquet
+    ├── rate_5_load.parquet
+    └── rate_7_load.parquet
 ```
 
 The local path is the EBS mirror of the S3 prefix (`/ebs/data/` mirrors `s3://data.sb/`). The
@@ -57,7 +60,30 @@ just -f rate_design/hp_rates/ct/Justfile convert-occ863-system-load \
   /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet
 ```
 
-Then sync the `occ-863/` directory to the S3 prefix above. Attachments 2 and 4 are archived only.
+Then sync the `occ-863/` directory to the S3 prefix above. Attachment 2 is archived only.
+
+## Rate-class loads (Attachment 4)
+
+Attachment 4 is the 2025 hourly class load for residential Rates 1, 5, and 7, in kW. Excel row 8
+is the header `Interval Ending EST`. The hourly rows begin on the next row. Each stamp is the end
+of the hour, in Eastern Standard Time, so the parquet timestamp is one hour earlier:
+`2025-01-01 01:00:00` becomes `2025-01-01 00:00:00`, and `2026-01-01 00:00:00` becomes
+`2025-12-31 23:00:00`. The sheet already has 8,760 stamps, including a normal 24-hour day on both
+the spring-forward and fall-back Sundays, so this is a one-hour shift rather than a timezone
+conversion.
+
+The title block, Peak Demand, Total Usage, and the footer check are not stored. The converter
+checks that the hourly maximum equals Peak Demand and the hourly sum equals Total Usage, then
+drops those rows.
+
+Each parquet has `timestamp` (hour-beginning, no timezone), `load_kw`, and `load_mw` (`load_kw /
+1000`):
+
+```bash
+just -f rate_design/hp_rates/ct/Justfile convert-occ863-rate-class-load \
+  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/xlsx/attachment-4.xlsx \
+  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet
+```
 
 ## Using this load for CT distribution marginal cost
 

@@ -327,7 +327,10 @@ The hourly series we keep is Attachment 3 page 2, not Attachment 1. Page 2 is th
 for 2022–2025. Attachment 1 covers 2023–2025 and, on the three fall-back Sundays, stores twice the
 page 2 value at 1:00 a.m. Page 1's monthly "Max MW" matches page 2, including those Novembers.
 `parquet/system_load.parquet` (`timestamp`, `load_mw`) is page 2. `parquet/system_monthly_peak_mw.parquet`
-(`year`, `month`, `peak_mw`) is page 1. 2024 includes February 29 (8784 hours).
+(`year`, `month`, `peak_mw`) is page 1. 2024 includes February 29 (8784 hours). Attachment 4, the
+2025 residential class 8760, is `parquet/rate_1_load.parquet`, `rate_5_load.parquet`, and
+`rate_7_load.parquet` (`timestamp`, `load_kw`, `load_mw`). The sheet's interval-ending stamps are
+shifted back one hour.
 
 Neither file is an input to the PoP allocator yet. That run still reads ISO-NE CT zone load via
 `--utility-load-s3-base`. When CT switches to this substation series, read `system_load.parquet`,
