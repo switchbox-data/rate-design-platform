@@ -4,8 +4,9 @@ CT reuses the generic ISO-native PoP allocator (generate_utility_tx_dx_mc.py) al
 tested for NY/RI/MD in test_marginal_cost_allocation.py and test_tx_dx_load_layouts.py.
 These tests cover the CT-specific wiring: the ISO-NE zone mapping (both CT utilities
 map to the single CT load zone), and an end-to-end PoP allocation on a synthetic
-CT-shaped (summer-peaking) load profile using the actual $20.17/kW-yr MCOS-2 Table 3
-figure. See context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md.
+CT-shaped (summer-peaking) load profile using the secondary loss-adjusted
+$21.22/kW-yr scalar (MCOS-2 Table 3 × the OCC-863 secondary loss factor).
+See context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md.
 """
 
 from __future__ import annotations
@@ -57,7 +58,10 @@ class TestCtZoneMapping:
         assert utility_zone_map["ct_ui"] == ["CT"]
 
 
-# ── CT marginal cost config CSV (MCOS-2 Table 3) ─────────────────────────────
+# ── CT marginal cost config CSV (Table 3 × secondary loss factor) ────────────
+
+# OCC-863 Attachment 2, page 1, cell N3 ("Secondary" loss factor). J3 = 20.17 * N3.
+_SECONDARY_LOSS_FACTOR = 1.051845136935937
 
 
 class TestCtMarginalCostTable:
@@ -66,10 +70,16 @@ class TestCtMarginalCostTable:
             f"Expected CT marginal cost config at {CT_MC_TABLE_PATH}"
         )
 
-    def test_ct_eversource_value_matches_mcos2_table3(self) -> None:
+    def test_ct_eversource_value_is_table3_times_secondary_loss_factor(self) -> None:
+        """MCOS-2 Table 3 ($20.17/kW-yr) grossed up to secondary service.
+
+        OCC-863 Attachment 2 page 1 sets the annual secondary cost to
+        20.17 times the secondary loss factor, which rounds to $21.22/kW-yr.
+        """
         mc_df = pl.read_csv(CT_MC_TABLE_PATH)
         mc = get_marginal_cost_for_utility(mc_df, "ct_eversource")
-        assert mc == pytest.approx(20.17)
+        assert mc == pytest.approx(21.22)
+        assert mc == pytest.approx(round(20.17 * _SECONDARY_LOSS_FACTOR, 2))
 
     def test_dollar_year_is_2026(self) -> None:
         """MCOS-2 Table 3 is filed in 2026$; CPI inflation converts to run year."""

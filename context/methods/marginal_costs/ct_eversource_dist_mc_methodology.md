@@ -68,18 +68,37 @@ structural consequence of the platform's architecture.
   closer to NY's FLIC convention than to RI/BGE's published avoided-cost-scalar
   convention**, even though the dollar magnitude (`$20.17`) is roughly comparable to RI/BGE.
 
-### 2.2 Recommendation: use the system-wide diluted figure (`$20.17/kW-yr`)
+### 2.2 Recommendation: system-wide diluted figure, grossed up to secondary (`$21.22/kW-yr`)
+
+Table 3's `$20.17/kW-yr` is the cost per kW of upstream peak capability, before line losses.
+Residential customers take service at secondary voltage, so a kW measured at the meter requires
+more than a kW of that upstream capacity. Eversource's response to OCC-863, Attachment 2, page 1
+("Average hourly marginal cost by month, secondary service") applies the gross-up in cell J3:
+
+$$20.17 \times 1.051845136935937 = 21.2157\ldots$$
+
+where `1.051845136935937` is the secondary loss factor in cell N3. Rounded to the cent, that is
+**`$21.22/kW-yr`**, and that is the scalar in the config CSV.
+
+The same workbook's page 2 uses the primary loss factor 1.0460400426767955, which gives
+$21.10/kW-yr. We use secondary because the BAT population is residential. The choice also
+matches MCOS-2 Table 2A: the secondary "Annual Average" row is $1.768/kW-mo, and
+$1.768 × 12 = $21.22/kW-yr.
+
+Three reasons for starting from the system-wide diluted base rather than the locational `$86.58`:
 
 1. **It's CL&P's own primary framing.** Table 1 (comparing current rates to marginal cost) and the
    rate-design testimony (MCOS-1 §IV) both use the system-wide figure as the reference marginal cost
    when arguing current volumetric rates recover far more than marginal cost. Using the same figure
    CL&P uses against itself keeps the intervention grounded in the utility's own numbers (same logic
-   as the BGE precedent in `dist_mc_definition_choice.md` §5).
+   as the BGE precedent in `dist_mc_definition_choice.md` §5). The loss gross-up is likewise
+   CL&P's own, from the OCC-863 workbook rather than a factor we estimated.
 2. **Consistent with the platform's dilution convention.** Diluting by expansion-area load share is
    exactly the mechanic NY's FLIC values use; adopting it keeps CT internally consistent with NY
    rather than introducing a third convention.
 3. Carry `$86.58/kW-yr` as a documented **sensitivity/upper bound** (parallel to how BGE's `$203–258`
-   E3 figure and NY's undiluted numbers are retained as sensitivities elsewhere).
+   E3 figure and NY's undiluted numbers are retained as sensitivities elsewhere). That sensitivity
+   stays at the Table 3 locational figure; we do not also loss-adjust it.
 
 ### 2.3 Config file
 
@@ -88,8 +107,10 @@ Following the RI/MD pattern (`ri_marginal_costs_2025.csv`, `md_marginal_costs_20
 
 ```csv
 utility,sub_tx_and_dist_mc_kw_yr,dollar_year
-ct_eversource,20.17,2026
+ct_eversource,21.22,2026
 ```
+
+`$21.22` is Table 3's `$20.17` times the OCC-863 secondary loss factor, rounded to the cent (§2.2).
 
 `ct_ui` (United Illuminating) is **not** covered by this MCOS — it needs its own source (see
 [Open questions](#4-open-questions--decisions-needed) below). The optional `dollar_year=2026` lets
@@ -171,11 +192,14 @@ bulk-TX MC.
 2. **Created the config CSV** (§2.3).
 3. **Filled the utility-level load gap** (§3.3) — `ct_eversource`/`ct_ui` zone-mapping rows, ran the
    ISO-NE utility aggregation for 2025, uploaded to S3.
-4. **Refreshed CPI data through 2026**: the MCOS-2 Table 3 figure is filed in 2026$
+4. **Refreshed CPI data through 2026**: the config scalar is filed in 2026$
    (`dollar_year=2026` in the config CSV), but `data/fred/cpi/parquet/` only had annual averages
    through 2025. Ran `just -f data/fred/cpi/Justfile fetch-cpi CPIAUCSL 2019 2026` (2026 is a
    partial-year average — 6 months as of this run — since FRED lags by ~1 month) and uploaded.
-   `$20.17 → $19.65/kW-yr` in 2025$ (CPI factor 0.9740).
+   The run below used the pre-loss Table 3 scalar: `$20.17 → $19.65/kW-yr` in 2025$ (CPI factor
+   0.9740). The config is now the secondary loss-adjusted `$21.22/kW-yr` (§2.2); the same factor
+   applied to that scalar is about `$20.67/kW-yr` in 2025$. Re-run `create-dist-mc-data` to
+   replace the S3 parquet, which still reflects the pre-loss scalar.
 5. **Ran the standard PoP allocation** via the new `just -f ct/Justfile create-dist-mc-data 2025
    --upload` recipe (§3.5):
    ```bash
@@ -186,7 +210,8 @@ bulk-TX MC.
        --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \
        --upload
    ```
-6. **Validated**: the built-in `validate_allocation`-equivalent 1-kW-constant-load check passed
+6. **Validated** (against the pre-loss `$20.17` scalar; re-run after the `$21.22` change): the
+   built-in `validate_allocation`-equivalent 1-kW-constant-load check passed
    exactly ($19.6460/kW-yr, 0.0000% error). The top-100 PoP hours for 2025 fall entirely in
    June–August (30 in June, 62 in July, 8 in August, 0 elsewhere) — consistent with CL&P's own
    finding of concentrated summer peak-probability, though the specific split differs somewhat from
@@ -211,14 +236,19 @@ over `UTILITIES=ct_eversource,ct_ui` the way the generic `create-dist-and-sub-tx
 recipe does would raise `ValueError: No marginal cost data found for ct_ui`. `create-dist-mc-data`
 therefore takes an explicit year argument and always targets `ct_eversource`.
 
-### 3.6 Primary vs. secondary voltage column (Table 2A reference values)
+### 3.6 Secondary loss adjustment, and Table 2A as a cross-check
 
-Table 2A gives near-identical Primary and Secondary `$/kWh` columns (e.g. system-wide annual average
-is `$0.00241` primary vs `$0.00242` secondary [DocumentCloud p. 5](https://www.documentcloud.org/documents/28540599-exhibit-clp-mcos-2/#document/p5/a2826760)). The difference is negligible (loss-adjustment). Since
-we're using the PoP method with the `$20.17/kW-yr` Table 3 figure directly (not the Table 2A `$/kWh`
-rates), the primary/secondary distinction doesn't affect the implementation. Table 2A's values remain
-useful as a cross-check: our PoP-allocated 8760 should produce similar seasonal concentration to
-what Table 2A shows (nearly all cost in summer, near-zero winter).
+The annual scalar is grossed up by the secondary loss factor before PoP allocation (§2.2), so every
+allocated hour carries the same gross-up. We still do not use Table 2A's `$/kWh` rates as the hourly
+signal. PoP spreads the annual scalar across the top load hours.
+
+Table 2A remains the seasonal cross-check, and it is also where the primary/secondary split shows up
+as a rate. The system-wide annual average is `$0.00241/kWh` primary vs `$0.00242/kWh` secondary
+[DocumentCloud p. 5](https://www.documentcloud.org/documents/28540599-exhibit-clp-mcos-2/#document/p5/a2826760).
+The secondary "Annual Average" `$1.768/kW-mo` row is the same `$21.22/kW-yr` we store
+(`$1.768 × 12`). Our PoP-allocated 8760 should still produce the seasonal concentration Table 2A
+shows (nearly all cost in summer, near-zero winter). The hours that concentration lands on come from
+CT zone load, not from Table 2A's own probability-of-peak weights.
 
 ### 3.7 Back-Up 36 (if obtainable)
 
@@ -253,7 +283,7 @@ allocation or as a direct replacement. This is a nice-to-have, not a blocker for
 - **2026 CPI is a partial-year average.** The CPI inflation factor (§3.4 point 4) uses a 2026 annual
   average computed from only the months FRED had published as of this implementation. As more 2026
   months are published, re-running `just fetch-cpi` will shift the 2026 average slightly, which
-  would change the `$20.17 → $19.65` inflated value by a small amount. Not expected to matter
+  would change the `$21.22 → ~$20.67` inflated value by a small amount. Not expected to matter
   materially, but worth knowing if the output value changes on a future re-run.
 
 ---
@@ -269,7 +299,10 @@ allocation or as a direct replacement. This is a nice-to-have, not a blocker for
    `tests/test_ct_dist_mc.py`.
 6. ~~Update this doc and [dist_mc_definition_choice.md](dist_mc_definition_choice.md) §2–3, adding CT
    to the source-number and per-state tables.~~ Done.
-7. **Remaining**: wire `path_dist_and_sub_tx_mc` into a CT scenario config (`scenarios_ct_eversource.yaml`
+7. **Remaining**: re-run `create-dist-mc-data 2025 --upload`. The parquet at
+   `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet`
+   was built from the pre-loss `$20.17/kW-yr` scalar. The config CSV is now `$21.22/kW-yr`.
+8. **Remaining**: wire `path_dist_and_sub_tx_mc` into a CT scenario config (`scenarios_ct_eversource.yaml`
    or equivalent) once CT scenario YAMLs exist, so a CAIRO run actually consumes this MC output. No CT
    scenario configs exist yet in `rate_design/hp_rates/ct/config/scenarios/` — that's a separate,
    larger piece of CT onboarding beyond this MC-generation task.
