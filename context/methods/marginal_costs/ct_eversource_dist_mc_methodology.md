@@ -113,9 +113,11 @@ ct_eversource,21.22,2026
 `$21.22` is Table 3's `$20.17` times the OCC-863 secondary loss factor, rounded to the cent (§2.2).
 
 `ct_ui` (United Illuminating) is **not** covered by this MCOS — it needs its own source (see
-[Open questions](#4-open-questions--decisions-needed) below). The optional `dollar_year=2026` lets
-the existing CPI-inflation logic in `generate_utility_tx_dx_mc.py` handle any run year other than
-2026 with no code change.
+[Open questions](#4-open-questions--decisions-needed) below). `dollar_year=2026` records that
+`$21.22` is the rate year 1 figure, in the filing's own dollars. The CT recipe passes
+`--target-dollar-year 2026`, which matches that column, so `generate_utility_tx_dx_mc.py` allocates
+`$21.22` as provided. It does not CPI-adjust the scalar onto the load year. RI and MD still inflate
+from their `dollar_year` to the run year; this skip is CT-only.
 
 ---
 
@@ -192,14 +194,11 @@ bulk-TX MC.
 2. **Created the config CSV** (§2.3).
 3. **Filled the utility-level load gap** (§3.3) — `ct_eversource`/`ct_ui` zone-mapping rows, ran the
    ISO-NE utility aggregation for 2025, uploaded to S3.
-4. **Refreshed CPI data through 2026**: the config scalar is filed in 2026$
-   (`dollar_year=2026` in the config CSV), but `data/fred/cpi/parquet/` only had annual averages
-   through 2025. Ran `just -f data/fred/cpi/Justfile fetch-cpi CPIAUCSL 2019 2026` (2026 is a
-   partial-year average — 6 months as of this run — since FRED lags by ~1 month) and uploaded.
-   The run below used the pre-loss Table 3 scalar: `$20.17 → $19.65/kW-yr` in 2025$ (CPI factor
-   0.9740). The config is now the secondary loss-adjusted `$21.22/kW-yr` (§2.2); the same factor
-   applied to that scalar is about `$20.67/kW-yr` in 2025$. Re-run `create-dist-mc-data` to
-   replace the S3 parquet, which still reflects the pre-loss scalar.
+4. **Rate year 1 uses `$21.22` with no CPI adjustment.** An earlier run deflated the pre-loss
+   Table 3 scalar from 2026$ to the 2025 load year (`$20.17 → $19.65`, CPI factor 0.9740). The
+   same factor on `$21.22` would be about `$20.67`. The CT analysis is rate year 1, so the recipe
+   now passes `--target-dollar-year 2026` and the allocator keeps `$21.22`. The S3 parquet from
+   that earlier run still has the deflated pre-loss scalar until `create-dist-mc-data` is re-run.
 5. **Ran the standard PoP allocation** via the new `just -f ct/Justfile create-dist-mc-data 2025
    --upload` recipe (§3.5):
    ```bash
@@ -280,11 +279,8 @@ allocation or as a direct replacement. This is a nice-to-have, not a blocker for
   CT-specific question, but CT's MCOS happens to compute Bonbright-style customer/facilities marginal
   costs explicitly (Tables 4–7), which makes the gap visible. Worth raising with the team as a
   cross-cutting design question (see §1).
-- **2026 CPI is a partial-year average.** The CPI inflation factor (§3.4 point 4) uses a 2026 annual
-  average computed from only the months FRED had published as of this implementation. As more 2026
-  months are published, re-running `just fetch-cpi` will shift the 2026 average slightly, which
-  would change the `$21.22 → ~$20.67` inflated value by a small amount. Not expected to matter
-  materially, but worth knowing if the output value changes on a future re-run.
+- **No CPI adjustment on the CT scalar.** Rate year 1 uses `$21.22/kW-yr` as filed (§2.3, §3.4
+  point 4). A future FRED update to the partial-year 2026 CPI average does not change this figure.
 
 ---
 
@@ -301,7 +297,8 @@ allocation or as a direct replacement. This is a nice-to-have, not a blocker for
    to the source-number and per-state tables.~~ Done.
 7. **Remaining**: re-run `create-dist-mc-data 2025 --upload`. The parquet at
    `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet`
-   was built from the pre-loss `$20.17/kW-yr` scalar. The config CSV is now `$21.22/kW-yr`.
+   was built from the pre-loss `$20.17/kW-yr` scalar after a CPI deflation to 2025$. The recipe now
+   allocates the unadjusted rate year 1 scalar, `$21.22/kW-yr`.
 8. **Remaining**: wire `path_dist_and_sub_tx_mc` into a CT scenario config (`scenarios_ct_eversource.yaml`
    or equivalent) once CT scenario YAMLs exist, so a CAIRO run actually consumes this MC output. No CT
    scenario configs exist yet in `rate_design/hp_rates/ct/config/scenarios/` — that's a separate,

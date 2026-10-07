@@ -115,8 +115,10 @@ create-bulk-tx-mc-data-all *extra_args:
 # CT-only: distribution + sub-transmission marginal costs (CL&P MCOS-2 Table 3)
 #
 # Uses CL&P's system-wide diluted marginal cost grossed up to secondary
-# voltage ($20.17 × 1.051845137 = $21.22/kW-yr, 2026$; OCC-863 Attachment 2).
-# allocated via the standard Probability-of-Peak (PoP) method — same
+# voltage ($20.17 × 1.051845137 = $21.22/kW-yr; OCC-863 Attachment 2).
+# Rate year 1 is modeled in those filing dollars: --target-dollar-year 2026
+# matches the CSV, so the allocator does not CPI-adjust $21.22 to the load
+# year. Allocated via the standard Probability-of-Peak (PoP) method — same
 # methodology as NY/RI/MD — on CT zone hourly load (top-100 hours by default).
 # See context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md.
 #
@@ -135,6 +137,7 @@ create-dist-mc-data year_arg *extra_args:
       --utility ct_eversource \
       --year {{ year_arg }} \
       --load-year {{ year_arg }} \
+      --target-dollar-year 2026 \
       --mc-table-path {{ path_config }}/marginal_costs/ct_marginal_costs_{{ year_arg }}.csv \
       --utility-load-s3-base {{ path_s3_utility_loads }} \
       --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \

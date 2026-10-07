@@ -82,7 +82,7 @@ class TestCtMarginalCostTable:
         assert mc == pytest.approx(round(20.17 * _SECONDARY_LOSS_FACTOR, 2))
 
     def test_dollar_year_is_2026(self) -> None:
-        """MCOS-2 Table 3 is filed in 2026$; CPI inflation converts to run year."""
+        """Rate year 1 dollars. The CT recipe sets --target-dollar-year 2026 so this is not CPI-adjusted."""
         mc_df = pl.read_csv(CT_MC_TABLE_PATH)
         row = mc_df.filter(pl.col("utility") == "ct_eversource")
         assert int(row["dollar_year"][0]) == 2026

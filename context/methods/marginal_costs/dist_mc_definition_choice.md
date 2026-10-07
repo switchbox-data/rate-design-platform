@@ -92,8 +92,9 @@ locational figure (`$86.58`) is itself much larger than NY's undiluted MCOS figu
 
 All four feed the _same_ PoP allocator
 ([generate_utility_tx_dx_mc.py](../../../utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py))
-in the identical `sub_tx_and_dist_mc_kw_yr` slot, with CPI inflation via the optional `dollar_year`
-column.
+in the identical `sub_tx_and_dist_mc_kw_yr` slot. RI and MD CPI-inflate from the optional
+`dollar_year` column to the run year. CT's rate year 1 run does not: the recipe sets
+`--target-dollar-year 2026`, so `$21.22/kW-yr` is allocated as filed.
 
 ---
 
