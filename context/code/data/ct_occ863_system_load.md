@@ -24,7 +24,13 @@ s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/
     ├── system_monthly_peak_mw.parquet
     ├── rate_1_load.parquet
     ├── rate_5_load.parquet
-    └── rate_7_load.parquet
+    ├── rate_7_load.parquet
+    ├── month_hour_marginal_costs_all_days_secondary.parquet
+    ├── month_hour_marginal_costs_weekday_secondary.parquet
+    ├── month_hour_marginal_costs_weekend_holidays_secondary.parquet
+    ├── month_hour_marginal_costs_all_days_primary.parquet
+    ├── month_hour_marginal_costs_weekday_primary.parquet
+    └── month_hour_marginal_costs_weekend_holidays_primary.parquet
 ```
 
 The local path is the EBS mirror of the S3 prefix (`/ebs/data/` mirrors `s3://data.sb/`). The
@@ -87,6 +93,42 @@ Each parquet has `timestamp`, `load_kw`, and `load_mw` (`load_kw / 1000`).
 just -f rate_design/hp_rates/ct/Justfile convert-occ863-rate-class-load \
   /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/xlsx/attachment-4.xlsx \
   /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet
+```
+
+## Attachment 2: marginal cost by month and hour
+
+Page 1 is secondary service and page 2 is primary. Each has three month-by-hour matrices in
+`$/kWh`: all day types, weekdays, and weekends plus public holidays. Above each matrix a "No Days"
+row gives the day count for that month. `--voltage secondary` reads page 1 and `--voltage primary`
+reads page 2. Each run writes three parquets, melted to one row per month and hour. The names end
+in `_secondary` or `_primary`:
+
+| File stem                                    | Matrix                       |
+| -------------------------------------------- | ---------------------------- |
+| `month_hour_marginal_costs_all_days`         | all day types                |
+| `month_hour_marginal_costs_weekday`          | weekdays only                |
+| `month_hour_marginal_costs_weekend_holidays` | weekends and public holidays |
+
+| Column       | Meaning                                                             |
+| ------------ | ------------------------------------------------------------------- |
+| `month`      | 1–12                                                                |
+| `hour`       | 0–23, the hour label on the sheet                                   |
+| `num_days`   | That matrix's "No Days" count for the month, repeated on every hour |
+| `mc_per_kwh` | The matrix value, in `$/kWh`                                        |
+
+For each month the all-day-types day count must equal the weekday count plus the
+weekend-and-holiday count. The fourth sheet is a copy of page 3 (the probability-of-peak table)
+with an extra `dist_mc` column, not a copy of page 2.
+
+```bash
+just -f rate_design/hp_rates/ct/Justfile convert-occ863-month-hour-mc \
+  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/xlsx/attachment-2.xlsx \
+  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet \
+  secondary
+just -f rate_design/hp_rates/ct/Justfile convert-occ863-month-hour-mc \
+  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/xlsx/attachment-2.xlsx \
+  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet \
+  primary
 ```
 
 ## Using this load for CT distribution marginal cost

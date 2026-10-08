@@ -190,6 +190,23 @@ convert-occ863-rate-class-load path_xlsx path_output_dir:
       --path-output-dir {{ path_output_dir }}
 
 # =============================================================================
+# CT-only: OCC-863 Attachment 2 → month-hour marginal costs
+#
+# voltage is secondary (page 1) or primary (page 2). Writes the all-day-types,
+# weekday, and weekend-and-holiday matrices. Each row is one month (1–12) and
+# hour (0–23), with that month's "No Days" count and the $/kWh value. See
+# context/code/data/ct_occ863_system_load.md.
+#
+#   just -f ct/Justfile convert-occ863-month-hour-mc <path_xlsx> <path_output_dir> secondary
+# =============================================================================
+
+convert-occ863-month-hour-mc path_xlsx path_output_dir voltage:
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/convert_ct_occ863_month_hour_mc.py \
+      --path-xlsx {{ path_xlsx }} \
+      --path-output-dir {{ path_output_dir }} \
+      --voltage {{ voltage }}
+
+# =============================================================================
 # CT-only: gas tariff fetch
 #
 # Fetches URDB v7 JSONs for all CT gas LDCs (CNG, Yankee, SCG, Norwich muni)
