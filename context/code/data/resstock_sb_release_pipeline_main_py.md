@@ -47,6 +47,8 @@ Release-level defaults are loaded from `data/resstock/config.yaml`. State-specif
 | `--add-vulnerability-columns`  | per-state from `state_configs.yaml`            | Add LMI columns; defaults True for NY, False for RI. Pass True/False to override.   |
 | `--approximate-non-hp-load`    | `True`                                         | Run k-nearest-neighbor HVAC substitution for each upgrade in `approx_upgrade_ids`   |
 | `--adjust-mf-electricity`      | `True`                                         | Apply MF non-HVAC electricity adjustment (00 and 02)                                |
+| `--adjust-gas-usage`           | `True`                                         | Step 2c-iii: scale hourly gas of all requested upgrades by one statewide factor     |
+| `--gas-usage-eia-year`         | `2018`                                         | EIA-176 year for the gas factor (res. sales + transport ÷ weighted u00 ResStock)    |
 | `--assign-utility`             | `True`                                         | Assign electric/gas utilities (NY, RI only)                                         |
 | `--electric-poly-filename`     | from `state_configs.yaml`                      | Electric utility polygon CSV; overrides config default                              |
 | `--gas-poly-filename`          | from `state_configs.yaml`                      | Gas utility polygon CSV; overrides config default                                   |

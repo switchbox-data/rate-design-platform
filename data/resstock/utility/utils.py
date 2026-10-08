@@ -35,15 +35,15 @@ import pandas as pd
 import polars as pl
 import yaml
 from cloudpathlib import S3Path
+from dotenv import load_dotenv
+from pygris import blocks as pygris_blocks
+from pygris import counties as pygris_counties
 from pygris import pumas as pygris_pumas
 from ruamel.yaml import YAML
 
-from pygris import counties as pygris_counties
-
 from data.resstock.constants import CONFIG_PATH, STATE_CONFIGS_PATH
-from utils import get_aws_region
+from utils import get_aws_region, get_project_root
 from utils.utility_codes import get_hifld_to_std_name
-
 
 # ---------------------------------------------------------------------------
 # GIS / I/O helpers
@@ -220,6 +220,164 @@ def calculate_puma_utility_overlap(
     )
 
     return pl.from_pandas(puma_overlap).lazy()
+
+
+def load_census_blocks(state: str, year: int = 2020) -> gpd.GeoDataFrame:
+    """Fetch Census tabulation blocks with full-count housing units via pygris.
+
+    TIGER/Line ``tabblock20`` carries ``HOUSING20`` (2020 decennial housing
+    units) and the Census internal point (``INTPTLAT20`` / ``INTPTLON20``),
+    so no Census API key is needed.
+
+    Returns:
+        GeoDataFrame with one point geometry per block (its internal point)
+        and a ``housing_units`` column, in the TIGER CRS.
+    """
+    if year != 2020:
+        raise ValueError(f"Only 2020 blocks (HOUSING20) are supported, got {year}.")
+    raw = cast(gpd.GeoDataFrame, pygris_blocks(state=state, year=year, cache=True))
+    points = gpd.points_from_xy(
+        raw["INTPTLON20"].astype(float), raw["INTPTLAT20"].astype(float)
+    )
+    return gpd.GeoDataFrame(
+        {
+            "block_geoid": raw["GEOID20"].astype(str),
+            "housing_units": raw["HOUSING20"].astype(int),
+        },
+        geometry=points,
+        crs=raw.crs,
+    )
+
+
+ACS5_BLOCK_GROUP_YEAR = 2020
+ACS_HEATING_FUEL_TOTAL = "B25040_001E"
+ACS_HEATING_FUEL_UTILITY_GAS = "B25040_002E"
+
+
+def fetch_acs_gas_heated_homes_by_block_group(
+    state_fips: str, year: int = ACS5_BLOCK_GROUP_YEAR
+) -> pl.DataFrame:
+    """ACS 5-year occupied homes heated with utility gas, by block group.
+
+    Table B25040 (House Heating Fuel). The 2016-2020 release is tabulated on
+    2020 block groups, so 2020 census blocks nest inside them exactly.
+    Requires ``CENSUS_API_KEY`` in the environment or the project ``.env``.
+
+    Returns:
+        DataFrame with ``block_group_geoid`` (12 chars) and
+        ``gas_heated_homes``.
+    """
+    load_dotenv(dotenv_path=get_project_root() / ".env")
+    key = os.getenv("CENSUS_API_KEY")
+    if not key:
+        raise ValueError(
+            "CENSUS_API_KEY not set. Add it to the project .env file "
+            "(free key: https://api.census.gov/data/key_signup.html)."
+        )
+    resp = get_with_retry(
+        f"https://api.census.gov/data/{year}/acs/acs5",
+        {
+            "get": f"{ACS_HEATING_FUEL_TOTAL},{ACS_HEATING_FUEL_UTILITY_GAS}",
+            "for": "block group:*",
+            "in": [f"state:{state_fips}", "county:*", "tract:*"],
+            "key": key,
+        },
+    )
+    rows = resp.json()
+    return pl.DataFrame(rows[1:], schema=rows[0], orient="row").select(
+        pl.concat_str("state", "county", "tract", "block group").alias(
+            "block_group_geoid"
+        ),
+        pl.col(ACS_HEATING_FUEL_UTILITY_GAS)
+        .cast(pl.Int64)
+        .clip(lower_bound=0)
+        .alias("gas_heated_homes"),
+    )
+
+
+def add_block_gas_heated_homes(
+    blocks: gpd.GeoDataFrame, block_groups: pl.DataFrame
+) -> gpd.GeoDataFrame:
+    """Spread each block group's gas-heated homes over its blocks.
+
+    Each block gets the block group's count times the block's share of the
+    block group's housing units. A block group with gas-heated homes but no
+    housing units in the 2020 blocks spreads them equally over its blocks.
+    """
+    block_df = pl.DataFrame(
+        {
+            "block_geoid": blocks["block_geoid"].tolist(),
+            "housing_units": blocks["housing_units"].tolist(),
+        }
+    ).with_columns(pl.col("block_geoid").str.slice(0, 12).alias("block_group_geoid"))
+    bg_hu = pl.col("housing_units").sum().over("block_group_geoid")
+    allocated = block_df.join(
+        block_groups, on="block_group_geoid", how="left"
+    ).with_columns(
+        (
+            pl.col("gas_heated_homes").fill_null(0)
+            * pl.when(bg_hu > 0)
+            .then(pl.col("housing_units") / bg_hu)
+            .otherwise(1 / pl.len().over("block_group_geoid"))
+        ).alias("gas_heated_homes")
+    )
+    out = blocks.copy()
+    out["gas_heated_homes"] = allocated["gas_heated_homes"].to_numpy()
+    return out
+
+
+def calculate_puma_utility_housing_overlap(
+    pumas: gpd.GeoDataFrame,
+    utility_gdf: gpd.GeoDataFrame,
+    blocks: gpd.GeoDataFrame,
+    state_crs: int,
+    weight_col: str = "housing_units",
+) -> pl.LazyFrame:
+    """PUMA-utility overlap weighted by a block count instead of land area.
+
+    Each block is placed whole, by its internal point, in one PUMA and in
+    every utility polygon that contains that point. A block inside more than
+    one utility polygon splits its ``weight_col`` equally among them.
+
+    Returns the same columns as :func:`calculate_puma_utility_overlap`
+    (``puma_id``, ``utility``, ``pct_overlap``), where ``pct_overlap`` is the
+    utility's share of the PUMA's ``weight_col`` total, in percent.
+    """
+    pumas_proj = pumas[["PUMACE10", "geometry"]].to_crs(epsg=state_crs)
+    utilities_proj = (
+        utility_gdf[["utility", "geometry"]].to_crs(epsg=state_crs).dissolve("utility")
+    ).reset_index()
+    blocks_proj = blocks[["block_geoid", weight_col, "geometry"]].to_crs(epsg=state_crs)
+
+    blocks_in_puma = gpd.sjoin(
+        blocks_proj, pumas_proj, how="inner", predicate="within"
+    ).drop(columns="index_right")
+    puma_totals = (
+        pl.from_pandas(blocks_in_puma[["PUMACE10", weight_col]])
+        .group_by("PUMACE10")
+        .agg(pl.col(weight_col).sum().alias("puma_total"))
+    )
+
+    in_utility = gpd.sjoin(
+        blocks_in_puma, utilities_proj, how="inner", predicate="within"
+    )
+    block_utilities = pl.from_pandas(
+        in_utility[["block_geoid", "PUMACE10", "utility", weight_col]]
+    ).with_columns((pl.col(weight_col) / pl.len().over("block_geoid")).alias("share"))
+
+    return (
+        block_utilities.group_by("PUMACE10", "utility")
+        .agg(pl.col("share").sum())
+        .join(puma_totals, on="PUMACE10", how="left")
+        .filter(pl.col("share") > 0)
+        .select(
+            pl.col("PUMACE10").alias("puma_id"),
+            pl.col("utility"),
+            (pl.col("share") / pl.col("puma_total") * 100).alias("pct_overlap"),
+        )
+        .sort("puma_id", "utility")
+        .lazy()
+    )
 
 
 def calculate_puma_county_utility_overlap(
