@@ -819,13 +819,14 @@ def main():
     )
 
     args = parser.parse_args()
-    validate_mc_table_path(args.mc_table_path)
     load_dotenv()
     storage_options = get_aws_storage_options()
 
     if args.use_eversource_marginal_cost:
         _run_eversource_month_hour(args, storage_options)
         return
+
+    validate_mc_table_path(args.mc_table_path)
 
     output_year = args.year
     load_year = args.load_year if args.load_year else output_year
