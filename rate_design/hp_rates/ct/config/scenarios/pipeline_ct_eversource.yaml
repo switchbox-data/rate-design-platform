@@ -15,7 +15,10 @@ resstock:
   upgrade_precalc: "00"
   upgrade_calibrated: "02"
 marginal_costs:
-  dist_and_sub_tx: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+  # OCC-863 run: $21.22/kW-yr (secondary, rate year 1, no CPI) allocated on
+  # Eversource's system load. dist_and_sub_tx/ (no suffix) is the earlier
+  # ISO-NE zone-load 8760. See ct_eversource_dist_mc_methodology.md §3.4.
+  dist_and_sub_tx: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
   bulk_tx: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
   # No supply MC 8760s exist for CT (no ISO-NE LMP/FCM pipeline wired up yet);
   # point directly at zero.parquet so both delivery and supply runs get zero supply MCs.
