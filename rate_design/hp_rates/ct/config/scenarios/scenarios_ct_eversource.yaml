@@ -12,11 +12,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_default.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_precalc_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_precalc_delivery
     utility_revenue_requirement: rev_requirement/ct_eversource_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -39,11 +39,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_default_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_precalc_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_precalc_supply
     utility_revenue_requirement: rev_requirement/ct_eversource_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -66,11 +66,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_default_calibrated.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_calibrated_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_calibrated_delivery
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -93,11 +93,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_default_supply_calibrated.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_calibrated_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_calibrated_supply
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -120,11 +120,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate1_proposed.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r1_uncalibrated_precalc_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r1_uncalibrated_precalc_delivery
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: false
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -147,11 +147,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate1_proposed_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r1_uncalibrated_precalc_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r1_uncalibrated_precalc_supply
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: true
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -174,11 +174,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate1_proposed.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r1_uncalibrated_calibrated_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r1_uncalibrated_calibrated_delivery
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: false
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -201,11 +201,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate1_proposed_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r1_uncalibrated_calibrated_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r1_uncalibrated_calibrated_supply
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: true
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -228,11 +228,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate6.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r6_uncalibrated_precalc_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r6_uncalibrated_precalc_delivery
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: false
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -255,11 +255,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate6_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r6_uncalibrated_precalc_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r6_uncalibrated_precalc_supply
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: true
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -282,11 +282,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate6.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r6_uncalibrated_calibrated_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r6_uncalibrated_calibrated_delivery
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: false
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -309,11 +309,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate6_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r6_uncalibrated_calibrated_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r6_uncalibrated_calibrated_supply
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: true
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -336,11 +336,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate6_ratemc.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r6_ratemc_uncalibrated_precalc_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r6_ratemc_uncalibrated_precalc_delivery
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: false
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -363,11 +363,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate6_ratemc_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r6_ratemc_uncalibrated_precalc_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r6_ratemc_uncalibrated_precalc_supply
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: true
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -390,11 +390,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate6_ratemc.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r6_ratemc_uncalibrated_calibrated_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r6_ratemc_uncalibrated_calibrated_delivery
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: false
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -417,11 +417,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate6_ratemc_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r6_ratemc_uncalibrated_calibrated_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r6_ratemc_uncalibrated_calibrated_supply
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: true
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -444,11 +444,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate6_fixed_ratemc.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r6_fixed_ratemc_uncalibrated_precalc_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r6_fixed_ratemc_uncalibrated_precalc_delivery
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: false
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -471,11 +471,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate6_fixed_ratemc_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r6_fixed_ratemc_uncalibrated_precalc_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r6_fixed_ratemc_uncalibrated_precalc_supply
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: true
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -498,11 +498,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate6_fixed_ratemc.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r6_fixed_ratemc_uncalibrated_calibrated_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r6_fixed_ratemc_uncalibrated_calibrated_delivery
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: false
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -525,11 +525,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_rate6_fixed_ratemc_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_default_ry1_r6_fixed_ratemc_uncalibrated_calibrated_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_default_ry1_r6_fixed_ratemc_uncalibrated_calibrated_supply
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_rate_year_1.yaml
     run_includes_supply: true
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -553,11 +553,11 @@ runs:
       hp: tariffs/electric/ct_eversource_hp_seasonal_percustomer_passthrough.json
       non-hp: tariffs/electric/ct_eversource_non-hp_base_percustomer_passthrough.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_hp_seasonal_percustomer_passthrough_precalc_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_hp_seasonal_percustomer_passthrough_precalc_delivery
     utility_revenue_requirement: rev_requirement/ct_eversource_hp_vs_non-hp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -588,11 +588,11 @@ runs:
       hp: tariffs/electric/ct_eversource_hp_seasonal_percustomer_passthrough_supply.json
       non-hp: tariffs/electric/ct_eversource_non-hp_base_percustomer_passthrough_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_hp_seasonal_percustomer_passthrough_precalc_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_hp_seasonal_percustomer_passthrough_precalc_supply
     utility_revenue_requirement: rev_requirement/ct_eversource_hp_vs_non-hp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -622,11 +622,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_hp_seasonal_percustomer_passthrough_calibrated.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_hp_seasonal_percustomer_passthrough_calibrated_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_hp_seasonal_percustomer_passthrough_calibrated_delivery
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -651,11 +651,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_hp_seasonal_percustomer_passthrough_supply_calibrated.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_hp_seasonal_percustomer_passthrough_calibrated_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_hp_seasonal_percustomer_passthrough_calibrated_supply
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -681,11 +681,11 @@ runs:
       hp: tariffs/electric/ct_eversource_hp_flat_percustomer_passthrough.json
       non-hp: tariffs/electric/ct_eversource_non-hp_base_percustomer_passthrough.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_hp_flat_percustomer_passthrough_precalc_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_hp_flat_percustomer_passthrough_precalc_delivery
     utility_revenue_requirement: rev_requirement/ct_eversource_hp_vs_non-hp.yaml
     run_includes_supply: false
     run_includes_subclasses: true
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -716,11 +716,11 @@ runs:
       hp: tariffs/electric/ct_eversource_hp_flat_percustomer_passthrough_supply.json
       non-hp: tariffs/electric/ct_eversource_non-hp_base_percustomer_passthrough_supply.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_hp_flat_percustomer_passthrough_precalc_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_hp_flat_percustomer_passthrough_precalc_supply
     utility_revenue_requirement: rev_requirement/ct_eversource_hp_vs_non-hp.yaml
     run_includes_supply: true
     run_includes_subclasses: true
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -750,11 +750,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_hp_flat_percustomer_passthrough_calibrated.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_hp_flat_percustomer_passthrough_calibrated_delivery
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_hp_flat_percustomer_passthrough_calibrated_delivery
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_test_year.yaml
     run_includes_supply: false
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
@@ -779,11 +779,11 @@ runs:
     path_tariffs_electric:
       all: tariffs/electric/ct_eversource_hp_flat_percustomer_passthrough_supply_calibrated.json
     path_tariffs_gas: tariffs/gas
-    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261001_a/ct_ct_eversource_hp_flat_percustomer_passthrough_calibrated_supply
+    path_outputs: /data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/ct_20261007_a/ct_ct_eversource_hp_flat_percustomer_passthrough_calibrated_supply
     utility_revenue_requirement: rev_requirement/ct_eversource_large_number_rate_case_test_year.yaml
     run_includes_supply: true
     run_includes_subclasses: false
-    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    path_dist_and_sub_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
     path_bulk_tx_mc: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     path_supply_energy_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
     path_supply_capacity_mc: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
