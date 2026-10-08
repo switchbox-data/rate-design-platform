@@ -14,6 +14,12 @@ set dotenv-path := "state.env"
 state := env_var_or_default('STATE', 'ct')
 
 path_s3_utility_loads := "s3://data.sb/isone/hourly_demand/utilities/"
+path_s3_occ863_parquet := "s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet"
+path_s3_dist_mc_root := "s3://data.sb/switchbox/marginal_costs/ct/"
+path_local_dist_mc_root := "/ebs/data/switchbox/marginal_costs/ct/"
+# month_hour (default), pop_occ863, or pop_isone_zone. See create-dist-mc-data.
+dist_mc_method := env_var_or_default('DIST_MC_METHOD', 'month_hour')
+include_holidays := env_var_or_default('INCLUDE_HOLIDAYS', 'true')
 
 import '../Justfile'
 
@@ -112,11 +118,29 @@ create-bulk-tx-mc-data-all *extra_args:
     echo ">> Done: all CT bulk TX MC (${#utils[@]} utilities × $(echo {{ ct_bulk_tx_years }} | wc -w) years)" >&2
 
 # =============================================================================
-# CT-only: distribution + sub-transmission marginal costs (CL&P MCOS-2 Table 3)
+# CT-only: distribution + sub-transmission marginal costs (Eversource CL&P)
 #
-# Uses CL&P's own system-wide diluted marginal cost ($20.17/kW-yr, 2026$)
-# allocated via the standard Probability-of-Peak (PoP) method — same
-# methodology as NY/RI/MD — on CT zone hourly load (top-100 hours by default).
+# dist_mc_method picks one of three 8760s, in order of preference:
+#
+#   month_hour (default)
+#     OCC-863 Attachment 2 secondary month-hour $/kWh tables, expanded onto
+#     year_arg's calendar. Saturday and Sunday take the weekend table, and
+#     federal holidays do too unless include_holidays=false. year_arg is
+#     stamped on the timestamps and the Hive partition.
+#     -> dist_and_sub_tx_eversource_derived/
+#
+#   pop_occ863
+#     $21.22/kW-yr (ct_marginal_costs_<year>.csv) allocated over the top
+#     upstream_hours of Eversource's OCC-863 Attachment 3 substation load.
+#     -> dist_and_sub_tx_occ863/
+#
+#   pop_isone_zone (oldest, not preferred)
+#     The same $21.22/kW-yr over the top hours of ISO-NE CT zone load.
+#     -> dist_and_sub_tx/ (also holds the older CPI-deflated $20.17 parquet
+#        at year=2025; uploading 2025 replaces it)
+#
+# Both PoP methods pass --target-dollar-year 2026: the analysis is rate year 1,
+# in the filing's 2026 dollars, so $21.22 is allocated with no CPI adjustment.
 # See context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md.
 #
 # CL&P's MCOS-2 covers ct_eversource only; ct_ui has no MCOS-derived value yet
@@ -126,19 +150,105 @@ create-bulk-tx-mc-data-all *extra_args:
 
 # Generate dist+sub-tx MC for ct_eversource and one year.
 #
-#   just -f ct/Justfile create-dist-mc-data 2025
-# just -f ct/Justfile create-dist-mc-data 2025 --upload
+#   just -f ct/Justfile create-dist-mc-data 2025 --upload
+#   just -f ct/Justfile include_holidays=false create-dist-mc-data 2025 --upload
+#   just -f ct/Justfile dist_mc_method=pop_occ863 create-dist-mc-data 2025 --upload
+#   just -f ct/Justfile dist_mc_method=pop_isone_zone create-dist-mc-data 2025 --upload
+# DIST_MC_METHOD=pop_occ863 just s ct create-dist-mc-data 2025 --upload
 create-dist-mc-data year_arg *extra_args:
-    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py \
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{ dist_mc_method }}" in
+      month_hour)
+        dataset=dist_and_sub_tx_eversource_derived
+        method_args=(
+          --method month_hour
+          --path-weekday-mc "{{ path_s3_occ863_parquet }}/month_hour_marginal_costs_weekday_secondary.parquet"
+          --path-weekend-mc "{{ path_s3_occ863_parquet }}/month_hour_marginal_costs_weekend_holidays_secondary.parquet"
+          --include-holidays "{{ include_holidays }}"
+        )
+        ;;
+      pop_occ863)
+        dataset=dist_and_sub_tx_occ863
+        method_args=(--method pop --path-utility-load "{{ path_s3_occ863_parquet }}/system_load.parquet")
+        ;;
+      pop_isone_zone)
+        dataset=dist_and_sub_tx
+        method_args=(--method pop --utility-load-s3-base "{{ path_s3_utility_loads }}")
+        ;;
+      *)
+        echo "dist_mc_method must be month_hour, pop_occ863, or pop_isone_zone (got '{{ dist_mc_method }}')" >&2
+        exit 1
+        ;;
+    esac
+    if [[ "${method_args[1]}" == "pop" ]]; then
+      method_args+=(
+        --load-year "{{ year_arg }}"
+        --target-dollar-year 2026
+        --mc-table-path "{{ path_config }}/marginal_costs/ct_marginal_costs_{{ year_arg }}.csv"
+        --n-hours "{{ upstream_hours }}"
+      )
+    fi
+    echo ">> CT dist MC: method={{ dist_mc_method }} year={{ year_arg }} -> ${dataset}/" >&2
+    cd {{ path_repo }}
+    uv run python utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py \
       --state CT \
       --utility ct_eversource \
       --year {{ year_arg }} \
-      --load-year {{ year_arg }} \
-      --mc-table-path {{ path_config }}/marginal_costs/ct_marginal_costs_{{ year_arg }}.csv \
-      --utility-load-s3-base {{ path_s3_utility_loads }} \
-      --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \
-      --n-hours {{ upstream_hours }} \
+      --output-s3-base "{{ path_s3_dist_mc_root }}${dataset}/" \
+      --path-local-output-base "{{ path_local_dist_mc_root }}${dataset}/" \
+      "${method_args[@]}" \
       {{ extra_args }}
+
+# =============================================================================
+# CT-only: OCC-863 Attachment 3 → hourly system load and monthly peaks (MW)
+#
+# Page 2 is the hourly distribution-substation load for 2022–2025 (2024 keeps
+# the leap day). Page 1 is each month's maximum MW. Writes
+# system_load.parquet and system_monthly_peak_mw.parquet. See
+# context/code/data/ct_occ863_system_load.md.
+#
+#   just -f ct/Justfile convert-occ863-system-load <path_xlsx> <path_output_dir>
+# =============================================================================
+
+convert-occ863-system-load path_xlsx path_output_dir:
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/convert_ct_occ863_system_load.py \
+      --path-xlsx {{ path_xlsx }} \
+      --path-output-dir {{ path_output_dir }}
+
+# =============================================================================
+# CT-only: OCC-863 Attachment 4 → 2025 hourly load for Rates 1, 5, and 7
+#
+# Interval Ending EST is shifted back one hour, then mapped from Eastern
+# Standard Time onto local wall-clock time so the stamps match system_load.
+# Writes rate_1_load.parquet, rate_5_load.parquet, and rate_7_load.parquet
+# with columns timestamp, load_kw, load_mw. See
+# context/code/data/ct_occ863_system_load.md.
+#
+#   just -f ct/Justfile convert-occ863-rate-class-load <path_xlsx> <path_output_dir>
+# =============================================================================
+
+convert-occ863-rate-class-load path_xlsx path_output_dir:
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/convert_ct_occ863_rate_class_load.py \
+      --path-xlsx {{ path_xlsx }} \
+      --path-output-dir {{ path_output_dir }}
+
+# =============================================================================
+# CT-only: OCC-863 Attachment 2 → month-hour marginal costs
+#
+# voltage is secondary (page 1) or primary (page 2). Writes the all-day-types,
+# weekday, and weekend-and-holiday matrices. Each row is one month (1–12) and
+# hour (0–23), with that month's "No Days" count and mc_total_per_kwh. See
+# context/code/data/ct_occ863_system_load.md.
+#
+#   just -f ct/Justfile convert-occ863-month-hour-mc <path_xlsx> <path_output_dir> secondary
+# =============================================================================
+
+convert-occ863-month-hour-mc path_xlsx path_output_dir voltage:
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/convert_ct_occ863_month_hour_mc.py \
+      --path-xlsx {{ path_xlsx }} \
+      --path-output-dir {{ path_output_dir }} \
+      --voltage {{ voltage }}
 
 # =============================================================================
 # CT-only: gas tariff fetch

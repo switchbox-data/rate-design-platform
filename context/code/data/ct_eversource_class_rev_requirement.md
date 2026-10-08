@@ -51,7 +51,7 @@ customer on Rate 1, sized to the whole class."
 
 - **Test Year** uses [`ct_eversource_monthly_rates_2025.yaml`](../../../rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_monthly_rates_2025.yaml)
   (current-vintage RateAcuity riders) and is rebuilt with `UTILITY=ct_eversource just s ct build-rate-case-test-year`.
-- **Rate Year 1** uses [`ct_eversource_rate1_proposed_monthly_rates_2025.yaml`](../../../rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate1_proposed_monthly_rates_2025.yaml)
+- **Rate Year 1** uses [`ct_eversource_rate1_proposed_monthly_rates_ry1.yaml`](../../../rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate1_proposed_monthly_rates_ry1.yaml)
   (filed-2026 proposed riders, ESI/RDM rolled in) and is rebuilt with a direct script call (the recipe
   hardcodes the current monthly-rates file and the canonical output name); the exact command is in the
   file's header comment.
@@ -123,7 +123,7 @@ All dollar figures are `$(000)`s in the exhibit; kWh = MWh × 1000. Line numbers
   the test year, `$1,438.4M` vs `$1,427.3M` (0.8%) for the rate year. No warning is raised.
 - **Test-year and rate-year files sit on different rider vintages.** The test-year build uses the
   current-vintage RateAcuity riders ([`ct_eversource_monthly_rates_2025.yaml`](../../../rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_monthly_rates_2025.yaml)),
-  while the rate-year build uses the filed-2026 proposed riders ([`ct_eversource_rate1_proposed_monthly_rates_2025.yaml`](../../../rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate1_proposed_monthly_rates_2025.yaml),
+  while the rate-year build uses the filed-2026 proposed riders ([`ct_eversource_rate1_proposed_monthly_rates_ry1.yaml`](../../../rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate1_proposed_monthly_rates_ry1.yaml),
   ESI/RDM rolled into base distribution). The two rider stacks are each internally consistent but are
   **not comparable line-for-line**: transmission is `$0.03401`/`$0.04433` (RateAcuity) vs `$0.0505`
   (filed); the test year **omits** SBC (`exclude_eligibility`) and RDM (`exclude_trueup`) while the rate

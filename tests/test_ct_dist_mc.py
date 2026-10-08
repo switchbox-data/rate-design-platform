@@ -4,13 +4,15 @@ CT reuses the generic ISO-native PoP allocator (generate_utility_tx_dx_mc.py) al
 tested for NY/RI/MD in test_marginal_cost_allocation.py and test_tx_dx_load_layouts.py.
 These tests cover the CT-specific wiring: the ISO-NE zone mapping (both CT utilities
 map to the single CT load zone), and an end-to-end PoP allocation on a synthetic
-CT-shaped (summer-peaking) load profile using the actual $20.17/kW-yr MCOS-2 Table 3
-figure. See context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md.
+CT-shaped (summer-peaking) load profile using the secondary loss-adjusted
+$21.22/kW-yr scalar (MCOS-2 Table 3 × the OCC-863 secondary loss factor).
+See context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md.
 """
 
 from __future__ import annotations
 
 import argparse
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -25,7 +27,9 @@ from utils.data_prep.marginal_costs.generate_utility_tx_dx_mc import (
     allocate_costs_to_hours,
     calculate_pop_weights,
     get_marginal_cost_for_utility,
+    load_utility_load_file,
     normalize_load_to_cairo_8760,
+    resolve_utility_load,
 )
 
 CT_MC_TABLE_PATH = (
@@ -57,7 +61,10 @@ class TestCtZoneMapping:
         assert utility_zone_map["ct_ui"] == ["CT"]
 
 
-# ── CT marginal cost config CSV (MCOS-2 Table 3) ─────────────────────────────
+# ── CT marginal cost config CSV (Table 3 × secondary loss factor) ────────────
+
+# OCC-863 Attachment 2, page 1, cell N3 ("Secondary" loss factor). J3 = 20.17 * N3.
+_SECONDARY_LOSS_FACTOR = 1.051845136935937
 
 
 class TestCtMarginalCostTable:
@@ -66,13 +73,19 @@ class TestCtMarginalCostTable:
             f"Expected CT marginal cost config at {CT_MC_TABLE_PATH}"
         )
 
-    def test_ct_eversource_value_matches_mcos2_table3(self) -> None:
+    def test_ct_eversource_value_is_table3_times_secondary_loss_factor(self) -> None:
+        """MCOS-2 Table 3 ($20.17/kW-yr) grossed up to secondary service.
+
+        OCC-863 Attachment 2 page 1 sets the annual secondary cost to
+        20.17 times the secondary loss factor, which rounds to $21.22/kW-yr.
+        """
         mc_df = pl.read_csv(CT_MC_TABLE_PATH)
         mc = get_marginal_cost_for_utility(mc_df, "ct_eversource")
-        assert mc == pytest.approx(20.17)
+        assert mc == pytest.approx(21.22)
+        assert mc == pytest.approx(round(20.17 * _SECONDARY_LOSS_FACTOR, 2))
 
     def test_dollar_year_is_2026(self) -> None:
-        """MCOS-2 Table 3 is filed in 2026$; CPI inflation converts to run year."""
+        """Rate year 1 dollars. The CT recipe sets --target-dollar-year 2026 so this is not CPI-adjusted."""
         mc_df = pl.read_csv(CT_MC_TABLE_PATH)
         row = mc_df.filter(pl.col("utility") == "ct_eversource")
         assert int(row["dollar_year"][0]) == 2026
@@ -82,6 +95,67 @@ class TestCtMarginalCostTable:
         mc_df = pl.read_csv(CT_MC_TABLE_PATH)
         with pytest.raises(ValueError, match="No marginal cost data found"):
             get_marginal_cost_for_utility(mc_df, "ct_ui")
+
+
+# ── OCC-863 system load as the PoP profile ──────────────────────────────────
+
+
+class TestCtSystemLoadSource:
+    def test_resolve_rejects_both_load_sources(self) -> None:
+        with pytest.raises(ValueError, match="not both"):
+            resolve_utility_load(
+                "system_load.parquet",
+                "s3://data.sb/isone/hourly_demand/utilities/",
+                2025,
+                "ct_eversource",
+                {},
+            )
+
+    def test_resolve_rejects_a_missing_load_source(self) -> None:
+        with pytest.raises(ValueError, match="path-utility-load"):
+            resolve_utility_load(None, None, 2025, "ct_eversource", {})
+
+    def test_load_file_reads_a_single_parquet(self) -> None:
+        df = pl.DataFrame(
+            {
+                "timestamp": ["2025-01-01 00:00:00", "2025-01-01 01:00:00"],
+                "load_mw": [10.0, 11.0],
+            }
+        ).with_columns(pl.col("timestamp").str.to_datetime())
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "system_load.parquet"
+            df.write_parquet(path)
+            loaded = load_utility_load_file(str(path), {})
+        assert loaded.height == 2
+        assert set(loaded.columns) >= {"timestamp", "load_mw"}
+
+    def test_millisecond_timestamps_normalize_to_8760(self) -> None:
+        """A datetime[ms] load still normalizes; the 8760 index is datetime[us].
+
+        A few hours are enough: the join fails as soon as an ms stamp meets
+        the us index. Missing 2025 hours are interpolated.
+        """
+        df = pl.DataFrame(
+            {
+                "timestamp": pl.select(
+                    pl.datetime_range(
+                        pl.lit("2024-12-31 22:00:00").str.to_datetime(time_unit="ms"),
+                        pl.lit("2025-01-02 02:00:00").str.to_datetime(time_unit="ms"),
+                        interval="1h",
+                        time_unit="ms",
+                    )
+                ).to_series(),
+                "load_mw": 1000.0,
+            }
+        )
+        assert df.schema["timestamp"] == pl.Datetime("ms")
+        normalized = normalize_load_to_cairo_8760(df, "ct_eversource", 2025)
+        assert normalized.height == 8760
+        assert normalized.schema["timestamp"] == pl.Datetime("us")
+        kept = normalized.filter(
+            pl.col("timestamp") == pl.lit("2025-01-01 00:00:00").str.to_datetime()
+        )
+        assert float(kept["load_mw"][0]) == pytest.approx(1000.0)
 
 
 # ── End-to-end PoP allocation on synthetic CT-shaped load ───────────────────

@@ -154,9 +154,87 @@ with a **July 1, 2027** rate effective date (`exhibit_clp_revreq_1.md` line 215)
 RateAcuity fetch reflects calendar-2025 effective rates. For the matched Rate 1 vs Rate 6 comparison we
 take transmission (and all riders) as a single filed-2026 set so the two rates share the same vintage.
 
+## Rate 6 variants (RATE=MC and FIXED+RATE=MC)
+
+Two additional Rate 6 variants modify how the winter Block 2 discount and/or fixed charge are set
+relative to the filed Rate 6 above. Both come from modified copies of the Exhibit CLP-RATES-6
+worksheet in
+[Google Sheets](https://docs.google.com/spreadsheets/d/1fJgtMgTGnVaeymypZjOeb9xvc1kcmN28/edit)
+(tabs described below). The same shared-riders adder (`$0.04139/kWh`) and Genability supply
+commodity (`$0.1119` Jan–Jun, `$0.09748` Jul–Dec) apply.
+
+### What each adjustment does
+
+The filed Rate 6 sets the winter Block 2 distribution rate at `$0.07517/kWh` via a two-step
+build: (A) marginal cost subtotal `$0.04152` (Unit FC Recovery w/GET `$0.03894` + MC Energy w/GET
+`$0.00258`), plus (B) a reduced reconciliation adjustment `$0.03365` (the residual above MC
+`$0.05279` × coincidence-factor ratio 63.7%). The variants modify steps (A) and (B):
+
+- **RATE=MC**: Sets the coincidence-factor adjustment to **0%**, zeroing the reconciliation
+  adjustment. Winter Block 2 = marginal cost subtotal `$0.04152`. Customer charge and Block 1
+  are unchanged.
+- **FIXED+RATE=MC**: Moves the **Marginal Facilities Cost** (`$24.51/mo`) from the volumetric
+  rate into the fixed customer charge (raising it from `$30.95` to `$57.13`), AND sets
+  coincidence-factor to 0% (RATE=MC). Block 1 drops from `$0.09431` to `$0.05537`; winter
+  Block 2 = MC Energy w/GET only `$0.00258` (the FC recovery is now in the fixed charge).
+
+### Source spreadsheet tabs
+
+| Variant       | Tab name                                | gid          |
+| ------------- | --------------------------------------- | ------------ |
+| RATE=MC       | `CLP-RATES-6, 2 of 3 (RATE=MC)`         | `1354576119` |
+| FIXED+RATE=MC | `CLP-RATES-6, 2 of 3 (FIXED + RATE=MC)` | `1176698813` |
+
+### Rate 6 RATE=MC (`ct_eversource_rate6_ratemc`)
+
+- **Customer charge:** $30.95/month (unchanged).
+- **Distribution:** winter (Nov–Mar) tiered `$0.09431` (≤700 kWh) / `$0.04152` (>700 kWh);
+  non-heating (Apr–Oct) flat `$0.09431`.
+- **Delivery energy** = distribution + `0.04139` riders:
+
+| Season / block        | Delivery ($/kWh) | + supply → supply-JSON ($/kWh) |
+| --------------------- | ---------------- | ------------------------------ |
+| Winter ≤700 (Jan–Mar) | 0.13570          | 0.24760 (+0.1119)              |
+| Winter >700 (Jan–Mar) | 0.08291          | 0.19481 (+0.1119)              |
+| Non-heating (Apr–Jun) | 0.13570          | 0.24760 (+0.1119)              |
+| Non-heating (Jul–Oct) | 0.13570          | 0.23318 (+0.09748)             |
+| Winter ≤700 (Nov–Dec) | 0.13570          | 0.23318 (+0.09748)             |
+| Winter >700 (Nov–Dec) | 0.08291          | 0.18039 (+0.09748)             |
+
+### Rate 6 FIXED+RATE=MC (`ct_eversource_rate6_fixed_ratemc`)
+
+- **Customer charge:** $57.13/month.
+- **Distribution:** winter (Nov–Mar) tiered `$0.05537` (≤700 kWh) / `$0.00258` (>700 kWh);
+  non-heating (Apr–Oct) flat `$0.05537`.
+- **Delivery energy** = distribution + `0.04139` riders:
+
+| Season / block        | Delivery ($/kWh) | + supply → supply-JSON ($/kWh) |
+| --------------------- | ---------------- | ------------------------------ |
+| Winter ≤700 (Jan–Mar) | 0.09676          | 0.20866 (+0.1119)              |
+| Winter >700 (Jan–Mar) | 0.04397          | 0.15587 (+0.1119)              |
+| Non-heating (Apr–Jun) | 0.09676          | 0.20866 (+0.1119)              |
+| Non-heating (Jul–Oct) | 0.09676          | 0.19424 (+0.09748)             |
+| Winter ≤700 (Nov–Dec) | 0.09676          | 0.19424 (+0.09748)             |
+| Winter >700 (Nov–Dec) | 0.04397          | 0.14145 (+0.09748)             |
+
+### Per-number provenance (variants)
+
+| Component                                  | Value        | Source                                      | Derivation                                                          |
+| ------------------------------------------ | ------------ | ------------------------------------------- | ------------------------------------------------------------------- |
+| RATE=MC: Distribution Block 2 winter       | $0.04152/kWh | Spreadsheet tab `RATE=MC`, cell E27         | = Unit FC Recovery w/GET $0.03894 + MC Energy w/GET $0.00258        |
+| RATE=MC: Coinc. factor adj.                | 0.0%         | Spreadsheet tab `RATE=MC`, cell H38         | Set to 0%, zeroing reconciliation adj                               |
+| FIXED+RATE=MC: Customer charge             | $57.13/mo    | Spreadsheet tab `FIXED + RATE=MC`, cell E12 | = ($28.98 MCC + $24.51 MFC) × 1.068 GET                             |
+| FIXED+RATE=MC: Distribution Block 1        | $0.05537/kWh | Spreadsheet tab `FIXED + RATE=MC`, cell E25 | = EC RR $467,385,662 / RY kWh 8,440,783,007                         |
+| FIXED+RATE=MC: Distribution Block 2 winter | $0.00258/kWh | Spreadsheet tab `FIXED + RATE=MC`, cell E28 | = MC Energy w/GET only (FC recovery in fixed charge, recon adj = 0) |
+| **RATE=MC delivery Block 2**               | **0.08291**  | derived                                     | 0.04152 + 0.04139                                                   |
+| **FIXED+RATE=MC delivery Block 1**         | **0.09676**  | derived                                     | 0.05537 + 0.04139                                                   |
+| **FIXED+RATE=MC delivery Block 2**         | **0.04397**  | derived                                     | 0.00258 + 0.04139                                                   |
+
 ## Files
 
 - `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate6.json` (+ `_supply.json`)
+- `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate6_ratemc.json` (+ `_supply.json`)
+- `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate6_fixed_ratemc.json` (+ `_supply.json`)
 - `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate1_proposed.json` (+ `_supply.json`)
 - `rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate6_monthly_rates_2025.yaml`
-- `rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate1_proposed_monthly_rates_2025.yaml`
+- `rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate1_proposed_monthly_rates_ry1.yaml`

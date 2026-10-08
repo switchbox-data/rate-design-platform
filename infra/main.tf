@@ -228,12 +228,23 @@ resource "aws_instance" "main" {
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
   subnet_id              = local.subnet_id
   iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
-  user_data              = local.user_data
+  user_data_base64       = base64gzip(local.user_data)
 
   root_block_device {
     volume_type = "gp3"
     volume_size = var.root_volume_size
     encrypted   = true
+  }
+
+  # Prevent Terraform from replacing the instance when Canonical publishes a
+  # newer Ubuntu AMI.  The data.aws_ami lookup always resolves to the latest
+  # image, so without this guard any `terraform apply` (or `-target` that
+  # pulls in the instance as a dependency) would destroy and recreate the
+  # instance — losing the root volume, breaking mounts, and requiring a full
+  # dev-login rebuild.  Upgrade the AMI intentionally with:
+  #   terraform taint aws_instance.main && terraform apply
+  lifecycle {
+    ignore_changes = [ami, user_data_base64]
   }
 
   tags = {
@@ -258,6 +269,8 @@ resource "aws_cloudwatch_metric_alarm" "idle_stop" {
   alarm_description   = "Stop instance after ${var.idle_minutes} min of CPU below ${var.idle_cpu_threshold}%"
   comparison_operator = "LessThanThreshold"
   evaluation_periods  = var.idle_minutes / 5
+  datapoints_to_alarm = var.idle_minutes / 5
+  treat_missing_data  = "notBreaching"
   metric_name         = "CPUUtilization"
   namespace           = "AWS/EC2"
   period              = 300

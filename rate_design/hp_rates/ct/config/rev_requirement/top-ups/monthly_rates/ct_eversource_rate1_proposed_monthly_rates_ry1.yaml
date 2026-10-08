@@ -15,7 +15,7 @@
 #   - transmission (0.05050) is the FILED value; it differs from RateAcuity 2025 (0.03401/0.04433) by
 #     ~1 year of Transmission Adjustment Clause resets (see context doc).
 #
-# The _2025 suffix is a naming convention only: these hand-built tariffs are not consumed by the
+# The _ry1 suffix denotes proposed rate year 1: these hand-built tariffs are not consumed by the
 # year-driven fetch pipeline. Delivery is filed-2026 vintage; supply is Genability 2025.
 # master_tariff_id is null because this is a proposed rate with no RateAcuity ID.
 utility: ct_eversource_rate1_proposed

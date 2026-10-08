@@ -1,28 +1,56 @@
-"""Allocate marginal sub-transmission and distribution costs to hourly price signals.
+"""Build an hourly sub-transmission and distribution marginal cost 8760.
 
-This script implements the diluted marginal cost allocation methodology using
-the Probability of Peak (PoP) method to allocate $/kW-yr costs to $/kWh hourly
-price signals.
+``--method`` picks how the 8760 is built:
 
-Input:
-    - Utility hourly load profile (ISO-native layout): utility=X/year=YYYY[/month=MM]/data.parquet
+- ``pop`` (default; NY, RI, MD, and CT's fallback): Probability of Peak (PoP)
+  allocation of one $/kW-yr value from the MC table over the top
+  ``--n-hours`` hours of a load profile. The load comes from exactly one of
+  ``--utility-load-s3-base`` (hive utility=X/year=YYYY scan) or
+  ``--path-utility-load`` (one parquet with timestamp and load_mw).
+- ``month_hour`` (CT only): look up Eversource's OCC-863 Attachment 2
+  month-hour $/kWh tables onto one calendar year. Uses no $/kW-yr value and no
+  load profile.
+
+CT Eversource, in order of preference (the ct Justfile's ``dist_mc_method``):
+
+1. ``month_hour``: OCC-863 Attachment 2 secondary tables, weekday vs.
+   weekend-and-holiday. Written to ``dist_and_sub_tx_eversource_derived/``.
+2. ``pop`` on ``--path-utility-load`` = OCC-863 Attachment 3 system load: the
+   $21.22/kW-yr secondary value on Eversource's own substation peaks. Written to
+   ``dist_and_sub_tx_occ863/``.
+3. ``pop`` on ``--utility-load-s3-base`` = ISO-NE CT zone load: the same
+   $21.22/kW-yr on zone peaks. The oldest approach. Written to
+   ``dist_and_sub_tx/``.
+
+Both CT PoP paths pass ``--target-dollar-year 2026``: the analysis is rate year
+1, already in the filing's 2026 dollars, so no CPI adjustment applies.
+
+PoP input:
+    - Utility hourly load profile, either ISO-native hive layout
+      utility=X/year=YYYY[/month=MM]/data.parquet
       (e.g. s3://data.sb/nyiso/hourly_demand/utilities/, s3://data.sb/pjm/hourly_demand/utilities/,
-      s3://data.sb/isone/hourly_demand/utilities/)
+      s3://data.sb/isone/hourly_demand/utilities/), or one parquet file
     - Marginal cost table CSV with columns: utility, sub_tx_and_dist_mc_kw_yr[, dollar_year]
     - Load year (determines which load profile year to use)
 
+Month-hour input:
+    - Weekday and weekend-and-holiday parquets, each 288 rows of
+      month (1-12), hour (0-23), mc_total_per_kwh
+
 The optional ``dollar_year`` column in the MC table specifies the dollar year of
-the cost estimate.  When present, the script inflates the value to
-``--target-dollar-year`` (defaults to ``--year``) using the annual-average
-CPIAUCSL index stored at ``--cpi-s3-base`` (default:
-``s3://data.sb/fred/cpi/``).  If the column is absent (e.g. the existing NY
-table), the raw value is used as-is with no inflation applied.
+the cost estimate.  When it differs from ``--target-dollar-year`` (default:
+``--year``), the script inflates the value using the annual-average CPIAUCSL
+index stored at ``--cpi-s3-base`` (default: ``s3://data.sb/fred/cpi/``).  When
+the years match, or the column is absent (the NY table), the raw value is used.
 
 Output partitions written as:
     - NY default base: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/
     - RI default base: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
     - MD default base: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/
-    - CT default base: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/
+    - CT month_hour: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/
+      The partition year is --year, the same calendar stamped on the timestamps.
+    - CT pop on OCC-863 system load: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/
+    - CT pop on ISO-NE CT zone load: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/
     - Default partition: utility=X/year=YYYY/data.parquet
     - Alternate-load-year base: <default_base_without_slash>_loadYYYY/
       Example: dist_and_sub_tx_load2018/utility=X/year=2025/data.parquet
@@ -49,17 +77,15 @@ Usage:
         --output-s3-base s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/ \
         --upload
 
-    # CT/Eversource (CL&P) on ISO-NE native loads, inflates 2026$ → 2025$
-    python generate_utility_tx_dx_mc.py --state CT --utility ct_eversource --year 2025 \
-        --mc-table-path rate_design/hp_rates/ct/config/marginal_costs/ct_marginal_costs_2025.csv \
-        --utility-load-s3-base s3://data.sb/isone/hourly_demand/utilities/ \
-        --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \
-        --upload
+    # CT/Eversource: use the ct Justfile, which wires all three methods.
+    just -f rate_design/hp_rates/ct/Justfile create-dist-mc-data 2025 --upload
+    just -f rate_design/hp_rates/ct/Justfile dist_mc_method=pop_occ863 create-dist-mc-data 2025 --upload
+    just -f rate_design/hp_rates/ct/Justfile dist_mc_method=pop_isone_zone create-dist-mc-data 2025 --upload
 """
 
 import argparse
 import io
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import polars as pl
@@ -67,6 +93,7 @@ from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
 from utils.data_prep.marginal_costs.supply_utils import (
+    build_cairo_8760_timestamps,
     output_base_for_load_year,
     remap_year_if_needed,
     warn_if_multiple_partition_parquets,
@@ -117,6 +144,67 @@ def load_utility_load_profile(
     return df
 
 
+def load_utility_load_file(
+    path: str,
+    storage_options: dict[str, str],
+) -> pl.DataFrame:
+    """Load one load parquet that is not in the hive utility/year layout.
+
+    The file must have ``timestamp`` and ``load_mw``. Year filtering happens
+    in ``normalize_load_to_cairo_8760``. CT uses this for the OCC-863
+    Eversource system load, which is one multi-year file.
+
+    Args:
+        path: Local path or ``s3://`` URI of the parquet.
+        storage_options: Polars S3 storage options. Ignored for a local path.
+
+    Returns:
+        DataFrame with at least timestamp and load_mw.
+    """
+    if path.startswith("s3://"):
+        lf = pl.scan_parquet(path, storage_options=storage_options)
+    else:
+        lf = pl.scan_parquet(path)
+    collected = lf.collect()
+    if not isinstance(collected, pl.DataFrame):
+        raise TypeError("Expected DataFrame from utility load file collect()")
+    df = collected
+    missing = {"timestamp", "load_mw"} - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"Utility load file {path} is missing columns: {sorted(missing)}"
+        )
+    if df.is_empty():
+        raise FileNotFoundError(f"Utility load file is empty: {path}")
+    print(f"Loaded {len(df):,} hourly load records from {path}")
+    return df
+
+
+def resolve_utility_load(
+    path_utility_load: str | None,
+    utility_load_s3_base: str | None,
+    year_load: int,
+    utility: str,
+    storage_options: dict[str, str],
+) -> pl.DataFrame:
+    """Load the PoP profile from one parquet or from the hive utility/year scan.
+
+    Exactly one of the two sources must be set. The hive scan is what NY, RI,
+    and MD use. The single file is the CT OCC-863 system load.
+    """
+    if path_utility_load and utility_load_s3_base:
+        raise ValueError(
+            "Pass either --path-utility-load or --utility-load-s3-base, not both."
+        )
+    if path_utility_load:
+        return load_utility_load_file(path_utility_load, storage_options)
+    if utility_load_s3_base:
+        return load_utility_load_profile(
+            utility_load_s3_base, year_load, utility, storage_options
+        )
+    raise ValueError("Pass --path-utility-load or --utility-load-s3-base.")
+
+
 def normalize_load_to_cairo_8760(
     load_df: pl.DataFrame, utility: str, year_load: int
 ) -> pl.DataFrame:
@@ -153,6 +241,10 @@ def normalize_load_to_cairo_8760(
             .dt.replace_time_zone(None)
             .alias("timestamp")
         )
+
+    # The expected 8760 index is datetime[us]. A load file in another unit
+    # (e.g. ms from an Excel-sourced parquet) would fail the join without this.
+    df = df.with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
 
     # Keep only requested load year.
     df = df.filter(pl.col("timestamp").dt.year() == year_load)
@@ -197,7 +289,9 @@ def normalize_load_to_cairo_8760(
         cur += timedelta(hours=1)
     if has_feb29:
         expected = [t for t in expected if not (t.month == 12 and t.day == 31)]
-    expected_df = pl.DataFrame({"timestamp": expected})
+    expected_df = pl.DataFrame({"timestamp": expected}).with_columns(
+        pl.col("timestamp").cast(pl.Datetime("us"))
+    )
 
     # Reindex and fill any missing hours.
     df = expected_df.join(df, on="timestamp", how="left").sort("timestamp")
@@ -251,6 +345,34 @@ def load_marginal_cost_table(mc_table_path: str) -> pl.DataFrame:
 
     print(f"Loaded marginal cost table with {len(df)} rows")
     return df
+
+
+def eversource_derived_output_base(base: str) -> str:
+    """Point a dist-and-sub-tx output root at the Eversource-derived dataset.
+
+    ``.../dist_and_sub_tx/`` becomes ``.../dist_and_sub_tx_eversource_derived/``.
+    A base that already names that dataset is returned unchanged.
+    """
+    trimmed = base.rstrip("/")
+    parent, leaf = trimmed.rsplit("/", 1)
+    if leaf == "dist_and_sub_tx_eversource_derived":
+        return f"{trimmed}/"
+    if leaf != "dist_and_sub_tx":
+        raise ValueError(
+            "--method month_hour writes under "
+            "dist_and_sub_tx_eversource_derived/, so the output base must end "
+            f"in dist_and_sub_tx/ (got {base!r})"
+        )
+    return f"{parent}/dist_and_sub_tx_eversource_derived/"
+
+
+def _parse_bool(value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"true", "1", "yes"}:
+        return True
+    if normalized in {"false", "0", "no"}:
+        return False
+    raise argparse.ArgumentTypeError(f"expected true or false, got {value!r}")
 
 
 def validate_mc_table_path(mc_table_path: str) -> None:
@@ -455,6 +577,130 @@ def validate_allocation(
     return validation_results
 
 
+def expand_month_hour_mc_to_8760(
+    weekday: pl.DataFrame,
+    weekend: pl.DataFrame,
+    year: int,
+    utility: str,
+    *,
+    include_holidays: bool = True,
+) -> pl.DataFrame:
+    """Expand month-hour marginal costs onto one calendar year's Cairo 8760.
+
+    ``weekday`` and ``weekend`` are the OCC-863 Attachment 2 matrices, each with
+    ``month`` (1–12), ``hour`` (0–23), and ``mc_total_per_kwh``. Saturday and
+    Sunday take the weekend value. When ``include_holidays`` is true, US
+    federal holidays do too: a holiday that falls on Saturday is observed on
+    Friday, and one that falls on Sunday is observed on Monday. When it is
+    false, a holiday on Monday through Friday takes the weekday value.
+    Any other Monday through Friday takes the weekday value.
+
+    ``year`` is both the calendar used to classify each day and the year
+    stamped on ``timestamp`` and the ``year`` column. Passing 2018 classifies
+    2018's weekdays, weekends, and holidays and writes 2018 timestamps.
+
+    Timestamps match ``build_cairo_8760_timestamps``: naive hour-beginning
+    local time, 8,760 rows, with December 31 dropped in a leap year.
+    """
+    clock = build_cairo_8760_timestamps(year).with_columns(
+        pl.col("timestamp").cast(pl.Datetime("us"))
+    )
+    holidays = _us_federal_holidays(year) if include_holidays else set()
+    clock = clock.with_columns(
+        pl.col("timestamp").dt.month().alias("month"),
+        pl.col("timestamp").dt.hour().alias("hour"),
+        # Polars weekday is ISO: Monday = 1, Sunday = 7.
+        (pl.col("timestamp").dt.weekday() >= 6).alias("is_weekend"),
+        pl.col("timestamp").dt.date().is_in(sorted(holidays)).alias("is_holiday"),
+    )
+    weekday_rates = _month_hour_rates(weekday, "weekday").rename(
+        {"mc_total_per_kwh": "weekday_mc"}
+    )
+    weekend_rates = _month_hour_rates(weekend, "weekend").rename(
+        {"mc_total_per_kwh": "weekend_mc"}
+    )
+    joined = clock.join(weekday_rates, on=["month", "hour"], how="left").join(
+        weekend_rates, on=["month", "hour"], how="left"
+    )
+    expanded = joined.with_columns(
+        pl.when(pl.col("is_weekend") | pl.col("is_holiday"))
+        .then(pl.col("weekend_mc"))
+        .otherwise(pl.col("weekday_mc"))
+        .alias("mc_total_per_kwh")
+    )
+    if expanded["mc_total_per_kwh"].null_count() != 0:
+        raise ValueError(f"month-hour lookup missed hours in {year}")
+    return expanded.select(
+        "timestamp",
+        pl.lit(utility).alias("utility"),
+        pl.lit(year).cast(pl.Int32).alias("year"),
+        "mc_total_per_kwh",
+    )
+
+
+def _us_federal_holidays(year: int) -> set[date]:
+    """US federal holidays observed during ``year``.
+
+    The eleven holidays in 5 U.S.C. § 6103. A fixed-date holiday on Saturday is
+    observed the Friday before, and one on Sunday the Monday after. That
+    observed set is what Attachment 2's weekend-and-holiday day counts match
+    for 2025.
+    """
+    fixed = [
+        date(year, 1, 1),
+        date(year, 6, 19),
+        date(year, 7, 4),
+        date(year, 11, 11),
+        date(year, 12, 25),
+        date(year + 1, 1, 1),
+    ]
+    floating = [
+        _nth_weekday(year, 1, 0, 3),
+        _nth_weekday(year, 2, 0, 3),
+        _nth_weekday(year, 5, 0, -1),
+        _nth_weekday(year, 9, 0, 1),
+        _nth_weekday(year, 10, 0, 2),
+        _nth_weekday(year, 11, 3, 4),
+    ]
+    observed = {_observe_holiday(day) for day in fixed + floating}
+    return {day for day in observed if day.year == year}
+
+
+def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
+    """The nth ``weekday`` of ``month`` (Monday = 0). ``n`` of -1 is the last."""
+    if n > 0:
+        first = date(year, month, 1)
+        shift = (weekday - first.weekday()) % 7
+        return first + timedelta(days=shift + 7 * (n - 1))
+    if month == 12:
+        last = date(year, 12, 31)
+    else:
+        last = date(year, month + 1, 1) - timedelta(days=1)
+    return last - timedelta(days=(last.weekday() - weekday) % 7)
+
+
+def _observe_holiday(day: date) -> date:
+    if day.weekday() == 5:
+        return day - timedelta(days=1)
+    if day.weekday() == 6:
+        return day + timedelta(days=1)
+    return day
+
+
+def _month_hour_rates(frame: pl.DataFrame, label: str) -> pl.DataFrame:
+    required = {"month", "hour", "mc_total_per_kwh"}
+    missing = required - set(frame.columns)
+    if missing:
+        raise ValueError(f"{label} month-hour table is missing {sorted(missing)}")
+    rates = frame.select("month", "hour", "mc_total_per_kwh")
+    n_unique = rates.select("month", "hour").n_unique()
+    if rates.height != 12 * 24 or n_unique != rates.height:
+        raise ValueError(
+            f"{label} month-hour table must have 288 unique month-hour rows"
+        )
+    return rates
+
+
 def save_allocated_costs(
     df: pl.DataFrame,
     utility: str,
@@ -462,6 +708,7 @@ def save_allocated_costs(
     s3_base: str,
     validation_results: dict,
     storage_options: dict[str, str],
+    path_local_base: str | None = None,
 ):
     """Save allocated marginal costs to S3 with Hive-style partitioning.
 
@@ -471,13 +718,15 @@ def save_allocated_costs(
     Args:
         df: DataFrame with allocated costs
         utility: Utility name
-        year: Output year for the Hive partition and timestamps. This is also
-            the default target dollar year of the allocated ``$/kW-yr`` (CPI
-            inflation to this year happens before save). Distinct from the
+        year: Output year for the Hive partition and the ``year`` column. For
+            the PoP allocation this is also the timestamp year and the default
+            target dollar year of the allocated ``$/kW-yr``. Distinct from the
             PoP allocation load year.
         s3_base: Base S3 path for marginal costs
         validation_results: Validation results (unused, kept for interface consistency)
         storage_options: Polars S3 storage options with AWS bucket region
+        path_local_base: Optional local mirror of ``s3_base``; the same
+            ``utility=X/year=YYYY/data.parquet`` is written there too.
     """
     output_df = df.select(
         [
@@ -518,6 +767,16 @@ def save_allocated_costs(
     )
 
     print(f"\n✓ Saved allocated costs to {output_path}")
+    if path_local_base:
+        path_local = (
+            Path(path_local_base)
+            / f"utility={utility}"
+            / f"year={year}"
+            / "data.parquet"
+        )
+        path_local.parent.mkdir(parents=True, exist_ok=True)
+        output_df.write_parquet(path_local)
+        print(f"✓ Saved local copy to {path_local}")
     print(f"  Rows: {len(output_df):,}")
     print(f"  Columns: {', '.join(output_df.columns)}")
 
@@ -525,7 +784,20 @@ def save_allocated_costs(
 def main():
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(
-        description="Allocate marginal costs to hourly price signals using PoP method"
+        description=(
+            "Build an hourly dist + sub-tx marginal cost 8760 by PoP allocation "
+            "or (CT) Eversource month-hour lookup"
+        )
+    )
+    parser.add_argument(
+        "--method",
+        choices=["pop", "month_hour"],
+        default="pop",
+        help=(
+            "pop: allocate the MC table's $/kW-yr over the top --n-hours of a "
+            "load profile. month_hour (CT only): look up OCC-863 Attachment 2 "
+            "month-hour $/kWh tables onto --year. Default: pop."
+        ),
     )
     parser.add_argument(
         "--state",
@@ -544,29 +816,45 @@ def main():
         "--year",
         type=int,
         required=True,
-        help="Output year for partition key and timestamps (e.g. 2025).",
+        help=(
+            "Output year for partition key and timestamps (e.g. 2025). For "
+            "month_hour, also the calendar that sets weekdays and holidays."
+        ),
     )
-    parser.add_argument(
+
+    pop = parser.add_argument_group("--method pop")
+    pop.add_argument(
         "--load-year",
         type=int,
         default=None,
         help=("Year of load profile to use for PoP allocation (defaults to --year)."),
     )
-    parser.add_argument(
+    pop.add_argument(
         "--mc-table-path",
         type=str,
-        required=True,
-        help="Path to marginal cost table CSV (local or s3://)",
+        default=None,
+        help="Path to marginal cost table CSV (local or s3://). Required for pop.",
     )
-    parser.add_argument(
+    pop.add_argument(
         "--utility-load-s3-base",
         "--nyiso-s3-base",
         dest="utility_load_s3_base",
         type=str,
-        required=True,
+        default=None,
         help=(
-            "Base S3 path for utility loads "
-            "(e.g. s3://data.sb/eia/hourly_demand/utilities/)"
+            "Base S3 path for hive-partitioned utility loads "
+            "(utility=X/year=YYYY). CT: ISO-NE CT zone load. "
+            "Pass this or --path-utility-load, not both."
+        ),
+    )
+    pop.add_argument(
+        "--path-utility-load",
+        dest="path_utility_load",
+        type=str,
+        default=None,
+        help=(
+            "Single parquet with timestamp and load_mw, used instead of the "
+            "hive scan. CT: the OCC-863 system_load.parquet."
         ),
     )
     parser.add_argument(
@@ -575,14 +863,14 @@ def main():
         required=True,
         help="Base S3 path for output (e.g., s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/)",
     )
-    parser.add_argument(
+    pop.add_argument(
         "--n-hours",
         type=int,
         choices=range(8761),
         default=100,
         help="Number of top load hours for PoP allocation (0-8760, default: 100)",
     )
-    parser.add_argument(
+    pop.add_argument(
         "--target-dollar-year",
         type=int,
         default=None,
@@ -591,7 +879,7 @@ def main():
             "Only applied when the MC table has a dollar_year column."
         ),
     )
-    parser.add_argument(
+    pop.add_argument(
         "--cpi-s3-base",
         type=str,
         default="s3://data.sb/fred/cpi/",
@@ -605,11 +893,54 @@ def main():
         action="store_true",
         help="Upload results to S3 (default: False, for data inspection only)",
     )
+    month_hour = parser.add_argument_group("--method month_hour")
+    month_hour.add_argument(
+        "--path-weekday-mc",
+        type=str,
+        default=None,
+        help="Month-hour weekday $/kWh parquet. Required for month_hour.",
+    )
+    month_hour.add_argument(
+        "--path-weekend-mc",
+        type=str,
+        default=None,
+        help="Month-hour weekend-and-holiday $/kWh parquet. Required for month_hour.",
+    )
+    month_hour.add_argument(
+        "--include-holidays",
+        type=_parse_bool,
+        default=True,
+        metavar="{true,false}",
+        help=(
+            "true: federal holidays take the weekend-and-holiday table. "
+            "false: only Saturday and Sunday do; a weekday holiday stays on "
+            "the weekday table."
+        ),
+    )
+    parser.add_argument(
+        "--path-local-output-base",
+        type=str,
+        default=None,
+        help="Local mirror of --output-s3-base; with --upload, also write there",
+    )
 
     args = parser.parse_args()
-    validate_mc_table_path(args.mc_table_path)
     load_dotenv()
     storage_options = get_aws_storage_options()
+
+    if args.method == "month_hour":
+        _run_month_hour(args, storage_options)
+    else:
+        _run_pop_allocation(args, storage_options)
+
+
+def _run_pop_allocation(
+    args: argparse.Namespace, storage_options: dict[str, str]
+) -> None:
+    """PoP-allocate the MC table's $/kW-yr over the top load hours, then save."""
+    if not args.mc_table_path:
+        raise ValueError("--method pop needs --mc-table-path")
+    validate_mc_table_path(args.mc_table_path)
 
     output_year = args.year
     load_year = args.load_year if args.load_year else output_year
@@ -622,8 +953,6 @@ def main():
         load_year,
     )
 
-    s3_base = args.utility_load_s3_base
-
     print("=" * 60)
     print("MARGINAL COST ALLOCATION")
     print(f"State: {args.state}")
@@ -634,12 +963,17 @@ def main():
     print(f"Load year:   {load_year}")
     print(f"Target dollar year: {target_dollar_year}")
     print(f"Output S3 base: {output_s3_base}")
+    if args.path_utility_load:
+        print(f"Load file: {args.path_utility_load}")
+    else:
+        print(f"Load hive base: {args.utility_load_s3_base}")
     print(f"Allocation window: Top {args.n_hours} hours")
     print(f"Upload to S3: {'Yes' if args.upload else 'No (inspection only)'}")
     print("=" * 60)
 
-    load_df = load_utility_load_profile(
-        s3_base,
+    load_df = resolve_utility_load(
+        args.path_utility_load,
+        args.utility_load_s3_base,
         load_year,
         args.utility,
         storage_options,
@@ -705,6 +1039,7 @@ def main():
             output_s3_base,
             validation_results,
             storage_options,
+            path_local_base=args.path_local_output_base,
         )
         print("\n" + "=" * 60)
         print("✓ Marginal cost allocation completed and uploaded")
@@ -714,6 +1049,75 @@ def main():
         print("✓ Marginal cost allocation completed (data inspection complete)")
         print("⚠️  No data uploaded to S3 (use --upload flag to enable)")
         print("=" * 60)
+
+
+def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -> None:
+    """Build and optionally save the 8760 from OCC-863 month-hour tables."""
+    if args.state != "CT":
+        raise ValueError("--method month_hour is only defined for CT")
+    if not (args.path_weekday_mc and args.path_weekend_mc):
+        raise ValueError(
+            "--method month_hour needs --path-weekday-mc and --path-weekend-mc"
+        )
+    year = args.year
+    output_s3_base = eversource_derived_output_base(args.output_s3_base)
+    path_local_base = (
+        eversource_derived_output_base(args.path_local_output_base)
+        if args.path_local_output_base
+        else None
+    )
+
+    print("=" * 60)
+    print("EVERSOURCE MONTH-HOUR MARGINAL COST → 8760")
+    print("=" * 60)
+    print(f"Utility: {args.utility}")
+    print(f"Year (calendar, timestamps, and partition): {year}")
+    print(f"Include federal holidays: {args.include_holidays}")
+    print(f"Weekday table: {args.path_weekday_mc}")
+    print(f"Weekend-and-holiday table: {args.path_weekend_mc}")
+    print(f"Output S3 base: {output_s3_base}")
+    if path_local_base:
+        print(f"Local output base: {path_local_base}")
+    print(f"Upload to S3: {'Yes' if args.upload else 'No (inspection only)'}")
+    print("=" * 60)
+
+    weekday = _read_parquet_any(args.path_weekday_mc, storage_options)
+    weekend = _read_parquet_any(args.path_weekend_mc, storage_options)
+    expanded = expand_month_hour_mc_to_8760(
+        weekday,
+        weekend,
+        year,
+        args.utility,
+        include_holidays=args.include_holidays,
+    )
+
+    annual = float(expanded["mc_total_per_kwh"].sum())
+    nonzero = expanded.filter(pl.col("mc_total_per_kwh") > 0).height
+    print(f"\n  Rows: {expanded.height:,}")
+    print(f"  Hours with nonzero MC: {nonzero:,}")
+    print(f"  Sum over 8760 (flat 1 kW, $/kW-yr): ${annual:.4f}")
+    print("\nTop 10 hours by marginal cost:")
+    print(expanded.sort("mc_total_per_kwh", descending=True).head(10))
+
+    if args.upload:
+        save_allocated_costs(
+            expanded,
+            args.utility,
+            year,
+            output_s3_base,
+            {},
+            storage_options,
+            path_local_base=path_local_base,
+        )
+        print("\n✓ Eversource month-hour 8760 completed and uploaded")
+    else:
+        print("\n⚠️  No data uploaded to S3 (use --upload flag to enable)")
+
+
+def _read_parquet_any(path: str, storage_options: dict[str, str]) -> pl.DataFrame:
+    if path.startswith("s3://"):
+        return pl.read_parquet(path, storage_options=storage_options)
+    return pl.read_parquet(path)
 
 
 if __name__ == "__main__":

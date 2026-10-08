@@ -9,7 +9,7 @@
 # monthly_rates file and the canonical output name). Regenerate with a direct script call:
 #   uv run python utils/pre/rev_requirement/build_rate_case_test_year.py \
 #     --path-partial-yaml rate_design/hp_rates/ct/config/rev_requirement/ct_eversource_rate_case_rate_year_1.yaml \
-#     --path-monthly-rates rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate1_proposed_monthly_rates_2025.yaml \
+#     --path-monthly-rates rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate1_proposed_monthly_rates_ry1.yaml \
 #     --path-resstock-release /ebs/data/nrel/resstock/res_2024_amy2018_2_sb --state CT \
 #     --output rate_design/hp_rates/ct/config/rev_requirement/ct_eversource_rate_case_rate_year_1.yaml
 #
