@@ -54,7 +54,7 @@ def month_hour_marginal_costs(
     titles on that sheet. The caller reads the matching sheet.
 
     Each frame has ``month`` (1–12), ``hour`` (0–23), ``num_days`` (the "No
-    Days" count for that month, repeated on every hour), and ``mc_per_kwh``.
+    Days" count for that month, repeated on every hour), and ``mc_total_per_kwh``.
     """
     all_days_title, weekday_title, weekend_title = _MATRIX_TITLES[voltage]
     rows = raw.rows()
@@ -95,7 +95,7 @@ def _melt_matrix(rows: list[tuple[object, ...]], title: str) -> pl.DataFrame:
                     "month": month,
                     "hour": hour,
                     "num_days": day_counts[month],
-                    "mc_per_kwh": mc,
+                    "mc_total_per_kwh": mc,
                 }
             )
 
@@ -104,7 +104,7 @@ def _melt_matrix(rows: list[tuple[object, ...]], title: str) -> pl.DataFrame:
             "month": pl.Int64,
             "hour": pl.Int64,
             "num_days": pl.Int64,
-            "mc_per_kwh": pl.Float64,
+            "mc_total_per_kwh": pl.Float64,
         }
     )
     _validate_matrix(frame, title)
@@ -284,7 +284,7 @@ def main() -> None:
     ):
         print(
             f"Wrote {frame.height} rows to {args.path_output_dir / _filename(kind, voltage)} "
-            f"(mc_per_kwh max={frame['mc_per_kwh'].max():.6f})"
+            f"(mc_total_per_kwh max={frame['mc_total_per_kwh'].max():.6f})"
         )
 
 

@@ -72,29 +72,29 @@ def test_melts_weekdays_with_the_day_count_repeated_on_every_hour() -> None:
     all_days, weekday, weekend = month_hour_marginal_costs(
         _page("secondary"), "secondary"
     )
-    assert weekday.columns == ["month", "hour", "num_days", "mc_per_kwh"]
+    assert weekday.columns == ["month", "hour", "num_days", "mc_total_per_kwh"]
     assert all_days.height == 288
     assert weekday.height == 288
     assert weekend.height == 288
     january = weekday.filter(pl.col("month") == 1)
     assert january["hour"].to_list() == list(range(24))
     assert january["num_days"].unique().to_list() == [19]
-    assert january["mc_per_kwh"].sum() == 0
+    assert january["mc_total_per_kwh"].sum() == 0
     august_hour_16 = weekday.filter((pl.col("month") == 8) & (pl.col("hour") == 16))
-    assert august_hour_16["mc_per_kwh"].item() == pytest.approx(0.02557)
+    assert august_hour_16["mc_total_per_kwh"].item() == pytest.approx(0.02557)
     assert august_hour_16["num_days"].item() == 22
     weekend_august = weekend.filter((pl.col("month") == 8) & (pl.col("hour") == 16))
-    assert weekend_august["mc_per_kwh"].item() == pytest.approx(0.00011)
+    assert weekend_august["mc_total_per_kwh"].item() == pytest.approx(0.00011)
     assert weekend_august["num_days"].item() == 10
     all_days_august = all_days.filter((pl.col("month") == 8) & (pl.col("hour") == 16))
-    assert all_days_august["mc_per_kwh"].item() == pytest.approx(0.001)
+    assert all_days_august["mc_total_per_kwh"].item() == pytest.approx(0.001)
     assert all_days_august["num_days"].item() == 32
 
 
 def test_reads_primary_titles() -> None:
     all_days, _, _ = month_hour_marginal_costs(_page("primary"), "primary")
     assert all_days.filter((pl.col("month") == 8) & (pl.col("hour") == 16))[
-        "mc_per_kwh"
+        "mc_total_per_kwh"
     ].item() == pytest.approx(0.001)
 
 

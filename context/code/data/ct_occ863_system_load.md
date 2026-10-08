@@ -109,12 +109,12 @@ in `_secondary` or `_primary`:
 | `month_hour_marginal_costs_weekday`          | weekdays only                |
 | `month_hour_marginal_costs_weekend_holidays` | weekends and public holidays |
 
-| Column       | Meaning                                                             |
-| ------------ | ------------------------------------------------------------------- |
-| `month`      | 1–12                                                                |
-| `hour`       | 0–23, the hour label on the sheet                                   |
-| `num_days`   | That matrix's "No Days" count for the month, repeated on every hour |
-| `mc_per_kwh` | The matrix value, in `$/kWh`                                        |
+| Column             | Meaning                                                             |
+| ------------------ | ------------------------------------------------------------------- |
+| `month`            | 1–12                                                                |
+| `hour`             | 0–23, the hour label on the sheet                                   |
+| `num_days`         | That matrix's "No Days" count for the month, repeated on every hour |
+| `mc_total_per_kwh` | The matrix value, in `$/kWh`, same name as the dist-and-sub-tx 8760 |
 
 For each month the all-day-types day count must equal the weekday count plus the
 weekend-and-holiday count. The fourth sheet is a copy of page 3 (the probability-of-peak table)

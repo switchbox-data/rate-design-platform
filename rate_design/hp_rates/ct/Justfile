@@ -194,7 +194,7 @@ convert-occ863-rate-class-load path_xlsx path_output_dir:
 #
 # voltage is secondary (page 1) or primary (page 2). Writes the all-day-types,
 # weekday, and weekend-and-holiday matrices. Each row is one month (1–12) and
-# hour (0–23), with that month's "No Days" count and the $/kWh value. See
+# hour (0–23), with that month's "No Days" count and mc_total_per_kwh. See
 # context/code/data/ct_occ863_system_load.md.
 #
 #   just -f ct/Justfile convert-occ863-month-hour-mc <path_xlsx> <path_output_dir> secondary
