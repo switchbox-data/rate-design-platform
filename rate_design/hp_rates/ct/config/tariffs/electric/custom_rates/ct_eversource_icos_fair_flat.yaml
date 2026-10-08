@@ -1,0 +1,12 @@
+# batch: ct_20261001_a
+# population: all_fossil
+# base_tariff: ct_eversource_rate1_proposed
+# rdp_ref: ce3c85ed
+label: icos_fair_flat
+utility: ct_eversource
+fixed_charge: 12.36
+delivery:
+  distribution: 0.0678
+  transmission: 0.02808
+  other_riders: -0.00911
+supply_rate: 0.10469

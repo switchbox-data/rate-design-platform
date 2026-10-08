@@ -1,14 +1,9 @@
 {
   "items": [
     {
-      "label": "ct_eversource_hp_flat_percustomer_passthrough_supply",
-      "name": "ct_eversource_hp_flat_percustomer_passthrough_supply",
+      "label": "ct_eversource_icos_fair_flat",
       "uri": "",
       "sector": "Residential",
-      "servicetype": "Bundled",
-      "dgrules": "Net Metering",
-      "utility": "GenericUtility",
-      "country": "USA",
       "energyweekdayschedule": [
         [
           0,
@@ -640,16 +635,23 @@
       "energyratestructure": [
         [
           {
-            "rate": 0.14858281796126255,
+            "rate": 0.08677,
             "adj": 0.0,
             "unit": "kWh"
           }
         ]
       ],
-      "fixedchargefirstmeter": 9.62,
+      "fixedchargefirstmeter": 12.36,
       "fixedchargeunits": "$/month",
       "mincharge": 0.0,
-      "minchargeunits": "$/month"
+      "minchargeunits": "$/month",
+      "utility": "ct_eversource",
+      "servicetype": "Bundled",
+      "name": "ct_eversource_icos_fair_flat",
+      "is_default": false,
+      "country": "USA",
+      "demandunits": "kW",
+      "demandrateunit": "kW"
     }
   ]
 }
