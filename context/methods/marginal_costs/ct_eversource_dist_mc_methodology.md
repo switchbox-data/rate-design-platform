@@ -1,12 +1,35 @@
 # CT Eversource (CL&P) sub-TX + distribution marginal cost: plan of action
 
-**Status: IMPLEMENTED.** This document lays out how the `sub_tx_and_dist` BAT marginal-cost input
-for Eversource CT (CL&P) is derived from the two MCOS exhibits, and how it is allocated to an 8760
-hourly signal. The config CSV, allocator wiring, and S3 output described below exist and have been
-run; see §3.4 for the implementation notes (including the ISO-NE utility-level load gap that
-had to be filled first). Rate year 1 uses the filed `$21.22/kW-yr` with no CPI adjustment (§2.3).
-Only CT **bulk transmission** MC was
-implemented before this
+**Status: IMPLEMENTED.** Three 8760s can be built for Eversource CT (CL&P) distribution
+marginal cost. `create-dist-mc-data` runs the first. The other two stay available in
+`generate_utility_tx_dx_mc.py`.
+
+1. **Month-hour expansion (default).** Eversource's OCC-863 Attachment 2 secondary month-hour
+   `$/kWh` tables are looked up onto one calendar year. Saturday and Sunday take the
+   weekend-and-holiday table. Every other Monday–Friday takes the weekday table, except the
+   eleven federal holidays in 5 U.S.C. § 6103 when `include_holidays` is true (the default):
+   a Saturday holiday is observed Friday, and a Sunday holiday is observed Monday. `--year` is
+   that calendar, and the same year is stamped on `timestamp`, the `year` column, and the Hive
+   partition. The recipe passes a `dist_and_sub_tx/` output base; the script rewrites it to
+   `dist_and_sub_tx_eversource_derived/`. Detail is in §7. This path does not use the annual
+   `$/kW-yr` scalar or a load curve.
+2. **`$21.22/kW-yr` on Eversource's substation load.** The scalar is Table 3's `$20.17/kW-yr`
+   times the OCC-863 secondary loss factor (§2.2). Probability-of-peak (§3.1) spreads it over
+   the top 100 hours of OCC-863 Attachment 3 page 2, the distribution-substation load
+   (`system_load.parquet`). It is written to `dist_and_sub_tx_occ863/`. There is no CPI
+   adjustment: the CT analysis is rate year 1, in the filing's own 2026 dollars, not the test
+   year, so `--target-dollar-year 2026` matches the CSV and the allocator keeps `$21.22`
+   (§2.3). The `create-dist-mc-data` recipe does not pass this load or this output base; the
+   Python invocation is in §3.4.
+3. **ISO-NE Connecticut zone load (oldest, not preferred).** The file that exists at
+   `dist_and_sub_tx/utility=ct_eversource/year=2025/` allocated Table 3's `$20.17/kW-yr` after
+   CPI deflation onto the 2025 load year (about `$19.65`), ranked on ISO-NE CT zone aggregate
+   load. That was the best allocation before the OCC-863 substation load and the loss-adjusted
+   scalar were in hand. It is not the same file as a fresh zone-load run: the CSV is now
+   `$21.22` with no CPI, so `use_eversource_marginal_cost=false` would allocate `$21.22` on
+   that zone load into `dist_and_sub_tx/` and would not reproduce the stored parquet.
+
+Only CT **bulk transmission** MC was implemented before this
 ([ct_bulk_transmission_marginal_cost.md](ct_bulk_transmission_marginal_cost.md)).
 
 For the underlying LRMC framework and cross-state definition choice, see
@@ -124,6 +147,13 @@ from their `dollar_year` to the run year; this skip is CT-only.
 
 ## 3. Stage B — hourly allocation via Probability of Peak (PoP)
 
+The default recipe does not run this allocator. It expands the month-hour tables (§7). The
+two probability-of-peak 8760s differ in which load picks the top 100 hours. The substation-load
+run allocates `$21.22/kW-yr` with no CPI adjustment and writes `dist_and_sub_tx_occ863/`
+(§3.4). The stored zone-load file at `dist_and_sub_tx/` allocated the pre-loss `$20.17`
+after CPI deflation. `use_eversource_marginal_cost=false` still runs zone-load
+probability-of-peak into `dist_and_sub_tx/`, using the current CSV scalar.
+
 ### 3.1 Method: standard PoP allocation (same as NY, RI, MD)
 
 Use the same Probability of Peak (PoP) allocation method already implemented in
@@ -162,8 +192,9 @@ probability falls in July–August, ~20% in June/September, <1% winter) [Documen
 ### 3.3 Load data source
 
 PoP ranks the top 100 hours of Eversource's distribution-substation load: OCC-863 Attachment 3
-page 2, stored as `system_load.parquet` (`timestamp`, `load_mw`, 2022–2025). `create-dist-mc-data`
-passes that file as `--path-utility-load`. `normalize_load_to_cairo_8760` keeps `--load-year`.
+page 2, stored as `system_load.parquet` (`timestamp`, `load_mw`, 2022–2025). The Python
+invocation in §3.4 passes that file as `--path-utility-load`. The `create-dist-mc-data` recipe
+does not. `normalize_load_to_cairo_8760` keeps `--load-year`.
 The hive reader `--utility-load-s3-base` stays what NY, RI, and MD use. The OCC-863 prefix is one
 multi-year file, so it is not a valid value for that flag.
 
@@ -229,10 +260,11 @@ substation series: OCC-863 says no forecasted hourly system loads are available.
    Both use `utility=ct_eversource/year=2025/data.parquet`. The `_occ863` suffix names the
    source of both changes: the secondary loss factor (Attachment 2) and the system load
    (Attachment 3). It follows the sibling-prefix pattern of `dist_and_sub_tx_load{year}/`, so a
-   recursive scan of one dataset never picks up the other's 8760. `create-dist-mc-data` writes
-   only the `_occ863` dataset. The earlier one cannot be rebuilt from the current inputs, since
-   the config CSV and the load both changed. The CT scenario YAMLs still read `dist_and_sub_tx/`;
-   switching a scenario to the new 8760 means changing its `path_dist_and_sub_tx_mc`.
+   recursive scan of one dataset never picks up the other's 8760. `create-dist-mc-data` now
+   writes the month-hour file under `dist_and_sub_tx_eversource_derived/` (§7), not either of
+   these. The zone-load parquet cannot be rebuilt from the current inputs, since the config
+   CSV and the preferred load both changed. Point a scenario's `path_dist_and_sub_tx_mc` at
+   whichever of the three 8760s that run should read.
 8. **Wired a `just` recipe**, `create-dist-mc-data`, in `rate_design/hp_rates/ct/Justfile`
    (mirrors `create-bulk-tx-mc-data`'s style, but scoped to `ct_eversource` only — see §3.5).
 9. **Added tests** in `tests/test_ct_dist_mc.py`: ISO-NE zone-mapping coverage for both CT
@@ -309,12 +341,10 @@ allocation or as a direct replacement. This is a nice-to-have, not a blocker for
    `tests/test_ct_dist_mc.py`.
 6. ~~Update this doc and [dist_mc_definition_choice.md](dist_mc_definition_choice.md) §2–3, adding CT
    to the source-number and per-state tables.~~ Done.
-7. **Remaining**: run `create-dist-mc-data 2025 --upload`. It writes the OCC-863 8760 (§3.4 point 7)
-   to `dist_and_sub_tx_occ863/` and leaves the earlier `dist_and_sub_tx/` parquet in place.
-8. **Remaining**: wire `path_dist_and_sub_tx_mc` into a CT scenario config (`scenarios_ct_eversource.yaml`
-   or equivalent) once CT scenario YAMLs exist, so a CAIRO run actually consumes this MC output. No CT
-   scenario configs exist yet in `rate_design/hp_rates/ct/config/scenarios/` — that's a separate,
-   larger piece of CT onboarding beyond this MC-generation task.
+7. ~~Write the substation-load 8760 to `dist_and_sub_tx_occ863/` without replacing the zone-load
+   file at `dist_and_sub_tx/`.~~ Done (§3.4).
+8. ~~Point a CT scenario's `path_dist_and_sub_tx_mc` at a built 8760.~~ Scenario configs exist.
+   Which of the three files a run reads is that path.
 
 ---
 
@@ -342,8 +372,81 @@ page 2 value at 1:00 a.m. Page 1's monthly "Max MW" matches page 2, including th
 `rate_7_load.parquet` (`timestamp`, `load_kw`, `load_mw`). Interval-ending stamps are shifted
 back one hour, then mapped from Eastern Standard Time onto local wall-clock time.
 
-`create-dist-mc-data` reads `system_load.parquet` through `--path-utility-load` and keeps the
+The §3.4 invocation reads `system_load.parquet` through `--path-utility-load` and keeps the
 load year inside `normalize_load_to_cairo_8760` (§3.3). The rate-class files are not the PoP
 load. `--utility-load-s3-base` still expects the hive `utility`/`year` layout the other states
 use. How to rebuild the parquets:
 [ct_occ863_system_load.md](../../code/data/ct_occ863_system_load.md).
+
+---
+
+## 7. OCC-863 Attachment 2 month-hour 8760 (current default)
+
+`create-dist-mc-data` defaults to `--use-eversource-marginal-cost true`. It does not
+probability-of-peak allocate the `$21.22/kW-yr` scalar. It looks up each hour of one calendar year in Eversource's
+OCC-863 Attachment 2 secondary month-hour `$/kWh` tables (Docket 26-05-10) and writes an 8760
+in the same schema as the PoP file (`timestamp`, `utility`, `year`, `mc_total_per_kwh`).
+
+The tables live at
+`s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet/`:
+
+- `month_hour_marginal_costs_weekday_secondary.parquet`
+- `month_hour_marginal_costs_weekend_holidays_secondary.parquet`
+
+Each has 288 rows (`month` 1–12, `hour` 0–23, `num_days`, `mc_total_per_kwh`). The recipe uses
+the **secondary** voltage pair. Implementation is `expand_month_hour_mc_to_8760` in
+`utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py`.
+
+### 7.1 Day type
+
+Saturday and Sunday take the weekend-and-holiday table. Every other Monday–Friday takes the
+weekday table, except federal holidays when holidays are included.
+
+`include_holidays` defaults to `true`. Those holidays are the eleven dates in 5 U.S.C. § 6103.
+A fixed-date holiday that falls on Saturday is observed the Friday before, and one that falls
+on Sunday is observed the Monday after. With `include_holidays=false`, a holiday on
+Monday–Friday stays on the weekday table; Saturday and Sunday are unchanged.
+
+```bash
+just -f ct/Justfile create-dist-mc-data 2025 --upload
+just -f ct/Justfile include_holidays=false create-dist-mc-data 2025 --upload
+INCLUDE_HOLIDAYS=false just s ct create-dist-mc-data 2025 --upload
+```
+
+### 7.2 One year for the calendar, the timestamps, and the partition
+
+`--year` (the recipe's `year_arg`) is the only year. It chooses the calendar used to classify
+weekdays, weekends, and holidays, and it is stamped on `timestamp`, on the `year` column, and
+on the Hive partition `year=YYYY`. There is no separate partition year.
+
+CAIRO does not join this file to the run on the timestamp year. When both series have 8,760
+hours, `utils/cairo.py`'s `_align_mc_to_index` copies the marginal-cost values by position onto
+the run's hours. Hour 0 of the file lands on January 1 at midnight of the run. For weekends and
+holidays to fall on the right days, `--year` has to be the run's calendar. The CT pipeline year
+is 2025. A leap year still emits 8,760 rows (December 31 is dropped), but its positions diverge
+from a non-leap run after February 28.
+
+### 7.3 Where it is written
+
+With the flag true, the script rewrites an output base that ends in `dist_and_sub_tx/` to
+`dist_and_sub_tx_eversource_derived/`. The recipe still passes the `dist_and_sub_tx/` base; the
+redirect is what keeps this file off the PoP path.
+
+```text
+s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/utility=ct_eversource/year=YYYY/data.parquet
+/ebs/data/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/utility=ct_eversource/year=YYYY/data.parquet
+```
+
+`use_eversource_marginal_cost=false` leaves the base alone and writes the §3 PoP file:
+
+```text
+s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=YYYY/data.parquet
+```
+
+```bash
+just -f ct/Justfile use_eversource_marginal_cost=false create-dist-mc-data 2025 --upload
+USE_EVERSOURCE_MARGINAL_COST=false just s ct create-dist-mc-data 2025 --upload
+```
+
+Tests for the lookup, the observed-holiday rule, the holiday toggle, leap-year length, and the
+output-base rewrite are in `tests/test_expand_month_hour_mc.py`.

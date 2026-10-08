@@ -1,0 +1,33 @@
+# batch: ct_20261001_a
+# population: all_fossil
+# base_tariff: ct_eversource_rate1_proposed
+# rdp_ref: ce3c85ed
+label: icos_fair_seasonal
+utility: ct_eversource
+fixed_charge: 12.36
+seasons:
+  winter:
+    months:
+      - 12
+      - 1
+      - 2
+      - 3
+      - 11
+    delivery:
+      distribution: 0.03351
+      transmission: 0.01387
+      other_riders: -0.00911
+  summer:
+    months:
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+      - 9
+      - 10
+    delivery:
+      distribution: 0.12196
+      transmission: 0.0505
+      other_riders: -0.00911
+supply_rate: 0.10469

@@ -17,6 +17,10 @@ path_s3_utility_loads := "s3://data.sb/isone/hourly_demand/utilities/"
 path_s3_occ863_system_load := "s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet/system_load.parquet"
 # Sibling of dist_and_sub_tx/, which keeps the earlier ISO-NE-zone-load 8760.
 path_s3_dist_mc_occ863 := "s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/"
+path_s3_occ863_parquet := "s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet"
+path_local_dist_mc := "/ebs/data/switchbox/marginal_costs/ct/dist_and_sub_tx/"
+use_eversource_marginal_cost := env_var_or_default('USE_EVERSOURCE_MARGINAL_COST', 'true')
+include_holidays := env_var_or_default('INCLUDE_HOLIDAYS', 'true')
 
 import '../Justfile'
 
@@ -117,21 +121,19 @@ create-bulk-tx-mc-data-all *extra_args:
 # =============================================================================
 # CT-only: distribution + sub-transmission marginal costs (CL&P MCOS-2 Table 3)
 #
-# Uses CL&P's system-wide diluted marginal cost grossed up to secondary
-# voltage ($20.17 × 1.051845137 = $21.22/kW-yr; OCC-863 Attachment 2).
-# Rate year 1 is modeled in those filing dollars: --target-dollar-year 2026
-# matches the CSV, so the allocator does not CPI-adjust $21.22 to the load
-# year. Allocated via the standard Probability-of-Peak (PoP) method — same
-# methodology as NY/RI/MD — on OCC-863 Attachment 3 page 2, the
-# distribution-substation load (top-100 hours by default). That file is one
-# multi-year parquet, so this recipe passes --path-utility-load rather than
-# the hive --utility-load-s3-base the other states use.
+# This recipe's default is the OCC-863 Attachment 2 secondary month-hour
+# $/kWh tables, expanded to an 8760 on year_arg's calendar: weekends take the
+# weekend table, and federal holidays do too unless include_holidays=false.
+# That same year is stamped on the timestamps and the Hive partition. The
+# script rewrites the dist_and_sub_tx/ output base to
+# dist_and_sub_tx_eversource_derived/.
 #
-# Output goes to dist_and_sub_tx_occ863/, not dist_and_sub_tx/. The suffix
-# names the source of both inputs: the secondary loss factor (Attachment 2)
-# and the system load (Attachment 3). dist_and_sub_tx/ keeps the earlier
-# 8760 ($20.17 deflated to 2025$, on ISO-NE CT zone load), which this recipe
-# can no longer reproduce. Scenario YAMLs still point at dist_and_sub_tx/.
+# use_eversource_marginal_cost=false still runs the older zone-load
+# probability-of-peak allocation into dist_and_sub_tx/. The substation-load
+# probability-of-peak path ($21.22/kW-yr, no CPI, written to
+# dist_and_sub_tx_occ863/) stays in generate_utility_tx_dx_mc.py:
+# --use-eversource-marginal-cost false, --path-utility-load
+# path_s3_occ863_system_load, --output-s3-base path_s3_dist_mc_occ863.
 # See context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md.
 #
 # CL&P's MCOS-2 covers ct_eversource only; ct_ui has no MCOS-derived value yet
@@ -141,8 +143,10 @@ create-bulk-tx-mc-data-all *extra_args:
 
 # Generate dist+sub-tx MC for ct_eversource and one year.
 #
-#   just -f ct/Justfile create-dist-mc-data 2025
-# just -f ct/Justfile create-dist-mc-data 2025 --upload
+#   just -f ct/Justfile create-dist-mc-data 2025 --upload
+#   just -f ct/Justfile use_eversource_marginal_cost=false create-dist-mc-data 2025 --upload
+#   just -f ct/Justfile include_holidays=false create-dist-mc-data 2025 --upload
+# USE_EVERSOURCE_MARGINAL_COST=false just s ct create-dist-mc-data 2025 --upload
 create-dist-mc-data year_arg *extra_args:
     cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py \
       --state CT \
@@ -151,9 +155,14 @@ create-dist-mc-data year_arg *extra_args:
       --load-year {{ year_arg }} \
       --target-dollar-year 2026 \
       --mc-table-path {{ path_config }}/marginal_costs/ct_marginal_costs_{{ year_arg }}.csv \
-      --path-utility-load {{ path_s3_occ863_system_load }} \
-      --output-s3-base {{ path_s3_dist_mc_occ863 }} \
+      --utility-load-s3-base {{ path_s3_utility_loads }} \
+      --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/ \
+      --path-local-output-base {{ path_local_dist_mc }} \
       --n-hours {{ upstream_hours }} \
+      --use-eversource-marginal-cost {{ use_eversource_marginal_cost }} \
+      --path-weekday-mc {{ path_s3_occ863_parquet }}/month_hour_marginal_costs_weekday_secondary.parquet \
+      --path-weekend-mc {{ path_s3_occ863_parquet }}/month_hour_marginal_costs_weekend_holidays_secondary.parquet \
+      --include-holidays {{ include_holidays }} \
       {{ extra_args }}
 
 # =============================================================================

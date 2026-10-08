@@ -90,11 +90,21 @@ locational figure (`$86.58`) is itself much larger than NY's undiluted MCOS figu
 | **MD (BGE)**              | **AIC / avoided** (Brattle replacement-value ÷ peak)                                  | 32 (2022$)    | BGE's own COS classifies the plant 100% peak-driven; BGE's own marginal numbers use a peak denominator (see §5)                                                                                                                                                                                               |
 | CT (ct_eversource / CL&P) | **FLIC-like** (system-wide diluted from MCOS-2 Table 3, then × secondary loss factor) | 21.22 (2026$) | CL&P's own MCOS dilutes locational cost by expansion-area load share, structurally the same move as NY's diluted FLIC. The config scalar grosses Table 3's `$20.17` up by the OCC-863 secondary loss factor 1.051845137 (see [ct_eversource_dist_mc_methodology.md](ct_eversource_dist_mc_methodology.md) §2) |
 
-All four feed the _same_ PoP allocator
+NY, RI, and MD feed the same PoP allocator
 ([generate_utility_tx_dx_mc.py](../../../utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py))
 in the identical `sub_tx_and_dist_mc_kw_yr` slot. RI and MD CPI-inflate from the optional
-`dollar_year` column to the run year. CT's rate year 1 run does not: the recipe sets
-`--target-dollar-year 2026`, so `$21.22/kW-yr` is allocated as filed.
+`dollar_year` column to the run year.
+
+CT's default 8760 does not use this scalar. It is the OCC-863 Attachment 2 month-hour
+expansion ([ct_eversource_dist_mc_methodology.md](ct_eversource_dist_mc_methodology.md) §7).
+The `$21.22/kW-yr` figure is the allocator's input only when
+`use_eversource_marginal_cost=false`. That path does not CPI-adjust: the analysis is rate
+year 1, in the filing's 2026 dollars, so `--target-dollar-year 2026` matches the CSV and
+`$21.22` is allocated as filed. Spread over the top 100 hours of OCC-863 substation load,
+it is written to `dist_and_sub_tx_occ863/`. The same flag with ISO-NE CT zone load writes
+`dist_and_sub_tx/`. The parquet already stored there is older: it allocated Table 3's
+`$20.17` after CPI deflation to the 2025 load year (about `$19.65`), and a fresh zone-load
+run would not reproduce it.
 
 ---
 
