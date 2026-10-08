@@ -2,11 +2,13 @@
 
 **Status: IMPLEMENTED.** This document lays out how the `sub_tx_and_dist` BAT marginal-cost input
 for Eversource CT (CL&P) is derived from the two MCOS exhibits, and how it is allocated to an 8760
-hourly signal. The config CSV, allocator wiring, and S3 output described below exist and have been
-run; see §3.4 for the implementation notes (including two upstream data gaps — ISO-NE utility-level
-load and 2026 CPI data — that had to be filled first). Only CT **bulk transmission** MC was
-implemented before this
-([ct_bulk_transmission_marginal_cost.md](ct_bulk_transmission_marginal_cost.md)).
+hourly signal. Two 8760s exist. The default `create-dist-mc-data` recipe expands Eversource's
+OCC-863 Attachment 2 month-hour `$/kWh` tables (§6). The older path PoP-allocates the MCOS-2
+Table 3 `$20.17/kW-yr` figure (§3) and is what `use_eversource_marginal_cost=false` still runs.
+The config CSV, allocator wiring, and S3 output described below exist and have been run; see §3.4
+for the PoP implementation notes (including two upstream data gaps — ISO-NE utility-level load and
+2026 CPI data — that had to be filled first). Only CT **bulk transmission** MC was implemented
+before this ([ct_bulk_transmission_marginal_cost.md](ct_bulk_transmission_marginal_cost.md)).
 
 For the underlying LRMC framework and cross-state definition choice, see
 [dist_mc_definition_choice.md](dist_mc_definition_choice.md). For the BGE/RI implementation pattern
@@ -99,6 +101,12 @@ the existing CPI-inflation logic in `generate_utility_tx_dx_mc.py` handle any ru
 ---
 
 ## 3. Stage B — hourly allocation via Probability of Peak (PoP)
+
+This is the fallback, not the default. `create-dist-mc-data` runs it only when
+`use_eversource_marginal_cost=false` (or `USE_EVERSOURCE_MARGINAL_COST=false` through
+`just s ct`). It writes `dist_and_sub_tx/utility=ct_eversource/year=<year>/data.parquet`.
+The default recipe is the OCC-863 month-hour expansion in §6, which does not use the
+`$20.17/kW-yr` figure or the load curve.
 
 ### 3.1 Method: standard PoP allocation (same as NY, RI, MD)
 
@@ -269,7 +277,82 @@ allocation or as a direct replacement. This is a nice-to-have, not a blocker for
    `tests/test_ct_dist_mc.py`.
 6. ~~Update this doc and [dist_mc_definition_choice.md](dist_mc_definition_choice.md) §2–3, adding CT
    to the source-number and per-state tables.~~ Done.
-7. **Remaining**: wire `path_dist_and_sub_tx_mc` into a CT scenario config (`scenarios_ct_eversource.yaml`
-   or equivalent) once CT scenario YAMLs exist, so a CAIRO run actually consumes this MC output. No CT
-   scenario configs exist yet in `rate_design/hp_rates/ct/config/scenarios/` — that's a separate,
-   larger piece of CT onboarding beyond this MC-generation task.
+7. **CAIRO consumption.** `pipeline_ct_eversource.yaml` points
+   `marginal_costs.dist_and_sub_tx` at
+   `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2026/data.parquet`.
+   That file predates the §6 path split: its timestamps are the 2025 calendar and its `year`
+   column is 2026. Batch `ct_20261007_b` read it. New default runs of `create-dist-mc-data` write
+   §6's `dist_and_sub_tx_eversource_derived/` path instead and do not replace this file.
+
+---
+
+## 6. OCC-863 Attachment 2 month-hour 8760 (current default)
+
+`create-dist-mc-data` defaults to `--use-eversource-marginal-cost true`. It does not
+PoP-allocate §2's `$20.17/kW-yr`. It looks up each hour of one calendar year in Eversource's
+OCC-863 Attachment 2 secondary month-hour `$/kWh` tables (Docket 26-05-10) and writes an 8760
+in the same schema as the PoP file (`timestamp`, `utility`, `year`, `mc_total_per_kwh`).
+
+The tables live at
+`s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet/`:
+
+- `month_hour_marginal_costs_weekday_secondary.parquet`
+- `month_hour_marginal_costs_weekend_holidays_secondary.parquet`
+
+Each has 288 rows (`month` 1–12, `hour` 0–23, `num_days`, `mc_total_per_kwh`). The recipe uses
+the **secondary** voltage pair. Implementation is `expand_month_hour_mc_to_8760` in
+`utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py`.
+
+### 6.1 Day type
+
+Saturday and Sunday take the weekend-and-holiday table. Every other Monday–Friday takes the
+weekday table, except federal holidays when holidays are included.
+
+`include_holidays` defaults to `true`. Those holidays are the eleven dates in 5 U.S.C. § 6103.
+A fixed-date holiday that falls on Saturday is observed the Friday before, and one that falls
+on Sunday is observed the Monday after. With `include_holidays=false`, a holiday on
+Monday–Friday stays on the weekday table; Saturday and Sunday are unchanged.
+
+```bash
+just -f ct/Justfile create-dist-mc-data 2025 --upload
+just -f ct/Justfile include_holidays=false create-dist-mc-data 2025 --upload
+INCLUDE_HOLIDAYS=false just s ct create-dist-mc-data 2025 --upload
+```
+
+### 6.2 One year for the calendar, the timestamps, and the partition
+
+`--year` (the recipe's `year_arg`) is the only year. It chooses the calendar used to classify
+weekdays, weekends, and holidays, and it is stamped on `timestamp`, on the `year` column, and
+on the Hive partition `year=YYYY`. There is no separate partition year.
+
+CAIRO does not join this file to the run on the timestamp year. When both series have 8,760
+hours, `utils/cairo.py`'s `_align_mc_to_index` copies the marginal-cost values by position onto
+the run's hours. Hour 0 of the file lands on January 1 at midnight of the run. For weekends and
+holidays to fall on the right days, `--year` has to be the run's calendar. The CT pipeline year
+is 2025. A leap year still emits 8,760 rows (December 31 is dropped), but its positions diverge
+from a non-leap run after February 28.
+
+### 6.3 Where it is written
+
+With the flag true, the script rewrites an output base that ends in `dist_and_sub_tx/` to
+`dist_and_sub_tx_eversource_derived/`. The recipe still passes the `dist_and_sub_tx/` base; the
+redirect is what keeps this file off the PoP path.
+
+```text
+s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/utility=ct_eversource/year=YYYY/data.parquet
+/ebs/data/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/utility=ct_eversource/year=YYYY/data.parquet
+```
+
+`use_eversource_marginal_cost=false` leaves the base alone and writes the §3 PoP file:
+
+```text
+s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=YYYY/data.parquet
+```
+
+```bash
+just -f ct/Justfile use_eversource_marginal_cost=false create-dist-mc-data 2025 --upload
+USE_EVERSOURCE_MARGINAL_COST=false just s ct create-dist-mc-data 2025 --upload
+```
+
+Tests for the lookup, the observed-holiday rule, the holiday toggle, leap-year length, and the
+output-base rewrite are in `tests/test_expand_month_hour_mc.py`.
