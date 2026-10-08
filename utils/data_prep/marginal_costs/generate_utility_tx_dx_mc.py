@@ -23,6 +23,9 @@ Output partitions written as:
     - RI default base: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
     - MD default base: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/
     - CT default base: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/
+    - CT Eversource month-hour (--use-eversource-marginal-cost true):
+      s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/
+      The partition year is --year, the same calendar stamped on the timestamps.
     - Default partition: utility=X/year=YYYY/data.parquet
     - Alternate-load-year base: <default_base_without_slash>_loadYYYY/
       Example: dist_and_sub_tx_load2018/utility=X/year=2025/data.parquet
@@ -254,6 +257,25 @@ def load_marginal_cost_table(mc_table_path: str) -> pl.DataFrame:
     return df
 
 
+def eversource_derived_output_base(base: str) -> str:
+    """Point a dist-and-sub-tx output root at the Eversource-derived dataset.
+
+    ``.../dist_and_sub_tx/`` becomes ``.../dist_and_sub_tx_eversource_derived/``.
+    A base that already names that dataset is returned unchanged.
+    """
+    trimmed = base.rstrip("/")
+    parent, leaf = trimmed.rsplit("/", 1)
+    if leaf == "dist_and_sub_tx_eversource_derived":
+        return f"{trimmed}/"
+    if leaf != "dist_and_sub_tx":
+        raise ValueError(
+            "--use-eversource-marginal-cost writes under "
+            "dist_and_sub_tx_eversource_derived/, so the output base must end "
+            f"in dist_and_sub_tx/ (got {base!r})"
+        )
+    return f"{parent}/dist_and_sub_tx_eversource_derived/"
+
+
 def _parse_bool(value: str) -> bool:
     normalized = value.strip().lower()
     if normalized in {"true", "1", "yes"}:
@@ -470,20 +492,22 @@ def expand_month_hour_mc_to_8760(
     weekend: pl.DataFrame,
     year: int,
     utility: str,
+    *,
+    include_holidays: bool = True,
 ) -> pl.DataFrame:
     """Expand month-hour marginal costs onto one calendar year's Cairo 8760.
 
     ``weekday`` and ``weekend`` are the OCC-863 Attachment 2 matrices, each with
-    ``month`` (1–12), ``hour`` (0–23), and ``mc_total_per_kwh``. Saturday,
-    Sunday, and US federal holidays take the weekend value. A holiday that
-    falls on Saturday is observed on Friday, and one that falls on Sunday is
-    observed on Monday. Any other Monday through Friday takes the weekday
-    value.
+    ``month`` (1–12), ``hour`` (0–23), and ``mc_total_per_kwh``. Saturday and
+    Sunday take the weekend value. When ``include_holidays`` is true, US
+    federal holidays do too: a holiday that falls on Saturday is observed on
+    Friday, and one that falls on Sunday is observed on Monday. When it is
+    false, a holiday on Monday through Friday takes the weekday value.
+    Any other Monday through Friday takes the weekday value.
 
-    ``year`` is the calendar stamped on the timestamps. It is the output year
-    of the existing dist-and-sub-tx 8760, which is the year CAIRO joins on.
-    The PoP load year is not used: this series is a day-of-week lookup, not a
-    load-weighted allocation.
+    ``year`` is both the calendar used to classify each day and the year
+    stamped on ``timestamp`` and the ``year`` column. Passing 2018 classifies
+    2018's weekdays, weekends, and holidays and writes 2018 timestamps.
 
     Timestamps match ``build_cairo_8760_timestamps``: naive hour-beginning
     local time, 8,760 rows, with December 31 dropped in a leap year.
@@ -491,7 +515,7 @@ def expand_month_hour_mc_to_8760(
     clock = build_cairo_8760_timestamps(year).with_columns(
         pl.col("timestamp").cast(pl.Datetime("us"))
     )
-    holidays = _us_federal_holidays(year)
+    holidays = _us_federal_holidays(year) if include_holidays else set()
     clock = clock.with_columns(
         pl.col("timestamp").dt.month().alias("month"),
         pl.col("timestamp").dt.hour().alias("hour"),
@@ -777,12 +801,14 @@ def main():
         ),
     )
     parser.add_argument(
-        "--eversource-mc-year",
-        type=int,
-        default=None,
+        "--include-holidays",
+        type=_parse_bool,
+        default=True,
+        metavar="{true,false}",
         help=(
-            "Partition year for the Eversource 8760: the rate year of the "
-            "Attachment 2 values. Timestamps still use --year's calendar."
+            "true: federal holidays take the weekend-and-holiday table. "
+            "false: only Saturday and Sunday do; a weekday holiday stays on "
+            "the weekday table. Used with --use-eversource-marginal-cost."
         ),
     )
     parser.add_argument(
@@ -913,30 +939,41 @@ def _run_eversource_month_hour(
     """Build and optionally save the 8760 from OCC-863 month-hour tables."""
     if args.state != "CT":
         raise ValueError("--use-eversource-marginal-cost is only defined for CT")
-    if not (args.path_weekday_mc and args.path_weekend_mc and args.eversource_mc_year):
+    if not (args.path_weekday_mc and args.path_weekend_mc):
         raise ValueError(
-            "--use-eversource-marginal-cost needs --path-weekday-mc, "
-            "--path-weekend-mc, and --eversource-mc-year"
+            "--use-eversource-marginal-cost needs --path-weekday-mc and "
+            "--path-weekend-mc"
         )
-    calendar_year = args.year
-    partition_year = args.eversource_mc_year
+    year = args.year
+    output_s3_base = eversource_derived_output_base(args.output_s3_base)
+    path_local_base = (
+        eversource_derived_output_base(args.path_local_output_base)
+        if args.path_local_output_base
+        else None
+    )
 
     print("=" * 60)
     print("EVERSOURCE MONTH-HOUR MARGINAL COST → 8760")
     print("=" * 60)
     print(f"Utility: {args.utility}")
-    print(f"Calendar year (weekday/weekend/holiday): {calendar_year}")
-    print(f"Partition year: {partition_year}")
+    print(f"Year (calendar, timestamps, and partition): {year}")
+    print(f"Include federal holidays: {args.include_holidays}")
     print(f"Weekday table: {args.path_weekday_mc}")
     print(f"Weekend-and-holiday table: {args.path_weekend_mc}")
-    print(f"Output S3 base: {args.output_s3_base}")
+    print(f"Output S3 base: {output_s3_base}")
+    if path_local_base:
+        print(f"Local output base: {path_local_base}")
     print(f"Upload to S3: {'Yes' if args.upload else 'No (inspection only)'}")
     print("=" * 60)
 
     weekday = _read_parquet_any(args.path_weekday_mc, storage_options)
     weekend = _read_parquet_any(args.path_weekend_mc, storage_options)
     expanded = expand_month_hour_mc_to_8760(
-        weekday, weekend, calendar_year, args.utility
+        weekday,
+        weekend,
+        year,
+        args.utility,
+        include_holidays=args.include_holidays,
     )
 
     annual = float(expanded["mc_total_per_kwh"].sum())
@@ -951,11 +988,11 @@ def _run_eversource_month_hour(
         save_allocated_costs(
             expanded,
             args.utility,
-            partition_year,
-            args.output_s3_base,
+            year,
+            output_s3_base,
             {},
             storage_options,
-            path_local_base=args.path_local_output_base,
+            path_local_base=path_local_base,
         )
         print("\n✓ Eversource month-hour 8760 completed and uploaded")
     else:

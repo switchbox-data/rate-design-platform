@@ -15,7 +15,7 @@ resstock:
   upgrade_precalc: "00"
   upgrade_calibrated: "02"
 marginal_costs:
-  dist_and_sub_tx: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+  dist_and_sub_tx: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2026/data.parquet
   bulk_tx: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
   # No supply MC 8760s exist for CT (no ISO-NE LMP/FCM pipeline wired up yet);
   # point directly at zero.parquet so both delivery and supply runs get zero supply MCs.

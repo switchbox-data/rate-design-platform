@@ -16,8 +16,8 @@ state := env_var_or_default('STATE', 'ct')
 path_s3_utility_loads := "s3://data.sb/isone/hourly_demand/utilities/"
 path_s3_occ863_parquet := "s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet"
 path_local_dist_mc := "/ebs/data/switchbox/marginal_costs/ct/dist_and_sub_tx/"
-eversource_mc_year := "2026"
 use_eversource_marginal_cost := env_var_or_default('USE_EVERSOURCE_MARGINAL_COST', 'true')
+include_holidays := env_var_or_default('INCLUDE_HOLIDAYS', 'true')
 
 import '../Justfile'
 
@@ -131,14 +131,17 @@ create-bulk-tx-mc-data-all *extra_args:
 # Generate dist+sub-tx MC for ct_eversource and one year.
 #
 # By default the 8760 comes from Eversource's OCC-863 Attachment 2 secondary
-# month-hour $/kWh tables: weekends and federal holidays take the weekend
-# table, other days the weekday table, on year_arg's calendar. It is written
-# to year=eversource_mc_year (the rate year of those values), so it never
-# overwrites the PoP 8760. Set use_eversource_marginal_cost=false for the PoP
-# allocation of the $/kW-yr value, written to year=year_arg.
+# month-hour $/kWh tables: weekends take the weekend table, and federal
+# holidays do too unless include_holidays=false. Other days take the weekday
+# table, on year_arg's calendar. That same year is stamped on the timestamps
+# and on the Hive partition. The file is written under
+# dist_and_sub_tx_eversource_derived/, so it never overwrites the PoP 8760.
+# Set use_eversource_marginal_cost=false for the PoP allocation of the
+# $/kW-yr value, written under dist_and_sub_tx/year=year_arg.
 #
 #   just -f ct/Justfile create-dist-mc-data 2025 --upload
 #   just -f ct/Justfile use_eversource_marginal_cost=false create-dist-mc-data 2025 --upload
+#   just -f ct/Justfile include_holidays=false create-dist-mc-data 2025 --upload
 # USE_EVERSOURCE_MARGINAL_COST=false just s ct create-dist-mc-data 2025 --upload
 create-dist-mc-data year_arg *extra_args:
     cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py \
@@ -154,7 +157,7 @@ create-dist-mc-data year_arg *extra_args:
       --use-eversource-marginal-cost {{ use_eversource_marginal_cost }} \
       --path-weekday-mc {{ path_s3_occ863_parquet }}/month_hour_marginal_costs_weekday_secondary.parquet \
       --path-weekend-mc {{ path_s3_occ863_parquet }}/month_hour_marginal_costs_weekend_holidays_secondary.parquet \
-      --eversource-mc-year {{ eversource_mc_year }} \
+      --include-holidays {{ include_holidays }} \
       {{ extra_args }}
 
 # =============================================================================

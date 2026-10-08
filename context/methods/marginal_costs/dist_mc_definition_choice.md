@@ -88,10 +88,13 @@ locational figure (`$86.58`) is itself much larger than NY's undiluted MCOS figu
 | **MD (BGE)**              | **AIC / avoided** (Brattle replacement-value ÷ peak)    | 32 (2022$)    | BGE's own COS classifies the plant 100% peak-driven; BGE's own marginal numbers use a peak denominator (see §5)                                                                                             |
 | CT (ct_eversource / CL&P) | **FLIC-like** (system-wide diluted from MCOS-2 Table 3) | 20.17 (2026$) | CL&P's own MCOS dilutes locational cost by expansion-area load share, structurally the same move as NY's diluted FLIC (see [ct_eversource_dist_mc_methodology.md](ct_eversource_dist_mc_methodology.md) §2) |
 
-All four feed the _same_ PoP allocator
+NY, RI, and MD feed the same PoP allocator
 ([generate_utility_tx_dx_mc.py](../../../utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py))
 in the identical `sub_tx_and_dist_mc_kw_yr` slot, with CPI inflation via the optional `dollar_year`
-column.
+column. CT's `$20.17` figure is that allocator's input only when
+`use_eversource_marginal_cost=false`. The default CT 8760 is the OCC-863 Attachment 2
+month-hour expansion, which does not use this scalar
+([ct_eversource_dist_mc_methodology.md](ct_eversource_dist_mc_methodology.md) §6).
 
 ---
 
