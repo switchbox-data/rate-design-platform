@@ -1,15 +1,41 @@
-"""Allocate marginal sub-transmission and distribution costs to hourly price signals.
+"""Build an hourly sub-transmission and distribution marginal cost 8760.
 
-This script implements the diluted marginal cost allocation methodology using
-the Probability of Peak (PoP) method to allocate $/kW-yr costs to $/kWh hourly
-price signals.
+``--method`` picks how the 8760 is built:
 
-Input:
-    - Utility hourly load profile (ISO-native layout): utility=X/year=YYYY[/month=MM]/data.parquet
+- ``pop`` (default; NY, RI, MD, and CT's fallback): Probability of Peak (PoP)
+  allocation of one $/kW-yr value from the MC table over the top
+  ``--n-hours`` hours of a load profile. The load comes from exactly one of
+  ``--utility-load-s3-base`` (hive utility=X/year=YYYY scan) or
+  ``--path-utility-load`` (one parquet with timestamp and load_mw).
+- ``month_hour`` (CT only): look up Eversource's OCC-863 Attachment 2
+  month-hour $/kWh tables onto one calendar year. Uses no $/kW-yr value and no
+  load profile.
+
+CT Eversource, in order of preference (the ct Justfile's ``dist_mc_method``):
+
+1. ``month_hour``: OCC-863 Attachment 2 secondary tables, weekday vs.
+   weekend-and-holiday. Written to ``dist_and_sub_tx_eversource_derived/``.
+2. ``pop`` on ``--path-utility-load`` = OCC-863 Attachment 3 system load: the
+   $21.22/kW-yr secondary value on Eversource's own substation peaks. Written to
+   ``dist_and_sub_tx_occ863/``.
+3. ``pop`` on ``--utility-load-s3-base`` = ISO-NE CT zone load: the same
+   $21.22/kW-yr on zone peaks. The oldest approach. Written to
+   ``dist_and_sub_tx/``.
+
+Both CT PoP paths pass ``--target-dollar-year 2026``: the analysis is rate year
+1, already in the filing's 2026 dollars, so no CPI adjustment applies.
+
+PoP input:
+    - Utility hourly load profile, either ISO-native hive layout
+      utility=X/year=YYYY[/month=MM]/data.parquet
       (e.g. s3://data.sb/nyiso/hourly_demand/utilities/, s3://data.sb/pjm/hourly_demand/utilities/,
-      s3://data.sb/isone/hourly_demand/utilities/)
+      s3://data.sb/isone/hourly_demand/utilities/), or one parquet file
     - Marginal cost table CSV with columns: utility, sub_tx_and_dist_mc_kw_yr[, dollar_year]
     - Load year (determines which load profile year to use)
+
+Month-hour input:
+    - Weekday and weekend-and-holiday parquets, each 288 rows of
+      month (1-12), hour (0-23), mc_total_per_kwh
 
 The optional ``dollar_year`` column in the MC table specifies the dollar year of
 the cost estimate.  When it differs from ``--target-dollar-year`` (default:
@@ -21,12 +47,10 @@ Output partitions written as:
     - NY default base: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/
     - RI default base: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
     - MD default base: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/
-    - CT default base: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/
-      (earlier ISO-NE zone-load run; the OCC-863 run writes to
-      dist_and_sub_tx_occ863/)
-    - CT Eversource month-hour (--use-eversource-marginal-cost true):
-      s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/
+    - CT month_hour: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/
       The partition year is --year, the same calendar stamped on the timestamps.
+    - CT pop on OCC-863 system load: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/
+    - CT pop on ISO-NE CT zone load: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/
     - Default partition: utility=X/year=YYYY/data.parquet
     - Alternate-load-year base: <default_base_without_slash>_loadYYYY/
       Example: dist_and_sub_tx_load2018/utility=X/year=2025/data.parquet
@@ -53,14 +77,10 @@ Usage:
         --output-s3-base s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/ \
         --upload
 
-    # CT/Eversource (CL&P): rate year 1 keeps the filed 2026$ scalar (no CPI adjustment).
-    # PoP hours come from OCC-863 Attachment 3 page 2, not the ISO-NE hive layout.
-    python generate_utility_tx_dx_mc.py --state CT --utility ct_eversource --year 2025 \
-        --target-dollar-year 2026 \
-        --mc-table-path rate_design/hp_rates/ct/config/marginal_costs/ct_marginal_costs_2025.csv \
-        --path-utility-load s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet/system_load.parquet \
-        --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/ \
-        --upload
+    # CT/Eversource: use the ct Justfile, which wires all three methods.
+    just -f rate_design/hp_rates/ct/Justfile create-dist-mc-data 2025 --upload
+    just -f rate_design/hp_rates/ct/Justfile dist_mc_method=pop_occ863 create-dist-mc-data 2025 --upload
+    just -f rate_design/hp_rates/ct/Justfile dist_mc_method=pop_isone_zone create-dist-mc-data 2025 --upload
 """
 
 import argparse
@@ -339,7 +359,7 @@ def eversource_derived_output_base(base: str) -> str:
         return f"{trimmed}/"
     if leaf != "dist_and_sub_tx":
         raise ValueError(
-            "--use-eversource-marginal-cost writes under "
+            "--method month_hour writes under "
             "dist_and_sub_tx_eversource_derived/, so the output base must end "
             f"in dist_and_sub_tx/ (got {base!r})"
         )
@@ -764,7 +784,20 @@ def save_allocated_costs(
 def main():
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(
-        description="Allocate marginal costs to hourly price signals using PoP method"
+        description=(
+            "Build an hourly dist + sub-tx marginal cost 8760 by PoP allocation "
+            "or (CT) Eversource month-hour lookup"
+        )
+    )
+    parser.add_argument(
+        "--method",
+        choices=["pop", "month_hour"],
+        default="pop",
+        help=(
+            "pop: allocate the MC table's $/kW-yr over the top --n-hours of a "
+            "load profile. month_hour (CT only): look up OCC-863 Attachment 2 "
+            "month-hour $/kWh tables onto --year. Default: pop."
+        ),
     )
     parser.add_argument(
         "--state",
@@ -783,21 +816,26 @@ def main():
         "--year",
         type=int,
         required=True,
-        help="Output year for partition key and timestamps (e.g. 2025).",
+        help=(
+            "Output year for partition key and timestamps (e.g. 2025). For "
+            "month_hour, also the calendar that sets weekdays and holidays."
+        ),
     )
-    parser.add_argument(
+
+    pop = parser.add_argument_group("--method pop")
+    pop.add_argument(
         "--load-year",
         type=int,
         default=None,
         help=("Year of load profile to use for PoP allocation (defaults to --year)."),
     )
-    parser.add_argument(
+    pop.add_argument(
         "--mc-table-path",
         type=str,
-        required=True,
-        help="Path to marginal cost table CSV (local or s3://)",
+        default=None,
+        help="Path to marginal cost table CSV (local or s3://). Required for pop.",
     )
-    parser.add_argument(
+    pop.add_argument(
         "--utility-load-s3-base",
         "--nyiso-s3-base",
         dest="utility_load_s3_base",
@@ -805,17 +843,18 @@ def main():
         default=None,
         help=(
             "Base S3 path for hive-partitioned utility loads "
-            "(utility=X/year=YYYY). Required unless --path-utility-load is set."
+            "(utility=X/year=YYYY). CT: ISO-NE CT zone load. "
+            "Pass this or --path-utility-load, not both."
         ),
     )
-    parser.add_argument(
+    pop.add_argument(
         "--path-utility-load",
         dest="path_utility_load",
         type=str,
         default=None,
         help=(
             "Single parquet with timestamp and load_mw, used instead of the "
-            "hive scan. CT passes the OCC-863 system_load.parquet."
+            "hive scan. CT: the OCC-863 system_load.parquet."
         ),
     )
     parser.add_argument(
@@ -824,14 +863,14 @@ def main():
         required=True,
         help="Base S3 path for output (e.g., s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/)",
     )
-    parser.add_argument(
+    pop.add_argument(
         "--n-hours",
         type=int,
         choices=range(8761),
         default=100,
         help="Number of top load hours for PoP allocation (0-8760, default: 100)",
     )
-    parser.add_argument(
+    pop.add_argument(
         "--target-dollar-year",
         type=int,
         default=None,
@@ -840,7 +879,7 @@ def main():
             "Only applied when the MC table has a dollar_year column."
         ),
     )
-    parser.add_argument(
+    pop.add_argument(
         "--cpi-s3-base",
         type=str,
         default="s3://data.sb/fred/cpi/",
@@ -854,33 +893,20 @@ def main():
         action="store_true",
         help="Upload results to S3 (default: False, for data inspection only)",
     )
-    parser.add_argument(
-        "--use-eversource-marginal-cost",
-        type=_parse_bool,
-        default=False,
-        metavar="{true,false}",
-        help=(
-            "true: build the 8760 from Eversource's OCC-863 Attachment 2 "
-            "month-hour $/kWh tables (weekday vs. weekend-and-holiday). "
-            "false: PoP allocation of the $/kW-yr value. CT only; default false."
-        ),
-    )
-    parser.add_argument(
+    month_hour = parser.add_argument_group("--method month_hour")
+    month_hour.add_argument(
         "--path-weekday-mc",
         type=str,
         default=None,
-        help="Month-hour weekday $/kWh parquet (with --use-eversource-marginal-cost)",
+        help="Month-hour weekday $/kWh parquet. Required for month_hour.",
     )
-    parser.add_argument(
+    month_hour.add_argument(
         "--path-weekend-mc",
         type=str,
         default=None,
-        help=(
-            "Month-hour weekend-and-holiday $/kWh parquet "
-            "(with --use-eversource-marginal-cost)"
-        ),
+        help="Month-hour weekend-and-holiday $/kWh parquet. Required for month_hour.",
     )
-    parser.add_argument(
+    month_hour.add_argument(
         "--include-holidays",
         type=_parse_bool,
         default=True,
@@ -888,7 +914,7 @@ def main():
         help=(
             "true: federal holidays take the weekend-and-holiday table. "
             "false: only Saturday and Sunday do; a weekday holiday stays on "
-            "the weekday table. Used with --use-eversource-marginal-cost."
+            "the weekday table."
         ),
     )
     parser.add_argument(
@@ -902,10 +928,18 @@ def main():
     load_dotenv()
     storage_options = get_aws_storage_options()
 
-    if args.use_eversource_marginal_cost:
-        _run_eversource_month_hour(args, storage_options)
-        return
+    if args.method == "month_hour":
+        _run_month_hour(args, storage_options)
+    else:
+        _run_pop_allocation(args, storage_options)
 
+
+def _run_pop_allocation(
+    args: argparse.Namespace, storage_options: dict[str, str]
+) -> None:
+    """PoP-allocate the MC table's $/kW-yr over the top load hours, then save."""
+    if not args.mc_table_path:
+        raise ValueError("--method pop needs --mc-table-path")
     validate_mc_table_path(args.mc_table_path)
 
     output_year = args.year
@@ -1017,16 +1051,13 @@ def main():
         print("=" * 60)
 
 
-def _run_eversource_month_hour(
-    args: argparse.Namespace, storage_options: dict[str, str]
-) -> None:
+def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -> None:
     """Build and optionally save the 8760 from OCC-863 month-hour tables."""
     if args.state != "CT":
-        raise ValueError("--use-eversource-marginal-cost is only defined for CT")
+        raise ValueError("--method month_hour is only defined for CT")
     if not (args.path_weekday_mc and args.path_weekend_mc):
         raise ValueError(
-            "--use-eversource-marginal-cost needs --path-weekday-mc and "
-            "--path-weekend-mc"
+            "--method month_hour needs --path-weekday-mc and --path-weekend-mc"
         )
     year = args.year
     output_s3_base = eversource_derived_output_base(args.output_s3_base)

@@ -98,7 +98,7 @@ in the identical `sub_tx_and_dist_mc_kw_yr` slot. RI and MD CPI-inflate from the
 CT's default 8760 does not use this scalar. It is the OCC-863 Attachment 2 month-hour
 expansion ([ct_eversource_dist_mc_methodology.md](ct_eversource_dist_mc_methodology.md) §7).
 The `$21.22/kW-yr` figure is the allocator's input only when
-`use_eversource_marginal_cost=false`. That path does not CPI-adjust: the analysis is rate
+`dist_mc_method` is `pop_occ863` or `pop_isone_zone`. That path does not CPI-adjust: the analysis is rate
 year 1, in the filing's 2026 dollars, so `--target-dollar-year 2026` matches the CSV and
 `$21.22` is allocated as filed. Spread over the top 100 hours of OCC-863 substation load,
 it is written to `dist_and_sub_tx_occ863/`. The same flag with ISO-NE CT zone load writes

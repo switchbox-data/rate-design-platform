@@ -133,14 +133,18 @@ just -f rate_design/hp_rates/ct/Justfile convert-occ863-month-hour-mc \
 
 ## Using this load for CT distribution marginal cost
 
-`create-dist-mc-data` passes `system_load.parquet` as `--path-utility-load`. The allocator keeps
-the requested year and ranks the top 100 hours of that substation series. The residential
-rate-class files are a class shape; they are not the PoP load. See
-`context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md` §3.3.
+`create-dist-mc-data` uses two of these outputs. Its default, `dist_mc_method=month_hour`,
+expands the secondary weekday and weekend-and-holiday month-hour parquets. Its first fallback,
+`dist_mc_method=pop_occ863`, passes `system_load.parquet` as `--path-utility-load`. The
+allocator keeps the requested year and ranks the top 100 hours of that substation series. The
+residential rate-class files are a class shape; they are not the PoP load. See
+`context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md` §3.3 and §7.
 
-`--utility-load-s3-base` still scans a hive `utility`/`year` folder for the other states. This
-prefix is one multi-year file, so it is not a value for that flag.
+`--utility-load-s3-base` still scans a hive `utility`/`year` folder (the other states, and CT's
+`pop_isone_zone` fallback). This prefix is one multi-year file, so it is not a value for that
+flag.
 
 ```bash
 just -f rate_design/hp_rates/ct/Justfile create-dist-mc-data 2025 --upload
+just -f rate_design/hp_rates/ct/Justfile dist_mc_method=pop_occ863 create-dist-mc-data 2025 --upload
 ```
