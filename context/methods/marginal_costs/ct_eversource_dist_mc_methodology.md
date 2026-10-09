@@ -14,9 +14,11 @@ and the pipeline YAML declares the key it expects
    `$/kWh` tables are looked up onto one calendar year. Saturday and Sunday take the
    weekend-and-holiday table. Every other Monday–Friday takes the weekday table, except the
    eleven federal holidays in 5 U.S.C. § 6103 when `include_holidays` is true (the default):
-   a Saturday holiday is observed Friday, and a Sunday holiday is observed Monday. `--year` is
-   that calendar, and the same year is stamped on `timestamp`, the `year` column, and the Hive
-   partition. Key `month_hour_occ863att2_secondary_holidays`. Detail is in §7. This path
+   a Saturday holiday is observed Friday, and a Sunday holiday is observed Monday. The days are
+   classified on the 2025 calendar (`--calendar-year`, default `--year`), and 2025 is stamped on
+   `timestamp`, the `year` column, and the Hive partition. 2025 rather than the 2018 weather year
+   because CAIRO rotates the AMY2018 loads onto 2025's weekdays (§7.2). Key
+   `month_hour_occ863att2_secondary_holidays_cal2025`. Detail is in §7. This path
    does not use the annual `$/kW-yr` scalar or a load curve.
 2. **`$21.22/kW-yr` on Eversource's substation load.** The scalar is Table 3's `$20.17/kW-yr`
    times the OCC-863 secondary loss factor (§2.2). Probability-of-peak (§3.1) spreads it over
@@ -262,11 +264,11 @@ substation series: OCC-863 says no forecasted hourly system loads are available.
    at `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet`
    for every method, with `manifest.yaml` beside it:
 
-   | `dist_mc_method` | Scalar                       | Allocation load                        | Key                                        |
-   | ---------------- | ---------------------------- | -------------------------------------- | ------------------------------------------ |
-   | `month_hour`     | none (month-hour `$/kWh`)    | none                                   | `month_hour_occ863att2_secondary_holidays` |
-   | `pop_occ863`     | `$21.22`, MCOS 2026$, no CPI | OCC-863 Attachment 3 system load, 2025 | `pop_occ863att3_100h_load2025_2026usd`     |
-   | `pop_isone_zone` | `$21.22`, MCOS 2026$, no CPI | ISO-NE CT zone load, 2025              | `pop_isone_zone_100h_load2025_2026usd`     |
+   | `dist_mc_method` | Scalar                       | Allocation load                        | Key                                                |
+   | ---------------- | ---------------------------- | -------------------------------------- | -------------------------------------------------- |
+   | `month_hour`     | none (month-hour `$/kWh`)    | none                                   | `month_hour_occ863att2_secondary_holidays_cal2025` |
+   | `pop_occ863`     | `$21.22`, MCOS 2026$, no CPI | OCC-863 Attachment 3 system load, 2025 | `pop_occ863att3_100h_load2025_2026usd`             |
+   | `pop_isone_zone` | `$21.22`, MCOS 2026$, no CPI | ISO-NE CT zone load, 2025              | `pop_isone_zone_100h_load2025_2026usd`             |
 
    Uploading one method replaces the file and appends its entry; the earlier entries stay as
    history. The pipeline YAML's `marginal_costs.dist_and_sub_tx.key` picks which method a batch
@@ -423,18 +425,28 @@ just -f ct/Justfile include_holidays=false create-dist-mc-data 2025 --upload
 INCLUDE_HOLIDAYS=false just s ct create-dist-mc-data 2025 --upload
 ```
 
-### 7.2 One year for the calendar, the timestamps, and the partition
+### 7.2 Day-type calendar vs. timestamp year
 
-`--year` (the recipe's `year_arg`) is the only year. It chooses the calendar used to classify
-weekdays, weekends, and holidays, and it is stamped on `timestamp`, on the `year` column, and
-on the Hive partition `year=YYYY`. There is no separate partition year.
+Two years are involved. `--calendar-year` (the recipe's `month_hour_calendar_year`) is the
+calendar used to classify weekdays, weekends, and holidays. `--year` (the recipe's `year_arg`) is
+stamped on `timestamp`, on the `year` column, and on the Hive partition `year=YYYY`.
+`--calendar-year` defaults to `--year`. When they differ, hour _i_ of the calendar year's 8760
+is restamped as hour _i_ of `--year`'s; the two must both be leap years or both not. Both are
+recorded in the manifest params (`calendar_year`, `timestamp_year`,
+`calendar_to_timestamp_mapping`), and the calendar year is in the key (`_cal2025`).
 
-CAIRO does not join this file to the run on the timestamp year. When both series have 8,760
-hours, `utils/cairo.py`'s `_align_mc_to_index` copies the marginal-cost values by position onto
-the run's hours. Hour 0 of the file lands on January 1 at midnight of the run. For weekends and
-holidays to fall on the right days, `--year` has to be the run's calendar. The CT pipeline year
-is 2025. A leap year still emits 8,760 rows (December 31 is dropped), but its positions diverge
-from a non-leap run after February 28.
+CT uses **2025 for both**. CAIRO does not join this file to the run on the timestamp year. When
+both series have 8,760 hours, `utils/cairo.py`'s `_align_mc_to_index` copies the marginal-cost
+values by position onto the run's hours, so the day types must match the day types of the loads
+in each run hour. The loads are not on their 2018 source calendar: CAIRO's `__timeshift__`, and
+our `_return_loads_combined` in `utils/mid/patches.py`, rotate each AMY2018 profile by
+`(weekday(Jan 1 year_run) − weekday(Jan 1 2018)) mod 7` days so that Mondays land on Mondays.
+For `year_run` 2025 that is 2 days (Jan 1 2018 was a Monday; Jan 1 2025 is a Wednesday): the
+2025-01-04 slot, a Saturday, holds the load from Saturday 2018-01-06. A 2018 day-type calendar
+would classify that slot by Thursday 2018-01-04 and price 2025's Mondays and Tuesdays as
+weekends. The rotation also moves holidays: the load in the 2025-07-04 slot comes from Friday
+2018-07-06, so holiday pricing lands on 2025 holidays, not on 2018 holiday loads. Attachment 2's
+weekend-and-holiday day counts also match the 2025 calendar.
 
 ### 7.3 Where it is written
 
@@ -445,7 +457,8 @@ s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/y
 /ebs/data/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=YYYY/data.parquet
 ```
 
-The month-hour key is `month_hour_occ863att2_secondary_holidays` (or `..._noholidays`). The
+The month-hour key is `month_hour_occ863att2_secondary_holidays_cal2025` (or
+`..._noholidays_cal2025`). The
 voltage in the key is read from the table file names unless `--voltage` is passed. The two PoP
 fallbacks (§3) write the same path with their own keys:
 
@@ -455,5 +468,6 @@ just -f ct/Justfile dist_mc_method=pop_isone_zone create-dist-mc-data 2025 --upl
 DIST_MC_METHOD=pop_occ863 just s ct create-dist-mc-data 2025 --upload
 ```
 
-Tests for the lookup, the observed-holiday rule, the holiday toggle, leap-year length, and the
-voltage read from the table names are in `tests/test_expand_month_hour_mc.py`.
+Tests for the lookup, the observed-holiday rule, the holiday toggle, leap-year length, the
+calendar-year restamping, and the voltage read from the table names are in
+`tests/test_expand_month_hour_mc.py`.

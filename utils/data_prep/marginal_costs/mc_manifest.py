@@ -74,7 +74,10 @@ def _key_dist_pop(p: Mapping[str, Any]) -> str:
 
 def _key_dist_month_hour(p: Mapping[str, Any]) -> str:
     holidays = "holidays" if p["include_holidays"] else "noholidays"
-    return f"month_hour_{p['table_source']}_{p['voltage']}_{holidays}"
+    return (
+        f"month_hour_{p['table_source']}_{p['voltage']}_{holidays}"
+        f"_cal{p['calendar_year']}"
+    )
 
 
 def _key_bulk_isone(p: Mapping[str, Any]) -> str:

@@ -17,12 +17,14 @@ resstock:
 marginal_costs:
   # Each key must match the latest entry in the manifest.yaml beside the file;
   # preflight stops on a mismatch. Keys: context/code/marginal_costs/mc_provenance_manifest.md.
-  # dist: $21.22/kW-yr (secondary, MCOS 2026$, no CPI) PoP-allocated on the top
-  # 100 hours of Eversource's OCC-863 system load (dist_mc_method=pop_occ863).
-  # See ct_eversource_dist_mc_methodology.md §3.4.
+  # dist: OCC-863 Attachment 2 secondary month-hour $/kWh tables expanded onto
+  # the 2025 calendar, weekends and federal holidays on the weekend table
+  # (dist_mc_method=month_hour, the recipe default). 2025, not 2018, because
+  # CAIRO rotates the AMY2018 loads onto 2025's weekdays. Sums to $21.35/kW-yr
+  # for a flat 1 kW load over 2,039 nonzero hours. See ct_eversource_dist_mc_methodology.md §7.
   dist_and_sub_tx:
     path: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
-    key: pop_occ863att3_100h_load2025_2026usd
+    key: month_hour_occ863att2_secondary_holidays_cal2025
   bulk_tx:
     path: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
     key: aesc_ptf69_ne_system_100h_load2025

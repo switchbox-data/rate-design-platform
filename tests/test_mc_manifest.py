@@ -68,10 +68,11 @@ class TestKeys:
             "table_source": "occ863att2",
             "voltage": "secondary",
             "include_holidays": False,
+            "calendar_year": 2018,
         }
         assert (
             build_key("dist_and_sub_tx", "month_hour", params)
-            == "month_hour_occ863att2_secondary_noholidays"
+            == "month_hour_occ863att2_secondary_noholidays_cal2018"
         )
 
     def test_isone_bulk_tx_formats_value(self) -> None:

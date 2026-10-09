@@ -112,6 +112,44 @@ def test_weekday_holidays_stay_on_weekday_table_when_holidays_excluded() -> None
     assert value_at("2025-01-04 16:00:00") == pytest.approx(-1.16)
 
 
+def test_calendar_year_sets_day_types_and_year_sets_timestamps() -> None:
+    expanded = expand_month_hour_mc_to_8760(
+        _table(0.0, weekend=False),
+        _table(0.0, weekend=True),
+        2025,
+        "ct_eversource",
+        calendar_year=2018,
+    )
+    assert expanded.height == 8760
+    assert expanded["timestamp"].dt.year().unique().to_list() == [2025]
+    assert expanded["year"].unique().to_list() == [2025]
+
+    def value_at(stamp: str) -> float:
+        return expanded.filter(pl.col("timestamp") == datetime.fromisoformat(stamp))[
+            "mc_total_per_kwh"
+        ].item()
+
+    # 2025-01-04 is a Saturday, but 2018-01-04 was a Thursday.
+    assert value_at("2025-01-04 16:00:00") == pytest.approx(1.16)
+    # 2025-01-06 is a Monday, but 2018-01-06 was a Saturday.
+    assert value_at("2025-01-06 16:00:00") == pytest.approx(-1.16)
+    # July 4 is a holiday on either calendar.
+    assert value_at("2025-07-04 16:00:00") == pytest.approx(-7.16)
+    # Thanksgiving 2025 is Nov 27; 2018-11-27 was an ordinary Tuesday.
+    assert value_at("2025-11-27 16:00:00") == pytest.approx(11.16)
+
+
+def test_calendar_year_must_match_leap_status() -> None:
+    with pytest.raises(ValueError, match="leap"):
+        expand_month_hour_mc_to_8760(
+            _table(0.0, weekend=False),
+            _table(0.0, weekend=True),
+            2024,
+            "ct_eversource",
+            calendar_year=2018,
+        )
+
+
 def test_leap_year_drops_december_31() -> None:
     expanded = expand_month_hour_mc_to_8760(
         _table(0.0, weekend=False),

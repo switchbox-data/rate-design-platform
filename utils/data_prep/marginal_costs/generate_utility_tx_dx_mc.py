@@ -9,7 +9,9 @@
   ``--path-utility-load`` (one parquet with timestamp and load_mw).
 - ``month_hour`` (CT only): look up Eversource's OCC-863 Attachment 2
   month-hour $/kWh tables onto one calendar year. Uses no $/kW-yr value and no
-  load profile.
+  load profile. ``--calendar-year`` (default ``--year``) sets which year's
+  weekdays, weekends, and holidays are used; the 8760 is then stamped as
+  ``--year`` by position.
 
 CT Eversource, in order of preference (the ct Justfile's ``dist_mc_method``):
 
@@ -51,7 +53,9 @@ Output partitions written as:
     - RI default base: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
     - MD default base: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/
     - CT default base (all methods): s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/
-      The partition year is --year, the same calendar stamped on the timestamps.
+      The partition year is --year, the year stamped on the timestamps. For
+      month_hour the day-type calendar is --calendar-year (default --year),
+      recorded in the manifest params and key.
     - Default partition: utility=X/year=YYYY/data.parquet, plus manifest.yaml
     - Alternate-load-year base: <default_base_without_slash>_loadYYYY/
       Example: dist_and_sub_tx_load2018/utility=X/year=2025/data.parquet
@@ -85,6 +89,7 @@ Usage:
 """
 
 import argparse
+import calendar
 import io
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -609,6 +614,7 @@ def expand_month_hour_mc_to_8760(
     utility: str,
     *,
     include_holidays: bool = True,
+    calendar_year: int | None = None,
 ) -> pl.DataFrame:
     """Expand month-hour marginal costs onto one calendar year's Cairo 8760.
 
@@ -620,17 +626,28 @@ def expand_month_hour_mc_to_8760(
     false, a holiday on Monday through Friday takes the weekday value.
     Any other Monday through Friday takes the weekday value.
 
-    ``year`` is both the calendar used to classify each day and the year
-    stamped on ``timestamp`` and the ``year`` column. Passing 2018 classifies
-    2018's weekdays, weekends, and holidays and writes 2018 timestamps.
+    ``calendar_year`` (default ``year``) is the calendar used to classify each
+    day as weekday, weekend, or holiday. ``year`` is stamped on ``timestamp``
+    and the ``year`` column. When they differ, row *i* of ``calendar_year``'s
+    8760 is restamped as row *i* of ``year``'s, the same by-position alignment
+    CAIRO applies (``utils.cairo._align_mc_to_index``). The loads are not on
+    their source calendar: CAIRO rotates AMY2018 loads onto ``year_run``'s
+    weekdays, so ``calendar_year`` should normally equal the run year. The two
+    years must both be leap years or both not, so that each row keeps its month.
 
     Timestamps match ``build_cairo_8760_timestamps``: naive hour-beginning
     local time, 8,760 rows, with December 31 dropped in a leap year.
     """
-    clock = build_cairo_8760_timestamps(year).with_columns(
+    calendar_year = year if calendar_year is None else calendar_year
+    if calendar.isleap(calendar_year) != calendar.isleap(year):
+        raise ValueError(
+            f"calendar_year {calendar_year} and year {year} must both be leap "
+            "years or both not; otherwise rows after February shift by a day"
+        )
+    clock = build_cairo_8760_timestamps(calendar_year).with_columns(
         pl.col("timestamp").cast(pl.Datetime("us"))
     )
-    holidays = _us_federal_holidays(year) if include_holidays else set()
+    holidays = _us_federal_holidays(calendar_year) if include_holidays else set()
     clock = clock.with_columns(
         pl.col("timestamp").dt.month().alias("month"),
         pl.col("timestamp").dt.hour().alias("hour"),
@@ -654,7 +671,12 @@ def expand_month_hour_mc_to_8760(
         .alias("mc_total_per_kwh")
     )
     if expanded["mc_total_per_kwh"].null_count() != 0:
-        raise ValueError(f"month-hour lookup missed hours in {year}")
+        raise ValueError(f"month-hour lookup missed hours in {calendar_year}")
+    expanded = expanded.sort("timestamp").with_columns(
+        build_cairo_8760_timestamps(year)["timestamp"]
+        .cast(pl.Datetime("us"))
+        .alias("timestamp")
+    )
     return expanded.select(
         "timestamp",
         pl.lit(utility).alias("utility"),
@@ -849,7 +871,7 @@ def main():
         required=True,
         help=(
             "Output year for partition key and timestamps (e.g. 2025). For "
-            "month_hour, also the calendar that sets weekdays and holidays."
+            "month_hour, also the default --calendar-year."
         ),
     )
 
@@ -956,6 +978,17 @@ def main():
             "true: federal holidays take the weekend-and-holiday table. "
             "false: only Saturday and Sunday do; a weekday holiday stays on "
             "the weekday table."
+        ),
+    )
+    month_hour.add_argument(
+        "--calendar-year",
+        type=int,
+        default=None,
+        help=(
+            "Calendar that classifies weekdays, weekends, and holidays "
+            "(default: --year). The result is restamped onto --year's 8760 "
+            "by position. CAIRO rotates loads onto the run year's weekdays, so "
+            "this should normally be the run year."
         ),
     )
     month_hour.add_argument(
@@ -1157,6 +1190,7 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
             "--method month_hour needs --path-weekday-mc and --path-weekend-mc"
         )
     year = args.year
+    calendar_year = args.calendar_year or year
     output_s3_base = args.output_s3_base
     path_local_base = args.path_local_output_base
     voltage = args.voltage or _voltage_from_table_paths(
@@ -1167,7 +1201,8 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
     print("EVERSOURCE MONTH-HOUR MARGINAL COST → 8760")
     print("=" * 60)
     print(f"Utility: {args.utility}")
-    print(f"Year (calendar, timestamps, and partition): {year}")
+    print(f"Calendar year (weekday/weekend/holiday rule): {calendar_year}")
+    print(f"Year (timestamps and partition): {year}")
     print(f"Include federal holidays: {args.include_holidays}")
     print(f"Voltage: {voltage}")
     print(f"Weekday table: {args.path_weekday_mc}")
@@ -1186,6 +1221,7 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
         year,
         args.utility,
         include_holidays=args.include_holidays,
+        calendar_year=calendar_year,
     )
 
     annual = float(expanded["mc_total_per_kwh"].sum())
@@ -1207,6 +1243,13 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
                 "voltage": voltage,
                 "include_holidays": args.include_holidays,
                 "holiday_rule": "5 USC 6103, Sat->Fri, Sun->Mon",
+                "calendar_year": calendar_year,
+                "timestamp_year": year,
+                "calendar_to_timestamp_mapping": (
+                    "identity"
+                    if calendar_year == year
+                    else f"by position: hour i of {calendar_year} -> hour i of {year}"
+                ),
             },
             source=_source_or_warn(args),
             inputs=[

@@ -171,15 +171,23 @@ resstock:
   upgrade_precalc: "00"
   upgrade_calibrated: "02"
 marginal_costs:
-  # A bare path, or {path, key} to require that key in the file's manifest.yaml
-  # (see context/code/marginal_costs/mc_provenance_manifest.md).
+  # Copy each key from the latest entry of the manifest.yaml beside that file.
+  # Key patterns: context/code/marginal_costs/mc_provenance_manifest.md.
+  # The two below are what the current MD recipes record on a fresh run
+  # (dist: hive load base s3://data.sb/pjm/..., so load_source is pjm_utility,
+  # UPSTREAM_HOURS=100, --target-dollar-year defaults to --year; bulk tx:
+  # --k-peak-hours defaults to 150).
   dist_and_sub_tx:
-    path: s3://...
+    path: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/utility=bge/year=2025/data.parquet
     key: pop_pjm_utility_100h_load2025_2025usd
-  bulk_tx: s3://...
-  supply_energy: s3://...
-  supply_capacity: s3://...
-  supply_ancillary: s3://...
+  bulk_tx:
+    path: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/utility=bge/year=2025/data.parquet
+    key: pjm_nits_pcaf_150h_load2025
+  # Supply energy, capacity, and ancillary generators do not write a manifest
+  # yet, so these stay bare paths. Add a key the same way once they do.
+  supply_energy: s3://data.sb/switchbox/marginal_costs/md/supply/energy/utility=bge/year=2025/data.parquet
+  supply_capacity: s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year=2025/data.parquet
+  # supply_ancillary omitted
 revenue_requirement:
   single_rate: rev_requirement/bge_rate_case_test_year.yaml
   single_rate_calibrated: rev_requirement/bge_large_number_rate_case_test_year.yaml
@@ -208,6 +216,7 @@ bill_change_baseline:
 
 ### Key config fields
 
+- `marginal_costs.<name>.key` — the manifest key the file must carry. Preflight stops the batch when the file is missing, has no `manifest.yaml` entry, its latest entry's key differs, or its sha256 differs from that entry. Copy the key from the latest entry; do not reconstruct it by hand if a manifest already exists. A bare path is accepted and only logs a warning. When `supply_energy` or `supply_capacity` declares a key and points at `data.parquet`, delivery runs read the `zero.parquet` beside it, so that file must carry `zero`.
 - `output_base` — root S3/FUSE path for outputs; batch dir = `{output_base}/{state}/{utility}/{batch}`
 - `tariff_base` — explicit stem component for single-rate tariff filenames (required for `single_rate` and `single_rate_uncalibrated`)
 - `revenue_requirement.single_rate_uncalibrated` — required when a `single_rate_uncalibrated` scenario is declared. The large-number RR YAML used for both stages of that quartet (do not reuse `single_rate_calibrated` implicitly).
@@ -601,7 +610,7 @@ delivery: {mc_path} → replaced suffix /data.parquet with /zero.parquet
 supply:   {mc_path} → used as-is
 ```
 
-Applies to `mc_supply_energy` and `mc_supply_capacity`.
+Applies to `mc_supply_energy` and `mc_supply_capacity`. When either declares a `key`, preflight also checks the swapped `zero.parquet` against `key: zero`. A path that already ends in `zero.parquet` (CT, which has no real supply MC) is used as-is for both runs and is checked against its own declared key.
 
 ## Deferred
 

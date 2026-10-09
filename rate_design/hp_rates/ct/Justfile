@@ -20,6 +20,9 @@ path_local_mc_root := "/ebs/data/switchbox/marginal_costs/ct/"
 # month_hour (default), pop_occ863, or pop_isone_zone. See create-dist-mc-data.
 dist_mc_method := env_var_or_default('DIST_MC_METHOD', 'month_hour')
 include_holidays := env_var_or_default('INCLUDE_HOLIDAYS', 'true')
+# Calendar for month_hour's weekday/weekend/holiday rule. Empty: year_arg, which is
+# right because CAIRO rotates the AMY2018 loads onto the run year's weekdays.
+month_hour_calendar_year := env_var_or_default('MONTH_HOUR_CALENDAR_YEAR', '')
 
 import '../Justfile'
 
@@ -123,10 +126,11 @@ create-bulk-tx-mc-data-all *extra_args:
 # dist_mc_method picks one of three 8760s, in order of preference:
 #
 #   month_hour (default)
-#     OCC-863 Attachment 2 secondary month-hour $/kWh tables, expanded onto
-#     year_arg's calendar. Saturday and Sunday take the weekend table, and
-#     federal holidays do too unless include_holidays=false. year_arg is
-#     stamped on the timestamps and the Hive partition.
+#     OCC-863 Attachment 2 secondary month-hour $/kWh tables. Days are
+#     classified on month_hour_calendar_year's calendar (default year_arg):
+#     Saturday and Sunday take the weekend table, and federal holidays do too
+#     unless include_holidays=false. The 8760 is stamped as year_arg by
+#     position, on the timestamps and the Hive partition.
 #
 #   pop_occ863
 #     $21.22/kW-yr (ct_marginal_costs_<year>.csv) allocated over the top
@@ -162,6 +166,8 @@ create-dist-mc-data year_arg *extra_args:
     #!/usr/bin/env bash
     set -euo pipefail
     pop_scalar_source='PURA Docket 26-05-10, MCOS-2 Table 3 secondary ($20.17/kW-yr, 2026$) x OCC-863 Attachment 2 secondary loss factor = $21.22/kW-yr'
+    calendar_year="{{ month_hour_calendar_year }}"
+    calendar_year="${calendar_year:-{{ year_arg }}}"
     case "{{ dist_mc_method }}" in
       month_hour)
         method_args=(
@@ -169,6 +175,7 @@ create-dist-mc-data year_arg *extra_args:
           --path-weekday-mc "{{ path_s3_occ863_parquet }}/month_hour_marginal_costs_weekday_secondary.parquet"
           --path-weekend-mc "{{ path_s3_occ863_parquet }}/month_hour_marginal_costs_weekend_holidays_secondary.parquet"
           --include-holidays "{{ include_holidays }}"
+          --calendar-year "${calendar_year}"
           --table-source occ863att2
           --source 'PURA Docket 26-05-10, OCC-863 Attachment 2, secondary month-hour $/kWh (weekday; weekend and holiday)'
         )
