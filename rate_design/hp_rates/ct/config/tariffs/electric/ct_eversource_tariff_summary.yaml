@@ -19,10 +19,17 @@ shared_riders:
   electric_system_improvements: 0.00000 # Rolled into distribution (ESI sunsets)
   revenue_decoupling_mechanism: 0.00000 # Rolled into distribution
   total: 0.04139 # = sum of above
+  # Decomposition used in per-tier breakdowns below:
+  #   transmission:  0.05050
+  #   other:        -0.00911   (= total − transmission = CTA + SBC + CAM + RE + FMCC + ESI + RDM)
 # Supply commodity (Genability 2025 seasonal, same for all tariffs)
 supply_commodity:
   jan_jun: 0.11190 # $/kWh
   jul_dec: 0.09748 # $/kWh
+# Marginal cost of bulk transmission — AESC 2024 avoided PTF, flat $/kWh
+# Source: AESC 2024 (Synapse), $69/kW-yr in 2024$, CPI-inflated to 2026$
+#   $69 × (CPI_2026 / CPI_2024) / 8760 = $69 × (331.28 / 313.70) / 8760 = $0.00832/kWh
+mc_bulk_tx: 0.00832 # $/kWh (2026$)
 # ─────────────────────────────────────────────────────────────────────────────
 # Rate 1 Proposed — ct_eversource_rate1_proposed
 # Flat volumetric, no seasons, no tiers.
@@ -32,8 +39,10 @@ rate1_proposed:
   fixed_charge_per_month: 12.36 # Exh CLP-RATES-2.4 R1 RY Proposed+GET Customer Charge
   all_months_all_kwh:
     distribution: 0.12196 # incl. GET; ESI/RDM folded in
-    riders: 0.04139 # shared_riders.total
-    delivery_total: 0.16335 # = distribution + riders → JSON rate
+    riders_transmission: 0.05050 # shared_riders.transmission
+    riders_other: -0.00911 # shared_riders other (CTA+SBC+CAM+RE+FMCC+ESI+RDM)
+    riders_total: 0.04139 # = riders_transmission + riders_other
+    delivery_total: 0.16335 # = distribution + riders_total → JSON rate
 # ─────────────────────────────────────────────────────────────────────────────
 # Rate 6 Filed — ct_eversource_rate6
 # Seasonal tiered: winter (Nov–Mar) Block 1 ≤700 kWh / Block 2 >700 kWh;
@@ -44,11 +53,15 @@ rate6_filed:
   fixed_charge_per_month: 30.95 # MCC $28.98 × 1.068 GET
   winter_block1_le_700kwh: # Nov–Mar, first 700 kWh
     distribution: 0.09431 # Class EC RR $796,054,171 / 8,440,783,007 kWh
-    riders: 0.04139
+    riders_transmission: 0.05050
+    riders_other: -0.00911
+    riders_total: 0.04139
     delivery_total: 0.13570
   winter_block2_gt_700kwh: # Nov–Mar, above 700 kWh
     distribution: 0.07517 # Block 1 $0.09431 − discount $0.01914
-    riders: 0.04139
+    riders_transmission: 0.05050
+    riders_other: -0.00911
+    riders_total: 0.04139
     delivery_total: 0.11656
     # Discount build-up (Exh CLP-RATES-6 p.2):
     #   MC subtotal       = $0.04152 (FC recovery w/GET $0.03894 + MC Energy w/GET $0.00258)
@@ -56,7 +69,9 @@ rate6_filed:
     #   Block 2           = MC subtotal + reconciliation = $0.07517
   non_heating_all_kwh: # Apr–Oct, all kWh
     distribution: 0.09431
-    riders: 0.04139
+    riders_transmission: 0.05050
+    riders_other: -0.00911
+    riders_total: 0.04139
     delivery_total: 0.13570
 # ─────────────────────────────────────────────────────────────────────────────
 # Rate 6 RATE=MC — ct_eversource_rate6_ratemc
@@ -68,15 +83,21 @@ rate6_ratemc:
   fixed_charge_per_month: 30.95 # unchanged
   winter_block1_le_700kwh:
     distribution: 0.09431 # unchanged
-    riders: 0.04139
+    riders_transmission: 0.05050
+    riders_other: -0.00911
+    riders_total: 0.04139
     delivery_total: 0.13570
   winter_block2_gt_700kwh:
     distribution: 0.04152 # = MC subtotal only (FC recovery $0.03894 + MC Energy $0.00258)
-    riders: 0.04139 # reconciliation adj zeroed (coinc. factor = 0%)
+    riders_transmission: 0.05050 # reconciliation adj zeroed (coinc. factor = 0%)
+    riders_other: -0.00911
+    riders_total: 0.04139
     delivery_total: 0.08291
   non_heating_all_kwh:
     distribution: 0.09431
-    riders: 0.04139
+    riders_transmission: 0.05050
+    riders_other: -0.00911
+    riders_total: 0.04139
     delivery_total: 0.13570
 # ─────────────────────────────────────────────────────────────────────────────
 # Rate 6 FIXED+RATE=MC — ct_eversource_rate6_fixed_ratemc
@@ -88,24 +109,84 @@ rate6_fixed_ratemc:
   fixed_charge_per_month: 57.13 # ($28.98 MCC + $24.51 MFC) × 1.068 GET
   winter_block1_le_700kwh:
     distribution: 0.05537 # EC RR $467,385,662 / 8,440,783,007 kWh
-    riders: 0.04139
+    riders_transmission: 0.05050
+    riders_other: -0.00911
+    riders_total: 0.04139
     delivery_total: 0.09676
   winter_block2_gt_700kwh:
     distribution: 0.00258 # = MC Energy w/GET only (FC recovery in fixed charge, recon = 0)
-    riders: 0.04139
+    riders_transmission: 0.05050
+    riders_other: -0.00911
+    riders_total: 0.04139
     delivery_total: 0.04397
   non_heating_all_kwh:
     distribution: 0.05537
-    riders: 0.04139
+    riders_transmission: 0.05050
+    riders_other: -0.00911
+    riders_total: 0.04139
+    delivery_total: 0.09676
+# ─────────────────────────────────────────────────────────────────────────────
+# Rate 6 RATE=MC, TX=MC — ct_eversource_rate6_ratemc_trans
+# Same as RATE=MC, but winter Block 2 transmission rider replaced with the
+# marginal cost of bulk transmission (AESC 2024, $69/kW-yr → 2026$ → ÷8760).
+# Block 1, non-heating, and fixed charge unchanged from RATE=MC.
+# ─────────────────────────────────────────────────────────────────────────────
+rate6_ratemc_trans:
+  fixed_charge_per_month: 30.95 # unchanged
+  winter_block1_le_700kwh:
+    distribution: 0.09431 # unchanged
+    riders_transmission: 0.05050
+    riders_other: -0.00911
+    riders_total: 0.04139
+    delivery_total: 0.13570
+  winter_block2_gt_700kwh:
+    distribution: 0.04152 # = MC subtotal only (same as rate6_ratemc)
+    riders_transmission: 0.00832 # = mc_bulk_tx: AESC $69/kW-yr (2024$) → 2026$ → ÷8760
+    riders_other: -0.00911
+    riders_total: -0.00079 # = 0.00832 + (-0.00911)
+    delivery_total: 0.04073 # = 0.04152 + (-0.00079)
+  non_heating_all_kwh:
+    distribution: 0.09431
+    riders_transmission: 0.05050
+    riders_other: -0.00911
+    riders_total: 0.04139
+    delivery_total: 0.13570
+# ─────────────────────────────────────────────────────────────────────────────
+# Rate 6 FIXED+RATE=MC, TX=MC — ct_eversource_rate6_fixed_ratemc_trans
+# Same as FIXED+RATE=MC, but winter Block 2 transmission rider replaced with
+# the marginal cost of bulk transmission.
+# Block 1, non-heating, and fixed charge unchanged from FIXED+RATE=MC.
+# ─────────────────────────────────────────────────────────────────────────────
+rate6_fixed_ratemc_trans:
+  fixed_charge_per_month: 57.13 # unchanged from FIXED+RATE=MC
+  winter_block1_le_700kwh:
+    distribution: 0.05537 # unchanged from FIXED+RATE=MC
+    riders_transmission: 0.05050
+    riders_other: -0.00911
+    riders_total: 0.04139
+    delivery_total: 0.09676
+  winter_block2_gt_700kwh:
+    distribution: 0.00258 # = MC Energy w/GET only (same as rate6_fixed_ratemc)
+    riders_transmission: 0.00832 # = mc_bulk_tx: AESC $69/kW-yr (2024$) → 2026$ → ÷8760
+    riders_other: -0.00911
+    riders_total: -0.00079 # = 0.00832 + (-0.00911)
+    delivery_total: 0.00179 # = 0.00258 + (-0.00079)
+  non_heating_all_kwh:
+    distribution: 0.05537
+    riders_transmission: 0.05050
+    riders_other: -0.00911
+    riders_total: 0.04139
     delivery_total: 0.09676
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Side-by-side summary (delivery only)
 # ─────────────────────────────────────────────────────────────────────────────
 #
-#                         Fixed     Winter ≤700  Winter >700  Non-heating
-#                        ($/mo)      ($/kWh)      ($/kWh)      ($/kWh)
-# Rate 1 Proposed         12.36      0.16335      0.16335      0.16335
-# Rate 6 Filed            30.95      0.13570      0.11656      0.13570
-# Rate 6 RATE=MC          30.95      0.13570      0.08291      0.13570
-# Rate 6 FIXED+RATE=MC    57.13      0.09676      0.04397      0.09676
+#                              Fixed     Winter ≤700  Winter >700  Non-heating
+#                             ($/mo)      ($/kWh)      ($/kWh)      ($/kWh)
+# Rate 1 Proposed              12.36      0.16335      0.16335      0.16335
+# Rate 6 Filed                 30.95      0.13570      0.11656      0.13570
+# Rate 6 RATE=MC               30.95      0.13570      0.08291      0.13570
+# Rate 6 FIXED+RATE=MC         57.13      0.09676      0.04397      0.09676
+# Rate 6 RATE=MC, TX=MC        30.95      0.13570      0.04073      0.13570
+# Rate 6 FIXED+RATE=MC, TX=MC  57.13      0.09676      0.00179      0.09676

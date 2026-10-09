@@ -230,11 +230,92 @@ build: (A) marginal cost subtotal `$0.04152` (Unit FC Recovery w/GET `$0.03894` 
 | **FIXED+RATE=MC delivery Block 1**         | **0.09676**  | derived                                     | 0.05537 + 0.04139                                                   |
 | **FIXED+RATE=MC delivery Block 2**         | **0.04397**  | derived                                     | 0.00258 + 0.04139                                                   |
 
+## Rate 6 MC-trans variants (RATE=MC TX=MC and FIXED+RATE=MC TX=MC)
+
+Two further variants replace the **transmission rider** on winter Block 2 with the **marginal cost of
+bulk transmission**, while keeping everything else identical to the parent RATE=MC / FIXED+RATE=MC
+tariffs. The idea: above 700 kWh of winter heating consumption, the customer should pay only the
+marginal cost of the transmission capacity their incremental load requires, rather than the embedded
+average transmission rider.
+
+### Marginal cost of transmission
+
+The marginal cost is derived from the **AESC 2024 avoided PTF cost** (Synapse, AESC 2024 study):
+$69/kW-yr in 2024 dollars (see `context/methods/marginal_costs/ct_bulk_transmission_marginal_cost.md`
+and `utils/data_prep/marginal_costs/bulk_tx_isone.py` line 52: `AESC_2024_AVOIDED_PTF_KW_YEAR = 69.0`).
+
+To convert to a flat $/kWh rate in 2026 dollars:
+
+1. **CPI inflate** from 2024 to 2026: `$69 × (CPI_2026 / CPI_2024) = $69 × (331.28 / 313.70) = $72.87/kW-yr`.
+   CPI annual averages from FRED CPIAUCSL, fetched via `data/fred/cpi/` pipeline
+   (`s3://data.sb/fred/cpi/cpiaucsl_2019_2026_20261009.parquet`).
+2. **Divide by 8,760 hours**: `$72.87 / 8760 = $0.00832/kWh`.
+
+This flat rate replaces the filed transmission rider (`$0.05050`) **only on winter Block 2** (>700 kWh
+in Nov–Mar). Block 1 and non-heating months keep the filed transmission rider unchanged.
+
+### Rider decomposition on Block 2
+
+For these variants, the Block 2 riders break down as:
+
+| Component         | Filed rider | MC-trans rider |
+| ----------------- | ----------- | -------------- |
+| Transmission      | 0.05050     | **0.00832**    |
+| Other (CTA+SBC+…) | -0.00911    | -0.00911       |
+| **Riders total**  | **0.04139** | **-0.00079**   |
+
+### Rate 6 RATE=MC, TX=MC (`ct_eversource_rate6_ratemc_trans`)
+
+- **Customer charge:** $30.95/month (unchanged from RATE=MC).
+- **Distribution:** same as RATE=MC: winter tiered `$0.09431` (≤700 kWh) / `$0.04152` (>700 kWh);
+  non-heating flat `$0.09431`.
+- **Delivery energy** = distribution + riders (Block 2 uses mc-trans riders):
+
+| Season / block        | Delivery ($/kWh) | + supply → supply-JSON ($/kWh) |
+| --------------------- | ---------------- | ------------------------------ |
+| Winter ≤700 (Jan–Mar) | 0.13570          | 0.24760 (+0.1119)              |
+| Winter >700 (Jan–Mar) | 0.04073          | 0.15263 (+0.1119)              |
+| Non-heating (Apr–Jun) | 0.13570          | 0.24760 (+0.1119)              |
+| Non-heating (Jul–Oct) | 0.13570          | 0.23318 (+0.09748)             |
+| Winter ≤700 (Nov–Dec) | 0.13570          | 0.23318 (+0.09748)             |
+| Winter >700 (Nov–Dec) | 0.04073          | 0.13821 (+0.09748)             |
+
+### Rate 6 FIXED+RATE=MC, TX=MC (`ct_eversource_rate6_fixed_ratemc_trans`)
+
+- **Customer charge:** $57.13/month (unchanged from FIXED+RATE=MC).
+- **Distribution:** same as FIXED+RATE=MC: winter tiered `$0.05537` (≤700 kWh) / `$0.00258` (>700 kWh);
+  non-heating flat `$0.05537`.
+- **Delivery energy** = distribution + riders (Block 2 uses mc-trans riders):
+
+| Season / block        | Delivery ($/kWh) | + supply → supply-JSON ($/kWh) |
+| --------------------- | ---------------- | ------------------------------ |
+| Winter ≤700 (Jan–Mar) | 0.09676          | 0.20866 (+0.1119)              |
+| Winter >700 (Jan–Mar) | 0.00179          | 0.11369 (+0.1119)              |
+| Non-heating (Apr–Jun) | 0.09676          | 0.20866 (+0.1119)              |
+| Non-heating (Jul–Oct) | 0.09676          | 0.19424 (+0.09748)             |
+| Winter ≤700 (Nov–Dec) | 0.09676          | 0.19424 (+0.09748)             |
+| Winter >700 (Nov–Dec) | 0.00179          | 0.09927 (+0.09748)             |
+
+### Per-number provenance (MC-trans variants)
+
+| Component                                | Value         | Source                                                | Derivation                                                           |
+| ---------------------------------------- | ------------- | ----------------------------------------------------- | -------------------------------------------------------------------- |
+| AESC 2024 avoided PTF                    | $69/kW-yr     | `bulk_tx_isone.py` line 52, AESC 2024 study (Synapse) | Direct value, 2024 dollars                                           |
+| CPI 2024 annual avg                      | 313.698167    | FRED CPIAUCSL, `data/fred/cpi/` pipeline              | Annual average of monthly CPIAUCSL for 2024                          |
+| CPI 2026 annual avg                      | 331.279875    | FRED CPIAUCSL, `data/fred/cpi/` pipeline              | Annual average of monthly CPIAUCSL for 2026                          |
+| MC-trans ($/kWh, 2026$)                  | $0.00832/kWh  | derived                                               | $69 × (331.28 / 313.70) / 8760 = $0.00832                            |
+| Block 2 riders_other                     | -$0.00911/kWh | derived                                               | shared_riders.total − shared_riders.transmission = 0.04139 − 0.05050 |
+| Block 2 riders_total (mc-trans)          | -$0.00079/kWh | derived                                               | 0.00832 + (−0.00911) = −0.00079                                      |
+| **RATE=MC TX=MC delivery Block 2**       | **0.04073**   | derived                                               | distribution 0.04152 + riders −0.00079                               |
+| **FIXED+RATE=MC TX=MC delivery Block 2** | **0.00179**   | derived                                               | distribution 0.00258 + riders −0.00079                               |
+
 ## Files
 
 - `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate6.json` (+ `_supply.json`)
 - `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate6_ratemc.json` (+ `_supply.json`)
 - `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate6_fixed_ratemc.json` (+ `_supply.json`)
+- `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate6_ratemc_trans.json` (+ `_supply.json`)
+- `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate6_fixed_ratemc_trans.json` (+ `_supply.json`)
 - `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate1_proposed.json` (+ `_supply.json`)
 - `rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate6_monthly_rates_2025.yaml`
 - `rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate1_proposed_monthly_rates_ry1.yaml`
