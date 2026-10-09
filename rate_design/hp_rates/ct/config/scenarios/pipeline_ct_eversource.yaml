@@ -20,8 +20,9 @@ marginal_costs:
   # dist: OCC-863 Attachment 2 secondary month-hour $/kWh tables expanded onto
   # the 2025 calendar, weekends and federal holidays on the weekend table
   # (dist_mc_method=month_hour, the recipe default). 2025, not 2018, because
-  # CAIRO rotates the AMY2018 loads onto 2025's weekdays. Sums to $21.35/kW-yr
-  # for a flat 1 kW load over 2,039 nonzero hours. See ct_eversource_dist_mc_methodology.md §7.
+  # CAIRO rotates the AMY2018 loads onto 2025's weekdays. Every hour is then
+  # scaled by one factor so the year sums to the $21.22/kW-yr in
+  # ct_marginal_costs_2025.csv. See ct_eversource_dist_mc_methodology.md §7.
   dist_and_sub_tx:
     path: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
     key: month_hour_occ863att2_secondary_holidays_cal2025

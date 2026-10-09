@@ -17,9 +17,10 @@ and the pipeline YAML declares the key it expects
    a Saturday holiday is observed Friday, and a Sunday holiday is observed Monday. The days are
    classified on the 2025 calendar (`--calendar-year`, default `--year`), and 2025 is stamped on
    `timestamp`, the `year` column, and the Hive partition. 2025 rather than the 2018 weather year
-   because CAIRO rotates the AMY2018 loads onto 2025's weekdays (§7.2). Key
-   `month_hour_occ863att2_secondary_holidays_cal2025`. Detail is in §7. This path
-   does not use the annual `$/kW-yr` scalar or a load curve.
+   because CAIRO rotates the AMY2018 loads onto 2025's weekdays (§7.2). Every hour is then
+   multiplied by one factor so the 8760 sums to the MC table's `$/kW-yr` (`$21.22`, the same
+   scalar and dollar-year rule as the PoP paths, §7.4). Key
+   `month_hour_occ863att2_secondary_holidays_cal2025`. Detail is in §7.
 2. **`$21.22/kW-yr` on Eversource's substation load.** The scalar is Table 3's `$20.17/kW-yr`
    times the OCC-863 secondary loss factor (§2.2). Probability-of-peak (§3.1) spreads it over
    the top 100 hours of OCC-863 Attachment 3 page 2, the distribution-substation load
@@ -264,11 +265,11 @@ substation series: OCC-863 says no forecasted hourly system loads are available.
    at `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet`
    for every method, with `manifest.yaml` beside it:
 
-   | `dist_mc_method` | Scalar                       | Allocation load                        | Key                                                |
-   | ---------------- | ---------------------------- | -------------------------------------- | -------------------------------------------------- |
-   | `month_hour`     | none (month-hour `$/kWh`)    | none                                   | `month_hour_occ863att2_secondary_holidays_cal2025` |
-   | `pop_occ863`     | `$21.22`, MCOS 2026$, no CPI | OCC-863 Attachment 3 system load, 2025 | `pop_occ863att3_100h_load2025_2026usd`             |
-   | `pop_isone_zone` | `$21.22`, MCOS 2026$, no CPI | ISO-NE CT zone load, 2025              | `pop_isone_zone_100h_load2025_2026usd`             |
+   | `dist_mc_method` | Scalar                                            | Allocation load                        | Key                                                |
+   | ---------------- | ------------------------------------------------- | -------------------------------------- | -------------------------------------------------- |
+   | `month_hour`     | `$21.22`, uniform scale of the month-hour `$/kWh` | none                                   | `month_hour_occ863att2_secondary_holidays_cal2025` |
+   | `pop_occ863`     | `$21.22`, MCOS 2026$, no CPI                      | OCC-863 Attachment 3 system load, 2025 | `pop_occ863att3_100h_load2025_2026usd`             |
+   | `pop_isone_zone` | `$21.22`, MCOS 2026$, no CPI                      | ISO-NE CT zone load, 2025              | `pop_isone_zone_100h_load2025_2026usd`             |
 
    Uploading one method replaces the file and appends its entry; the earlier entries stay as
    history. The pipeline YAML's `marginal_costs.dist_and_sub_tx.key` picks which method a batch
@@ -394,10 +395,11 @@ use. How to rebuild the parquets:
 ## 7. OCC-863 Attachment 2 month-hour 8760 (current default)
 
 `create-dist-mc-data` defaults to `dist_mc_method=month_hour`, which passes
-`--method month_hour`. It does not
-probability-of-peak allocate the `$21.22/kW-yr` scalar. It looks up each hour of one calendar year in Eversource's
-OCC-863 Attachment 2 secondary month-hour `$/kWh` tables (Docket 26-05-10) and writes an 8760
-in the same schema as the PoP file (`timestamp`, `utility`, `year`, `mc_total_per_kwh`).
+`--method month_hour`. It does not probability-of-peak allocate the `$21.22/kW-yr` scalar. It looks
+up each hour of one calendar year in Eversource's OCC-863 Attachment 2 secondary month-hour
+`$/kWh` tables (Docket 26-05-10), then multiplies every hour by one factor so the 8760 sums to
+that scalar (§7.3), and writes an 8760 in the same schema as the PoP file (`timestamp`,
+`utility`, `year`, `mc_total_per_kwh`).
 
 The tables live at
 `s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet/`:
@@ -448,7 +450,28 @@ weekends. The rotation also moves holidays: the load in the 2025-07-04 slot come
 2018-07-06, so holiday pricing lands on 2025 holidays, not on 2018 holiday loads. Attachment 2's
 weekend-and-holiday day counts also match the 2025 calendar.
 
-### 7.3 Where it is written
+### 7.3 Uniform scale to the annual $/kW-yr
+
+The lookup does not by itself recover the annual scalar. Attachment 2's month-hour `$/kWh`
+values, summed over the 8,760, come out a little above the `$21.22/kW-yr` in
+`ct_marginal_costs_<year>.csv` (Table 3's `$20.17` times the secondary loss factor, §2.2).
+
+After the lookup, every hour — including the zeros — is multiplied by one factor,
+
+$$
+\text{scale} = \frac{\text{MC}_{\text{kW-yr}}}{\sum_h P_h}
+$$
+
+where $P_h$ is the looked-up `$/kWh` and $\text{MC}_{\text{kW-yr}}$ is the utility's
+`sub_tx_and_dist_mc_kw_yr` from that CSV. The ratio between any two hours is unchanged, and a
+zero hour stays zero. The scalar is read by the same code as the PoP paths
+(`resolve_annual_mc`), including the dollar-year rule: `--target-dollar-year 2026` matches the
+CSV's 2026 dollars, so `$21.22` is used as filed with no CPI (§2.3).
+
+The manifest params record `mc_kw_yr_target`, `sum_before_scale`, and `scale_factor`. The scalar
+stays in those params and in the hashed CSV input, the same place PoP records `$21.22`.
+
+### 7.4 Where it is written
 
 Every method writes the standard path, with a `manifest.yaml` entry beside it:
 
@@ -469,5 +492,5 @@ DIST_MC_METHOD=pop_occ863 just s ct create-dist-mc-data 2025 --upload
 ```
 
 Tests for the lookup, the observed-holiday rule, the holiday toggle, leap-year length, the
-calendar-year restamping, and the voltage read from the table names are in
-`tests/test_expand_month_hour_mc.py`.
+calendar-year restamping, the uniform annual scale, and the voltage read from the table names
+are in `tests/test_expand_month_hour_mc.py`.

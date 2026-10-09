@@ -129,8 +129,11 @@ create-bulk-tx-mc-data-all *extra_args:
 #     OCC-863 Attachment 2 secondary month-hour $/kWh tables. Days are
 #     classified on month_hour_calendar_year's calendar (default year_arg):
 #     Saturday and Sunday take the weekend table, and federal holidays do too
-#     unless include_holidays=false. The 8760 is stamped as year_arg by
-#     position, on the timestamps and the Hive partition.
+#     unless include_holidays=false. Every hour is then multiplied by one
+#     factor so the 8760 sums to the $/kW-yr in ct_marginal_costs_<year>.csv
+#     ($21.22 for 2025, the same scalar and dollar-year rule as the PoP
+#     methods). The 8760 is stamped as year_arg by position, on the timestamps
+#     and the Hive partition.
 #
 #   pop_occ863
 #     $21.22/kW-yr (ct_marginal_costs_<year>.csv) allocated over the top
@@ -177,7 +180,9 @@ create-dist-mc-data year_arg *extra_args:
           --include-holidays "{{ include_holidays }}"
           --calendar-year "${calendar_year}"
           --table-source occ863att2
-          --source 'PURA Docket 26-05-10, OCC-863 Attachment 2, secondary month-hour $/kWh (weekday; weekend and holiday)'
+          --mc-table-path "{{ path_config }}/marginal_costs/ct_marginal_costs_{{ year_arg }}.csv"
+          --target-dollar-year 2026
+          --source 'PURA Docket 26-05-10, OCC-863 Attachment 2, secondary month-hour $/kWh (weekday; weekend and holiday), scaled uniformly to the MCOS-2 secondary $/kW-yr'
         )
         ;;
       pop_occ863)

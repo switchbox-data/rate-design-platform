@@ -10,6 +10,7 @@ import pytest
 from utils.data_prep.marginal_costs.generate_utility_tx_dx_mc import (
     _voltage_from_table_paths,
     expand_month_hour_mc_to_8760,
+    scale_8760_to_annual,
 )
 
 
@@ -148,6 +149,29 @@ def test_calendar_year_must_match_leap_status() -> None:
             "ct_eversource",
             calendar_year=2018,
         )
+
+
+def test_uniform_scale_matches_annual_total_and_keeps_shape() -> None:
+    expanded = expand_month_hour_mc_to_8760(
+        _table(0.0, weekend=False),
+        _table(0.0, weekend=True),
+        2025,
+        "ct_eversource",
+    )
+    before = expanded["mc_total_per_kwh"]
+    scaled, factor = scale_8760_to_annual(expanded, 21.22)
+    after = scaled["mc_total_per_kwh"]
+
+    assert factor == pytest.approx(21.22 / float(before.sum()))
+    assert float(after.sum()) == pytest.approx(21.22)
+    assert after.to_list() == pytest.approx((before * factor).to_list())
+    assert (after == 0).sum() == (before == 0).sum()
+
+
+def test_scale_refuses_a_zero_8760() -> None:
+    zeros = pl.DataFrame({"mc_total_per_kwh": [0.0, 0.0]})
+    with pytest.raises(ValueError, match="sums to 0"):
+        scale_8760_to_annual(zeros, 21.22)
 
 
 def test_leap_year_drops_december_31() -> None:

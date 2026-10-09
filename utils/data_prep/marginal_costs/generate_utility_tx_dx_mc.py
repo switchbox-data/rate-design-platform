@@ -8,10 +8,12 @@
   ``--utility-load-s3-base`` (hive utility=X/year=YYYY scan) or
   ``--path-utility-load`` (one parquet with timestamp and load_mw).
 - ``month_hour`` (CT only): look up Eversource's OCC-863 Attachment 2
-  month-hour $/kWh tables onto one calendar year. Uses no $/kW-yr value and no
-  load profile. ``--calendar-year`` (default ``--year``) sets which year's
-  weekdays, weekends, and holidays are used; the 8760 is then stamped as
-  ``--year`` by position.
+  month-hour $/kWh tables onto one calendar year, then multiply every hour by
+  one factor so the 8760 sums to the MC table's $/kW-yr (the same value PoP
+  allocates, with the same dollar-year rule). Uses no load profile.
+  ``--calendar-year`` (default ``--year``) sets which year's weekdays,
+  weekends, and holidays are used; the 8760 is then stamped as ``--year`` by
+  position.
 
 CT Eversource, in order of preference (the ct Justfile's ``dist_mc_method``):
 
@@ -41,6 +43,8 @@ PoP input:
 Month-hour input:
     - Weekday and weekend-and-holiday parquets, each 288 rows of
       month (1-12), hour (0-23), mc_total_per_kwh
+    - The same marginal cost table CSV as PoP. Its $/kW-yr is the annual sum
+      the expanded 8760 is scaled to; the hour-to-hour shape is unchanged.
 
 The optional ``dollar_year`` column in the MC table specifies the dollar year of
 the cost estimate.  When it differs from ``--target-dollar-year`` (default:
@@ -91,6 +95,7 @@ Usage:
 import argparse
 import calendar
 import io
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -441,6 +446,75 @@ def get_marginal_cost_for_utility(mc_df: pl.DataFrame, utility: str) -> float:
     print(f"  Sub-Tx and Distribution: ${mc:.2f}/kW-yr")
 
     return mc
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedAnnualMc:
+    """The $/kW-yr a method should recover, as filed and after any CPI."""
+
+    as_filed: float
+    allocated: float
+    dollar_year: int | None
+    cpi_factor: float
+
+
+def resolve_annual_mc(
+    mc_df: pl.DataFrame,
+    utility: str,
+    target_dollar_year: int,
+    cpi_s3_base: str,
+    storage_options: dict[str, str],
+) -> ResolvedAnnualMc:
+    """Read one utility's $/kW-yr and inflate it when its dollar year differs.
+
+    Shared by PoP allocation and the month-hour scale, so both recover the
+    same annual total from the same CSV.
+    """
+    as_filed = get_marginal_cost_for_utility(mc_df, utility)
+    allocated = as_filed
+    dollar_year: int | None = None
+    cpi_factor = 1.0
+
+    if "dollar_year" in mc_df.columns:
+        dollar_year_val = mc_df.filter(pl.col("utility") == utility)["dollar_year"][0]
+        if dollar_year_val is not None:
+            dollar_year = int(dollar_year_val)
+            if dollar_year != target_dollar_year:
+                cpi_factor = load_cpi_inflation_factor(
+                    cpi_s3_base, dollar_year, target_dollar_year, storage_options
+                )
+                allocated = as_filed * cpi_factor
+                print(f"  Inflated MC: ${as_filed:.2f} → ${allocated:.2f}/kW-yr")
+            else:
+                print(
+                    f"\n  MC already in {target_dollar_year} dollars — no inflation applied"
+                )
+        else:
+            print("\n  dollar_year is null in MC table — no inflation applied")
+    else:
+        print("\n  No dollar_year column in MC table — using raw value (no inflation)")
+
+    return ResolvedAnnualMc(as_filed, allocated, dollar_year, cpi_factor)
+
+
+def scale_8760_to_annual(
+    df: pl.DataFrame, target_kw_yr: float, *, value_col: str = "mc_total_per_kwh"
+) -> tuple[pl.DataFrame, float]:
+    """Multiply every hour by one factor so ``value_col`` sums to ``target_kw_yr``.
+
+    Zero hours stay zero, and the ratio between any two hours is unchanged.
+    Returns the scaled frame and the factor (1.0 when the column already sums
+    to the target, including a column of zeros scaled to zero).
+    """
+    total = float(df[value_col].sum())
+    if total == 0.0:
+        if target_kw_yr != 0.0:
+            raise ValueError(
+                f"cannot scale {value_col} to ${target_kw_yr}/kW-yr: the 8760 sums to 0"
+            )
+        return df, 1.0
+    factor = target_kw_yr / total
+    return df.with_columns((pl.col(value_col) * factor).alias(value_col)), factor
 
 
 def load_cpi_inflation_factor(
@@ -849,7 +923,8 @@ def main():
         help=(
             "pop: allocate the MC table's $/kW-yr over the top --n-hours of a "
             "load profile. month_hour (CT only): look up OCC-863 Attachment 2 "
-            "month-hour $/kWh tables onto --year. Default: pop."
+            "month-hour $/kWh tables onto --year, then scale the 8760 so it "
+            "sums to the MC table's $/kW-yr. Default: pop."
         ),
     )
     parser.add_argument(
@@ -886,7 +961,7 @@ def main():
         "--mc-table-path",
         type=str,
         default=None,
-        help="Path to marginal cost table CSV (local or s3://). Required for pop.",
+        help="Path to marginal cost table CSV (local or s3://). Required for pop and month_hour.",
     )
     pop.add_argument(
         "--utility-load-s3-base",
@@ -1080,33 +1155,14 @@ def _run_pop_allocation(
         load_df = remap_year_if_needed(load_df, "timestamp", load_year, output_year)
 
     mc_df = load_marginal_cost_table(args.mc_table_path)
-    mc_sub_tx_and_dist = get_marginal_cost_for_utility(mc_df, args.utility)
-    mc_as_filed = mc_sub_tx_and_dist
-    dollar_year: int | None = None
-    cpi_factor = 1.0
-
-    if "dollar_year" in mc_df.columns:
-        utility_row = mc_df.filter(pl.col("utility") == args.utility)
-        dollar_year_val = utility_row["dollar_year"][0]
-        if dollar_year_val is not None:
-            dollar_year = int(dollar_year_val)
-            if dollar_year != target_dollar_year:
-                cpi_factor = load_cpi_inflation_factor(
-                    args.cpi_s3_base, dollar_year, target_dollar_year, storage_options
-                )
-                mc_inflated = mc_sub_tx_and_dist * cpi_factor
-                print(
-                    f"  Inflated MC: ${mc_sub_tx_and_dist:.2f} → ${mc_inflated:.2f}/kW-yr"
-                )
-                mc_sub_tx_and_dist = mc_inflated
-            else:
-                print(
-                    f"\n  MC already in {target_dollar_year} dollars — no inflation applied"
-                )
-        else:
-            print("\n  dollar_year is null in MC table — no inflation applied")
-    else:
-        print("\n  No dollar_year column in MC table — using raw value (no inflation)")
+    resolved = resolve_annual_mc(
+        mc_df,
+        args.utility,
+        target_dollar_year,
+        args.cpi_s3_base,
+        storage_options,
+    )
+    mc_sub_tx_and_dist = resolved.allocated
 
     load_df = calculate_pop_weights(load_df, args.n_hours)
     load_df = allocate_costs_to_hours(load_df, mc_sub_tx_and_dist)
@@ -1140,7 +1196,7 @@ def _run_pop_allocation(
                 ),
             )
         inputs = [load_input, input_file("mc_table", args.mc_table_path)]
-        if cpi_factor != 1.0:
+        if resolved.cpi_factor != 1.0:
             inputs.append(input_partition("cpi", args.cpi_s3_base))
         spec = McSpec(
             mc_type="dist_and_sub_tx",
@@ -1152,11 +1208,11 @@ def _run_pop_allocation(
                 "load_year": load_year,
                 "n_hours": args.n_hours,
                 "weighting": "load_weighted_top_n",
-                "mc_kw_yr_as_filed": mc_as_filed,
-                "mc_dollar_year": dollar_year,
+                "mc_kw_yr_as_filed": resolved.as_filed,
+                "mc_dollar_year": resolved.dollar_year,
                 "target_dollar_year": target_dollar_year,
-                "cpi_factor": cpi_factor,
-                "mc_kw_yr_allocated": mc_sub_tx_and_dist,
+                "cpi_factor": resolved.cpi_factor,
+                "mc_kw_yr_allocated": resolved.allocated,
             },
             source=_source_or_warn(args),
             inputs=inputs,
@@ -1189,6 +1245,9 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
         raise ValueError(
             "--method month_hour needs --path-weekday-mc and --path-weekend-mc"
         )
+    if not args.mc_table_path:
+        raise ValueError("--method month_hour needs --mc-table-path")
+    validate_mc_table_path(args.mc_table_path)
     year = args.year
     calendar_year = args.calendar_year or year
     output_s3_base = args.output_s3_base
@@ -1207,6 +1266,7 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
     print(f"Voltage: {voltage}")
     print(f"Weekday table: {args.path_weekday_mc}")
     print(f"Weekend-and-holiday table: {args.path_weekend_mc}")
+    print(f"Annual total from: {args.mc_table_path}")
     print(f"Output S3 base: {output_s3_base}")
     if path_local_base:
         print(f"Local output base: {path_local_base}")
@@ -1225,10 +1285,23 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
     )
 
     annual = float(expanded["mc_total_per_kwh"].sum())
+    target_dollar_year = args.target_dollar_year if args.target_dollar_year else year
+    resolved = resolve_annual_mc(
+        load_marginal_cost_table(args.mc_table_path),
+        args.utility,
+        target_dollar_year,
+        args.cpi_s3_base,
+        storage_options,
+    )
+    expanded, scale = scale_8760_to_annual(expanded, resolved.allocated)
+    scaled_annual = float(expanded["mc_total_per_kwh"].sum())
     nonzero = expanded.filter(pl.col("mc_total_per_kwh") > 0).height
     print(f"\n  Rows: {expanded.height:,}")
     print(f"  Hours with nonzero MC: {nonzero:,}")
-    print(f"  Sum over 8760 (flat 1 kW, $/kW-yr): ${annual:.4f}")
+    print(f"  Sum before scale (flat 1 kW, $/kW-yr): ${annual:.4f}")
+    print(f"  Target from MC table ($/kW-yr): ${resolved.allocated:.4f}")
+    print(f"  Uniform scale: {scale:.6f}")
+    print(f"  Sum after scale (flat 1 kW, $/kW-yr): ${scaled_annual:.4f}")
     print("\nTop 10 hours by marginal cost:")
     print(expanded.sort("mc_total_per_kwh", descending=True).head(10))
 
@@ -1250,11 +1323,24 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
                     if calendar_year == year
                     else f"by position: hour i of {calendar_year} -> hour i of {year}"
                 ),
+                "mc_kw_yr_as_filed": resolved.as_filed,
+                "mc_dollar_year": resolved.dollar_year,
+                "target_dollar_year": target_dollar_year,
+                "cpi_factor": resolved.cpi_factor,
+                "mc_kw_yr_target": resolved.allocated,
+                "sum_before_scale": annual,
+                "scale_factor": scale,
             },
             source=_source_or_warn(args),
             inputs=[
                 input_file("weekday_table", args.path_weekday_mc),
                 input_file("weekend_holiday_table", args.path_weekend_mc),
+                input_file("mc_table", args.mc_table_path),
+                *(
+                    [input_partition("cpi", args.cpi_s3_base)]
+                    if resolved.cpi_factor != 1.0
+                    else []
+                ),
             ],
         )
         save_allocated_costs(
