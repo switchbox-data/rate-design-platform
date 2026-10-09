@@ -15,8 +15,8 @@ state := env_var_or_default('STATE', 'ct')
 
 path_s3_utility_loads := "s3://data.sb/isone/hourly_demand/utilities/"
 path_s3_occ863_parquet := "s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet"
-path_s3_dist_mc_root := "s3://data.sb/switchbox/marginal_costs/ct/"
-path_local_dist_mc_root := "/ebs/data/switchbox/marginal_costs/ct/"
+path_s3_mc_root := "s3://data.sb/switchbox/marginal_costs/ct/"
+path_local_mc_root := "/ebs/data/switchbox/marginal_costs/ct/"
 # month_hour (default), pop_occ863, or pop_isone_zone. See create-dist-mc-data.
 dist_mc_method := env_var_or_default('DIST_MC_METHOD', 'month_hour')
 include_holidays := env_var_or_default('INCLUDE_HOLIDAYS', 'true')
@@ -127,20 +127,23 @@ create-bulk-tx-mc-data-all *extra_args:
 #     year_arg's calendar. Saturday and Sunday take the weekend table, and
 #     federal holidays do too unless include_holidays=false. year_arg is
 #     stamped on the timestamps and the Hive partition.
-#     -> dist_and_sub_tx_eversource_derived/
 #
 #   pop_occ863
 #     $21.22/kW-yr (ct_marginal_costs_<year>.csv) allocated over the top
 #     upstream_hours of Eversource's OCC-863 Attachment 3 substation load.
-#     -> dist_and_sub_tx_occ863/
 #
 #   pop_isone_zone (oldest, not preferred)
 #     The same $21.22/kW-yr over the top hours of ISO-NE CT zone load.
-#     -> dist_and_sub_tx/ (also holds the older CPI-deflated $20.17 parquet
-#        at year=2025; uploading 2025 replaces it)
 #
-# Both PoP methods pass --target-dollar-year 2026: the analysis is rate year 1,
-# in the filing's 2026 dollars, so $21.22 is allocated with no CPI adjustment.
+# All three write dist_and_sub_tx/utility=ct_eversource/year=<year_arg>/
+# data.parquet and append an entry to manifest.yaml beside it; the latest
+# entry's key says which method the current file came from. The pipeline
+# YAML's marginal_costs.dist_and_sub_tx.key must match it. Keys are listed in
+# context/code/marginal_costs/mc_provenance_manifest.md.
+#
+# Both PoP methods pass --target-dollar-year 2026, the MCOS study's own dollar
+# year, so $21.22 is allocated as filed with no CPI adjustment. 2026 is not rate
+# year 1 (Jul 2027 - Jun 2028); keeping the filed value is a modeling choice.
 # See context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md.
 #
 # CL&P's MCOS-2 covers ct_eversource only; ct_ui has no MCOS-derived value yet
@@ -158,23 +161,33 @@ create-bulk-tx-mc-data-all *extra_args:
 create-dist-mc-data year_arg *extra_args:
     #!/usr/bin/env bash
     set -euo pipefail
+    pop_scalar_source='PURA Docket 26-05-10, MCOS-2 Table 3 secondary ($20.17/kW-yr, 2026$) x OCC-863 Attachment 2 secondary loss factor = $21.22/kW-yr'
     case "{{ dist_mc_method }}" in
       month_hour)
-        dataset=dist_and_sub_tx_eversource_derived
         method_args=(
           --method month_hour
           --path-weekday-mc "{{ path_s3_occ863_parquet }}/month_hour_marginal_costs_weekday_secondary.parquet"
           --path-weekend-mc "{{ path_s3_occ863_parquet }}/month_hour_marginal_costs_weekend_holidays_secondary.parquet"
           --include-holidays "{{ include_holidays }}"
+          --table-source occ863att2
+          --source 'PURA Docket 26-05-10, OCC-863 Attachment 2, secondary month-hour $/kWh (weekday; weekend and holiday)'
         )
         ;;
       pop_occ863)
-        dataset=dist_and_sub_tx_occ863
-        method_args=(--method pop --path-utility-load "{{ path_s3_occ863_parquet }}/system_load.parquet")
+        method_args=(
+          --method pop
+          --path-utility-load "{{ path_s3_occ863_parquet }}/system_load.parquet"
+          --load-source occ863att3
+          --source "${pop_scalar_source}; load: OCC-863 Attachment 3 page 2 distribution-substation load"
+        )
         ;;
       pop_isone_zone)
-        dataset=dist_and_sub_tx
-        method_args=(--method pop --utility-load-s3-base "{{ path_s3_utility_loads }}")
+        method_args=(
+          --method pop
+          --utility-load-s3-base "{{ path_s3_utility_loads }}"
+          --load-source isone_zone
+          --source "${pop_scalar_source}; load: ISO-NE CT zone hourly demand"
+        )
         ;;
       *)
         echo "dist_mc_method must be month_hour, pop_occ863, or pop_isone_zone (got '{{ dist_mc_method }}')" >&2
@@ -189,15 +202,32 @@ create-dist-mc-data year_arg *extra_args:
         --n-hours "{{ upstream_hours }}"
       )
     fi
-    echo ">> CT dist MC: method={{ dist_mc_method }} year={{ year_arg }} -> ${dataset}/" >&2
+    echo ">> CT dist MC: method={{ dist_mc_method }} year={{ year_arg }} -> dist_and_sub_tx/" >&2
     cd {{ path_repo }}
     uv run python utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py \
       --state CT \
       --utility ct_eversource \
       --year {{ year_arg }} \
-      --output-s3-base "{{ path_s3_dist_mc_root }}${dataset}/" \
-      --path-local-output-base "{{ path_local_dist_mc_root }}${dataset}/" \
+      --output-s3-base "{{ path_s3_mc_root }}dist_and_sub_tx/" \
+      --path-local-output-base "{{ path_local_mc_root }}dist_and_sub_tx/" \
       "${method_args[@]}" \
+      {{ extra_args }}
+
+# =============================================================================
+# CT-only: zero-filled supply energy and capacity 8760s (zero.parquet)
+#
+# CT has no real supply MC yet, so delivery and supply runs both read these
+# placeholders. Each write appends a key: zero entry to the partition's
+# manifest.yaml.
+#
+#   just -f ct/Justfile create-zero-supply-mc-data ct_eversource 2025 --upload
+# =============================================================================
+
+create-zero-supply-mc-data utility_arg year_arg *extra_args:
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_zero_supply_mc.py \
+      --utility {{ utility_arg }} \
+      --year {{ year_arg }} \
+      --output-s3-base "{{ path_s3_mc_root }}supply/" \
       {{ extra_args }}
 
 # =============================================================================

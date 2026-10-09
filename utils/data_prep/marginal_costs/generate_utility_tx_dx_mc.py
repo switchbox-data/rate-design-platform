@@ -14,16 +14,19 @@
 CT Eversource, in order of preference (the ct Justfile's ``dist_mc_method``):
 
 1. ``month_hour``: OCC-863 Attachment 2 secondary tables, weekday vs.
-   weekend-and-holiday. Written to ``dist_and_sub_tx_eversource_derived/``.
+   weekend-and-holiday.
 2. ``pop`` on ``--path-utility-load`` = OCC-863 Attachment 3 system load: the
-   $21.22/kW-yr secondary value on Eversource's own substation peaks. Written to
-   ``dist_and_sub_tx_occ863/``.
+   $21.22/kW-yr secondary value on Eversource's own substation peaks.
 3. ``pop`` on ``--utility-load-s3-base`` = ISO-NE CT zone load: the same
-   $21.22/kW-yr on zone peaks. The oldest approach. Written to
-   ``dist_and_sub_tx/``.
+   $21.22/kW-yr on zone peaks. The oldest approach.
 
-Both CT PoP paths pass ``--target-dollar-year 2026``: the analysis is rate year
-1, already in the filing's 2026 dollars, so no CPI adjustment applies.
+All three write the same ``dist_and_sub_tx/`` path. Each upload appends an
+entry to the partition's ``manifest.yaml`` (``mc_manifest.py``) whose key says
+which method the current ``data.parquet`` came from.
+
+Both CT PoP paths pass ``--target-dollar-year 2026``, the MCOS study's own dollar
+year, so the filed value is allocated with no CPI adjustment. 2026 is not rate
+year 1 (July 2027 - June 2028).
 
 PoP input:
     - Utility hourly load profile, either ISO-native hive layout
@@ -47,11 +50,9 @@ Output partitions written as:
     - NY default base: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/
     - RI default base: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
     - MD default base: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/
-    - CT month_hour: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/
+    - CT default base (all methods): s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/
       The partition year is --year, the same calendar stamped on the timestamps.
-    - CT pop on OCC-863 system load: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/
-    - CT pop on ISO-NE CT zone load: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/
-    - Default partition: utility=X/year=YYYY/data.parquet
+    - Default partition: utility=X/year=YYYY/data.parquet, plus manifest.yaml
     - Alternate-load-year base: <default_base_without_slash>_loadYYYY/
       Example: dist_and_sub_tx_load2018/utility=X/year=2025/data.parquet
 
@@ -92,6 +93,13 @@ import polars as pl
 from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
+from utils.data_prep.marginal_costs.mc_manifest import (
+    McSpec,
+    input_file,
+    input_partition,
+    partition_file_path,
+    record_mc_write,
+)
 from utils.data_prep.marginal_costs.supply_utils import (
     build_cairo_8760_timestamps,
     output_base_for_load_year,
@@ -347,23 +355,40 @@ def load_marginal_cost_table(mc_table_path: str) -> pl.DataFrame:
     return df
 
 
-def eversource_derived_output_base(base: str) -> str:
-    """Point a dist-and-sub-tx output root at the Eversource-derived dataset.
+def _default_load_source(args: argparse.Namespace) -> str:
+    """Key label for the PoP load when --load-source is not passed.
 
-    ``.../dist_and_sub_tx/`` becomes ``.../dist_and_sub_tx_eversource_derived/``.
-    A base that already names that dataset is returned unchanged.
+    A single file is labeled by its stem; a hive base by its ISO directory,
+    e.g. ``s3://data.sb/nyiso/hourly_demand/utilities/`` -> ``nyiso_utility``.
     """
-    trimmed = base.rstrip("/")
-    parent, leaf = trimmed.rsplit("/", 1)
-    if leaf == "dist_and_sub_tx_eversource_derived":
-        return f"{trimmed}/"
-    if leaf != "dist_and_sub_tx":
+    if args.path_utility_load:
+        return Path(args.path_utility_load).stem
+    iso = args.utility_load_s3_base.removeprefix("s3://").split("/")[1]
+    return f"{iso}_utility"
+
+
+def _voltage_from_table_paths(path_weekday: str, path_weekend: str) -> str:
+    """``secondary`` or ``primary``, read from both month-hour table names."""
+    found = {
+        voltage
+        for voltage in ("secondary", "primary")
+        for path in (path_weekday, path_weekend)
+        if Path(path).stem.endswith(f"_{voltage}")
+    }
+    if len(found) != 1:
         raise ValueError(
-            "--method month_hour writes under "
-            "dist_and_sub_tx_eversource_derived/, so the output base must end "
-            f"in dist_and_sub_tx/ (got {base!r})"
+            "Cannot tell the voltage from the month-hour table names "
+            f"({path_weekday}, {path_weekend}); pass --voltage."
         )
-    return f"{parent}/dist_and_sub_tx_eversource_derived/"
+    return found.pop()
+
+
+def _source_or_warn(args: argparse.Namespace) -> str | None:
+    if not args.source:
+        print(
+            "⚠️  No --source citation passed; the manifest entry records source: null."
+        )
+    return args.source
 
 
 def _parse_bool(value: str) -> bool:
@@ -709,11 +734,14 @@ def save_allocated_costs(
     validation_results: dict,
     storage_options: dict[str, str],
     path_local_base: str | None = None,
+    *,
+    spec: McSpec,
 ):
     """Save allocated marginal costs to S3 with Hive-style partitioning.
 
     Output structure:
         utility=X/year=YYYY/data.parquet
+        utility=X/year=YYYY/manifest.yaml (one entry appended per write)
 
     Args:
         df: DataFrame with allocated costs
@@ -727,6 +755,7 @@ def save_allocated_costs(
         storage_options: Polars S3 storage options with AWS bucket region
         path_local_base: Optional local mirror of ``s3_base``; the same
             ``utility=X/year=YYYY/data.parquet`` is written there too.
+        spec: Method, params, source, and inputs recorded in each manifest.
     """
     output_df = df.select(
         [
@@ -767,6 +796,7 @@ def save_allocated_costs(
     )
 
     print(f"\n✓ Saved allocated costs to {output_path}")
+    record_mc_write(output_path, spec, output_df, "mc_total_per_kwh")
     if path_local_base:
         path_local = (
             Path(path_local_base)
@@ -777,6 +807,7 @@ def save_allocated_costs(
         path_local.parent.mkdir(parents=True, exist_ok=True)
         output_df.write_parquet(path_local)
         print(f"✓ Saved local copy to {path_local}")
+        record_mc_write(str(path_local), spec, output_df, "mc_total_per_kwh")
     print(f"  Rows: {len(output_df):,}")
     print(f"  Columns: {', '.join(output_df.columns)}")
 
@@ -864,6 +895,16 @@ def main():
         help="Base S3 path for output (e.g., s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/)",
     )
     pop.add_argument(
+        "--load-source",
+        type=str,
+        default=None,
+        help=(
+            "Short label for the load in the manifest key (e.g. occ863att3, "
+            "isone_zone). Default: the load file's stem, or <iso>_utility for "
+            "a hive base."
+        ),
+    )
+    pop.add_argument(
         "--n-hours",
         type=int,
         choices=range(8761),
@@ -915,6 +956,27 @@ def main():
             "true: federal holidays take the weekend-and-holiday table. "
             "false: only Saturday and Sunday do; a weekday holiday stays on "
             "the weekday table."
+        ),
+    )
+    month_hour.add_argument(
+        "--table-source",
+        type=str,
+        default="occ863att2",
+        help="Short label for the month-hour tables in the manifest key.",
+    )
+    month_hour.add_argument(
+        "--voltage",
+        choices=["secondary", "primary"],
+        default=None,
+        help="Voltage of the month-hour tables. Default: read from their file names.",
+    )
+    parser.add_argument(
+        "--source",
+        type=str,
+        default=None,
+        help=(
+            "Citation recorded in the manifest, e.g. 'PURA Docket 26-05-10, "
+            "MCOS-2 Table 3, secondary'."
         ),
     )
     parser.add_argument(
@@ -986,6 +1048,9 @@ def _run_pop_allocation(
 
     mc_df = load_marginal_cost_table(args.mc_table_path)
     mc_sub_tx_and_dist = get_marginal_cost_for_utility(mc_df, args.utility)
+    mc_as_filed = mc_sub_tx_and_dist
+    dollar_year: int | None = None
+    cpi_factor = 1.0
 
     if "dollar_year" in mc_df.columns:
         utility_row = mc_df.filter(pl.col("utility") == args.utility)
@@ -1032,6 +1097,37 @@ def _run_pop_allocation(
     )
 
     if args.upload:
+        if args.path_utility_load:
+            load_input = input_file("load", args.path_utility_load)
+        else:
+            load_input = input_partition(
+                "load",
+                partition_file_path(
+                    args.utility_load_s3_base, args.utility, load_year, ""
+                ),
+            )
+        inputs = [load_input, input_file("mc_table", args.mc_table_path)]
+        if cpi_factor != 1.0:
+            inputs.append(input_partition("cpi", args.cpi_s3_base))
+        spec = McSpec(
+            mc_type="dist_and_sub_tx",
+            method="pop",
+            utility=args.utility,
+            year=output_year,
+            params={
+                "load_source": args.load_source or _default_load_source(args),
+                "load_year": load_year,
+                "n_hours": args.n_hours,
+                "weighting": "load_weighted_top_n",
+                "mc_kw_yr_as_filed": mc_as_filed,
+                "mc_dollar_year": dollar_year,
+                "target_dollar_year": target_dollar_year,
+                "cpi_factor": cpi_factor,
+                "mc_kw_yr_allocated": mc_sub_tx_and_dist,
+            },
+            source=_source_or_warn(args),
+            inputs=inputs,
+        )
         save_allocated_costs(
             load_df,
             args.utility,
@@ -1040,6 +1136,7 @@ def _run_pop_allocation(
             validation_results,
             storage_options,
             path_local_base=args.path_local_output_base,
+            spec=spec,
         )
         print("\n" + "=" * 60)
         print("✓ Marginal cost allocation completed and uploaded")
@@ -1060,11 +1157,10 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
             "--method month_hour needs --path-weekday-mc and --path-weekend-mc"
         )
     year = args.year
-    output_s3_base = eversource_derived_output_base(args.output_s3_base)
-    path_local_base = (
-        eversource_derived_output_base(args.path_local_output_base)
-        if args.path_local_output_base
-        else None
+    output_s3_base = args.output_s3_base
+    path_local_base = args.path_local_output_base
+    voltage = args.voltage or _voltage_from_table_paths(
+        args.path_weekday_mc, args.path_weekend_mc
     )
 
     print("=" * 60)
@@ -1073,6 +1169,7 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
     print(f"Utility: {args.utility}")
     print(f"Year (calendar, timestamps, and partition): {year}")
     print(f"Include federal holidays: {args.include_holidays}")
+    print(f"Voltage: {voltage}")
     print(f"Weekday table: {args.path_weekday_mc}")
     print(f"Weekend-and-holiday table: {args.path_weekend_mc}")
     print(f"Output S3 base: {output_s3_base}")
@@ -1100,6 +1197,23 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
     print(expanded.sort("mc_total_per_kwh", descending=True).head(10))
 
     if args.upload:
+        spec = McSpec(
+            mc_type="dist_and_sub_tx",
+            method="month_hour",
+            utility=args.utility,
+            year=year,
+            params={
+                "table_source": args.table_source,
+                "voltage": voltage,
+                "include_holidays": args.include_holidays,
+                "holiday_rule": "5 USC 6103, Sat->Fri, Sun->Mon",
+            },
+            source=_source_or_warn(args),
+            inputs=[
+                input_file("weekday_table", args.path_weekday_mc),
+                input_file("weekend_holiday_table", args.path_weekend_mc),
+            ],
+        )
         save_allocated_costs(
             expanded,
             args.utility,
@@ -1108,6 +1222,7 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
             {},
             storage_options,
             path_local_base=path_local_base,
+            spec=spec,
         )
         print("\n✓ Eversource month-hour 8760 completed and uploaded")
     else:

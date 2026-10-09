@@ -8,31 +8,24 @@ import polars as pl
 import pytest
 
 from utils.data_prep.marginal_costs.generate_utility_tx_dx_mc import (
-    eversource_derived_output_base,
+    _voltage_from_table_paths,
     expand_month_hour_mc_to_8760,
 )
 
 
-def test_eversource_derived_output_base() -> None:
+def test_voltage_is_read_from_table_names() -> None:
+    base = "s3://bucket/occ-863/parquet/month_hour_marginal_costs"
     assert (
-        eversource_derived_output_base(
-            "s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/"
+        _voltage_from_table_paths(
+            f"{base}_weekday_secondary.parquet",
+            f"{base}_weekend_holidays_secondary.parquet",
         )
-        == "s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/"
+        == "secondary"
     )
-    assert (
-        eversource_derived_output_base(
-            "/ebs/data/switchbox/marginal_costs/ct/dist_and_sub_tx"
-        )
-        == "/ebs/data/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/"
-    )
-    already = (
-        "s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/"
-    )
-    assert eversource_derived_output_base(already) == already
-    with pytest.raises(ValueError, match="dist_and_sub_tx/"):
-        eversource_derived_output_base(
-            "s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/"
+    with pytest.raises(ValueError, match="--voltage"):
+        _voltage_from_table_paths(
+            f"{base}_weekday_secondary.parquet",
+            f"{base}_weekend_holidays_primary.parquet",
         )
 
 

@@ -15,16 +15,26 @@ resstock:
   upgrade_precalc: "00"
   upgrade_calibrated: "02"
 marginal_costs:
-  # OCC-863 run: $21.22/kW-yr (secondary, rate year 1, no CPI) allocated on
-  # Eversource's system load. dist_and_sub_tx/ (no suffix) is the earlier
-  # ISO-NE zone-load 8760. See ct_eversource_dist_mc_methodology.md §3.4.
-  dist_and_sub_tx: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
-  bulk_tx: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
+  # Each key must match the latest entry in the manifest.yaml beside the file;
+  # preflight stops on a mismatch. Keys: context/code/marginal_costs/mc_provenance_manifest.md.
+  # dist: $21.22/kW-yr (secondary, MCOS 2026$, no CPI) PoP-allocated on the top
+  # 100 hours of Eversource's OCC-863 system load (dist_mc_method=pop_occ863).
+  # See ct_eversource_dist_mc_methodology.md §3.4.
+  dist_and_sub_tx:
+    path: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    key: pop_occ863att3_100h_load2025_2026usd
+  bulk_tx:
+    path: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
+    key: aesc_ptf69_ne_system_100h_load2025
   # No supply MC 8760s exist for CT (no ISO-NE LMP/FCM pipeline wired up yet);
   # point directly at zero.parquet so both delivery and supply runs get zero supply MCs.
-  supply_energy: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
-  supply_capacity: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
-  # supply_ancillary omitted
+  supply_energy:
+    path: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
+    key: zero
+  supply_capacity:
+    path: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
+    key: zero
+    # supply_ancillary omitted
 revenue_requirement:
   single_rate: rev_requirement/ct_eversource_rate_case_test_year.yaml
   single_rate_calibrated: rev_requirement/ct_eversource_large_number_rate_case_test_year.yaml

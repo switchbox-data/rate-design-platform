@@ -98,13 +98,13 @@ in the identical `sub_tx_and_dist_mc_kw_yr` slot. RI and MD CPI-inflate from the
 CT's default 8760 does not use this scalar. It is the OCC-863 Attachment 2 month-hour
 expansion ([ct_eversource_dist_mc_methodology.md](ct_eversource_dist_mc_methodology.md) §7).
 The `$21.22/kW-yr` figure is the allocator's input only when
-`dist_mc_method` is `pop_occ863` or `pop_isone_zone`. That path does not CPI-adjust: the analysis is rate
-year 1, in the filing's 2026 dollars, so `--target-dollar-year 2026` matches the CSV and
-`$21.22` is allocated as filed. Spread over the top 100 hours of OCC-863 substation load,
-it is written to `dist_and_sub_tx_occ863/`. The same flag with ISO-NE CT zone load writes
-`dist_and_sub_tx/`. The parquet already stored there is older: it allocated Table 3's
-`$20.17` after CPI deflation to the 2025 load year (about `$19.65`), and a fresh zone-load
-run would not reproduce it.
+`dist_mc_method` is `pop_occ863` or `pop_isone_zone`. That path does not CPI-adjust:
+`--target-dollar-year 2026` matches the MCOS study's own 2026 dollar year in the CSV, so
+`$21.22` is allocated as filed. 2026 is neither the 2025 test year nor rate year 1 (July 2027 –
+June 2028); keeping the filed value is a modeling choice. Both methods, and the month-hour
+default, write the same `dist_and_sub_tx/` path, and its `manifest.yaml` key records which one
+produced the current file. An older zone-load parquet allocated Table 3's `$20.17` after CPI
+deflation to the 2025 load year (about `$19.65`); a fresh zone-load run would not reproduce it.
 
 ---
 

@@ -4,7 +4,11 @@
 marginal cost, listed in order of preference. `create-dist-mc-data` builds any of them; its
 `dist_mc_method` variable picks `month_hour` (the default), `pop_occ863`, or `pop_isone_zone`.
 Each method passes the matching `--method` (`month_hour` or `pop`) and load source to
-`generate_utility_tx_dx_mc.py` and writes its own dataset.
+`generate_utility_tx_dx_mc.py`. All three write the same standard path,
+`dist_and_sub_tx/utility=ct_eversource/year=<year>/data.parquet`, and append an entry to the
+`manifest.yaml` beside it; the latest entry's key says which method the current file came from,
+and the pipeline YAML declares the key it expects
+([mc_provenance_manifest.md](../../code/marginal_costs/mc_provenance_manifest.md)).
 
 1. **Month-hour expansion (default).** Eversource's OCC-863 Attachment 2 secondary month-hour
    `$/kWh` tables are looked up onto one calendar year. Saturday and Sunday take the
@@ -12,22 +16,26 @@ Each method passes the matching `--method` (`month_hour` or `pop`) and load sour
    eleven federal holidays in 5 U.S.C. § 6103 when `include_holidays` is true (the default):
    a Saturday holiday is observed Friday, and a Sunday holiday is observed Monday. `--year` is
    that calendar, and the same year is stamped on `timestamp`, the `year` column, and the Hive
-   partition. Written to `dist_and_sub_tx_eversource_derived/`. Detail is in §7. This path
+   partition. Key `month_hour_occ863att2_secondary_holidays`. Detail is in §7. This path
    does not use the annual `$/kW-yr` scalar or a load curve.
 2. **`$21.22/kW-yr` on Eversource's substation load.** The scalar is Table 3's `$20.17/kW-yr`
    times the OCC-863 secondary loss factor (§2.2). Probability-of-peak (§3.1) spreads it over
    the top 100 hours of OCC-863 Attachment 3 page 2, the distribution-substation load
-   (`system_load.parquet`). It is written to `dist_and_sub_tx_occ863/`. There is no CPI
-   adjustment: the CT analysis is rate year 1, in the filing's own 2026 dollars, not the test
-   year, so `--target-dollar-year 2026` matches the CSV and the allocator keeps `$21.22`
-   (§2.3). `dist_mc_method=pop_occ863` (§3.4).
-3. **ISO-NE Connecticut zone load (oldest, not preferred).** The file that exists at
-   `dist_and_sub_tx/utility=ct_eversource/year=2025/` allocated Table 3's `$20.17/kW-yr` after
-   CPI deflation onto the 2025 load year (about `$19.65`), ranked on ISO-NE CT zone aggregate
-   load. That was the best allocation before the OCC-863 substation load and the loss-adjusted
-   scalar were in hand. It is not the same file as a fresh zone-load run: the CSV is now
-   `$21.22` with no CPI, so `dist_mc_method=pop_isone_zone` allocates `$21.22` on that zone
-   load into `dist_and_sub_tx/`, and uploading year 2025 replaces the stored parquet.
+   (`system_load.parquet`). Key `pop_occ863att3_100h_load2025_2026usd`. There is no CPI
+   adjustment: `--target-dollar-year 2026` matches the MCOS study's own 2026 dollar year, so the
+   allocator keeps `$21.22` as filed (§2.3). That dollar year is neither the test year (calendar
+   2025) nor rate year 1 (July 1, 2027 – June 30, 2028); keeping the filed value is a modeling
+   choice. `dist_mc_method=pop_occ863` (§3.4).
+3. **ISO-NE Connecticut zone load (oldest, not preferred).** The same `$21.22` on ISO-NE CT
+   zone aggregate load, key `pop_isone_zone_100h_load2025_2026usd`. An earlier version of this
+   run allocated Table 3's `$20.17/kW-yr` after CPI deflation onto the 2025 load year (about
+   `$19.65`); that was the best allocation before the OCC-863 substation load and the
+   loss-adjusted scalar were in hand.
+
+Before the manifest system, each method wrote its own dataset (`dist_and_sub_tx_eversource_derived/`,
+`dist_and_sub_tx_occ863/`, and `dist_and_sub_tx/`, which still holds the deflated `$20.17`
+zone-load file with no manifest). Those are superseded by the standard path once the chosen
+method is re-uploaded.
 
 Only CT **bulk transmission** MC was implemented before this
 ([ct_bulk_transmission_marginal_cost.md](ct_bulk_transmission_marginal_cost.md)).
@@ -138,7 +146,8 @@ ct_eversource,21.22,2026
 
 `ct_ui` (United Illuminating) is **not** covered by this MCOS — it needs its own source (see
 [Open questions](#4-open-questions--decisions-needed) below). `dollar_year=2026` records that
-`$21.22` is the rate year 1 figure, in the filing's own dollars. The CT recipe passes
+`$21.22` is in the MCOS study's own 2026 dollars. That is not rate year 1, which runs July 1, 2027
+through June 30, 2028 (`context/sources/exhibit_clp_revreq_1.md`). The CT recipe passes
 `--target-dollar-year 2026`, which matches that column, so `generate_utility_tx_dx_mc.py` allocates
 `$21.22` as provided. It does not CPI-adjust the scalar onto the load year. RI and MD still inflate
 from their `dollar_year` to the run year; this skip is CT-only.
@@ -149,10 +158,9 @@ from their `dollar_year` to the run year; this skip is CT-only.
 
 The default recipe does not run this allocator. It expands the month-hour tables (§7). The
 two probability-of-peak 8760s differ in which load picks the top 100 hours. The substation-load
-run allocates `$21.22/kW-yr` with no CPI adjustment and writes `dist_and_sub_tx_occ863/`
-(§3.4). The stored zone-load file at `dist_and_sub_tx/` allocated the pre-loss `$20.17`
-after CPI deflation. `dist_mc_method=pop_isone_zone` still runs zone-load
-probability-of-peak into `dist_and_sub_tx/`, using the current CSV scalar.
+run allocates `$21.22/kW-yr` with no CPI adjustment (§3.4). `dist_mc_method=pop_isone_zone`
+runs zone-load probability-of-peak with the same CSV scalar. Both write the standard
+`dist_and_sub_tx/` path; the manifest key tells them apart.
 
 ### 3.1 Method: standard PoP allocation (same as NY, RI, MD)
 
@@ -225,11 +233,13 @@ substation series: OCC-863 says no forecasted hourly system loads are available.
 2. **Created the config CSV** (§2.3).
 3. **Filled the utility-level load gap** (§3.3) — `ct_eversource`/`ct_ui` zone-mapping rows, ran the
    ISO-NE utility aggregation for 2025, uploaded to S3.
-4. **Rate year 1 uses `$21.22` with no CPI adjustment.** An earlier run deflated the pre-loss
+4. **`$21.22` is used as filed, with no CPI adjustment.** An earlier run deflated the pre-loss
    Table 3 scalar from 2026$ to the 2025 load year (`$20.17 → $19.65`, CPI factor 0.9740). The
-   same factor on `$21.22` would be about `$20.67`. The CT analysis is rate year 1, so the recipe
-   now passes `--target-dollar-year 2026` and the allocator keeps `$21.22`. The earlier run's
-   parquet keeps the deflated pre-loss scalar (point 7).
+   same factor on `$21.22` would be about `$20.67`. The recipe now passes
+   `--target-dollar-year 2026`, the MCOS study's own dollar year, and the allocator keeps
+   `$21.22`. 2026 is not rate year 1 (July 1, 2027 – June 30, 2028); keeping the filed value
+   rather than adjusting it to the 2025 test year or to rate year 1 is a modeling choice. The
+   earlier run's parquet keeps the deflated pre-loss scalar (point 7).
 5. **Ran the standard PoP allocation** (§3.5):
    ```bash
    just -f ct/Justfile dist_mc_method=pop_occ863 create-dist-mc-data 2025 --upload
@@ -237,9 +247,9 @@ substation series: OCC-863 says no forecasted hourly system loads are available.
    ```
    Both call `generate_utility_tx_dx_mc.py --method pop --target-dollar-year 2026` with the
    CT config CSV. `pop_occ863` passes `--path-utility-load .../occ-863/parquet/system_load.parquet`
-   and writes `dist_and_sub_tx_occ863/`. `pop_isone_zone` passes
-   `--utility-load-s3-base s3://data.sb/isone/hourly_demand/utilities/` and writes
-   `dist_and_sub_tx/`.
+   and `--load-source occ863att3`. `pop_isone_zone` passes
+   `--utility-load-s3-base s3://data.sb/isone/hourly_demand/utilities/` and
+   `--load-source isone_zone`. Both write `dist_and_sub_tx/`.
 6. **Validated** (against the pre-loss `$20.17` scalar; re-run after the `$21.22` change): the
    built-in `validate_allocation`-equivalent 1-kW-constant-load check passed
    exactly ($19.6460/kW-yr, 0.0000% error). The top-100 PoP hours for 2025 fall entirely in
@@ -248,22 +258,20 @@ substation series: OCC-863 says no forecasted hourly system loads are available.
    CL&P's multi-year-normalized ~80% Jul–Aug / ~20% Jun–Sep because that run used a single year
    (2025) of ISO-NE CT zone load. The recipe now ranks the OCC-863 substation series instead;
    its 2025 top 100 hours are 28 in June, 66 in July, and 6 in August (§3.3).
-7. **Output**: same schema as all other states (`timestamp, utility, year, mc_total_per_kwh`).
-   There are two CT datasets, so the OCC-863 run does not overwrite the earlier one:
+7. **Output**: same schema as all other states (`timestamp, utility, year, mc_total_per_kwh`),
+   at `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet`
+   for every method, with `manifest.yaml` beside it:
 
-   | Dataset                                                            | Scalar                                | Allocation load                        |
-   | ------------------------------------------------------------------ | ------------------------------------- | -------------------------------------- |
-   | `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/`        | `$20.17` deflated to `$19.65` (2025$) | ISO-NE CT zone load, 2025              |
-   | `s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/` | `$21.22`, rate year 1, no CPI         | OCC-863 Attachment 3 system load, 2025 |
+   | `dist_mc_method` | Scalar                       | Allocation load                        | Key                                        |
+   | ---------------- | ---------------------------- | -------------------------------------- | ------------------------------------------ |
+   | `month_hour`     | none (month-hour `$/kWh`)    | none                                   | `month_hour_occ863att2_secondary_holidays` |
+   | `pop_occ863`     | `$21.22`, MCOS 2026$, no CPI | OCC-863 Attachment 3 system load, 2025 | `pop_occ863att3_100h_load2025_2026usd`     |
+   | `pop_isone_zone` | `$21.22`, MCOS 2026$, no CPI | ISO-NE CT zone load, 2025              | `pop_isone_zone_100h_load2025_2026usd`     |
 
-   Both use `utility=ct_eversource/year=2025/data.parquet`. The `_occ863` suffix names the
-   source of both changes: the secondary loss factor (Attachment 2) and the system load
-   (Attachment 3). It follows the sibling-prefix pattern of `dist_and_sub_tx_load{year}/`, so a
-   recursive scan of one dataset never picks up the other's 8760. The default
-   `dist_mc_method=month_hour` writes `dist_and_sub_tx_eversource_derived/` (§7), not either of
-   these. The stored zone-load parquet cannot be rebuilt from the current inputs, since the
-   config CSV changed. Point a scenario's `path_dist_and_sub_tx_mc` at
-   whichever of the three 8760s that run should read.
+   Uploading one method replaces the file and appends its entry; the earlier entries stay as
+   history. The pipeline YAML's `marginal_costs.dist_and_sub_tx.key` picks which method a batch
+   must read. The earlier deflated `$20.17` zone-load parquet cannot be rebuilt from the current
+   inputs, since the config CSV changed.
 8. **Wired a `just` recipe**, `create-dist-mc-data`, in `rate_design/hp_rates/ct/Justfile`
    (mirrors `create-bulk-tx-mc-data`'s style, but scoped to `ct_eversource` only — see §3.5).
 9. **Added tests** in `tests/test_ct_dist_mc.py`: ISO-NE zone-mapping coverage for both CT
@@ -341,9 +349,11 @@ allocation or as a direct replacement. This is a nice-to-have, not a blocker for
 6. ~~Update this doc and [dist_mc_definition_choice.md](dist_mc_definition_choice.md) §2–3, adding CT
    to the source-number and per-state tables.~~ Done.
 7. ~~Write the substation-load 8760 to `dist_and_sub_tx_occ863/` without replacing the zone-load
-   file at `dist_and_sub_tx/`.~~ Done (§3.4).
-8. ~~Point a CT scenario's `path_dist_and_sub_tx_mc` at a built 8760.~~ Scenario configs exist.
-   Which of the three files a run reads is that path.
+   file at `dist_and_sub_tx/`.~~ Superseded: all methods now write `dist_and_sub_tx/`, and the
+   manifest records which one produced the current file.
+8. ~~Point a CT scenario's `path_dist_and_sub_tx_mc` at a built 8760.~~ The pipeline YAML
+   points at the standard path and declares the expected key
+   (`pop_occ863att3_100h_load2025_2026usd`); preflight stops if the file carries another key.
 
 ---
 
@@ -428,22 +438,22 @@ from a non-leap run after February 28.
 
 ### 7.3 Where it is written
 
-The recipe passes the `dist_and_sub_tx_eversource_derived/` base directly:
+Every method writes the standard path, with a `manifest.yaml` entry beside it:
 
 ```text
-s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/utility=ct_eversource/year=YYYY/data.parquet
-/ebs/data/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/utility=ct_eversource/year=YYYY/data.parquet
+s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=YYYY/data.parquet
+/ebs/data/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=YYYY/data.parquet
 ```
 
-As a guard, `--method month_hour` also rewrites a base ending in `dist_and_sub_tx/` to that
-dataset, so a month-hour 8760 never lands on a PoP path. The two PoP fallbacks (§3) write their
-own datasets:
+The month-hour key is `month_hour_occ863att2_secondary_holidays` (or `..._noholidays`). The
+voltage in the key is read from the table file names unless `--voltage` is passed. The two PoP
+fallbacks (§3) write the same path with their own keys:
 
 ```bash
-just -f ct/Justfile dist_mc_method=pop_occ863 create-dist-mc-data 2025 --upload      # dist_and_sub_tx_occ863/
-just -f ct/Justfile dist_mc_method=pop_isone_zone create-dist-mc-data 2025 --upload  # dist_and_sub_tx/
+just -f ct/Justfile dist_mc_method=pop_occ863 create-dist-mc-data 2025 --upload
+just -f ct/Justfile dist_mc_method=pop_isone_zone create-dist-mc-data 2025 --upload
 DIST_MC_METHOD=pop_occ863 just s ct create-dist-mc-data 2025 --upload
 ```
 
 Tests for the lookup, the observed-holiday rule, the holiday toggle, leap-year length, and the
-output-base rewrite are in `tests/test_expand_month_hour_mc.py`.
+voltage read from the table names are in `tests/test_expand_month_hour_mc.py`.

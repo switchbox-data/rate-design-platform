@@ -37,6 +37,7 @@ from utils.cairo import (
     add_bulk_tx_and_dist_and_sub_tx_marginal_cost,
     build_bldg_id_to_load_filepath,
 )
+from utils.data_prep.marginal_costs.mc_manifest import describe_mc_file
 from utils.demand_flex import apply_demand_flex
 from utils.mid.patches import (
     BillingKwhTables,
@@ -653,6 +654,43 @@ def _write_scenario_settings(run_output_dir: Path, settings: ScenarioSettings) -
     log.info(".... Saved scenario settings: %s", out_path)
 
 
+def _describe_marginal_costs(settings: ScenarioSettings) -> dict[str, Any]:
+    """Path, sha256, and manifest key of every MC file this run reads.
+
+    Hashed before the files are loaded, so the record matches what the run
+    read. A file that cannot be described is recorded with its error rather
+    than failing the run.
+    """
+    paths = {
+        "dist_and_sub_tx": settings.path_dist_and_sub_tx_mc,
+        "bulk_tx": settings.path_bulk_tx_mc,
+        "supply_energy": settings.path_supply_energy_mc,
+        "supply_capacity": settings.path_supply_capacity_mc,
+        "supply_ancillary": settings.path_supply_ancillary_mc,
+        "tou_supply_energy": settings.path_tou_supply_energy_mc,
+        "tou_supply_capacity": settings.path_tou_supply_capacity_mc,
+    }
+    described: dict[str, Any] = {}
+    for name, path in paths.items():
+        if path is None:
+            continue
+        try:
+            described[name] = describe_mc_file(str(path))
+        except Exception as exc:
+            log.warning("Could not describe MC %s (%s): %s", name, path, exc)
+            described[name] = {"path": str(path), "error": str(exc)}
+    return described
+
+
+def _write_marginal_costs_used(
+    run_output_dir: Path, marginal_costs_used: dict[str, Any]
+) -> None:
+    out_path = run_output_dir / "marginal_costs_used.json"
+    with out_path.open("w") as f:
+        json.dump(marginal_costs_used, f, indent=2)
+    log.info(".... Saved marginal cost provenance: %s", out_path)
+
+
 def run(
     settings: ScenarioSettings,
     num_workers: int | None = None,
@@ -765,6 +803,9 @@ def run(
     # are set to zero but still loaded to provide the alignment target index.
     #
     # MC prices are exogenous; load shifting changes total MC dollars, not prices.
+
+    with _timed("describe_marginal_costs"):
+        marginal_costs_used = _describe_marginal_costs(settings)
 
     # Load supply MCs: Energy + Capacity (bulk supply).
     # Both paths are required (enforced by ScenarioSettings dataclass).
@@ -919,6 +960,7 @@ def run(
             elasticity_tracker.to_csv(tracker_path, index=True)
             log.info(".... Saved demand-flex elasticity tracker: %s", tracker_path)
         _write_scenario_settings(run_output_dir, settings)
+        _write_marginal_costs_used(run_output_dir, marginal_costs_used)
         billing_kwh_tables: BillingKwhTables | None = None
         if billing_kwh:
             billing_kwh_tables = prepare_billing_kwh(

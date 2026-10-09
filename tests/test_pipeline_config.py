@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import polars as pl
 import pytest
 import yaml
 
@@ -518,6 +519,98 @@ class TestSingleRateUncalibrated:
             ValueError, match="revenue_requirement.single_rate_uncalibrated"
         ):
             load_pipeline_config(_write(tmp_path, data))
+
+
+class TestMarginalCostKeys:
+    """`marginal_costs` entries may declare the manifest key they expect."""
+
+    def _write_mc(self, path: Path, spec_key: str) -> None:
+        from utils.data_prep.marginal_costs import mc_manifest
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        df = pl.DataFrame({"v": [0.0] * 8760})
+        df.write_parquet(path)
+        if spec_key == "zero":
+            spec = mc_manifest.zero_spec("supply_energy", "bge", 2025)
+        else:
+            spec = mc_manifest.McSpec(
+                mc_type="dist_and_sub_tx",
+                method="pop",
+                utility="bge",
+                year=2025,
+                params={
+                    "load_source": spec_key,
+                    "load_year": 2025,
+                    "n_hours": 100,
+                    "target_dollar_year": 2025,
+                },
+            )
+        with patch.object(mc_manifest, "git_provenance", return_value={}):
+            mc_manifest.record_mc_write(str(path), spec, df, "v")
+
+    def test_string_entries_declare_no_keys(self, tmp_path: Path) -> None:
+        config = load_pipeline_config(_write(tmp_path, _minimal_pipeline_yaml()))
+        assert config.run_defaults.mc_expected_keys == {}
+        assert config.run_defaults.mc_dist_and_sub_tx == "s3://bucket/dist/data.parquet"
+
+    def test_mapping_entry_parses(self, tmp_path: Path) -> None:
+        data = _minimal_pipeline_yaml()
+        data["marginal_costs"]["dist_and_sub_tx"] = {
+            "path": "s3://bucket/dist/data.parquet",
+            "key": "pop_x_100h_load2025_2025usd",
+        }
+        config = load_pipeline_config(_write(tmp_path, data))
+        assert config.run_defaults.mc_dist_and_sub_tx == "s3://bucket/dist/data.parquet"
+        assert config.run_defaults.mc_expected_keys == {
+            "dist_and_sub_tx": "pop_x_100h_load2025_2025usd"
+        }
+
+    def test_unknown_entry_rejected(self, tmp_path: Path) -> None:
+        data = _minimal_pipeline_yaml()
+        data["marginal_costs"]["dist"] = "s3://bucket/x.parquet"
+        with pytest.raises(ValueError, match="Unknown marginal_costs"):
+            load_pipeline_config(_write(tmp_path, data))
+
+    def test_undeclared_keys_are_not_read(self, tmp_path: Path) -> None:
+        from rate_design.hp_rates.pipeline_config import (
+            validate_marginal_cost_manifests,
+        )
+
+        config = load_pipeline_config(_write(tmp_path, _minimal_pipeline_yaml()))
+        assert validate_marginal_cost_manifests(config) == []
+
+    def test_declared_keys_are_verified(self, tmp_path: Path) -> None:
+        from rate_design.hp_rates.pipeline_config import (
+            validate_marginal_cost_manifests,
+        )
+
+        mc = tmp_path / "mc"
+        dist = mc / "dist" / "data.parquet"
+        energy = mc / "energy" / "data.parquet"
+        self._write_mc(dist, "occ")
+        self._write_mc(energy, "pop_unused")
+        data = _minimal_pipeline_yaml()
+        data["marginal_costs"]["dist_and_sub_tx"] = {
+            "path": str(dist),
+            "key": "pop_other_100h_load2025_2025usd",
+        }
+        data["marginal_costs"]["supply_energy"] = {
+            "path": str(energy),
+            "key": "pop_pop_unused_100h_load2025_2025usd",
+        }
+        config = load_pipeline_config(_write(tmp_path, data))
+        errors = validate_marginal_cost_manifests(config)
+        # dist has the wrong key; energy's zero.parquet swap does not exist.
+        assert len(errors) == 2
+        assert "pop_occ_100h_load2025_2025usd" in errors[0]
+        assert "zero.parquet" in errors[1]
+
+        self._write_mc(mc / "energy" / "zero.parquet", "zero")
+        data["marginal_costs"]["dist_and_sub_tx"]["key"] = (
+            "pop_occ_100h_load2025_2025usd"
+        )
+        config = load_pipeline_config(_write(tmp_path, data))
+        assert validate_marginal_cost_manifests(config) == []
 
 
 class TestFuseMountCheck:
