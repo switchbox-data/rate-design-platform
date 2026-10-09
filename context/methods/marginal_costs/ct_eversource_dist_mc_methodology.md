@@ -453,8 +453,9 @@ weekend-and-holiday day counts also match the 2025 calendar.
 ### 7.3 Uniform scale to the annual $/kW-yr
 
 The lookup does not by itself recover the annual scalar. Attachment 2's month-hour `$/kWh`
-values, summed over the 8,760, come out a little above the `$21.22/kW-yr` in
-`ct_marginal_costs_<year>.csv` (Table 3's `$20.17` times the secondary loss factor, §2.2).
+values, summed over the 2025 calendar's 8,760, come to `$21.3495/kW-yr` across 2,039 nonzero
+hours, against the `$21.22/kW-yr` in `ct_marginal_costs_<year>.csv` (Table 3's `$20.17` times
+the secondary loss factor, §2.2). The uniform factor for that pair is `0.993932`.
 
 After the lookup, every hour — including the zeros — is multiplied by one factor,
 
