@@ -5,44 +5,52 @@ Supports PJM (MD), NYISO (NY), and ISO-NE (RI, CT).
 Usage
 -----
     # PJM / MD (inspect only)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso pjm --utility bge --year 2025
 
     # PJM / MD (upload)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso pjm --utility bge --year 2025 --upload
 
     # PJM / MD: 2025 NITS $/kW-yr, 2018 load for PCAF (sibling bulk_tx_load2018/)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso pjm --utility bge --year 2025 --load-year 2018 --upload
 
     # ISO-NE / RI (inspect only)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --utility rie --year 2025 --load-year 2025
 
     # ISO-NE / RI (upload)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --utility rie --year 2025 --load-year 2025 --upload
 
-    # ISO-NE / CT using NE system load for peak identification (default)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    # ISO-NE / CT exceedance, NE system load. This is the CLI default when
+    # --method is omitted. The CT Justfile default is month_hour (below).
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --utility ct_eversource --year 2025 --load-year 2025
 
-    # ISO-NE / CT using CT zone load for peak identification
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    # ISO-NE / CT exceedance using CT zone load for peak identification
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --utility ct_eversource --year 2025 --load-year 2025 \\
         --allocation-load utility_zone
 
+    # ISO-NE / CT Eversource: month-hour from OCC-863 probability of peak
+    # (the CT Justfile default)
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
+        --iso isone --method month_hour --utility ct_eversource --year 2025 \\
+        --path-weekday-pop month_hour_probability_of_peak_weekday.parquet \\
+        --path-weekend-pop month_hour_probability_of_peak_weekend_holidays.parquet
+
     # ISO-NE with custom AESC PTF override
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --utility rie --year 2025 --aesc-ptf-kw-year 184.0 --upload
 
     # NYISO (inspect only)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso nyiso --utility nyseg --year 2025 --load-year 2024
 
     # NYISO (upload)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso nyiso --utility nyseg --year 2025 --load-year 2024 --upload
 """
 
@@ -55,16 +63,24 @@ from pathlib import Path
 import polars as pl
 from dotenv import load_dotenv
 
-from utils.data_prep.marginal_costs.bulk_tx_isone import (
+from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_isone import (
     AESC_2024_AVOIDED_PTF_KW_YEAR,
+    AESC_2024_DOLLAR_YEAR,
     DEFAULT_N_PEAK_HOURS,
 )
-from utils.data_prep.marginal_costs.bulk_tx_nyiso import (
+from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
+    _parse_bool,
+    expand_month_hour_mc_to_8760,
+    inflate_annual_mc,
+    month_hour_costs_from_probability,
+    scale_8760_to_annual,
+)
+from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_nyiso import (
     DEFAULT_NYISO_BULK_TX_CONSTRAINT_GROUP_TABLE_PATH,
     DEFAULT_SCR_WINTER_MONTHS,
     N_SCR_HOURS_PER_SEASON,
 )
-from utils.data_prep.marginal_costs.bulk_tx_pjm import (
+from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_pjm import (
     DEFAULT_K_PEAK_HOURS,
     PJM_HOURLY_DEMAND_S3_BASE,
     VALID_PJM_UTILITIES,
@@ -226,6 +242,87 @@ def _parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--method",
+        type=str,
+        default="isone_aesc_ptf",
+        choices=["isone_aesc_ptf", "month_hour"],
+        help=(
+            "[ISO-NE only] isone_aesc_ptf (this CLI's default; RI and the "
+            "CT exceedance path): top-N exceedance on the allocation load. "
+            "month_hour (the CT Justfile default, ct_eversource only): weekday "
+            "vs weekend-and-holiday lookup of $/kWh built from the AESC "
+            "$/kW-yr times a probability of peak, divided by that month's day "
+            "count, then CPI-adjusted to --target-dollar-year."
+        ),
+    )
+    parser.add_argument(
+        "--path-weekday-pop",
+        type=str,
+        default=None,
+        help=(
+            "[ISO-NE month_hour] Weekday probability-of-peak parquet "
+            "(month, hour, num_days, probability_of_peak)."
+        ),
+    )
+    parser.add_argument(
+        "--path-weekend-pop",
+        type=str,
+        default=None,
+        help=("[ISO-NE month_hour] Weekend-and-holiday probability-of-peak parquet."),
+    )
+    parser.add_argument(
+        "--include-holidays",
+        type=_parse_bool,
+        default=True,
+        metavar="{true,false}",
+        help=(
+            "[ISO-NE month_hour] true: federal holidays take the weekend table. "
+            "false: only Saturday and Sunday do."
+        ),
+    )
+    parser.add_argument(
+        "--calendar-year",
+        type=int,
+        default=None,
+        help=(
+            "[ISO-NE month_hour] Calendar that classifies weekdays, weekends, "
+            "and holidays (default: --year). Restamped onto --year by position."
+        ),
+    )
+    parser.add_argument(
+        "--table-source",
+        type=str,
+        default="occ863att2",
+        help="[ISO-NE month_hour] Short label for the probability tables in the key.",
+    )
+    parser.add_argument(
+        "--ptf-dollar-year",
+        type=int,
+        default=AESC_2024_DOLLAR_YEAR,
+        help=(
+            "[ISO-NE month_hour] Dollar year of --aesc-ptf-kw-year "
+            f"(default: {AESC_2024_DOLLAR_YEAR}, the AESC 2024 study year)."
+        ),
+    )
+    parser.add_argument(
+        "--target-dollar-year",
+        type=int,
+        default=None,
+        help=(
+            "[ISO-NE month_hour] Dollar year to inflate the AESC $/kW-yr to "
+            "(default: --year). No CPI when this matches --ptf-dollar-year."
+        ),
+    )
+    parser.add_argument(
+        "--cpi-s3-base",
+        type=str,
+        default="s3://data.sb/fred/cpi/",
+        help=(
+            "[ISO-NE month_hour] Base S3 path for CPIAUCSL annual parquets "
+            "(default: s3://data.sb/fred/cpi/)."
+        ),
+    )
+    parser.add_argument(
         "--allocation-load",
         type=str,
         default="ne_system",
@@ -330,7 +427,16 @@ def main() -> None:
         )
         zone_loads_s3_base = args.zone_loads_s3_base or DEFAULT_ISONE_ZONE_LOADS_S3_BASE
 
-    output_s3_base = output_base_for_load_year(output_s3_base, year, load_year)
+    if args.method != "isone_aesc_ptf" and iso != "isone":
+        raise SystemExit(f"--method {args.method} is only defined for --iso isone")
+    if args.method == "month_hour":
+        if args.load_year is not None and args.load_year != year:
+            raise SystemExit(
+                "--method month_hour does not use a load year; "
+                f"--load-year {args.load_year} differs from --year {year}"
+            )
+    else:
+        output_s3_base = output_base_for_load_year(output_s3_base, year, load_year)
 
     print("=" * 60)
     print(f"BULK TRANSMISSION MARGINAL COST GENERATION ({iso.upper()})")
@@ -362,6 +468,8 @@ def main() -> None:
             zone_loads_s3_base,
             storage_options,
         )
+    elif args.method == "month_hour":
+        _run_isone_month_hour(args, utility, year, output_s3_base, storage_options)
     else:
         _run_isone(
             args,
@@ -383,7 +491,7 @@ def _run_pjm(
     utility_loads_s3_base: str,
     storage_options: dict[str, str],
 ) -> None:
-    from utils.data_prep.marginal_costs.bulk_tx_pjm import (
+    from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_pjm import (
         compute_pjm_bulk_tx_mc,
         print_summary,
         save_output,
@@ -405,7 +513,7 @@ def _run_pjm(
     print_summary(output_df)
 
     if args.upload:
-        from utils.data_prep.marginal_costs.bulk_tx_pjm import NITS_CSV_PATH
+        from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_pjm import NITS_CSV_PATH
 
         spec = McSpec(
             mc_type="bulk_tx",
@@ -443,7 +551,7 @@ def _run_nyiso(
     zone_loads_s3_base: str,
     storage_options: dict[str, str],
 ) -> None:
-    from utils.data_prep.marginal_costs.bulk_tx_nyiso import (
+    from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_nyiso import (
         ICAP_RAW_TO_NESTED_LOCALITY,
         NESTED_LOCALITY_ZONES,
         compute_paying_locality_costs,
@@ -460,7 +568,7 @@ def _run_nyiso(
 
     n_scr = args.scr_hours_per_season
 
-    project_root = Path(__file__).resolve().parents[3]
+    project_root = Path(__file__).resolve().parents[4]
     periods_yaml_path = (
         Path(args.periods_yaml)
         if args.periods_yaml
@@ -528,7 +636,7 @@ def _run_nyiso(
         storage_options,
     )
 
-    from utils.data_prep.marginal_costs.bulk_tx_nyiso import (
+    from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_nyiso import (
         build_nested_locality_load_profiles,
     )
 
@@ -584,6 +692,132 @@ def _run_nyiso(
         print("\n✓ Bulk transmission MC generation completed (inspect only)")
 
 
+def _read_parquet_any(path: str, storage_options: dict[str, str]) -> pl.DataFrame:
+    if path.startswith("s3://"):
+        return pl.read_parquet(path, storage_options=storage_options)
+    return pl.read_parquet(path)
+
+
+def _run_isone_month_hour(
+    args: argparse.Namespace,
+    utility: str,
+    year: int,
+    output_s3_base: str,
+    storage_options: dict[str, str],
+) -> None:
+    """Weekday/weekend lookup of AESC $/kW-yr × PoP / num_days, scaled to the annual."""
+    from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_isone import (
+        print_summary,
+        save_output,
+        validate_allocation,
+    )
+
+    if not (args.path_weekday_pop and args.path_weekend_pop):
+        raise ValueError(
+            "--method month_hour needs --path-weekday-pop and --path-weekend-pop"
+        )
+    as_filed = args.aesc_ptf_kw_year
+    source_dollar_year = args.ptf_dollar_year
+    target_dollar_year = args.target_dollar_year or year
+    resolved = inflate_annual_mc(
+        as_filed,
+        source_dollar_year,
+        target_dollar_year,
+        args.cpi_s3_base,
+        storage_options,
+    )
+    calendar_year = args.calendar_year or year
+    print("  Method:               month_hour")
+    print(
+        f"  AESC avoided PTF:     ${as_filed:.2f}/kW-yr "
+        f"({source_dollar_year}$, as filed)"
+    )
+    print(f"  Target dollar year:   {target_dollar_year}")
+    print(f"  CPI factor:           {resolved.cpi_factor:.6f}")
+    print(f"  Allocated annual:     ${resolved.allocated:.4f}/kW-yr")
+    print(f"  Calendar year:        {calendar_year}")
+    print(f"  Include holidays:     {args.include_holidays}")
+    print(f"  Weekday PoP:          {args.path_weekday_pop}")
+    print(f"  Weekend PoP:          {args.path_weekend_pop}")
+    print("=" * 60)
+
+    weekday_pop = _read_parquet_any(args.path_weekday_pop, storage_options)
+    weekend_pop = _read_parquet_any(args.path_weekend_pop, storage_options)
+    weekday = month_hour_costs_from_probability(
+        weekday_pop, resolved.allocated, label="weekday"
+    )
+    weekend = month_hour_costs_from_probability(
+        weekend_pop, resolved.allocated, label="weekend"
+    )
+    expanded = expand_month_hour_mc_to_8760(
+        weekday,
+        weekend,
+        year,
+        utility,
+        include_holidays=args.include_holidays,
+        calendar_year=calendar_year,
+    )
+    annual = float(expanded["mc_total_per_kwh"].sum())
+    expanded, scale = scale_8760_to_annual(expanded, resolved.allocated)
+    output_df = expanded.select(
+        "timestamp", pl.col("mc_total_per_kwh").alias("bulk_tx_cost_enduse")
+    )
+    print(f"\n  Sum before scale (flat 1 kW, $/kW-yr): ${annual:.4f}")
+    print(f"  Uniform scale: {scale:.6f}")
+    validate_allocation(output_df, resolved.allocated)
+    print_summary(output_df)
+
+    if args.upload:
+        spec = McSpec(
+            mc_type="bulk_tx",
+            method="month_hour",
+            utility=utility,
+            year=year,
+            params={
+                "table_source": args.table_source,
+                "ptf_kw_year": as_filed,
+                "ptf_dollar_year": source_dollar_year,
+                "target_dollar_year": target_dollar_year,
+                "cpi_factor": resolved.cpi_factor,
+                "include_holidays": args.include_holidays,
+                "holiday_rule": "5 USC 6103, Sat->Fri, Sun->Mon",
+                "calendar_year": calendar_year,
+                "timestamp_year": year,
+                "calendar_to_timestamp_mapping": (
+                    "identity"
+                    if calendar_year == year
+                    else f"by position: hour i of {calendar_year} -> hour i of {year}"
+                ),
+                "mc_kw_yr_as_filed": as_filed,
+                "mc_kw_yr_target": resolved.allocated,
+                "sum_before_scale": annual,
+                "scale_factor": scale,
+            },
+            source=args.source
+            or (
+                "AESC 2024 avoided PTF "
+                f"(${as_filed:.2f}/kW-yr, {source_dollar_year}$) × probability of "
+                f"peak / num_days, CPI to {target_dollar_year}$, scaled so the "
+                "8760 sums to that inflated annual total"
+            ),
+            inputs=[
+                input_file("weekday_pop", args.path_weekday_pop),
+                input_file("weekend_holiday_pop", args.path_weekend_pop),
+                *(
+                    [input_partition("cpi", args.cpi_s3_base)]
+                    if resolved.cpi_factor != 1.0
+                    else []
+                ),
+            ],
+        )
+        _save_with_manifest(
+            save_output, output_df, spec, output_s3_base, storage_options
+        )
+        print("\n✓ ISO-NE month-hour bulk TX MC completed and uploaded")
+    else:
+        print("\n✓ ISO-NE month-hour bulk TX MC completed (inspect only)")
+
+
 def _run_isone(
     args: argparse.Namespace,
     utility: str,
@@ -593,14 +827,14 @@ def _run_isone(
     zone_loads_s3_base: str,
     storage_options: dict[str, str],
 ) -> None:
-    from utils.data_prep.marginal_costs.bulk_tx_isone import (
+    from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_isone import (
         compute_isone_bulk_tx_signal,
         prepare_output,
         print_summary,
         save_output,
         validate_allocation,
     )
-    from utils.data_prep.marginal_costs.supply_capacity_isone import (
+    from utils.data_prep.marginal_costs.supply.supply_capacity_isone import (
         load_isone_zone_loads,
     )
 

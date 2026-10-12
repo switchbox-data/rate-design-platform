@@ -6,7 +6,7 @@ Related docs:
 
 - `context/methods/marginal_costs/capacity_market_comparison_nyiso_isone.md` — NYISO ICAP vs ISO-NE FCM
 - `context/code/marginal_costs/ny_supply_marginal_costs.md` — NY implementation (monthly ICAP)
-- `utils/data_prep/marginal_costs/supply_capacity_isone.py` — closest platform template (annual FCA + exceedance)
+- `utils/data_prep/marginal_costs/supply/supply_capacity_isone.py` — closest platform template (annual FCA + exceedance)
 
 ---
 
@@ -427,7 +427,7 @@ Implemented (curated data pipelines, reproducible from committed source intermed
 - `data/pjm/capacity/5cp/` — summer 5CP peaks, **summers 2021–2025** (only those feeding 2025+ runs are retained; earlier summers dropped). Per-summer markdown intermediates under `sources/` (`5cp_YYYY.md`) → `just convert` → CSV → `s3://data.sb/pjm/capacity/5cp/data.parquet`.
 - `data/pjm/zone_mapping/` — utility → zone/LDA crosswalk.
 - `data/pjm/hourly_demand/zones/` — PJM-native zonal hourly loads on S3 (only needed for the E1/F2 load-weighted sensitivity, not the v1 equal-weight pipeline).
-- `utils/data_prep/marginal_costs/supply_capacity_pjm.py` — computation (RPM day-count blend + 5CP equal-weight allocation + 1 kW validation).
+- `utils/data_prep/marginal_costs/supply/supply_capacity_pjm.py` — computation (RPM day-count blend + 5CP equal-weight allocation + 1 kW validation).
 - `generate_supply_capacity_mc.py --iso pjm` — CLI entrypoint.
 - `rate_design/hp_rates/md/Justfile` — `create-supply-capacity-mc[-all-years|-all|-full-backfill]` recipes.
 
@@ -450,4 +450,4 @@ Implemented (curated data pipelines, reproducible from committed source intermed
 13. [MD PSC Order 87591 — BGE rate case (PDF)](https://psc.maryland.gov/wp-content/uploads/Order-No.-87591-Case-No.-9406-BGE-Rate-Case.pdf)
 14. Platform: `context/methods/marginal_costs/capacity_market_comparison_nyiso_isone.md`
 15. Platform: `context/code/marginal_costs/ny_supply_marginal_costs.md`
-16. Platform: `utils/data_prep/marginal_costs/supply_capacity_isone.py`
+16. Platform: `utils/data_prep/marginal_costs/supply/supply_capacity_isone.py`

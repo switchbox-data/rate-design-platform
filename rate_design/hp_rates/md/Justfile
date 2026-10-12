@@ -262,7 +262,7 @@ pjm_utilities := "bge pepco dpl poted smeco choptank somerset_rec hagerstown_mun
 #   just -f md/Justfile create-supply-energy-mc bge 2023
 # just -f md/Justfile create-supply-energy-mc bge 2023 --upload
 create-supply-energy-mc utility year *extra_args:
-    uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_energy_mc.py \
+    uv run python {{ path_repo }}/utils/data_prep/marginal_costs/supply/generate_supply_energy_mc.py \
       --iso pjm \
       --utility {{ utility }} \
       --year {{ year }} \
@@ -277,7 +277,7 @@ create-supply-energy-mc-all-years utility *extra_args:
     set -euo pipefail
     for year in {{ pjm_lmp_years }}; do
         echo ">> Generating PJM supply energy MC: utility={{ utility }} year=${year}" >&2
-        uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_energy_mc.py \
+        uv run python {{ path_repo }}/utils/data_prep/marginal_costs/supply/generate_supply_energy_mc.py \
           --iso pjm \
           --utility {{ utility }} \
           --year "${year}" \
@@ -294,7 +294,7 @@ create-supply-energy-mc-all year *extra_args:
     set -euo pipefail
     for utility in {{ pjm_utilities }}; do
         echo ">> Generating PJM supply energy MC: utility=${utility} year={{ year }}" >&2
-        uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_energy_mc.py \
+        uv run python {{ path_repo }}/utils/data_prep/marginal_costs/supply/generate_supply_energy_mc.py \
           --iso pjm \
           --utility "${utility}" \
           --year {{ year }} \
@@ -313,7 +313,7 @@ create-supply-energy-mc-full-backfill *extra_args:
     for utility in {{ pjm_utilities }}; do
         for year in {{ pjm_lmp_years }}; do
             echo ">> Generating PJM supply energy MC: utility=${utility} year=${year}" >&2
-            uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_energy_mc.py \
+            uv run python {{ path_repo }}/utils/data_prep/marginal_costs/supply/generate_supply_energy_mc.py \
               --iso pjm \
               --utility "${utility}" \
               --year "${year}" \
@@ -351,7 +351,7 @@ pjm_bulk_tx_years := "2025"
 #   just -f md/Justfile create-bulk-tx-mc-data bge 2025
 # just -f md/Justfile create-bulk-tx-mc-data smeco 2025 --upload
 create-bulk-tx-mc-data utility_arg year_arg *extra_args:
-    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \
       --iso pjm \
       --utility {{ utility_arg }} \
       --year {{ year_arg }} \
@@ -367,7 +367,7 @@ create-bulk-tx-mc-data-all *extra_args:
     for utility in {{ pjm_bulk_tx_utilities }}; do
         for year in {{ pjm_bulk_tx_years }}; do
             echo ">> Generating PJM bulk TX MC: utility=${utility} year=${year}" >&2
-            cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
+            cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \
               --iso pjm \
               --utility "${utility}" \
               --year "${year}" \
@@ -391,7 +391,7 @@ pjm_capacity_years := "2021 2022 2023 2024 2025"
 #   just -f md/Justfile create-supply-capacity-mc bge 2025
 # just -f md/Justfile create-supply-capacity-mc bge 2025 --upload
 create-supply-capacity-mc utility year *extra_args:
-    uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_capacity_mc.py \
+    uv run python {{ path_repo }}/utils/data_prep/marginal_costs/supply/generate_supply_capacity_mc.py \
       --iso pjm \
       --utility {{ utility }} \
       --year {{ year }} \
@@ -406,7 +406,7 @@ create-supply-capacity-mc-all-years utility *extra_args:
     set -euo pipefail
     for year in {{ pjm_capacity_years }}; do
         echo ">> Generating PJM supply capacity MC: utility={{ utility }} year=${year}" >&2
-        uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_capacity_mc.py \
+        uv run python {{ path_repo }}/utils/data_prep/marginal_costs/supply/generate_supply_capacity_mc.py \
           --iso pjm \
           --utility {{ utility }} \
           --year "${year}" \
@@ -423,7 +423,7 @@ create-supply-capacity-mc-all year *extra_args:
     set -euo pipefail
     for utility in {{ pjm_utilities }}; do
         echo ">> Generating PJM supply capacity MC: utility=${utility} year={{ year }}" >&2
-        uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_capacity_mc.py \
+        uv run python {{ path_repo }}/utils/data_prep/marginal_costs/supply/generate_supply_capacity_mc.py \
           --iso pjm \
           --utility "${utility}" \
           --year {{ year }} \
@@ -442,7 +442,7 @@ create-supply-capacity-mc-full-backfill *extra_args:
     for utility in {{ pjm_utilities }}; do
         for year in {{ pjm_capacity_years }}; do
             echo ">> Generating PJM supply capacity MC: utility=${utility} year=${year}" >&2
-            uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_supply_capacity_mc.py \
+            uv run python {{ path_repo }}/utils/data_prep/marginal_costs/supply/generate_supply_capacity_mc.py \
               --iso pjm \
               --utility "${utility}" \
               --year "${year}" \

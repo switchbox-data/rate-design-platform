@@ -168,7 +168,7 @@ runs zone-load probability-of-peak with the same CSV scalar. Both write the stan
 ### 3.1 Method: standard PoP allocation (same as NY, RI, MD)
 
 Use the same Probability of Peak (PoP) allocation method already implemented in
-[`generate_utility_tx_dx_mc.py`](../../../utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py)
+[`generate_utility_tx_dx_mc.py`](../../../utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py)
 and used for NY, RI, and MD. The method:
 
 1. Load hourly utility load data for the target year.
@@ -409,7 +409,7 @@ The tables live at
 
 Each has 288 rows (`month` 1–12, `hour` 0–23, `num_days`, `mc_total_per_kwh`). The recipe uses
 the **secondary** voltage pair. Implementation is `expand_month_hour_mc_to_8760` in
-`utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py`.
+`utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py`.
 
 ### 7.1 Day type
 

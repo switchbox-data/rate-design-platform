@@ -37,7 +37,7 @@ bge,32.0,2022
 ```
 
 The allocator
-([generate_utility_tx_dx_mc.py](../../../utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py))
+([generate_utility_tx_dx_mc.py](../../../utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py))
 reads the optional `dollar_year` column and CPI-inflates the value (CPIAUCSL) from 2022 to the target
 dollar year (defaults to `--year`). For a 2025 run that is roughly `$32` → `~$36/kW-yr`. No
 carrying-charge math is applied on our side — the figure is pre-levelized.
@@ -115,7 +115,7 @@ This note covers **Stage A** (the levelized `$/kW-yr` figure). Producing the hou
 signal (Stage B) via the PoP allocator additionally requires:
 
 1. Adding `"MD"` to the `--state` choices in
-   [generate_utility_tx_dx_mc.py](../../../utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py)
+   [generate_utility_tx_dx_mc.py](../../../utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py)
    (currently `choices=["NY", "RI"]`).
 2. A `get_state_config("MD")` entry in
    [data/eia/hourly_loads/eia_region_config.py](../../../data/eia/hourly_loads/eia_region_config.py)

@@ -613,7 +613,7 @@ hardcoded) was chosen because:
 
 ### 3 — Implement `bulk_tx_pjm.py` (DONE)
 
-- [x] `utils/data_prep/marginal_costs/bulk_tx_pjm.py` implemented:
+- [x] `utils/data_prep/marginal_costs/bulk_tx/bulk_tx_pjm.py` implemented:
   - Reads `nits_rates.csv`, computes day-weighted blended rate per year
   - Loads zone hourly demand from S3, selects top-K=150 peak hours (full year)
   - Applies PCAF load-share weighting to allocate annual cost to peak hours
@@ -621,7 +621,7 @@ hardcoded) was chosen because:
   - Validates that allocated cost sums to the blended annual rate
 - [x] `generate_bulk_tx_mc.py` extended with `--iso pjm` path:
   ```
-  uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
+  uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \
       --iso pjm --utility bge --year <YYYY> [--load-year <YYYY>] [--upload]
   ```
   Valid utilities: `bge`, `dpl`, `pepco`, `poted`. Optional `--k-peak-hours` (default 150).

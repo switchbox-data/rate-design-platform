@@ -6,6 +6,9 @@ three matrices page 1 has: all day types, weekdays, and weekends plus holidays.
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import openpyxl
 import polars as pl
 import pytest
 
@@ -13,6 +16,7 @@ from utils.data_prep.marginal_costs.convert_ct_occ863_month_hour_mc import (
     Voltage,
     _MATRIX_TITLES,
     month_hour_marginal_costs,
+    read_sheet,
 )
 
 
@@ -96,6 +100,20 @@ def test_reads_primary_titles() -> None:
     assert all_days.filter((pl.col("month") == 8) & (pl.col("hour") == 16))[
         "mc_total_per_kwh"
     ].item() == pytest.approx(0.001)
+
+
+def test_read_sheet_keeps_full_precision_in_mixed_columns(tmp_path: Path) -> None:
+    path = tmp_path / "mixed.xlsx"
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    assert sheet is not None
+    sheet.title = "Page 1"
+    sheet["A1"] = "a title"
+    sheet["A2"] = 3.561253561253561e-05
+    workbook.save(path)
+
+    raw = read_sheet(path, "Page 1")
+    assert raw.rows() == [("a title",), (3.561253561253561e-05,)]
 
 
 def test_rejects_day_counts_that_do_not_add_up() -> None:

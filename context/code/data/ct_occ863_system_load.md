@@ -30,7 +30,9 @@ s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/
     ├── month_hour_marginal_costs_weekend_holidays_secondary.parquet
     ├── month_hour_marginal_costs_all_days_primary.parquet
     ├── month_hour_marginal_costs_weekday_primary.parquet
-    └── month_hour_marginal_costs_weekend_holidays_primary.parquet
+    ├── month_hour_marginal_costs_weekend_holidays_primary.parquet
+    ├── month_hour_probability_of_peak_weekday.parquet
+    └── month_hour_probability_of_peak_weekend_holidays.parquet
 ```
 
 The local path is the EBS mirror of the S3 prefix (`/ebs/data/` mirrors `s3://data.sb/`). The
@@ -120,6 +122,10 @@ For each month the all-day-types day count must equal the weekday count plus the
 weekend-and-holiday count. The fourth sheet is a copy of page 3 (the probability-of-peak table)
 with an extra `dist_mc` column, not a copy of page 2.
 
+The converters read cells with openpyxl, not `pl.read_excel`. Calamine turns a column that mixes
+text and numbers into strings and keeps only about nine significant digits, which put up to a
+3e-5 relative error into the matrix values.
+
 ```bash
 just -f rate_design/hp_rates/ct/Justfile convert-occ863-month-hour-mc \
   /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/xlsx/attachment-2.xlsx \
@@ -131,9 +137,57 @@ just -f rate_design/hp_rates/ct/Justfile convert-occ863-month-hour-mc \
   primary
 ```
 
+## Attachment 2 page 3: probability of peak
+
+Page 3 (the sheet name ends in a space: `"OCC-863 Attachment 2 Page 3 "`) holds the inputs to pages
+1 and 2. Columns A–G are a long table with one row per month, day type (1 weekday, 2 weekend or
+holiday), and hour, plus `PoP`, the share of distribution peaks (from 2022–2025 hourly substation
+loads) in that slot. Two `SUMIFS` matrices pivot it: "Weekday Hourly Probability of Peak" and
+"Weekend / Holiday Hourly Probability of Peak". All 576 cells sum to 1. Weekdays hold about 0.77,
+and the largest cell is July hour 18 on weekdays (0.063).
+
+Every cost on pages 1 and 2 is computed from these matrices:
+
+$$
+MC_{m,h,\text{weekday}} = \frac{S \cdot PoP_{m,h,\text{weekday}}}{D_{m,\text{weekday}}}
+$$
+
+The weekend-and-holiday matrix works the same way. The all-day-types matrix is
+$S\,(PoP_{\text{weekday}} + PoP_{\text{weekend}}) / (D_{\text{weekday}} + D_{\text{weekend}})$.
+$S$ is 20.17 `$/kW-yr` times the loss factor: 21.2157 for secondary and 21.0986 for primary.
+$D$ is that matrix's "No Days" count.
+
+The converter writes two parquets, melted to one row per month and hour:
+
+| File                                              | Matrix                       |
+| ------------------------------------------------- | ---------------------------- |
+| `month_hour_probability_of_peak_weekday`          | weekdays only                |
+| `month_hour_probability_of_peak_weekend_holidays` | weekends and public holidays |
+
+| Column                | Meaning                                                                       |
+| --------------------- | ----------------------------------------------------------------------------- |
+| `month`               | 1–12                                                                          |
+| `hour`                | 0–23, the hour label on the sheet                                             |
+| `num_days`            | That day type's "No Days" count for the month, from page 1                    |
+| `probability_of_peak` | The matrix value as a fraction (the two files together sum to 1), not percent |
+
+Page 3 has no day counts, so `num_days` comes from page 1. The converter checks that page 2 has
+the same counts and that on both pages `mc_total_per_kwh * num_days / probability_of_peak` is one
+constant, with zero cost wherever the probability is zero.
+
+```bash
+just -f rate_design/hp_rates/ct/Justfile convert-occ863-probability-of-peak \
+  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/xlsx/attachment-2.xlsx \
+  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet
+```
+
 ## Using this load for CT distribution marginal cost
 
-`create-dist-mc-data` uses two of these outputs. Its default, `dist_mc_method=month_hour`,
+`create-bulk-tx-mc-data` (default `bulk_tx_method=month_hour`) reads the two probability-of-peak
+parquets. For each month-hour it sets $/kWh to the AESC $/kW-yr (69 in 2024 dollars, CPI-inflated
+to `--target-dollar-year`) times `probability_of_peak` divided by `num_days`, then expands
+weekday vs weekend-and-holiday the same way distribution does. The 8760 sums to that inflated
+annual total. `create-dist-mc-data` uses two of the cost outputs. Its default, `dist_mc_method=month_hour`,
 expands the secondary weekday and weekend-and-holiday month-hour parquets. Its first fallback,
 `dist_mc_method=pop_occ863`, passes `system_load.parquet` as `--path-utility-load`. The
 allocator keeps the requested year and ranks the top 100 hours of that substation series. The

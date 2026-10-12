@@ -7,7 +7,7 @@ import sys
 
 from dotenv import load_dotenv
 
-from utils.data_prep.marginal_costs.supply_ancillary import (
+from utils.data_prep.marginal_costs.supply.supply_ancillary import (
     AncillaryIso,
     compute_supply_ancillary_mc,
 )

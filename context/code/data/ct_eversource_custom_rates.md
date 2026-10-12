@@ -242,7 +242,7 @@ average transmission rider.
 
 The marginal cost is derived from the **AESC 2024 avoided PTF cost** (Synapse, AESC 2024 study):
 $69/kW-yr in 2024 dollars (see `context/methods/marginal_costs/ct_bulk_transmission_marginal_cost.md`
-and `utils/data_prep/marginal_costs/bulk_tx_isone.py` line 52: `AESC_2024_AVOIDED_PTF_KW_YEAR = 69.0`).
+and `utils/data_prep/marginal_costs/bulk_tx/bulk_tx_isone.py` line 52: `AESC_2024_AVOIDED_PTF_KW_YEAR = 69.0`).
 
 To convert to a flat $/kWh rate in 2026 dollars:
 

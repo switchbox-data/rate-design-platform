@@ -31,7 +31,7 @@ Output schema for all three: `timestamp` (naive datetime), `capacity_cost_enduse
 
 ## NYISO — New York (NY)
 
-**Script:** `utils/data_prep/marginal_costs/supply_capacity_nyiso.py`
+**Script:** `utils/data_prep/marginal_costs/supply/supply_capacity_nyiso.py`
 **CLI:** `generate_supply_capacity_mc.py --iso nyiso --utility <name> --year <Y>`
 **Output:** `s3://data.sb/switchbox/marginal_costs/ny/supply/capacity/utility={utility}/year={Y}/`
 
@@ -107,7 +107,7 @@ Sum of all hourly `capacity_cost_per_kw` = `Σ_locality(capacity_weight × Σ_mo
 
 ## ISO-NE — Rhode Island (RI)
 
-**Script:** `utils/data_prep/marginal_costs/supply_capacity_isone.py`
+**Script:** `utils/data_prep/marginal_costs/supply/supply_capacity_isone.py`
 **CLI:** `generate_supply_capacity_mc.py --iso isone --utility rie --year <Y>`
 **Output:** `s3://data.sb/switchbox/marginal_costs/ri/supply/capacity/utility=rie/year={Y}/`
 
@@ -183,7 +183,7 @@ Sum of all hourly `capacity_cost_per_kw` = `capacity_cost_kw_year` within 0.01%.
 
 ## PJM — Maryland / BGE (MD)
 
-**Script:** `utils/data_prep/marginal_costs/supply_capacity_pjm.py`
+**Script:** `utils/data_prep/marginal_costs/supply/supply_capacity_pjm.py`
 **CLI:** `generate_supply_capacity_mc.py --iso pjm --utility bge --year <Y>`
 **Output:** `s3://data.sb/switchbox/marginal_costs/md/supply/capacity/utility=bge/year={Y}/`
 

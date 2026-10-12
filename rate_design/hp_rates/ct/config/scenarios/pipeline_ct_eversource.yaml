@@ -26,9 +26,13 @@ marginal_costs:
   dist_and_sub_tx:
     path: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
     key: month_hour_occ863att2_secondary_holidays_cal2025
+  # bulk_tx: AESC 2024 avoided PTF ($69/kW-yr, 2024$) times OCC-863 Attachment 2
+  # page 3 probability of peak / num_days, CPI to 2026$, then scaled so the 8760
+  # sums to that inflated annual. Same weekday/weekend/holiday calendar as dist.
+  # This is the create-bulk-tx-mc-data default. See ct_bulk_transmission_marginal_cost.md.
   bulk_tx:
     path: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
-    key: aesc_ptf69_ne_system_100h_load2025
+    key: month_hour_occ863att2_aesc_ptf69_holidays_cal2025_2026usd
   # No supply MC 8760s exist for CT (no ISO-NE LMP/FCM pipeline wired up yet);
   # point directly at zero.parquet so both delivery and supply runs get zero supply MCs.
   supply_energy:
