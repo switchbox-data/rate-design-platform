@@ -7,7 +7,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from utils.data_prep.marginal_costs.generate_utility_tx_dx_mc import (
+from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
     expand_month_hour_mc_to_8760,
     inflate_annual_mc,
     load_cpi_inflation_factor,

@@ -14,7 +14,7 @@ from datetime import date, datetime
 import polars as pl
 import pytest
 
-from utils.data_prep.marginal_costs.supply_capacity_pjm import (
+from utils.data_prep.marginal_costs.supply.supply_capacity_pjm import (
     _get_rpm_price_per_mw_day,
     resolve_rpm_price_for_calendar_year,
     select_5cp_hours,

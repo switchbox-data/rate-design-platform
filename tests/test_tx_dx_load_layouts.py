@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.data_prep.marginal_costs.generate_utility_tx_dx_mc import (
+from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
     load_utility_load_profile,
 )
 

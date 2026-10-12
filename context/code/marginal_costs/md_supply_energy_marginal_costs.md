@@ -20,13 +20,13 @@ No load-weighting is needed.
 
 ## Scripts
 
-| Script                                                        | Purpose                                                                                                                                      |
-| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `data/pjm/fetch_lmp.py`                                       | Fetch raw hourly zone-aggregate LMP from PJM Data Miner 2 API, or extract from a pre-downloaded S3 CSV; write Hive-partitioned parquet to S3 |
-| `data/pjm/zone_mapping/generate_zone_mapping_csv.py`          | Generate/refresh the utility-to-zone crosswalk CSV                                                                                           |
-| `data/pjm/zone_mapping/validate_pjm_zone_mapping.py`          | Validate the crosswalk CSV (schema, pnode_ids, zone coverage)                                                                                |
-| `data/pjm/validate_pjm_lmp.py`                                | Validate fetched LMP parquet (row counts, timestamp completeness, DST, value ranges)                                                         |
-| `utils/data_prep/marginal_costs/generate_supply_energy_mc.py` | CLI: reads raw LMP from S3, produces CAIRO-ready 8760 parquet                                                                                |
+| Script                                                               | Purpose                                                                                                                                      |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data/pjm/fetch_lmp.py`                                              | Fetch raw hourly zone-aggregate LMP from PJM Data Miner 2 API, or extract from a pre-downloaded S3 CSV; write Hive-partitioned parquet to S3 |
+| `data/pjm/zone_mapping/generate_zone_mapping_csv.py`                 | Generate/refresh the utility-to-zone crosswalk CSV                                                                                           |
+| `data/pjm/zone_mapping/validate_pjm_zone_mapping.py`                 | Validate the crosswalk CSV (schema, pnode_ids, zone coverage)                                                                                |
+| `data/pjm/validate_pjm_lmp.py`                                       | Validate fetched LMP parquet (row counts, timestamp completeness, DST, value ranges)                                                         |
+| `utils/data_prep/marginal_costs/supply/generate_supply_energy_mc.py` | CLI: reads raw LMP from S3, produces CAIRO-ready 8760 parquet                                                                                |
 
 CLI (energy): `--iso pjm --utility bge --year 2025 [--upload]`
 

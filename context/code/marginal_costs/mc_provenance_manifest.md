@@ -114,7 +114,7 @@ touching the shared path on S3.
    manifest entry. Keep every other argument exactly as recorded:
 
    ```bash
-   uv run python utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py \
+   uv run python utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py \
      --state CT --utility ct_eversource --year 2025 ... \
      # same arguments as `command`, minus --upload
    ```

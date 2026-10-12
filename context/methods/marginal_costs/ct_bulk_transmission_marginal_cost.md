@@ -25,7 +25,7 @@ CT uses the same cost source as RI: the **Avoided Energy Supply Components (AESC
 
 **Key value:** `$69/kW-year` (AESC 2024, Table: Avoided T&D — PTF) — [DocumentCloud p. 288](https://www.documentcloud.org/documents/28039756-synapse-2024-avoided-energy-supply-components-in-new-england-2024-repor/#document/p288/a2811325).
 
-This is the LRMC of bulk transmission in ISO-NE territory: the cost deferred or avoided when a CT customer reduces peak demand by 1 kW during peak hours. The same $69/kW-year applies across all six NE states because PTF is a regional (pooled) cost. The value is implemented as `AESC_2024_AVOIDED_PTF_KW_YEAR` in `utils/data_prep/marginal_costs/bulk_tx_isone.py`.
+This is the LRMC of bulk transmission in ISO-NE territory: the cost deferred or avoided when a CT customer reduces peak demand by 1 kW during peak hours. The same $69/kW-year applies across all six NE states because PTF is a regional (pooled) cost. The value is implemented as `AESC_2024_AVOIDED_PTF_KW_YEAR` in `utils/data_prep/marginal_costs/bulk_tx/bulk_tx_isone.py`.
 
 For full background on the AESC study, the RNS rate, and the reasoning behind choosing AESC over the embedded RNS rate, see `context/methods/marginal_costs/ri_bulk_transmission_marginal_cost.md`.
 
@@ -109,7 +109,7 @@ s3://data.sb/isone/hourly_demand/zones/
 
 This dataset contains 8760 rows per year per zone, with columns `timestamp` and `load_mw`. CT-specific load is zone label `"CT"`. NE system aggregate is the sum across all 8 ISO-NE load zones: `CT`, `ME`, `NH`, `VT`, `RI`, `SEMASS`, `WCMASS`, `NEMASSBOST`.
 
-Loading is handled by `load_isone_zone_loads()` in `utils/data_prep/marginal_costs/supply_capacity_isone.py`.
+Loading is handled by `load_isone_zone_loads()` in `utils/data_prep/marginal_costs/supply/supply_capacity_isone.py`.
 
 ---
 
@@ -153,15 +153,15 @@ just s ct bulk_tx_method=isone_aesc_ptf create-bulk-tx-mc-data ct_eversource 202
 
 ## Implementation files
 
-| File                                                      | Role                                                                                |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `utils/data_prep/marginal_costs/bulk_tx_isone.py`         | Core logic: `compute_isone_bulk_tx_signal`, `prepare_output`, `validate_allocation` |
-| `utils/data_prep/marginal_costs/generate_bulk_tx_mc.py`   | CLI entrypoint; `--allocation-load` and `--method month_hour`                       |
-| `utils/data_prep/marginal_costs/supply_utils.py`          | `ISONE_UTILITY_ZONES` mapping, `allocate_annual_exceedance_to_hours`                |
-| `utils/data_prep/marginal_costs/supply_capacity_isone.py` | `load_isone_zone_loads`                                                             |
-| `rate_design/hp_rates/ct/Justfile`                        | `create-bulk-tx-mc-data`, `create-bulk-tx-mc-data-all` recipes                      |
-| `rate_design/hp_rates/ct/state.env`                       | `UTILITIES`, `REGION=isone`, `YEAR=2025`                                            |
-| `tests/test_ri_bulk_tx_mc.py`                             | Tests for exceedance allocation, system vs. zone load modes                         |
+| File                                                             | Role                                                                                |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `utils/data_prep/marginal_costs/bulk_tx/bulk_tx_isone.py`        | Core logic: `compute_isone_bulk_tx_signal`, `prepare_output`, `validate_allocation` |
+| `utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py`  | CLI entrypoint; `--allocation-load` and `--method month_hour`                       |
+| `utils/data_prep/marginal_costs/supply_utils.py`                 | `ISONE_UTILITY_ZONES` mapping, `allocate_annual_exceedance_to_hours`                |
+| `utils/data_prep/marginal_costs/supply/supply_capacity_isone.py` | `load_isone_zone_loads`                                                             |
+| `rate_design/hp_rates/ct/Justfile`                               | `create-bulk-tx-mc-data`, `create-bulk-tx-mc-data-all` recipes                      |
+| `rate_design/hp_rates/ct/state.env`                              | `UTILITIES`, `REGION=isone`, `YEAR=2025`                                            |
+| `tests/test_ri_bulk_tx_mc.py`                                    | Tests for exceedance allocation, system vs. zone load modes                         |
 
 ---
 

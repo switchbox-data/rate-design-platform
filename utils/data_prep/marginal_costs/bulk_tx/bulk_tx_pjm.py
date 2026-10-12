@@ -66,7 +66,7 @@ _DAYS_JUN_TO_DEC: int = 214
 
 PJM_HOURLY_DEMAND_S3_BASE = "s3://data.sb/pjm/hourly_demand/utilities"
 NITS_CSV_PATH = (
-    Path(__file__).resolve().parents[3] / "data/pjm/bulk_tx/nits/nits_rates.csv"
+    Path(__file__).resolve().parents[4] / "data/pjm/bulk_tx/nits/nits_rates.csv"
 )
 
 # Utility → NITS zone mapping.

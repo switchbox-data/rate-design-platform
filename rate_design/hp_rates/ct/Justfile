@@ -147,7 +147,7 @@ create-bulk-tx-mc-data utility_arg year_arg *extra_args:
         exit 1
         ;;
     esac
-    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \
       --iso isone \
       --utility {{ utility_arg }} \
       --year {{ year_arg }} \
@@ -271,7 +271,7 @@ create-dist-mc-data year_arg *extra_args:
     fi
     echo ">> CT dist MC: method={{ dist_mc_method }} year={{ year_arg }} -> dist_and_sub_tx/" >&2
     cd {{ path_repo }}
-    uv run python utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py \
+    uv run python utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py \
       --state CT \
       --utility ct_eversource \
       --year {{ year_arg }} \
@@ -291,7 +291,7 @@ create-dist-mc-data year_arg *extra_args:
 # =============================================================================
 
 create-zero-supply-mc-data utility_arg year_arg *extra_args:
-    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_zero_supply_mc.py \
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/supply/generate_zero_supply_mc.py \
       --utility {{ utility_arg }} \
       --year {{ year_arg }} \
       --output-s3-base "{{ path_s3_mc_root }}supply/" \

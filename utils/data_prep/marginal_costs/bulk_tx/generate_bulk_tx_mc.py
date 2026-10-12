@@ -5,52 +5,52 @@ Supports PJM (MD), NYISO (NY), and ISO-NE (RI, CT).
 Usage
 -----
     # PJM / MD (inspect only)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso pjm --utility bge --year 2025
 
     # PJM / MD (upload)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso pjm --utility bge --year 2025 --upload
 
     # PJM / MD: 2025 NITS $/kW-yr, 2018 load for PCAF (sibling bulk_tx_load2018/)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso pjm --utility bge --year 2025 --load-year 2018 --upload
 
     # ISO-NE / RI (inspect only)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --utility rie --year 2025 --load-year 2025
 
     # ISO-NE / RI (upload)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --utility rie --year 2025 --load-year 2025 --upload
 
     # ISO-NE / CT exceedance, NE system load. This is the CLI default when
     # --method is omitted. The CT Justfile default is month_hour (below).
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --utility ct_eversource --year 2025 --load-year 2025
 
     # ISO-NE / CT exceedance using CT zone load for peak identification
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --utility ct_eversource --year 2025 --load-year 2025 \\
         --allocation-load utility_zone
 
     # ISO-NE / CT Eversource: month-hour from OCC-863 probability of peak
     # (the CT Justfile default)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --method month_hour --utility ct_eversource --year 2025 \\
         --path-weekday-pop month_hour_probability_of_peak_weekday.parquet \\
         --path-weekend-pop month_hour_probability_of_peak_weekend_holidays.parquet
 
     # ISO-NE with custom AESC PTF override
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --utility rie --year 2025 --aesc-ptf-kw-year 184.0 --upload
 
     # NYISO (inspect only)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso nyiso --utility nyseg --year 2025 --load-year 2024
 
     # NYISO (upload)
-    uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso nyiso --utility nyseg --year 2025 --load-year 2024 --upload
 """
 
@@ -63,24 +63,24 @@ from pathlib import Path
 import polars as pl
 from dotenv import load_dotenv
 
-from utils.data_prep.marginal_costs.bulk_tx_isone import (
+from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_isone import (
     AESC_2024_AVOIDED_PTF_KW_YEAR,
     AESC_2024_DOLLAR_YEAR,
     DEFAULT_N_PEAK_HOURS,
 )
-from utils.data_prep.marginal_costs.generate_utility_tx_dx_mc import (
+from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
     _parse_bool,
     expand_month_hour_mc_to_8760,
     inflate_annual_mc,
     month_hour_costs_from_probability,
     scale_8760_to_annual,
 )
-from utils.data_prep.marginal_costs.bulk_tx_nyiso import (
+from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_nyiso import (
     DEFAULT_NYISO_BULK_TX_CONSTRAINT_GROUP_TABLE_PATH,
     DEFAULT_SCR_WINTER_MONTHS,
     N_SCR_HOURS_PER_SEASON,
 )
-from utils.data_prep.marginal_costs.bulk_tx_pjm import (
+from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_pjm import (
     DEFAULT_K_PEAK_HOURS,
     PJM_HOURLY_DEMAND_S3_BASE,
     VALID_PJM_UTILITIES,
@@ -491,7 +491,7 @@ def _run_pjm(
     utility_loads_s3_base: str,
     storage_options: dict[str, str],
 ) -> None:
-    from utils.data_prep.marginal_costs.bulk_tx_pjm import (
+    from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_pjm import (
         compute_pjm_bulk_tx_mc,
         print_summary,
         save_output,
@@ -513,7 +513,7 @@ def _run_pjm(
     print_summary(output_df)
 
     if args.upload:
-        from utils.data_prep.marginal_costs.bulk_tx_pjm import NITS_CSV_PATH
+        from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_pjm import NITS_CSV_PATH
 
         spec = McSpec(
             mc_type="bulk_tx",
@@ -551,7 +551,7 @@ def _run_nyiso(
     zone_loads_s3_base: str,
     storage_options: dict[str, str],
 ) -> None:
-    from utils.data_prep.marginal_costs.bulk_tx_nyiso import (
+    from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_nyiso import (
         ICAP_RAW_TO_NESTED_LOCALITY,
         NESTED_LOCALITY_ZONES,
         compute_paying_locality_costs,
@@ -568,7 +568,7 @@ def _run_nyiso(
 
     n_scr = args.scr_hours_per_season
 
-    project_root = Path(__file__).resolve().parents[3]
+    project_root = Path(__file__).resolve().parents[4]
     periods_yaml_path = (
         Path(args.periods_yaml)
         if args.periods_yaml
@@ -636,7 +636,7 @@ def _run_nyiso(
         storage_options,
     )
 
-    from utils.data_prep.marginal_costs.bulk_tx_nyiso import (
+    from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_nyiso import (
         build_nested_locality_load_profiles,
     )
 
@@ -706,7 +706,7 @@ def _run_isone_month_hour(
     storage_options: dict[str, str],
 ) -> None:
     """Weekday/weekend lookup of AESC $/kW-yr × PoP / num_days, scaled to the annual."""
-    from utils.data_prep.marginal_costs.bulk_tx_isone import (
+    from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_isone import (
         print_summary,
         save_output,
         validate_allocation,
@@ -827,14 +827,14 @@ def _run_isone(
     zone_loads_s3_base: str,
     storage_options: dict[str, str],
 ) -> None:
-    from utils.data_prep.marginal_costs.bulk_tx_isone import (
+    from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_isone import (
         compute_isone_bulk_tx_signal,
         prepare_output,
         print_summary,
         save_output,
         validate_allocation,
     )
-    from utils.data_prep.marginal_costs.supply_capacity_isone import (
+    from utils.data_prep.marginal_costs.supply.supply_capacity_isone import (
         load_isone_zone_loads,
     )
 

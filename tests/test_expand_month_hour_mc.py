@@ -7,7 +7,7 @@ from datetime import datetime
 import polars as pl
 import pytest
 
-from utils.data_prep.marginal_costs.generate_utility_tx_dx_mc import (
+from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
     _voltage_from_table_paths,
     expand_month_hour_mc_to_8760,
     scale_8760_to_annual,

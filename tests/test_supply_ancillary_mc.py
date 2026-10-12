@@ -7,8 +7,8 @@ from datetime import datetime, timedelta
 import polars as pl
 import pytest
 
-import utils.data_prep.marginal_costs.supply_ancillary as supply_ancillary_mod
-from utils.data_prep.marginal_costs.supply_ancillary import (
+import utils.data_prep.marginal_costs.supply.supply_ancillary as supply_ancillary_mod
+from utils.data_prep.marginal_costs.supply.supply_ancillary import (
     ancillary_wide_to_enduse,
     compute_supply_ancillary_mc,
 )
@@ -249,7 +249,7 @@ def _make_compute_ancillary_mc_with_patch(
         }
     )
 
-    import utils.data_prep.marginal_costs.supply_ancillary as mod
+    import utils.data_prep.marginal_costs.supply.supply_ancillary as mod
 
     def _fake_load(
         yr: int,
@@ -351,7 +351,7 @@ def test_compute_ancillary_mc_leap_year_is_8760(
         }
     )
 
-    import utils.data_prep.marginal_costs.supply_ancillary as mod
+    import utils.data_prep.marginal_costs.supply.supply_ancillary as mod
 
     def _fake_load(
         yr: int,
