@@ -78,6 +78,112 @@ Implementation: `utils/data_prep/marginal_costs/mc_manifest.py`.
    false. `generator_commit_in_run_history` is `true`, `false`, or `null` (unknown, e.g. the commit
    is not in the run's clone); a `false` is also logged as a warning. The run does not fetch.
 
+## Rebuilding an MC 8760 from a run's record
+
+Start from a CAIRO run directory, e.g.
+`s3://data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/<batch>/<cairo_ts>_<run_name>/`
+(also mounted at `/data.sb/...`). Its `marginal_costs_used.json` names the exact file the run
+read and the code that built it. The steps below rebuild that file and check it, without
+touching the shared path on S3.
+
+1. **Read the record.** Pick the MC (`dist_and_sub_tx`, `bulk_tx`, ...) and pull out the tag,
+   the command, and the recorded summary:
+
+   ```bash
+   RUN_DIR=/data.sb/switchbox/cairo/outputs/hp_rates/ct/ct_eversource/<batch>/<run>
+   jq '.marginal_costs.dist_and_sub_tx | {sha256, key, git_tag, matches_manifest,
+       command: .manifest_entry.provenance.command, summary: .manifest_entry.summary,
+       inputs: .manifest_entry.inputs}' "$RUN_DIR/marginal_costs_used.json"
+   ```
+
+   `git_tag` looks like `mc/2bcbd2301664`. For entries written before the upload guard, it is
+   `null`; use `git_commit` instead. `command` is the full `uv run python ...` line, including
+   `--upload` and the shared `--output-s3-base`.
+
+2. **Check out that code in a separate worktree**, so the current checkout is undisturbed:
+
+   ```bash
+   cd "$(git rev-parse --show-toplevel)"
+   git fetch --tags origin
+   git worktree add /tmp/mc-rebuild mc/2bcbd2301664   # or the git_commit sha
+   cd /tmp/mc-rebuild && uv sync --locked
+   ```
+
+3. **Re-run the command without `--upload`.** Dropping `--upload` makes the generator compute
+   and print the 8760 but write nothing, so it cannot overwrite the shared file or append a
+   manifest entry. Keep every other argument exactly as recorded:
+
+   ```bash
+   uv run python utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py \
+     --state CT --utility ct_eversource --year 2025 ... \
+     # same arguments as `command`, minus --upload
+   ```
+
+   The printout includes the sum over the 8760, the number of nonzero hours, and the top hours.
+   Compare them with `manifest_entry.summary` (`sum`, `nonzero_hours`, `max`, `min`). Equal
+   values mean the code at that tag still produces the recorded file.
+
+4. **If they differ, check the inputs first.** Each `manifest_entry.inputs[*]` has a `path` and
+   the `sha256` it had at upload time. Re-hash the current file at that path
+   (`mc_manifest.file_sha256(path)` or `aws s3 cp ... - | sha256sum`). A changed hash means the
+   source data on S3 moved, not the code; the manifest cannot restore those bytes.
+
+5. **For a byte-for-byte check**, the rebuilt file has to be written somewhere other than the
+   live path. Steps 1–4 work today. A dedicated archive location for these rebuilds is planned
+   (see "Archive path for rebuilds (planned)" below). Until it exists, run with `--upload` but
+   point both output bases at a scratch location, e.g.
+   `--output-s3-base s3://data.sb/scratch/<you>/mc/` and
+   `--path-local-output-base /tmp/mc-rebuild-out/`. The upload guard still applies (the
+   worktree is at a pushed tag, so it passes), and the file and a manifest entry land in
+   scratch, not at the shared path. Compare the new file's sha256 with the run's `sha256`.
+   Parquet writer metadata can change with a polars upgrade, so if the summaries match but
+   the sha256 differs, compare the `timestamp` and value columns instead.
+
+6. **Clean up:** `git worktree remove /tmp/mc-rebuild`.
+
+In short: `marginal_costs_used.json` → `manifest_entry.provenance.git_tag` and `command` →
+check out the tag → re-run the command without `--upload` → compare with
+`manifest_entry.summary`.
+
+### Archive path for rebuilds (planned)
+
+**Status: not implemented.** This describes how rebuilds of old MC 8760s should be stored. It
+is planned for a separate PR; the generators do not do this yet.
+
+A rebuilt 8760 goes under an `archive/` folder beside the live data, with a `tag=` partition
+for the commit that built it. The rest of the path matches the live path:
+
+```text
+live:    s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+archive: s3://data.sb/switchbox/marginal_costs/ct/archive/dist_and_sub_tx/tag=mc_2bcbd2301664/utility=ct_eversource/year=2025/data.parquet
+
+live:    s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
+archive: s3://data.sb/switchbox/marginal_costs/ct/archive/supply/capacity/tag=mc_2bcbd2301664/utility=ct_eversource/year=2025/zero.parquet
+```
+
+Why this layout:
+
+- **`archive/` sits beside the live MC folders** (`dist_and_sub_tx/`, `bulk_tx/`, `supply/`), not
+  inside them. A scan of a live partition, or a pipeline path, never picks up an archived file.
+- **`tag=` keeps every rebuild.** Its value is the entry's `mc/<sha12>` tag with `/` replaced by
+  `_`, since `/` cannot appear in a partition value. Without it, `archive/.../year=2025/data.parquet`
+  would be a second mutable path, and each rebuild would replace the last. Rebuilding the same
+  tag writes the same object, which is correct when the bytes match.
+- **The manifest goes with it.** The rebuild's `manifest.yaml` entry lands in the archive
+  directory, next to the file it describes. The live manifest is not touched.
+
+When it is implemented, the behavior should be:
+
+- An explicit flag on every generator (e.g. `--rebuild`) is the only thing that writes to the
+  archive. It requires `--upload`, and the upload guard still runs.
+- With that flag, every write in the run (S3 and the local mirror) goes to the archive path for
+  the current commit's tag. The live path is never written.
+- A plain `--upload` behaves as it does today and writes only the live path. Production uploads
+  are not copied to the archive automatically; that would be a further, separate decision.
+
+With this in place, step 5 above becomes: check out the tag, re-run the recorded command with
+`--rebuild` added, and compare the archived file's sha256 with the run's `sha256`.
+
 ## Entry fields
 
 | Field                     | Meaning                                                                                                                                                                                                                                                                                                                                                        |
