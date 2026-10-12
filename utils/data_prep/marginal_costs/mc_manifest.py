@@ -91,6 +91,14 @@ def _key_bulk_isone(p: Mapping[str, Any]) -> str:
     )
 
 
+def _key_bulk_month_hour(p: Mapping[str, Any]) -> str:
+    holidays = "holidays" if p["include_holidays"] else "noholidays"
+    return (
+        f"month_hour_{p['table_source']}_aesc_ptf{_num(p['ptf_kw_year'])}"
+        f"_{holidays}_cal{p['calendar_year']}_{p['target_dollar_year']}usd"
+    )
+
+
 def _key_bulk_pjm(p: Mapping[str, Any]) -> str:
     return f"pjm_nits_pcaf_{p['k_peak_hours']}h_load{p['load_year']}"
 
@@ -107,6 +115,7 @@ KEY_BUILDERS: dict[tuple[str, str], KeyBuilder] = {
     ("dist_and_sub_tx", "pop"): _key_dist_pop,
     ("dist_and_sub_tx", "month_hour"): _key_dist_month_hour,
     ("bulk_tx", "isone_aesc_ptf"): _key_bulk_isone,
+    ("bulk_tx", "month_hour"): _key_bulk_month_hour,
     ("bulk_tx", "pjm_nits_pcaf"): _key_bulk_pjm,
     ("bulk_tx", "nyiso_scr"): _key_bulk_nyiso,
     **{(mc_type, ZERO_METHOD): _key_zero for mc_type in MC_TYPES},

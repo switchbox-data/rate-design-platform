@@ -92,6 +92,20 @@ class TestKeys:
             "aesc_ptf184p5_"
         )
 
+    def test_bulk_tx_month_hour(self) -> None:
+        params = {
+            "table_source": "occ863att2",
+            "ptf_kw_year": 69.0,
+            "ptf_dollar_year": 2024,
+            "target_dollar_year": 2026,
+            "include_holidays": True,
+            "calendar_year": 2025,
+        }
+        assert (
+            build_key("bulk_tx", "month_hour", params)
+            == "month_hour_occ863att2_aesc_ptf69_holidays_cal2025_2026usd"
+        )
+
     @pytest.mark.parametrize("mc_type", sorted(mc_manifest.MC_TYPES))
     def test_zero_for_every_type(self, mc_type: str) -> None:
         assert build_key(mc_type, "zero", {}) == "zero"

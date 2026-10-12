@@ -6,16 +6,16 @@ How to create a bulk transmission marginal cost signal for the BAT in Connecticu
 
 ## Summary
 
-| Feature                     | Value                                               |
-| --------------------------- | --------------------------------------------------- |
-| Marginal cost source        | AESC 2024 avoided PTF cost                          |
-| Value                       | $69/kW-year (same for all 6 NE states)              |
-| Hourly allocation method    | Top-100-hour exceedance on load curve               |
-| Default allocation load     | NE system aggregate (all 8 ISO-NE load zones)       |
-| Alternative allocation load | CT zone load only                                   |
-| ISO                         | ISO-NE                                              |
-| Utilities covered           | `ct_eversource`, `ct_ui`                            |
-| Output S3 path              | `s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/` |
+| Feature                     | Value                                                |
+| --------------------------- | ---------------------------------------------------- |
+| Marginal cost source        | AESC 2024 avoided PTF cost                           |
+| Value                       | $69/kW-year (same for all 6 NE states)               |
+| Hourly allocation method    | Top-100-hour exceedance (default), or month-hour PoP |
+| Default allocation load     | NE system aggregate (all 8 ISO-NE load zones)        |
+| Alternative allocation load | CT zone load only                                    |
+| ISO                         | ISO-NE                                               |
+| Utilities covered           | `ct_eversource`, `ct_ui`                             |
+| Output S3 path              | `s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/`  |
 
 ---
 
@@ -43,6 +43,38 @@ The $69/kW-year value must be converted to an 8760 hourly signal for CAIRO. The 
 4. All other hours receive $0.
 
 The result: a customer who runs a kW of load during the top-100 peak hours sees a positive bulk TX marginal cost on those hours; all other hours are zero. The sum over all 8760 hours for a 1-kW flat load equals $69/kW-year (validated automatically at runtime).
+
+### Month-hour allocation (ct_eversource)
+
+`bulk_tx_method=month_hour` (`generate_bulk_tx_mc.py --method month_hour`) builds the 8760 from
+OCC-863 Attachment 2 page 3 instead of from a load curve. Page 3 is the probability of
+distribution peak by month, hour, and day type. Pages 1 and 2 turn that into $/kWh as
+
+$$
+MC_{m,h} = \frac{S \cdot PoP_{m,h}}{D_{m}}
+$$
+
+where S is the annual cost in $/kW-yr and D is that day type's day count for the month. S starts
+as the AESC 69 $/kW-yr in 2024 dollars (`--aesc-ptf-kw-year`, `--ptf-dollar-year`). There is no
+loss factor. `--target-dollar-year` (default `--year`; the ct recipe passes 2026, the same dollar
+year as `create-dist-mc-data`) inflates S by CPIAUCSL when the years differ, the same rule as
+distribution. The 8760 is then scaled so it sums to that inflated S, which is $69/kW-yr only when
+the target year is 2024.
+
+Weekday and weekend-and-holiday probabilities are applied separately, then looked up onto the
+calendar year with the same Saturday/Sunday and federal-holiday rule as distribution
+`month_hour` (`context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md` §7). The
+uniform factor corrects for the calendar's day counts differing from `num_days`. When they match,
+that factor is 1 and the sum is already S.
+
+The manifest key is `month_hour_occ863att2_aesc_ptf69_holidays_cal2025_2026usd`. The ct
+recipe wires CL&P's OCC-863 probability files, so it runs for `ct_eversource` only. The generator
+itself takes whatever probability paths it is given.
+
+```bash
+just -f ct/Justfile bulk_tx_method=month_hour create-bulk-tx-mc-data ct_eversource 2025
+just -f ct/Justfile bulk_tx_method=month_hour include_holidays=false create-bulk-tx-mc-data ct_eversource 2025
+```
 
 ---
 
@@ -124,7 +156,7 @@ Both `ct_eversource` and `ct_ui` are defined in `state.env` as `UTILITIES=ct_eve
 | File                                                      | Role                                                                                |
 | --------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `utils/data_prep/marginal_costs/bulk_tx_isone.py`         | Core logic: `compute_isone_bulk_tx_signal`, `prepare_output`, `validate_allocation` |
-| `utils/data_prep/marginal_costs/generate_bulk_tx_mc.py`   | CLI entrypoint; handles `--allocation-load` flag                                    |
+| `utils/data_prep/marginal_costs/generate_bulk_tx_mc.py`   | CLI entrypoint; `--allocation-load` and `--method month_hour`                       |
 | `utils/data_prep/marginal_costs/supply_utils.py`          | `ISONE_UTILITY_ZONES` mapping, `allocate_annual_exceedance_to_hours`                |
 | `utils/data_prep/marginal_costs/supply_capacity_isone.py` | `load_isone_zone_loads`                                                             |
 | `rate_design/hp_rates/ct/Justfile`                        | `create-bulk-tx-mc-data`, `create-bulk-tx-mc-data-all` recipes                      |

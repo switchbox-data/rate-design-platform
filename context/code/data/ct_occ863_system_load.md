@@ -183,7 +183,11 @@ just -f rate_design/hp_rates/ct/Justfile convert-occ863-probability-of-peak \
 
 ## Using this load for CT distribution marginal cost
 
-`create-dist-mc-data` uses two of these outputs. Its default, `dist_mc_method=month_hour`,
+`create-bulk-tx-mc-data` with `bulk_tx_method=month_hour` reads the two probability-of-peak
+parquets. For each month-hour it sets $/kWh to the AESC $/kW-yr (69 in 2024 dollars, CPI-inflated
+to `--target-dollar-year`) times `probability_of_peak` divided by `num_days`, then expands
+weekday vs weekend-and-holiday the same way distribution does. The 8760 sums to that inflated
+annual total. `create-dist-mc-data` uses two of the cost outputs. Its default, `dist_mc_method=month_hour`,
 expands the secondary weekday and weekend-and-holiday month-hour parquets. Its first fallback,
 `dist_mc_method=pop_occ863`, passes `system_load.parquet` as `--path-utility-load`. The
 allocator keeps the requested year and ranks the top 100 hours of that substation series. The

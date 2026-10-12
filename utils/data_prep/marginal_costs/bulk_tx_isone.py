@@ -50,6 +50,7 @@ from utils.data_prep.marginal_costs.supply_utils import (
 #
 # Source: https://www.synapse-energy.com/aesc-2024-materials
 AESC_2024_AVOIDED_PTF_KW_YEAR: float = 69.0
+AESC_2024_DOLLAR_YEAR: int = 2024
 
 # Default number of top system-load hours for exceedance allocation.
 # Matches the top-100 convention used for sub-TX/dist PoP and FCA capacity

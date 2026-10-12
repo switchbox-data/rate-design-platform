@@ -19,6 +19,8 @@ path_s3_mc_root := "s3://data.sb/switchbox/marginal_costs/ct/"
 path_local_mc_root := "/ebs/data/switchbox/marginal_costs/ct/"
 # month_hour (default), pop_occ863, or pop_isone_zone. See create-dist-mc-data.
 dist_mc_method := env_var_or_default('DIST_MC_METHOD', 'month_hour')
+# isone_aesc_ptf (default) or month_hour. See create-bulk-tx-mc-data.
+bulk_tx_method := env_var_or_default('BULK_TX_METHOD', 'isone_aesc_ptf')
 include_holidays := env_var_or_default('INCLUDE_HOLIDAYS', 'true')
 # Calendar for month_hour's weekday/weekend/holiday rule. Empty: year_arg, which is
 # right because CAIRO rotates the AMY2018 loads onto the run year's weekdays.
@@ -80,9 +82,27 @@ run-with-lmi batch *scenarios:
 # =============================================================================
 # CT-only: bulk transmission marginal costs (ISO-NE AESC PTF)
 #
-# Uses AESC 2024 avoided PTF cost ($69/kW-yr) allocated to the top-100 NE
-# system peak hours via exceedance weighting — same methodology as RI.
-# Outputs land at s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/.
+# bulk_tx_method picks the 8760. The annual cost is the AESC 2024 avoided PTF,
+# $69/kW-yr in 2024 dollars.
+#
+#   isone_aesc_ptf (default)
+#     $69/kW-yr on the top-100 NE system peak hours by exceedance weighting,
+#     same methodology as RI. --allocation-load utility_zone uses CT zone load.
+#     No CPI. Applies to ct_eversource and ct_ui.
+#
+#   month_hour
+#     For each month-hour, $/kWh = S × OCC-863 Attachment 2 page 3
+#     probability_of_peak / num_days, weekday and weekend-holiday separately.
+#     S is $69 inflated from 2024 dollars to --target-dollar-year (2026 here,
+#     matching create-dist-mc-data). Days are classified on
+#     month_hour_calendar_year (default year_arg), with the same federal-holiday
+#     rule as create-dist-mc-data. Every hour is then multiplied by one factor
+#     so the 8760 sums to S. The recipe wires Eversource's probability files, so
+#     it refuses any utility other than ct_eversource.
+#
+# Both write bulk_tx/utility=<utility>/year=<year_arg>/data.parquet and append
+# a manifest entry. The pipeline YAML's marginal_costs.bulk_tx.key must match
+# the latest entry. Keys: context/code/marginal_costs/mc_provenance_manifest.md.
 # =============================================================================
 
 ct_bulk_tx_years := "2025"
@@ -90,13 +110,48 @@ ct_bulk_tx_years := "2025"
 # Generate bulk TX MC for one CT utility and one year.
 #
 #   just -f ct/Justfile create-bulk-tx-mc-data ct_eversource 2025
-# just -f ct/Justfile create-bulk-tx-mc-data ct_eversource 2025 --upload
+#   just -f ct/Justfile create-bulk-tx-mc-data ct_eversource 2025 --upload
+#   just -f ct/Justfile bulk_tx_method=month_hour create-bulk-tx-mc-data ct_eversource 2025
+# BULK_TX_METHOD=month_hour just s ct create-bulk-tx-mc-data ct_eversource 2025
 create-bulk-tx-mc-data utility_arg year_arg *extra_args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    calendar_year="{{ month_hour_calendar_year }}"
+    calendar_year="${calendar_year:-{{ year_arg }}}"
+    case "{{ bulk_tx_method }}" in
+      isone_aesc_ptf)
+        method_args=(
+          --method isone_aesc_ptf
+          --load-year {{ year_arg }}
+        )
+        ;;
+      month_hour)
+        if [[ "{{ utility_arg }}" != "ct_eversource" ]]; then
+          echo "bulk_tx_method=month_hour is only defined for ct_eversource (got '{{ utility_arg }}')" >&2
+          exit 1
+        fi
+        method_args=(
+          --method month_hour
+          --path-weekday-pop "{{ path_s3_occ863_parquet }}/month_hour_probability_of_peak_weekday.parquet"
+          --path-weekend-pop "{{ path_s3_occ863_parquet }}/month_hour_probability_of_peak_weekend_holidays.parquet"
+          --include-holidays "{{ include_holidays }}"
+          --calendar-year "${calendar_year}"
+          --table-source occ863att2
+          --ptf-dollar-year 2024
+          --target-dollar-year 2026
+          --source 'AESC 2024 avoided PTF ($69/kW-yr, 2024$) x OCC-863 Attachment 2 page 3 probability of peak / num_days, CPI to 2026$, scaled so the 8760 sums to that inflated annual total'
+        )
+        ;;
+      *)
+        echo "bulk_tx_method must be isone_aesc_ptf or month_hour (got '{{ bulk_tx_method }}')" >&2
+        exit 1
+        ;;
+    esac
     cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
       --iso isone \
       --utility {{ utility_arg }} \
       --year {{ year_arg }} \
-      --load-year {{ year_arg }} \
+      "${method_args[@]}" \
       {{ extra_args }}
 
 # Generate bulk TX MC for all CT utilities across all available years.
@@ -109,13 +164,12 @@ create-bulk-tx-mc-data-all *extra_args:
     IFS=',' read -ra utils <<< "{{ utilities }}"
     for utility in "${utils[@]}"; do
         for year in {{ ct_bulk_tx_years }}; do
-            echo ">> Generating ISO-NE bulk TX MC: utility=${utility} year=${year}" >&2
-            cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
-              --iso isone \
-              --utility "${utility}" \
-              --year "${year}" \
-              --load-year "${year}" \
-              {{ extra_args }}
+            echo ">> Generating ISO-NE bulk TX MC: utility=${utility} year=${year} method={{ bulk_tx_method }}" >&2
+            just --justfile "{{ justfile() }}" \
+              bulk_tx_method="{{ bulk_tx_method }}" \
+              include_holidays="{{ include_holidays }}" \
+              month_hour_calendar_year="{{ month_hour_calendar_year }}" \
+              create-bulk-tx-mc-data "${utility}" "${year}" {{ extra_args }}
         done
     done
     echo ">> Done: all CT bulk TX MC (${#utils[@]} utilities × $(echo {{ ct_bulk_tx_years }} | wc -w) years)" >&2
