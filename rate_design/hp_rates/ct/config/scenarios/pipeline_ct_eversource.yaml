@@ -15,16 +15,29 @@ resstock:
   upgrade_precalc: "00"
   upgrade_calibrated: "02"
 marginal_costs:
-  # OCC-863 run: $21.22/kW-yr (secondary, rate year 1, no CPI) allocated on
-  # Eversource's system load. dist_and_sub_tx/ (no suffix) is the earlier
-  # ISO-NE zone-load 8760. See ct_eversource_dist_mc_methodology.md §3.4.
-  dist_and_sub_tx: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/utility=ct_eversource/year=2025/data.parquet
-  bulk_tx: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
+  # Each key must match the latest entry in the manifest.yaml beside the file;
+  # preflight stops on a mismatch. Keys: context/code/marginal_costs/mc_provenance_manifest.md.
+  # dist: OCC-863 Attachment 2 secondary month-hour $/kWh tables expanded onto
+  # the 2025 calendar, weekends and federal holidays on the weekend table
+  # (dist_mc_method=month_hour, the recipe default). 2025, not 2018, because
+  # CAIRO rotates the AMY2018 loads onto 2025's weekdays. Every hour is then
+  # scaled by one factor so the year sums to the $21.22/kW-yr in
+  # ct_marginal_costs_2025.csv. See ct_eversource_dist_mc_methodology.md §7.
+  dist_and_sub_tx:
+    path: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/utility=ct_eversource/year=2025/data.parquet
+    key: month_hour_occ863att2_secondary_holidays_cal2025
+  bulk_tx:
+    path: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
+    key: aesc_ptf69_ne_system_100h_load2025
   # No supply MC 8760s exist for CT (no ISO-NE LMP/FCM pipeline wired up yet);
   # point directly at zero.parquet so both delivery and supply runs get zero supply MCs.
-  supply_energy: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
-  supply_capacity: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
-  # supply_ancillary omitted
+  supply_energy:
+    path: s3://data.sb/switchbox/marginal_costs/ct/supply/energy/utility=ct_eversource/year=2025/zero.parquet
+    key: zero
+  supply_capacity:
+    path: s3://data.sb/switchbox/marginal_costs/ct/supply/capacity/utility=ct_eversource/year=2025/zero.parquet
+    key: zero
+    # supply_ancillary omitted
 revenue_requirement:
   single_rate: rev_requirement/ct_eversource_rate_case_test_year.yaml
   single_rate_calibrated: rev_requirement/ct_eversource_large_number_rate_case_test_year.yaml

@@ -8,31 +8,25 @@ import polars as pl
 import pytest
 
 from utils.data_prep.marginal_costs.generate_utility_tx_dx_mc import (
-    eversource_derived_output_base,
+    _voltage_from_table_paths,
     expand_month_hour_mc_to_8760,
+    scale_8760_to_annual,
 )
 
 
-def test_eversource_derived_output_base() -> None:
+def test_voltage_is_read_from_table_names() -> None:
+    base = "s3://bucket/occ-863/parquet/month_hour_marginal_costs"
     assert (
-        eversource_derived_output_base(
-            "s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/"
+        _voltage_from_table_paths(
+            f"{base}_weekday_secondary.parquet",
+            f"{base}_weekend_holidays_secondary.parquet",
         )
-        == "s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/"
+        == "secondary"
     )
-    assert (
-        eversource_derived_output_base(
-            "/ebs/data/switchbox/marginal_costs/ct/dist_and_sub_tx"
-        )
-        == "/ebs/data/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/"
-    )
-    already = (
-        "s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/"
-    )
-    assert eversource_derived_output_base(already) == already
-    with pytest.raises(ValueError, match="dist_and_sub_tx/"):
-        eversource_derived_output_base(
-            "s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/"
+    with pytest.raises(ValueError, match="--voltage"):
+        _voltage_from_table_paths(
+            f"{base}_weekday_secondary.parquet",
+            f"{base}_weekend_holidays_primary.parquet",
         )
 
 
@@ -117,6 +111,67 @@ def test_weekday_holidays_stay_on_weekday_table_when_holidays_excluded() -> None
     assert value_at("2025-07-04 16:00:00") == pytest.approx(7.16)
     # Saturday still uses the weekend table.
     assert value_at("2025-01-04 16:00:00") == pytest.approx(-1.16)
+
+
+def test_calendar_year_sets_day_types_and_year_sets_timestamps() -> None:
+    expanded = expand_month_hour_mc_to_8760(
+        _table(0.0, weekend=False),
+        _table(0.0, weekend=True),
+        2025,
+        "ct_eversource",
+        calendar_year=2018,
+    )
+    assert expanded.height == 8760
+    assert expanded["timestamp"].dt.year().unique().to_list() == [2025]
+    assert expanded["year"].unique().to_list() == [2025]
+
+    def value_at(stamp: str) -> float:
+        return expanded.filter(pl.col("timestamp") == datetime.fromisoformat(stamp))[
+            "mc_total_per_kwh"
+        ].item()
+
+    # 2025-01-04 is a Saturday, but 2018-01-04 was a Thursday.
+    assert value_at("2025-01-04 16:00:00") == pytest.approx(1.16)
+    # 2025-01-06 is a Monday, but 2018-01-06 was a Saturday.
+    assert value_at("2025-01-06 16:00:00") == pytest.approx(-1.16)
+    # July 4 is a holiday on either calendar.
+    assert value_at("2025-07-04 16:00:00") == pytest.approx(-7.16)
+    # Thanksgiving 2025 is Nov 27; 2018-11-27 was an ordinary Tuesday.
+    assert value_at("2025-11-27 16:00:00") == pytest.approx(11.16)
+
+
+def test_calendar_year_must_match_leap_status() -> None:
+    with pytest.raises(ValueError, match="leap"):
+        expand_month_hour_mc_to_8760(
+            _table(0.0, weekend=False),
+            _table(0.0, weekend=True),
+            2024,
+            "ct_eversource",
+            calendar_year=2018,
+        )
+
+
+def test_uniform_scale_matches_annual_total_and_keeps_shape() -> None:
+    expanded = expand_month_hour_mc_to_8760(
+        _table(0.0, weekend=False),
+        _table(0.0, weekend=True),
+        2025,
+        "ct_eversource",
+    )
+    before = expanded["mc_total_per_kwh"]
+    scaled, factor = scale_8760_to_annual(expanded, 21.22)
+    after = scaled["mc_total_per_kwh"]
+
+    assert factor == pytest.approx(21.22 / float(before.sum()))
+    assert float(after.sum()) == pytest.approx(21.22)
+    assert after.to_list() == pytest.approx((before * factor).to_list())
+    assert (after == 0).sum() == (before == 0).sum()
+
+
+def test_scale_refuses_a_zero_8760() -> None:
+    zeros = pl.DataFrame({"mc_total_per_kwh": [0.0, 0.0]})
+    with pytest.raises(ValueError, match="sums to 0"):
+        scale_8760_to_annual(zeros, 21.22)
 
 
 def test_leap_year_drops_december_31() -> None:

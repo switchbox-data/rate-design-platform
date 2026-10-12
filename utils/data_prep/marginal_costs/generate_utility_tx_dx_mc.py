@@ -8,22 +8,29 @@
   ``--utility-load-s3-base`` (hive utility=X/year=YYYY scan) or
   ``--path-utility-load`` (one parquet with timestamp and load_mw).
 - ``month_hour`` (CT only): look up Eversource's OCC-863 Attachment 2
-  month-hour $/kWh tables onto one calendar year. Uses no $/kW-yr value and no
-  load profile.
+  month-hour $/kWh tables onto one calendar year, then multiply every hour by
+  one factor so the 8760 sums to the MC table's $/kW-yr (the same value PoP
+  allocates, with the same dollar-year rule). Uses no load profile.
+  ``--calendar-year`` (default ``--year``) sets which year's weekdays,
+  weekends, and holidays are used; the 8760 is then stamped as ``--year`` by
+  position.
 
 CT Eversource, in order of preference (the ct Justfile's ``dist_mc_method``):
 
 1. ``month_hour``: OCC-863 Attachment 2 secondary tables, weekday vs.
-   weekend-and-holiday. Written to ``dist_and_sub_tx_eversource_derived/``.
+   weekend-and-holiday.
 2. ``pop`` on ``--path-utility-load`` = OCC-863 Attachment 3 system load: the
-   $21.22/kW-yr secondary value on Eversource's own substation peaks. Written to
-   ``dist_and_sub_tx_occ863/``.
+   $21.22/kW-yr secondary value on Eversource's own substation peaks.
 3. ``pop`` on ``--utility-load-s3-base`` = ISO-NE CT zone load: the same
-   $21.22/kW-yr on zone peaks. The oldest approach. Written to
-   ``dist_and_sub_tx/``.
+   $21.22/kW-yr on zone peaks. The oldest approach.
 
-Both CT PoP paths pass ``--target-dollar-year 2026``: the analysis is rate year
-1, already in the filing's 2026 dollars, so no CPI adjustment applies.
+All three write the same ``dist_and_sub_tx/`` path. Each upload appends an
+entry to the partition's ``manifest.yaml`` (``mc_manifest.py``) whose key says
+which method the current ``data.parquet`` came from.
+
+Both CT PoP paths pass ``--target-dollar-year 2026``, the MCOS study's own dollar
+year, so the filed value is allocated with no CPI adjustment. 2026 is not rate
+year 1 (July 2027 - June 2028).
 
 PoP input:
     - Utility hourly load profile, either ISO-native hive layout
@@ -36,6 +43,8 @@ PoP input:
 Month-hour input:
     - Weekday and weekend-and-holiday parquets, each 288 rows of
       month (1-12), hour (0-23), mc_total_per_kwh
+    - The same marginal cost table CSV as PoP. Its $/kW-yr is the annual sum
+      the expanded 8760 is scaled to; the hour-to-hour shape is unchanged.
 
 The optional ``dollar_year`` column in the MC table specifies the dollar year of
 the cost estimate.  When it differs from ``--target-dollar-year`` (default:
@@ -47,11 +56,11 @@ Output partitions written as:
     - NY default base: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/
     - RI default base: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
     - MD default base: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/
-    - CT month_hour: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_eversource_derived/
-      The partition year is --year, the same calendar stamped on the timestamps.
-    - CT pop on OCC-863 system load: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx_occ863/
-    - CT pop on ISO-NE CT zone load: s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/
-    - Default partition: utility=X/year=YYYY/data.parquet
+    - CT default base (all methods): s3://data.sb/switchbox/marginal_costs/ct/dist_and_sub_tx/
+      The partition year is --year, the year stamped on the timestamps. For
+      month_hour the day-type calendar is --calendar-year (default --year),
+      recorded in the manifest params and key.
+    - Default partition: utility=X/year=YYYY/data.parquet, plus manifest.yaml
     - Alternate-load-year base: <default_base_without_slash>_loadYYYY/
       Example: dist_and_sub_tx_load2018/utility=X/year=2025/data.parquet
 
@@ -84,7 +93,9 @@ Usage:
 """
 
 import argparse
+import calendar
 import io
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -92,6 +103,14 @@ import polars as pl
 from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
+from utils.data_prep.marginal_costs.mc_manifest import (
+    McSpec,
+    input_file,
+    input_partition,
+    partition_file_path,
+    record_mc_write,
+    require_published_code,
+)
 from utils.data_prep.marginal_costs.supply_utils import (
     build_cairo_8760_timestamps,
     output_base_for_load_year,
@@ -347,23 +366,40 @@ def load_marginal_cost_table(mc_table_path: str) -> pl.DataFrame:
     return df
 
 
-def eversource_derived_output_base(base: str) -> str:
-    """Point a dist-and-sub-tx output root at the Eversource-derived dataset.
+def _default_load_source(args: argparse.Namespace) -> str:
+    """Key label for the PoP load when --load-source is not passed.
 
-    ``.../dist_and_sub_tx/`` becomes ``.../dist_and_sub_tx_eversource_derived/``.
-    A base that already names that dataset is returned unchanged.
+    A single file is labeled by its stem; a hive base by its ISO directory,
+    e.g. ``s3://data.sb/nyiso/hourly_demand/utilities/`` -> ``nyiso_utility``.
     """
-    trimmed = base.rstrip("/")
-    parent, leaf = trimmed.rsplit("/", 1)
-    if leaf == "dist_and_sub_tx_eversource_derived":
-        return f"{trimmed}/"
-    if leaf != "dist_and_sub_tx":
+    if args.path_utility_load:
+        return Path(args.path_utility_load).stem
+    iso = args.utility_load_s3_base.removeprefix("s3://").split("/")[1]
+    return f"{iso}_utility"
+
+
+def _voltage_from_table_paths(path_weekday: str, path_weekend: str) -> str:
+    """``secondary`` or ``primary``, read from both month-hour table names."""
+    found = {
+        voltage
+        for voltage in ("secondary", "primary")
+        for path in (path_weekday, path_weekend)
+        if Path(path).stem.endswith(f"_{voltage}")
+    }
+    if len(found) != 1:
         raise ValueError(
-            "--method month_hour writes under "
-            "dist_and_sub_tx_eversource_derived/, so the output base must end "
-            f"in dist_and_sub_tx/ (got {base!r})"
+            "Cannot tell the voltage from the month-hour table names "
+            f"({path_weekday}, {path_weekend}); pass --voltage."
         )
-    return f"{parent}/dist_and_sub_tx_eversource_derived/"
+    return found.pop()
+
+
+def _source_or_warn(args: argparse.Namespace) -> str | None:
+    if not args.source:
+        print(
+            "⚠️  No --source citation passed; the manifest entry records source: null."
+        )
+    return args.source
 
 
 def _parse_bool(value: str) -> bool:
@@ -411,6 +447,75 @@ def get_marginal_cost_for_utility(mc_df: pl.DataFrame, utility: str) -> float:
     print(f"  Sub-Tx and Distribution: ${mc:.2f}/kW-yr")
 
     return mc
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedAnnualMc:
+    """The $/kW-yr a method should recover, as filed and after any CPI."""
+
+    as_filed: float
+    allocated: float
+    dollar_year: int | None
+    cpi_factor: float
+
+
+def resolve_annual_mc(
+    mc_df: pl.DataFrame,
+    utility: str,
+    target_dollar_year: int,
+    cpi_s3_base: str,
+    storage_options: dict[str, str],
+) -> ResolvedAnnualMc:
+    """Read one utility's $/kW-yr and inflate it when its dollar year differs.
+
+    Shared by PoP allocation and the month-hour scale, so both recover the
+    same annual total from the same CSV.
+    """
+    as_filed = get_marginal_cost_for_utility(mc_df, utility)
+    allocated = as_filed
+    dollar_year: int | None = None
+    cpi_factor = 1.0
+
+    if "dollar_year" in mc_df.columns:
+        dollar_year_val = mc_df.filter(pl.col("utility") == utility)["dollar_year"][0]
+        if dollar_year_val is not None:
+            dollar_year = int(dollar_year_val)
+            if dollar_year != target_dollar_year:
+                cpi_factor = load_cpi_inflation_factor(
+                    cpi_s3_base, dollar_year, target_dollar_year, storage_options
+                )
+                allocated = as_filed * cpi_factor
+                print(f"  Inflated MC: ${as_filed:.2f} → ${allocated:.2f}/kW-yr")
+            else:
+                print(
+                    f"\n  MC already in {target_dollar_year} dollars — no inflation applied"
+                )
+        else:
+            print("\n  dollar_year is null in MC table — no inflation applied")
+    else:
+        print("\n  No dollar_year column in MC table — using raw value (no inflation)")
+
+    return ResolvedAnnualMc(as_filed, allocated, dollar_year, cpi_factor)
+
+
+def scale_8760_to_annual(
+    df: pl.DataFrame, target_kw_yr: float, *, value_col: str = "mc_total_per_kwh"
+) -> tuple[pl.DataFrame, float]:
+    """Multiply every hour by one factor so ``value_col`` sums to ``target_kw_yr``.
+
+    Zero hours stay zero, and the ratio between any two hours is unchanged.
+    Returns the scaled frame and the factor (1.0 when the column already sums
+    to the target, including a column of zeros scaled to zero).
+    """
+    total = float(df[value_col].sum())
+    if total == 0.0:
+        if target_kw_yr != 0.0:
+            raise ValueError(
+                f"cannot scale {value_col} to ${target_kw_yr}/kW-yr: the 8760 sums to 0"
+            )
+        return df, 1.0
+    factor = target_kw_yr / total
+    return df.with_columns((pl.col(value_col) * factor).alias(value_col)), factor
 
 
 def load_cpi_inflation_factor(
@@ -584,6 +689,7 @@ def expand_month_hour_mc_to_8760(
     utility: str,
     *,
     include_holidays: bool = True,
+    calendar_year: int | None = None,
 ) -> pl.DataFrame:
     """Expand month-hour marginal costs onto one calendar year's Cairo 8760.
 
@@ -595,17 +701,28 @@ def expand_month_hour_mc_to_8760(
     false, a holiday on Monday through Friday takes the weekday value.
     Any other Monday through Friday takes the weekday value.
 
-    ``year`` is both the calendar used to classify each day and the year
-    stamped on ``timestamp`` and the ``year`` column. Passing 2018 classifies
-    2018's weekdays, weekends, and holidays and writes 2018 timestamps.
+    ``calendar_year`` (default ``year``) is the calendar used to classify each
+    day as weekday, weekend, or holiday. ``year`` is stamped on ``timestamp``
+    and the ``year`` column. When they differ, row *i* of ``calendar_year``'s
+    8760 is restamped as row *i* of ``year``'s, the same by-position alignment
+    CAIRO applies (``utils.cairo._align_mc_to_index``). The loads are not on
+    their source calendar: CAIRO rotates AMY2018 loads onto ``year_run``'s
+    weekdays, so ``calendar_year`` should normally equal the run year. The two
+    years must both be leap years or both not, so that each row keeps its month.
 
     Timestamps match ``build_cairo_8760_timestamps``: naive hour-beginning
     local time, 8,760 rows, with December 31 dropped in a leap year.
     """
-    clock = build_cairo_8760_timestamps(year).with_columns(
+    calendar_year = year if calendar_year is None else calendar_year
+    if calendar.isleap(calendar_year) != calendar.isleap(year):
+        raise ValueError(
+            f"calendar_year {calendar_year} and year {year} must both be leap "
+            "years or both not; otherwise rows after February shift by a day"
+        )
+    clock = build_cairo_8760_timestamps(calendar_year).with_columns(
         pl.col("timestamp").cast(pl.Datetime("us"))
     )
-    holidays = _us_federal_holidays(year) if include_holidays else set()
+    holidays = _us_federal_holidays(calendar_year) if include_holidays else set()
     clock = clock.with_columns(
         pl.col("timestamp").dt.month().alias("month"),
         pl.col("timestamp").dt.hour().alias("hour"),
@@ -629,7 +746,12 @@ def expand_month_hour_mc_to_8760(
         .alias("mc_total_per_kwh")
     )
     if expanded["mc_total_per_kwh"].null_count() != 0:
-        raise ValueError(f"month-hour lookup missed hours in {year}")
+        raise ValueError(f"month-hour lookup missed hours in {calendar_year}")
+    expanded = expanded.sort("timestamp").with_columns(
+        build_cairo_8760_timestamps(year)["timestamp"]
+        .cast(pl.Datetime("us"))
+        .alias("timestamp")
+    )
     return expanded.select(
         "timestamp",
         pl.lit(utility).alias("utility"),
@@ -709,11 +831,14 @@ def save_allocated_costs(
     validation_results: dict,
     storage_options: dict[str, str],
     path_local_base: str | None = None,
+    *,
+    spec: McSpec,
 ):
     """Save allocated marginal costs to S3 with Hive-style partitioning.
 
     Output structure:
         utility=X/year=YYYY/data.parquet
+        utility=X/year=YYYY/manifest.yaml (one entry appended per write)
 
     Args:
         df: DataFrame with allocated costs
@@ -727,6 +852,7 @@ def save_allocated_costs(
         storage_options: Polars S3 storage options with AWS bucket region
         path_local_base: Optional local mirror of ``s3_base``; the same
             ``utility=X/year=YYYY/data.parquet`` is written there too.
+        spec: Method, params, source, and inputs recorded in each manifest.
     """
     output_df = df.select(
         [
@@ -767,6 +893,7 @@ def save_allocated_costs(
     )
 
     print(f"\n✓ Saved allocated costs to {output_path}")
+    record_mc_write(output_path, spec, output_df, "mc_total_per_kwh")
     if path_local_base:
         path_local = (
             Path(path_local_base)
@@ -777,6 +904,7 @@ def save_allocated_costs(
         path_local.parent.mkdir(parents=True, exist_ok=True)
         output_df.write_parquet(path_local)
         print(f"✓ Saved local copy to {path_local}")
+        record_mc_write(str(path_local), spec, output_df, "mc_total_per_kwh")
     print(f"  Rows: {len(output_df):,}")
     print(f"  Columns: {', '.join(output_df.columns)}")
 
@@ -796,7 +924,8 @@ def main():
         help=(
             "pop: allocate the MC table's $/kW-yr over the top --n-hours of a "
             "load profile. month_hour (CT only): look up OCC-863 Attachment 2 "
-            "month-hour $/kWh tables onto --year. Default: pop."
+            "month-hour $/kWh tables onto --year, then scale the 8760 so it "
+            "sums to the MC table's $/kW-yr. Default: pop."
         ),
     )
     parser.add_argument(
@@ -818,7 +947,7 @@ def main():
         required=True,
         help=(
             "Output year for partition key and timestamps (e.g. 2025). For "
-            "month_hour, also the calendar that sets weekdays and holidays."
+            "month_hour, also the default --calendar-year."
         ),
     )
 
@@ -833,7 +962,7 @@ def main():
         "--mc-table-path",
         type=str,
         default=None,
-        help="Path to marginal cost table CSV (local or s3://). Required for pop.",
+        help="Path to marginal cost table CSV (local or s3://). Required for pop and month_hour.",
     )
     pop.add_argument(
         "--utility-load-s3-base",
@@ -862,6 +991,16 @@ def main():
         type=str,
         required=True,
         help="Base S3 path for output (e.g., s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/)",
+    )
+    pop.add_argument(
+        "--load-source",
+        type=str,
+        default=None,
+        help=(
+            "Short label for the load in the manifest key (e.g. occ863att3, "
+            "isone_zone). Default: the load file's stem, or <iso>_utility for "
+            "a hive base."
+        ),
     )
     pop.add_argument(
         "--n-hours",
@@ -917,6 +1056,38 @@ def main():
             "the weekday table."
         ),
     )
+    month_hour.add_argument(
+        "--calendar-year",
+        type=int,
+        default=None,
+        help=(
+            "Calendar that classifies weekdays, weekends, and holidays "
+            "(default: --year). The result is restamped onto --year's 8760 "
+            "by position. CAIRO rotates loads onto the run year's weekdays, so "
+            "this should normally be the run year."
+        ),
+    )
+    month_hour.add_argument(
+        "--table-source",
+        type=str,
+        default="occ863att2",
+        help="Short label for the month-hour tables in the manifest key.",
+    )
+    month_hour.add_argument(
+        "--voltage",
+        choices=["secondary", "primary"],
+        default=None,
+        help="Voltage of the month-hour tables. Default: read from their file names.",
+    )
+    parser.add_argument(
+        "--source",
+        type=str,
+        default=None,
+        help=(
+            "Citation recorded in the manifest, e.g. 'PURA Docket 26-05-10, "
+            "MCOS-2 Table 3, secondary'."
+        ),
+    )
     parser.add_argument(
         "--path-local-output-base",
         type=str,
@@ -925,6 +1096,8 @@ def main():
     )
 
     args = parser.parse_args()
+    if args.upload:
+        require_published_code()
     load_dotenv()
     storage_options = get_aws_storage_options()
 
@@ -985,30 +1158,14 @@ def _run_pop_allocation(
         load_df = remap_year_if_needed(load_df, "timestamp", load_year, output_year)
 
     mc_df = load_marginal_cost_table(args.mc_table_path)
-    mc_sub_tx_and_dist = get_marginal_cost_for_utility(mc_df, args.utility)
-
-    if "dollar_year" in mc_df.columns:
-        utility_row = mc_df.filter(pl.col("utility") == args.utility)
-        dollar_year_val = utility_row["dollar_year"][0]
-        if dollar_year_val is not None:
-            dollar_year = int(dollar_year_val)
-            if dollar_year != target_dollar_year:
-                cpi_factor = load_cpi_inflation_factor(
-                    args.cpi_s3_base, dollar_year, target_dollar_year, storage_options
-                )
-                mc_inflated = mc_sub_tx_and_dist * cpi_factor
-                print(
-                    f"  Inflated MC: ${mc_sub_tx_and_dist:.2f} → ${mc_inflated:.2f}/kW-yr"
-                )
-                mc_sub_tx_and_dist = mc_inflated
-            else:
-                print(
-                    f"\n  MC already in {target_dollar_year} dollars — no inflation applied"
-                )
-        else:
-            print("\n  dollar_year is null in MC table — no inflation applied")
-    else:
-        print("\n  No dollar_year column in MC table — using raw value (no inflation)")
+    resolved = resolve_annual_mc(
+        mc_df,
+        args.utility,
+        target_dollar_year,
+        args.cpi_s3_base,
+        storage_options,
+    )
+    mc_sub_tx_and_dist = resolved.allocated
 
     load_df = calculate_pop_weights(load_df, args.n_hours)
     load_df = allocate_costs_to_hours(load_df, mc_sub_tx_and_dist)
@@ -1032,6 +1189,37 @@ def _run_pop_allocation(
     )
 
     if args.upload:
+        if args.path_utility_load:
+            load_input = input_file("load", args.path_utility_load)
+        else:
+            load_input = input_partition(
+                "load",
+                partition_file_path(
+                    args.utility_load_s3_base, args.utility, load_year, ""
+                ),
+            )
+        inputs = [load_input, input_file("mc_table", args.mc_table_path)]
+        if resolved.cpi_factor != 1.0:
+            inputs.append(input_partition("cpi", args.cpi_s3_base))
+        spec = McSpec(
+            mc_type="dist_and_sub_tx",
+            method="pop",
+            utility=args.utility,
+            year=output_year,
+            params={
+                "load_source": args.load_source or _default_load_source(args),
+                "load_year": load_year,
+                "n_hours": args.n_hours,
+                "weighting": "load_weighted_top_n",
+                "mc_kw_yr_as_filed": resolved.as_filed,
+                "mc_dollar_year": resolved.dollar_year,
+                "target_dollar_year": target_dollar_year,
+                "cpi_factor": resolved.cpi_factor,
+                "mc_kw_yr_allocated": resolved.allocated,
+            },
+            source=_source_or_warn(args),
+            inputs=inputs,
+        )
         save_allocated_costs(
             load_df,
             args.utility,
@@ -1040,6 +1228,7 @@ def _run_pop_allocation(
             validation_results,
             storage_options,
             path_local_base=args.path_local_output_base,
+            spec=spec,
         )
         print("\n" + "=" * 60)
         print("✓ Marginal cost allocation completed and uploaded")
@@ -1059,22 +1248,28 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
         raise ValueError(
             "--method month_hour needs --path-weekday-mc and --path-weekend-mc"
         )
+    if not args.mc_table_path:
+        raise ValueError("--method month_hour needs --mc-table-path")
+    validate_mc_table_path(args.mc_table_path)
     year = args.year
-    output_s3_base = eversource_derived_output_base(args.output_s3_base)
-    path_local_base = (
-        eversource_derived_output_base(args.path_local_output_base)
-        if args.path_local_output_base
-        else None
+    calendar_year = args.calendar_year or year
+    output_s3_base = args.output_s3_base
+    path_local_base = args.path_local_output_base
+    voltage = args.voltage or _voltage_from_table_paths(
+        args.path_weekday_mc, args.path_weekend_mc
     )
 
     print("=" * 60)
     print("EVERSOURCE MONTH-HOUR MARGINAL COST → 8760")
     print("=" * 60)
     print(f"Utility: {args.utility}")
-    print(f"Year (calendar, timestamps, and partition): {year}")
+    print(f"Calendar year (weekday/weekend/holiday rule): {calendar_year}")
+    print(f"Year (timestamps and partition): {year}")
     print(f"Include federal holidays: {args.include_holidays}")
+    print(f"Voltage: {voltage}")
     print(f"Weekday table: {args.path_weekday_mc}")
     print(f"Weekend-and-holiday table: {args.path_weekend_mc}")
+    print(f"Annual total from: {args.mc_table_path}")
     print(f"Output S3 base: {output_s3_base}")
     if path_local_base:
         print(f"Local output base: {path_local_base}")
@@ -1089,17 +1284,68 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
         year,
         args.utility,
         include_holidays=args.include_holidays,
+        calendar_year=calendar_year,
     )
 
     annual = float(expanded["mc_total_per_kwh"].sum())
+    target_dollar_year = args.target_dollar_year if args.target_dollar_year else year
+    resolved = resolve_annual_mc(
+        load_marginal_cost_table(args.mc_table_path),
+        args.utility,
+        target_dollar_year,
+        args.cpi_s3_base,
+        storage_options,
+    )
+    expanded, scale = scale_8760_to_annual(expanded, resolved.allocated)
+    scaled_annual = float(expanded["mc_total_per_kwh"].sum())
     nonzero = expanded.filter(pl.col("mc_total_per_kwh") > 0).height
     print(f"\n  Rows: {expanded.height:,}")
     print(f"  Hours with nonzero MC: {nonzero:,}")
-    print(f"  Sum over 8760 (flat 1 kW, $/kW-yr): ${annual:.4f}")
+    print(f"  Sum before scale (flat 1 kW, $/kW-yr): ${annual:.4f}")
+    print(f"  Target from MC table ($/kW-yr): ${resolved.allocated:.4f}")
+    print(f"  Uniform scale: {scale:.6f}")
+    print(f"  Sum after scale (flat 1 kW, $/kW-yr): ${scaled_annual:.4f}")
     print("\nTop 10 hours by marginal cost:")
     print(expanded.sort("mc_total_per_kwh", descending=True).head(10))
 
     if args.upload:
+        spec = McSpec(
+            mc_type="dist_and_sub_tx",
+            method="month_hour",
+            utility=args.utility,
+            year=year,
+            params={
+                "table_source": args.table_source,
+                "voltage": voltage,
+                "include_holidays": args.include_holidays,
+                "holiday_rule": "5 USC 6103, Sat->Fri, Sun->Mon",
+                "calendar_year": calendar_year,
+                "timestamp_year": year,
+                "calendar_to_timestamp_mapping": (
+                    "identity"
+                    if calendar_year == year
+                    else f"by position: hour i of {calendar_year} -> hour i of {year}"
+                ),
+                "mc_kw_yr_as_filed": resolved.as_filed,
+                "mc_dollar_year": resolved.dollar_year,
+                "target_dollar_year": target_dollar_year,
+                "cpi_factor": resolved.cpi_factor,
+                "mc_kw_yr_target": resolved.allocated,
+                "sum_before_scale": annual,
+                "scale_factor": scale,
+            },
+            source=_source_or_warn(args),
+            inputs=[
+                input_file("weekday_table", args.path_weekday_mc),
+                input_file("weekend_holiday_table", args.path_weekend_mc),
+                input_file("mc_table", args.mc_table_path),
+                *(
+                    [input_partition("cpi", args.cpi_s3_base)]
+                    if resolved.cpi_factor != 1.0
+                    else []
+                ),
+            ],
+        )
         save_allocated_costs(
             expanded,
             args.utility,
@@ -1108,6 +1354,7 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
             {},
             storage_options,
             path_local_base=path_local_base,
+            spec=spec,
         )
         print("\n✓ Eversource month-hour 8760 completed and uploaded")
     else:

@@ -49,8 +49,10 @@ Usage
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from pathlib import Path
 
+import polars as pl
 from dotenv import load_dotenv
 
 from utils.data_prep.marginal_costs.bulk_tx_isone import (
@@ -66,6 +68,14 @@ from utils.data_prep.marginal_costs.bulk_tx_pjm import (
     DEFAULT_K_PEAK_HOURS,
     PJM_HOURLY_DEMAND_S3_BASE,
     VALID_PJM_UTILITIES,
+)
+from utils.data_prep.marginal_costs.mc_manifest import (
+    McSpec,
+    input_file,
+    input_partition,
+    partition_file_path,
+    record_mc_write,
+    require_published_code,
 )
 from utils.data_prep.marginal_costs.supply_utils import (
     DEFAULT_ISONE_ZONE_LOADS_S3_BASE,
@@ -240,6 +250,15 @@ def _parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--source",
+        type=str,
+        default=None,
+        help=(
+            "Citation recorded in the manifest. Default: a per-ISO description "
+            "of the $/kW-yr source."
+        ),
+    )
+    parser.add_argument(
         "--upload",
         action="store_true",
         help="Upload results to S3 (default: inspect only).",
@@ -247,8 +266,32 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _zone_partition_inputs(
+    zone_loads_s3_base: str, zones: list[str], load_year: int
+) -> list[dict]:
+    base = zone_loads_s3_base.rstrip("/")
+    return [
+        input_partition(f"load_zone_{zone}", f"{base}/zone={zone}/year={load_year}")
+        for zone in sorted(zones)
+    ]
+
+
+def _save_with_manifest(
+    save_output: Callable[[pl.DataFrame, str, int, str, dict[str, str]], None],
+    output_df: pl.DataFrame,
+    spec: McSpec,
+    output_s3_base: str,
+    storage_options: dict[str, str],
+) -> None:
+    save_output(output_df, spec.utility, spec.year, output_s3_base, storage_options)
+    path_file = partition_file_path(output_s3_base, spec.utility, spec.year)
+    record_mc_write(path_file, spec, output_df, "bulk_tx_cost_enduse")
+
+
 def main() -> None:
     args = _parse_args()
+    if args.upload:
+        require_published_code()
     load_dotenv()
     storage_options = get_aws_storage_options()
 
@@ -362,7 +405,30 @@ def _run_pjm(
     print_summary(output_df)
 
     if args.upload:
-        save_output(output_df, utility, year, output_s3_base, storage_options)
+        from utils.data_prep.marginal_costs.bulk_tx_pjm import NITS_CSV_PATH
+
+        spec = McSpec(
+            mc_type="bulk_tx",
+            method="pjm_nits_pcaf",
+            utility=utility,
+            year=year,
+            params={
+                "k_peak_hours": k_peak_hours,
+                "load_year": load_year,
+                "nits_dollar_year": year,
+            },
+            source=args.source or "PJM NITS network service rates, blended by zone",
+            inputs=[
+                input_file("nits_rates", str(NITS_CSV_PATH)),
+                input_partition(
+                    "load",
+                    partition_file_path(utility_loads_s3_base, utility, load_year, ""),
+                ),
+            ],
+        )
+        _save_with_manifest(
+            save_output, output_df, spec, output_s3_base, storage_options
+        )
         print("\n✓ PJM bulk transmission MC generation completed and uploaded")
     else:
         print("\n✓ PJM bulk transmission MC generation completed (inspect only)")
@@ -489,7 +555,30 @@ def _run_nyiso(
     print_summary(output_df)
 
     if args.upload:
-        save_output(output_df, utility, year, output_s3_base, storage_options)
+        spec = McSpec(
+            mc_type="bulk_tx",
+            method="nyiso_scr",
+            utility=utility,
+            year=year,
+            params={
+                "scr_hours_per_season": n_scr,
+                "load_year": load_year,
+                "winter_months": list(winter_months),
+                "summer_months": list(summer_months),
+                "nested_localities": [str(x) for x in nested_localities],
+            },
+            source=args.source or "NYISO bulk TX constraint-group costs",
+            inputs=[
+                input_file("constraint_groups", args.constraint_group_table_path),
+                input_file("zone_mapping", args.zone_mapping_path),
+                *_zone_partition_inputs(
+                    zone_loads_s3_base, zone_names_needed, load_year
+                ),
+            ],
+        )
+        _save_with_manifest(
+            save_output, output_df, spec, output_s3_base, storage_options
+        )
         print("\n✓ Bulk transmission MC generation completed and uploaded")
     else:
         print("\n✓ Bulk transmission MC generation completed (inspect only)")
@@ -576,7 +665,32 @@ def _run_isone(
     print_summary(output_df)
 
     if args.upload:
-        save_output(output_df, utility, year, output_s3_base, storage_options)
+        spec = McSpec(
+            mc_type="bulk_tx",
+            method="isone_aesc_ptf",
+            utility=utility,
+            year=year,
+            params={
+                "ptf_kw_year": aesc_ptf,
+                "allocation_load": allocation_load,
+                "allocation_zones": sorted(allocation_zones),
+                "n_peak_hours": n_peak,
+                "weighting": "exceedance_top_n",
+                "load_year": load_year,
+            },
+            source=args.source
+            or (
+                "AESC 2024 avoided PTF cost"
+                if aesc_ptf == AESC_2024_AVOIDED_PTF_KW_YEAR
+                else "AESC avoided PTF cost, overridden via --aesc-ptf-kw-year"
+            ),
+            inputs=_zone_partition_inputs(
+                zone_loads_s3_base, allocation_zones, load_year
+            ),
+        )
+        _save_with_manifest(
+            save_output, output_df, spec, output_s3_base, storage_options
+        )
         print("\n✓ ISO-NE bulk transmission MC generation completed and uploaded")
     else:
         print("\n✓ ISO-NE bulk transmission MC generation completed (inspect only)")

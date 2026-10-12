@@ -8,11 +8,15 @@ tariff stems, paths, and canonical run names from a loaded config.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import logging
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -250,6 +254,8 @@ class RunDefaults:
     sample_size: int | None = None
     elasticity: float = 0.0
     rr_single_rate_uncalibrated: str | None = None
+    # MC name (e.g. "dist_and_sub_tx") -> manifest key the file must carry.
+    mc_expected_keys: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -388,6 +394,52 @@ def multi_rate_rr_path(config: PipelineConfig, scenario: ScenarioConfig) -> str:
     return f"rev_requirement/{config.utility}_{joined}.yaml"
 
 
+MC_NAMES: tuple[str, ...] = (
+    "dist_and_sub_tx",
+    "bulk_tx",
+    "supply_energy",
+    "supply_capacity",
+    "supply_ancillary",
+)
+_REQUIRED_MC_NAMES = frozenset(MC_NAMES) - {"supply_ancillary"}
+
+
+def _parse_marginal_costs(raw: dict[str, Any]) -> tuple[dict[str, str], dict[str, str]]:
+    """Split ``marginal_costs:`` into paths and expected manifest keys.
+
+    Each entry is a path string, or ``{path: ..., key: ...}`` to require that
+    the file's latest manifest entry carries ``key``.
+    """
+    unknown = set(raw) - set(MC_NAMES)
+    if unknown:
+        raise ValueError(
+            f"Unknown marginal_costs entries {sorted(unknown)}; "
+            f"expected {list(MC_NAMES)}"
+        )
+    missing = _REQUIRED_MC_NAMES - set(raw)
+    if missing:
+        raise ValueError(f"marginal_costs is missing {sorted(missing)}")
+    paths: dict[str, str] = {}
+    keys: dict[str, str] = {}
+    for name, value in raw.items():
+        if isinstance(value, str):
+            paths[name] = value
+        elif isinstance(value, dict) and isinstance(value.get("path"), str):
+            unexpected = set(value) - {"path", "key"}
+            if unexpected:
+                raise ValueError(
+                    f"marginal_costs.{name} has unknown fields {sorted(unexpected)}"
+                )
+            paths[name] = value["path"]
+            if value.get("key"):
+                keys[name] = str(value["key"])
+        else:
+            raise ValueError(
+                f"marginal_costs.{name} must be a path or {{path, key}}, got {value!r}"
+            )
+    return paths, keys
+
+
 def supply_mc_path(base_path: str, *, include_supply: bool) -> str:
     """Real MC path for supply runs; swap ``data.parquet`` -> ``zero.parquet`` for delivery."""
     if include_supply:
@@ -406,7 +458,7 @@ def load_pipeline_config(yaml_path: Path) -> PipelineConfig:
         data = yaml.safe_load(f)
 
     resstock = data["resstock"]
-    mc = data["marginal_costs"]
+    mc, mc_keys = _parse_marginal_costs(data["marginal_costs"])
     rr = data["revenue_requirement"]
 
     scenarios: dict[str, ScenarioConfig] = {}
@@ -432,6 +484,7 @@ def load_pipeline_config(yaml_path: Path) -> PipelineConfig:
         periods_yaml=data.get("periods_yaml", f"periods/{data['utility']}.yaml"),
         sample_size=_parse_optional_int(data.get("sample_size")),
         elasticity=float(data.get("elasticity", 0.0)),
+        mc_expected_keys=mc_keys,
     )
 
     if (
@@ -1094,6 +1147,108 @@ def _resolve_rr_yaml(
 # ---------------------------------------------------------------------------
 
 
+def marginal_cost_files_to_verify(
+    config: PipelineConfig,
+) -> list[tuple[str, str, str | None]]:
+    """``(name, path, expected_key)`` for every MC file the batch's runs read.
+
+    Supply energy and capacity are read at the configured path by supply runs
+    and at the ``zero.parquet`` swap by delivery runs. When a key is declared
+    for one of them, the swapped file must carry ``zero``.
+    """
+    rd = config.run_defaults
+    keys = rd.mc_expected_keys
+    files: list[tuple[str, str, str | None]] = [
+        ("dist_and_sub_tx", rd.mc_dist_and_sub_tx, keys.get("dist_and_sub_tx")),
+        ("bulk_tx", rd.mc_bulk_tx, keys.get("bulk_tx")),
+    ]
+    for name, base in (
+        ("supply_energy", rd.mc_supply_energy),
+        ("supply_capacity", rd.mc_supply_capacity),
+    ):
+        files.append((name, base, keys.get(name)))
+        zero = supply_mc_path(base, include_supply=False)
+        if zero != base:
+            files.append((name, zero, "zero" if name in keys else None))
+    if rd.mc_supply_ancillary:
+        files.append(
+            (
+                "supply_ancillary",
+                rd.mc_supply_ancillary,
+                keys.get("supply_ancillary"),
+            )
+        )
+    return files
+
+
+def validate_marginal_cost_manifests(config: PipelineConfig) -> list[str]:
+    """Check each MC file with a declared key against its manifest.
+
+    A file with no declared key is not read; it gets a warning instead. For a
+    file that passes, the latest entry's generator commit is checked against
+    this checkout's history (``warn_mc_generator_ancestry``): a warning, never
+    an error.
+    """
+    from utils.data_prep.marginal_costs.mc_manifest import (
+        latest_entry,
+        verify_mc_file,
+    )
+
+    errors: list[str] = []
+    for name, path, expected_key in marginal_cost_files_to_verify(config):
+        if expected_key is None:
+            log.warning(
+                "marginal_costs.%s (%s) declares no key; provenance not verified",
+                name,
+                path,
+            )
+            continue
+        try:
+            file_errors = verify_mc_file(path, expected_key)
+            errors.extend(file_errors)
+            if not file_errors:
+                entry = latest_entry(path) or {}
+                warn_mc_generator_ancestry(name, path, entry)
+        except Exception as exc:
+            errors.append(f"Could not verify marginal_costs.{name} ({path}): {exc}")
+    return errors
+
+
+def warn_mc_generator_ancestry(
+    name: str, path: str, entry: Mapping[str, Any]
+) -> bool | None:
+    """Warn when an MC file was generated by a commit not in this checkout's history.
+
+    The key only names a method; a different branch can change how that key
+    is built and upload under the same key. This flags it before the batch
+    runs. Returns ``commit_in_history``'s result.
+    """
+    from utils.data_prep.marginal_costs.mc_manifest import commit_in_history
+
+    provenance = entry.get("provenance") or {}
+    commit = provenance.get("git_commit")
+    in_history = commit_in_history(commit, fetch=True)
+    if in_history is False:
+        log.warning(
+            "marginal_costs.%s (%s) was generated by commit %s (branch %s), which "
+            "is not in this checkout's history; the code that built it may differ "
+            "from this branch's. Merge that commit or regenerate the file here.",
+            name,
+            path,
+            str(commit)[:12],
+            provenance.get("git_branch"),
+        )
+    elif in_history is None:
+        log.warning(
+            "marginal_costs.%s (%s): cannot tell whether generator commit %s is in "
+            "this checkout's history (no commit recorded, or not fetchable).",
+            name,
+            path,
+            str(commit)[:12] if commit else None,
+        )
+    return in_history
+
+
 def validate_preflight_inputs(
     config: PipelineConfig,
     *,
@@ -1169,6 +1324,8 @@ def validate_preflight_inputs(
             errors.append(
                 f"MC path '{label}' does not contain '/{state_lower}/': {mc_path}"
             )
+
+    errors.extend(validate_marginal_cost_manifests(config))
 
     # Single-rate tariff JSONs must exist (they're input, not derived)
     selected = _select_scenarios(config, scenarios)

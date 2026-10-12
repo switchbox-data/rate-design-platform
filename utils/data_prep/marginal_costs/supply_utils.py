@@ -11,6 +11,7 @@ import polars as pl
 from cloudpathlib import S3Path
 
 from data.pjm import PJM_LMP_S3_BASE
+from utils.data_prep.marginal_costs.mc_manifest import record_mc_write, zero_spec
 from utils.numeric import as_float
 
 # ---------------------------------------------------------------------------
@@ -697,6 +698,12 @@ def save_zero_energy_mc(
     )
 
     print(f"\n✓ Saved zero-filled energy MC to {output_path}")
+    record_mc_write(
+        output_path,
+        zero_spec("supply_energy", utility, year),
+        energy_df,
+        "energy_cost_enduse",
+    )
     print(f"  Rows: {len(energy_df):,}")
     print(f"  Columns: {', '.join(energy_df.columns)}")
 
@@ -745,6 +752,12 @@ def save_zero_capacity_mc(
     )
 
     print(f"\n✓ Saved zero-filled capacity MC to {output_path}")
+    record_mc_write(
+        output_path,
+        zero_spec("supply_capacity", utility, year),
+        capacity_df,
+        "capacity_cost_enduse",
+    )
     print(f"  Rows: {len(capacity_df):,}")
     print(f"  Columns: {', '.join(capacity_df.columns)}")
 
