@@ -3,7 +3,7 @@
 #
 # Usage (from rate_design/hp_rates/):
 #   just -f ct/Justfile create-bulk-tx-mc-data ct_eversource 2025 --upload
-#   just -f ct/Justfile create-bulk-tx-mc-data ct_ui 2025 --upload
+#   just -f ct/Justfile bulk_tx_method=isone_aesc_ptf create-bulk-tx-mc-data ct_ui 2025 --upload
 #   just -f ct/Justfile create-bulk-tx-mc-data-all --upload
 # Or via dispatch:
 #   just s ct create-bulk-tx-mc-data ct_eversource 2025 --upload
@@ -19,8 +19,8 @@ path_s3_mc_root := "s3://data.sb/switchbox/marginal_costs/ct/"
 path_local_mc_root := "/ebs/data/switchbox/marginal_costs/ct/"
 # month_hour (default), pop_occ863, or pop_isone_zone. See create-dist-mc-data.
 dist_mc_method := env_var_or_default('DIST_MC_METHOD', 'month_hour')
-# isone_aesc_ptf (default) or month_hour. See create-bulk-tx-mc-data.
-bulk_tx_method := env_var_or_default('BULK_TX_METHOD', 'isone_aesc_ptf')
+# month_hour (default) or isone_aesc_ptf. See create-bulk-tx-mc-data.
+bulk_tx_method := env_var_or_default('BULK_TX_METHOD', 'month_hour')
 include_holidays := env_var_or_default('INCLUDE_HOLIDAYS', 'true')
 # Calendar for month_hour's weekday/weekend/holiday rule. Empty: year_arg, which is
 # right because CAIRO rotates the AMY2018 loads onto the run year's weekdays.
@@ -85,12 +85,7 @@ run-with-lmi batch *scenarios:
 # bulk_tx_method picks the 8760. The annual cost is the AESC 2024 avoided PTF,
 # $69/kW-yr in 2024 dollars.
 #
-#   isone_aesc_ptf (default)
-#     $69/kW-yr on the top-100 NE system peak hours by exceedance weighting,
-#     same methodology as RI. --allocation-load utility_zone uses CT zone load.
-#     No CPI. Applies to ct_eversource and ct_ui.
-#
-#   month_hour
+#   month_hour (default)
 #     For each month-hour, $/kWh = S × OCC-863 Attachment 2 page 3
 #     probability_of_peak / num_days, weekday and weekend-holiday separately.
 #     S is $69 inflated from 2024 dollars to --target-dollar-year (2026 here,
@@ -99,6 +94,11 @@ run-with-lmi batch *scenarios:
 #     rule as create-dist-mc-data. Every hour is then multiplied by one factor
 #     so the 8760 sums to S. The recipe wires Eversource's probability files, so
 #     it refuses any utility other than ct_eversource.
+#
+#   isone_aesc_ptf
+#     $69/kW-yr on the top-100 NE system peak hours by exceedance weighting,
+#     same methodology as RI. --allocation-load utility_zone uses CT zone load.
+#     No CPI. Applies to ct_eversource and ct_ui.
 #
 # Both write bulk_tx/utility=<utility>/year=<year_arg>/data.parquet and append
 # a manifest entry. The pipeline YAML's marginal_costs.bulk_tx.key must match
@@ -111,8 +111,8 @@ ct_bulk_tx_years := "2025"
 #
 #   just -f ct/Justfile create-bulk-tx-mc-data ct_eversource 2025
 #   just -f ct/Justfile create-bulk-tx-mc-data ct_eversource 2025 --upload
-#   just -f ct/Justfile bulk_tx_method=month_hour create-bulk-tx-mc-data ct_eversource 2025
-# BULK_TX_METHOD=month_hour just s ct create-bulk-tx-mc-data ct_eversource 2025
+#   just -f ct/Justfile bulk_tx_method=isone_aesc_ptf create-bulk-tx-mc-data ct_eversource 2025
+# BULK_TX_METHOD=isone_aesc_ptf just s ct create-bulk-tx-mc-data ct_ui 2025
 create-bulk-tx-mc-data utility_arg year_arg *extra_args:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -209,7 +209,8 @@ create-bulk-tx-mc-data-all *extra_args:
 #
 # CL&P's MCOS-2 covers ct_eversource only; ct_ui has no MCOS-derived value yet
 # (see the methodology doc's open questions), so this recipe does not loop
-# over both CT utilities the way create-bulk-tx-mc-data-all does.
+# over utilities. create-bulk-tx-mc-data-all does, but its default method
+# (month_hour) also refuses anything other than ct_eversource.
 # =============================================================================
 
 # Generate dist+sub-tx MC for ct_eversource and one year.

@@ -24,16 +24,18 @@ Usage
     uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
         --iso isone --utility rie --year 2025 --load-year 2025 --upload
 
-    # ISO-NE / CT using NE system load for peak identification (default)
+    # ISO-NE / CT exceedance, NE system load. This is the CLI default when
+    # --method is omitted. The CT Justfile default is month_hour (below).
     uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
         --iso isone --utility ct_eversource --year 2025 --load-year 2025
 
-    # ISO-NE / CT using CT zone load for peak identification
+    # ISO-NE / CT exceedance using CT zone load for peak identification
     uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
         --iso isone --utility ct_eversource --year 2025 --load-year 2025 \\
         --allocation-load utility_zone
 
     # ISO-NE / CT Eversource: month-hour from OCC-863 probability of peak
+    # (the CT Justfile default)
     uv run python utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \\
         --iso isone --method month_hour --utility ct_eversource --year 2025 \\
         --path-weekday-pop month_hour_probability_of_peak_weekday.parquet \\
@@ -245,11 +247,12 @@ def _parse_args() -> argparse.Namespace:
         default="isone_aesc_ptf",
         choices=["isone_aesc_ptf", "month_hour"],
         help=(
-            "[ISO-NE only] isone_aesc_ptf (default): top-N exceedance on the "
-            "allocation load. month_hour: weekday vs weekend-and-holiday lookup "
-            "of $/kWh built from the AESC $/kW-yr times a probability of peak, "
-            "divided by that month's day count, then CPI-adjusted to "
-            "--target-dollar-year."
+            "[ISO-NE only] isone_aesc_ptf (this CLI's default; RI and the "
+            "CT exceedance path): top-N exceedance on the allocation load. "
+            "month_hour (the CT Justfile default, ct_eversource only): weekday "
+            "vs weekend-and-holiday lookup of $/kWh built from the AESC "
+            "$/kW-yr times a probability of peak, divided by that month's day "
+            "count, then CPI-adjusted to --target-dollar-year."
         ),
     )
     parser.add_argument(

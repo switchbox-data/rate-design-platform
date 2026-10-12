@@ -252,11 +252,11 @@ The ct Justfile's `create-dist-mc-data` writes all three methods to
 year is 2025, not the AMY2018 weather year, because CAIRO rotates the 2018 loads onto the run
 year's weekdays (see the methodology doc §7.2). `month_hour_calendar_year=<y>` overrides it.
 
-`create-bulk-tx-mc-data` defaults to `isone_aesc_ptf`, key `aesc_ptf69_ne_system_100h_load2025`.
-`bulk_tx_method=month_hour` writes
-`month_hour_occ863att2_aesc_ptf69_holidays_cal2025_2026usd` to the same `bulk_tx/` path
-(AESC 2024 dollars inflated to 2026). The ct recipe supplies Eversource's probability files, so
-that invocation is `ct_eversource` only. The supply
+`create-bulk-tx-mc-data` defaults to `month_hour`, key
+`month_hour_occ863att2_aesc_ptf69_holidays_cal2025_2026usd` (AESC 2024 dollars inflated to 2026).
+The ct recipe supplies Eversource's probability files, so that default is `ct_eversource` only.
+`bulk_tx_method=isone_aesc_ptf` writes `aesc_ptf69_ne_system_100h_load2025` to the same
+`bulk_tx/` path and covers `ct_ui` as well. The supply
 placeholders (`create-zero-supply-mc-data`) are `zero`. Methodology:
 `context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md` and
 `context/methods/marginal_costs/ct_bulk_transmission_marginal_cost.md`.

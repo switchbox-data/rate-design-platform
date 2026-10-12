@@ -183,7 +183,7 @@ just -f rate_design/hp_rates/ct/Justfile convert-occ863-probability-of-peak \
 
 ## Using this load for CT distribution marginal cost
 
-`create-bulk-tx-mc-data` with `bulk_tx_method=month_hour` reads the two probability-of-peak
+`create-bulk-tx-mc-data` (default `bulk_tx_method=month_hour`) reads the two probability-of-peak
 parquets. For each month-hour it sets $/kWh to the AESC $/kW-yr (69 in 2024 dollars, CPI-inflated
 to `--target-dollar-year`) times `probability_of_peak` divided by `num_days`, then expands
 weekday vs weekend-and-holiday the same way distribution does. The 8760 sums to that inflated
