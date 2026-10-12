@@ -75,6 +75,7 @@ from utils.data_prep.marginal_costs.mc_manifest import (
     input_partition,
     partition_file_path,
     record_mc_write,
+    require_published_code,
 )
 from utils.data_prep.marginal_costs.supply_utils import (
     DEFAULT_ISONE_ZONE_LOADS_S3_BASE,
@@ -289,6 +290,8 @@ def _save_with_manifest(
 
 def main() -> None:
     args = _parse_args()
+    if args.upload:
+        require_published_code()
     load_dotenv()
     storage_options = get_aws_storage_options()
 

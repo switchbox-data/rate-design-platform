@@ -7,6 +7,7 @@ import argparse
 from dotenv import load_dotenv
 
 from utils.file_io import get_aws_storage_options
+from utils.data_prep.marginal_costs.mc_manifest import require_published_code
 from utils.data_prep.marginal_costs.supply_energy import (
     compute_isone_supply_energy_mc,
     compute_pjm_supply_energy_mc,
@@ -137,6 +138,8 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = _parse_args()
+    if args.upload:
+        require_published_code()
     load_dotenv()
     storage_options = get_aws_storage_options()
 

@@ -492,6 +492,11 @@ just -f ct/Justfile dist_mc_method=pop_isone_zone create-dist-mc-data 2025 --upl
 DIST_MC_METHOD=pop_occ863 just s ct create-dist-mc-data 2025 --upload
 ```
 
+`--upload` refuses to run unless the working tree is clean and `HEAD` is pushed to `origin`.
+It then pushes an `mc/<sha12>` tag for that commit, so the manifest entry's commit and command
+always rebuild the file
+([mc_provenance_manifest.md](../../code/marginal_costs/mc_provenance_manifest.md)).
+
 Tests for the lookup, the observed-holiday rule, the holiday toggle, leap-year length, the
 calendar-year restamping, the uniform annual scale, and the voltage read from the table names
 are in `tests/test_expand_month_hour_mc.py`.

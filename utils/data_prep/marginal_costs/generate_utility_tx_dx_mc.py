@@ -109,6 +109,7 @@ from utils.data_prep.marginal_costs.mc_manifest import (
     input_partition,
     partition_file_path,
     record_mc_write,
+    require_published_code,
 )
 from utils.data_prep.marginal_costs.supply_utils import (
     build_cairo_8760_timestamps,
@@ -1095,6 +1096,8 @@ def main():
     )
 
     args = parser.parse_args()
+    if args.upload:
+        require_published_code()
     load_dotenv()
     storage_options = get_aws_storage_options()
 

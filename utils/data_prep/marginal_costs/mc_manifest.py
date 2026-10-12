@@ -9,11 +9,15 @@ currently at that path.
 
 An entry records the method's structured params and the key built from them,
 a source citation, the file's sha256, the inputs (path and sha256), a numeric
-summary, and the git state of the code that wrote it (including the diff of
-code files when the tree is dirty).
+summary, the exact command, and the commit that wrote it. Writing an entry
+requires that commit to be clean, pushed, and tagged ``mc/<sha12>`` on
+``origin`` (``require_published_code``), so the entry's commit and command
+always rebuild the file.
 
-Consumers check files with ``verify_mc_file`` (pipeline preflight) and
-``describe_mc_file`` (per-run record in the CAIRO output directory).
+Consumers check files with ``verify_mc_file`` (pipeline preflight),
+``commit_in_history`` (preflight warning when the generator commit is not in
+the run's history), and ``describe_mc_file`` (per-run record in the CAIRO
+output directory).
 
 Keys and methods are documented in
 ``context/code/marginal_costs/mc_provenance_manifest.md``.
@@ -245,38 +249,160 @@ def input_partition(role: str, path_dir: str) -> dict[str, Any]:
 # Provenance
 # ---------------------------------------------------------------------------
 
-_DIFF_PATHSPECS = ("*.py", "*Justfile")
+GIT_REMOTE = "origin"
+MC_TAG_PREFIX = "mc/"
+
+
+class UnpublishedCodeError(RuntimeError):
+    """The code that would write an MC upload is not committed and pushed."""
+
+
+def _git_run(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args], cwd=PATH_REPO, capture_output=True, text=True, check=False
+    )
 
 
 def _git(*args: str) -> str | None:
-    result = subprocess.run(
-        ["git", *args], cwd=PATH_REPO, capture_output=True, text=True, check=False
-    )
+    result = _git_run(*args)
     return result.stdout if result.returncode == 0 else None
 
 
-def git_provenance() -> dict[str, Any]:
-    """Commit, branch, and (when dirty) the code diff and untracked code files."""
-    commit = (_git("rev-parse", "HEAD") or "").strip() or None
-    branch = (_git("rev-parse", "--abbrev-ref", "HEAD") or "").strip() or None
+def _dirty_files() -> list[str]:
     status = _git("status", "--porcelain") or ""
-    dirty_files = [line[3:] for line in status.splitlines() if line.strip()]
-    info: dict[str, Any] = {
+    return [line[3:] for line in status.splitlines() if line.strip()]
+
+
+def mc_tag_name(commit: str) -> str:
+    """The tag that pins an MC generator commit: ``mc/<first 12 of sha>``."""
+    return f"{MC_TAG_PREFIX}{commit[:12]}"
+
+
+_published: dict[str, Any] | None = None
+
+
+def require_published_code() -> dict[str, Any]:
+    """Refuse to upload unless HEAD is clean, pushed, and tagged on the remote.
+
+    Checks, in order: no modified, staged, or untracked files; ``git fetch``
+    from ``origin`` succeeds; some ``origin`` branch contains HEAD. Then
+    creates the tag ``mc/<sha12>`` on HEAD (if absent) and pushes it, so the
+    commit stays reachable even if its branch is rebased or deleted.
+
+    Generators call this before computing when ``--upload`` is passed, and
+    ``record_mc_write`` calls it again, so a writer cannot skip it. The result
+    is cached for the process. Returns the git fields for manifest entries.
+    """
+    global _published
+    if _published is not None:
+        return _published
+
+    commit = (_git("rev-parse", "HEAD") or "").strip()
+    if not commit:
+        raise UnpublishedCodeError(f"Not a git checkout: {PATH_REPO}")
+    dirty = _dirty_files()
+    if dirty:
+        shown = "\n  ".join(dirty[:20])
+        more = f"\n  ... and {len(dirty) - 20} more" if len(dirty) > 20 else ""
+        raise UnpublishedCodeError(
+            "MC uploads need a clean working tree. Commit (or remove) these "
+            f"files, push, and re-run:\n  {shown}{more}"
+        )
+    fetch = _git_run("fetch", "--quiet", GIT_REMOTE)
+    if fetch.returncode != 0:
+        raise UnpublishedCodeError(
+            f"git fetch {GIT_REMOTE} failed, so HEAD cannot be confirmed as "
+            f"pushed:\n{fetch.stderr.strip()}"
+        )
+    remote_branches = [
+        line.strip()
+        for line in (_git("branch", "-r", "--contains", commit) or "").splitlines()
+        if line.strip() and "->" not in line
+    ]
+    if not remote_branches:
+        branch = (_git("rev-parse", "--abbrev-ref", "HEAD") or "").strip()
+        raise UnpublishedCodeError(
+            f"HEAD {commit[:12]} is not on any {GIT_REMOTE} branch. Push it "
+            f"first, e.g. `git push -u {GIT_REMOTE} {branch}`, and re-run."
+        )
+
+    tag = mc_tag_name(commit)
+    tagged = (
+        _git("rev-parse", "--verify", "--quiet", f"{tag}^{{commit}}") or ""
+    ).strip()
+    if not tagged:
+        created = _git_run("tag", tag, commit)
+        if created.returncode != 0:
+            raise UnpublishedCodeError(
+                f"Could not create tag {tag}: {created.stderr.strip()}"
+            )
+    elif tagged != commit:
+        raise UnpublishedCodeError(f"Tag {tag} exists but points at {tagged[:12]}")
+    pushed = _git_run("push", "--quiet", GIT_REMOTE, f"refs/tags/{tag}")
+    if pushed.returncode != 0:
+        raise UnpublishedCodeError(
+            f"Could not push tag {tag} to {GIT_REMOTE}: {pushed.stderr.strip()}"
+        )
+
+    _published = {
         "git_commit": commit,
-        "git_branch": branch,
-        "git_dirty": bool(dirty_files),
-        "git_dirty_files": dirty_files,
+        "git_branch": (_git("rev-parse", "--abbrev-ref", "HEAD") or "").strip(),
+        "git_tag": tag,
+        "git_remote": GIT_REMOTE,
+        "git_remote_url": (_git("remote", "get-url", GIT_REMOTE) or "").strip(),
+        "git_remote_branches": remote_branches,
     }
-    if dirty_files:
-        diff = _git("diff", "HEAD", "--", *_DIFF_PATHSPECS) or ""
-        info["git_diff"] = diff
-        untracked = _git("ls-files", "--others", "--exclude-standard") or ""
-        info["git_untracked_code"] = {
-            rel: (PATH_REPO / rel).read_text(errors="replace")
-            for rel in untracked.splitlines()
-            if rel.endswith(".py") and (PATH_REPO / rel).is_file()
-        }
-    return info
+    print(f"✓ Code published: {commit[:12]} on {', '.join(remote_branches)}; tag {tag}")
+    return _published
+
+
+def git_provenance() -> dict[str, Any]:
+    """Git fields for a manifest entry; enforces ``require_published_code``."""
+    return require_published_code()
+
+
+def repo_git_state() -> dict[str, Any]:
+    """Commit, branch, and dirty files of the checkout, with no requirements.
+
+    For consumers (CAIRO runs) that record which code they ran from.
+    """
+    dirty = _dirty_files()
+    return {
+        "git_commit": (_git("rev-parse", "HEAD") or "").strip() or None,
+        "git_branch": (_git("rev-parse", "--abbrev-ref", "HEAD") or "").strip() or None,
+        "git_dirty": bool(dirty),
+        "git_dirty_files": dirty,
+    }
+
+
+def commit_in_history(
+    commit: str | None, *, head: str = "HEAD", fetch: bool = False
+) -> bool | None:
+    """Whether ``commit`` is an ancestor of (or equal to) ``head``.
+
+    ``None`` when it cannot be decided: no commit, git unavailable, or the
+    commit is not in the local clone. With ``fetch=True`` a missing commit is
+    looked for by fetching tags from ``origin`` first (MC uploads push an
+    ``mc/<sha12>`` tag for exactly this).
+    """
+    if not commit:
+        return None
+
+    def _known() -> bool:
+        return _git_run("cat-file", "-e", f"{commit}^{{commit}}").returncode == 0
+
+    if not _known():
+        if not fetch:
+            return None
+        _git_run("fetch", "--quiet", "--tags", GIT_REMOTE)
+        if not _known():
+            return None
+    result = _git_run("merge-base", "--is-ancestor", commit, head)
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    return None
 
 
 def _script_and_command() -> dict[str, str]:
@@ -331,12 +457,24 @@ def append_entry(path_file: str, entry: dict[str, Any]) -> str:
     return path_manifest
 
 
-def latest_entry(path_file: str) -> dict[str, Any] | None:
-    """The latest manifest entry for ``path_file``'s name, if any."""
+def _entries_for(path_file: str) -> list[dict[str, Any]]:
     name = str(path_file).rstrip("/").rsplit("/", 1)[-1]
     entries = read_manifest(manifest_path_for(path_file))["entries"]
-    matching = [e for e in entries if e.get("file") == name]
+    return [e for e in entries if e.get("file") == name]
+
+
+def latest_entry(path_file: str) -> dict[str, Any] | None:
+    """The latest manifest entry for ``path_file``'s name, if any."""
+    matching = _entries_for(path_file)
     return matching[-1] if matching else None
+
+
+def entry_for_sha(path_file: str, sha256: str) -> dict[str, Any] | None:
+    """The latest manifest entry for ``path_file`` whose ``file_sha256`` is ``sha256``."""
+    for entry in reversed(_entries_for(path_file)):
+        if entry.get("file_sha256") == sha256:
+            return entry
+    return None
 
 
 def summarize_8760(df: pl.DataFrame, value_col: str) -> dict[str, Any]:
@@ -413,7 +551,17 @@ def verify_mc_file(path_file: str, expected_key: str) -> list[str]:
 
 
 def describe_mc_file(path_file: str) -> dict[str, Any]:
-    """Path, sha256, and latest-manifest key of one MC file, for run records."""
+    """What one run read from one MC file, for ``marginal_costs_used.json``.
+
+    Records the sha256 of the bytes read and the full manifest entry with that
+    sha256, which holds the generator commit, tag, and command needed to
+    rebuild the file. ``matches_manifest`` is true when that entry is also the
+    latest one. When no entry has the sha256, the latest entry is recorded
+    instead with ``matches_manifest`` false.
+
+    ``generator_commit_in_run_history`` is ``commit_in_history`` of the
+    entry's commit against this checkout's HEAD, without fetching.
+    """
     path_file = str(path_file)
     record: dict[str, Any] = {"path": path_file}
     if not _exists(path_file):
@@ -421,16 +569,24 @@ def describe_mc_file(path_file: str) -> dict[str, Any]:
         return record
     sha = file_sha256(path_file)
     record["sha256"] = sha
-    entry = latest_entry(path_file)
-    if entry is None:
+    entries = _entries_for(path_file)
+    if not entries:
         record["key"] = None
         return record
+    latest = entries[-1]
+    matched = next((e for e in reversed(entries) if e.get("file_sha256") == sha), None)
+    entry = matched or latest
+    provenance = entry.get("provenance", {})
     record.update(
         key=entry.get("key"),
         method=entry.get("method"),
         source=entry.get("source"),
         written_at=entry.get("written_at"),
-        git_commit=entry.get("provenance", {}).get("git_commit"),
-        matches_manifest=entry.get("file_sha256") == sha,
+        git_commit=provenance.get("git_commit"),
+        git_tag=provenance.get("git_tag"),
+        matches_manifest=matched is not None and matched is latest,
+        sha256_in_manifest=matched is not None,
+        generator_commit_in_run_history=commit_in_history(provenance.get("git_commit")),
+        manifest_entry=entry,
     )
     return record

@@ -18,6 +18,7 @@ import argparse
 
 from dotenv import load_dotenv
 
+from utils.data_prep.marginal_costs.mc_manifest import require_published_code
 from utils.data_prep.marginal_costs.supply_utils import (
     generate_zero_capacity_mc,
     generate_zero_energy_mc,
@@ -49,6 +50,7 @@ def main() -> None:
     if not args.upload:
         print("No --upload: nothing written.")
         return
+    require_published_code()
     if args.component in ("energy", "both"):
         save_zero_energy_mc(
             generate_zero_energy_mc(args.year),

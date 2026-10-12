@@ -612,6 +612,53 @@ class TestMarginalCostKeys:
         config = load_pipeline_config(_write(tmp_path, data))
         assert validate_marginal_cost_manifests(config) == []
 
+    def test_generator_not_in_history_warns_but_passes(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        from rate_design.hp_rates import pipeline_config
+        from utils.data_prep.marginal_costs import mc_manifest
+
+        dist = tmp_path / "mc" / "dist" / "data.parquet"
+        self._write_mc(dist, "occ")
+        data = _minimal_pipeline_yaml()
+        data["marginal_costs"]["dist_and_sub_tx"] = {
+            "path": str(dist),
+            "key": "pop_occ_100h_load2025_2025usd",
+        }
+        config = load_pipeline_config(_write(tmp_path, data))
+        with (
+            patch.object(mc_manifest, "commit_in_history", return_value=False),
+            caplog.at_level("WARNING", logger=pipeline_config.__name__),
+        ):
+            errors = pipeline_config.validate_marginal_cost_manifests(config)
+        assert errors == []
+        assert any(
+            "not in this checkout's history" in r.message for r in caplog.records
+        )
+
+    def test_ancestry_warning_reports_commit_and_branch(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        from rate_design.hp_rates import pipeline_config
+        from utils.data_prep.marginal_costs import mc_manifest
+
+        entry = {"provenance": {"git_commit": "f" * 40, "git_branch": "other"}}
+        with (
+            patch.object(mc_manifest, "commit_in_history", return_value=False),
+            caplog.at_level("WARNING", logger=pipeline_config.__name__),
+        ):
+            result = pipeline_config.warn_mc_generator_ancestry("dist", "p", entry)
+        assert result is False
+        assert "ffffffffffff" in caplog.text and "other" in caplog.text
+
+        caplog.clear()
+        with (
+            patch.object(mc_manifest, "commit_in_history", return_value=True),
+            caplog.at_level("WARNING", logger=pipeline_config.__name__),
+        ):
+            assert pipeline_config.warn_mc_generator_ancestry("dist", "p", entry)
+        assert caplog.text == ""
+
 
 class TestFuseMountCheck:
     """`validate_preflight_inputs` must fail fast when /data.sb is not mounted."""
