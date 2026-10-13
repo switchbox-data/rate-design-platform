@@ -76,6 +76,11 @@ scenarios:
     # Rate 6 FIXED+RATE=MC: MFC in fixed charge, winter Block 2 = MC only.
     quartet: single_rate_uncalibrated
     tariff_base: rate6_fixed_ratemc_trans
+  default_ry1_r6_ratemc_mfc0_trans_uncalibrated:
+    # Rate 6 RATE=MC, MFC=0, TX=MC: winter Block 2 drops MFC/reconciliation
+    # entirely (not moved to fixed charge) and swaps transmission for mc_bulk_tx.
+    quartet: single_rate_uncalibrated
+    tariff_base: rate6_ratemc_mfc0_trans
   default_ry1_icos_fair_flat_uncalibrated:
     # Fair flat rate: delivery rate set so avg bill_after = avg bill_before + avg ΔMC.
     quartet: single_rate_uncalibrated
