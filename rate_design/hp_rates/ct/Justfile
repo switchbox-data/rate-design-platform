@@ -80,8 +80,11 @@ run-with-lmi batch *scenarios:
 # =============================================================================
 # CT-only: bulk transmission marginal costs (ISO-NE AESC PTF)
 #
-# Uses AESC 2024 avoided PTF cost ($69/kW-yr) allocated to the top-100 NE
-# system peak hours via exceedance weighting — same methodology as RI.
+# Default is --bulk-tx-method pop_kde: AESC 2024 avoided PTF ($69/kW-yr,
+# 2024 dollars) CPI-adjusted to the analysis year and spread by a KDE
+# probability of peak fit on 2022-2025 NE system load. Pass
+# --bulk-tx-method exceedance_top_n for the RI-style top-100 allocation.
+# See context/methods/marginal_costs/ct_bulk_transmission_marginal_cost.md.
 # Outputs land at s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/.
 # =============================================================================
 
@@ -90,13 +93,15 @@ ct_bulk_tx_years := "2025"
 # Generate bulk TX MC for one CT utility and one year.
 #
 #   just -f ct/Justfile create-bulk-tx-mc-data ct_eversource 2025
-# just -f ct/Justfile create-bulk-tx-mc-data ct_eversource 2025 --upload
+#   just -f ct/Justfile create-bulk-tx-mc-data ct_eversource 2025 --upload
+# just -f ct/Justfile create-bulk-tx-mc-data ct_eversource 2025 --bulk-tx-method exceedance_top_n --upload
 create-bulk-tx-mc-data utility_arg year_arg *extra_args:
     cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/generate_bulk_tx_mc.py \
       --iso isone \
       --utility {{ utility_arg }} \
       --year {{ year_arg }} \
       --load-year {{ year_arg }} \
+      --bulk-tx-method pop_kde \
       {{ extra_args }}
 
 # Generate bulk TX MC for all CT utilities across all available years.
@@ -115,6 +120,7 @@ create-bulk-tx-mc-data-all *extra_args:
               --utility "${utility}" \
               --year "${year}" \
               --load-year "${year}" \
+              --bulk-tx-method pop_kde \
               {{ extra_args }}
         done
     done

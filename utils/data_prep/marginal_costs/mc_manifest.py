@@ -91,6 +91,15 @@ def _key_bulk_isone(p: Mapping[str, Any]) -> str:
     )
 
 
+def _key_bulk_isone_pop_kde(p: Mapping[str, Any]) -> str:
+    years = [int(y) for y in p["history_years"]]
+    return (
+        f"aesc_ptf{_num(p['ptf_kw_year'])}_pop_kde_{p['allocation_load']}"
+        f"_hist{min(years)}to{max(years)}_cal{p['calendar_year']}"
+        f"_{p['target_dollar_year']}usd"
+    )
+
+
 def _key_bulk_pjm(p: Mapping[str, Any]) -> str:
     return f"pjm_nits_pcaf_{p['k_peak_hours']}h_load{p['load_year']}"
 
@@ -107,6 +116,7 @@ KEY_BUILDERS: dict[tuple[str, str], KeyBuilder] = {
     ("dist_and_sub_tx", "pop"): _key_dist_pop,
     ("dist_and_sub_tx", "month_hour"): _key_dist_month_hour,
     ("bulk_tx", "isone_aesc_ptf"): _key_bulk_isone,
+    ("bulk_tx", "isone_aesc_ptf_pop_kde"): _key_bulk_isone_pop_kde,
     ("bulk_tx", "pjm_nits_pcaf"): _key_bulk_pjm,
     ("bulk_tx", "nyiso_scr"): _key_bulk_nyiso,
     **{(mc_type, ZERO_METHOD): _key_zero for mc_type in MC_TYPES},
