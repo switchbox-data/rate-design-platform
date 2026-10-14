@@ -44,6 +44,8 @@ The $69/kW-year value must be converted to an 8760 hourly signal for CAIRO. The 
 
 The result: a customer who runs a kW of load during the top-100 peak hours sees a positive bulk TX marginal cost on those hours; all other hours are zero. The sum over all 8760 hours for a 1-kW flat load equals $69/kW-year (validated automatically at runtime).
 
+A second allocator exists and is not wired into this pipeline. `probability_of_peak` in `utils/data_prep/marginal_costs/probability_of_peak.py` builds a month × day-type × hour probability from several years of hourly load (truncated Gaussian KDE, the OCC-733 reading in [probability_of_peak_kde.md](probability_of_peak_kde.md)), then spreads the same `$/kW-yr` as `PoP / num_days` on the CAIRO 8760. Calling it from `generate_bulk_tx_mc.py` is a later step. Until then, `create-bulk-tx-mc-data` is the top-100 exceedance above.
+
 ---
 
 ## Allocation load: system-wide vs. CT zone
