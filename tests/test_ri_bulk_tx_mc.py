@@ -8,7 +8,7 @@ from typing import cast
 import polars as pl
 import pytest
 
-from utils.data_prep.marginal_costs.bulk_tx_isone import (
+from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_isone import (
     AESC_2024_AVOIDED_PTF_KW_YEAR,
     DEFAULT_N_PEAK_HOURS,
     compute_isone_bulk_tx_signal,

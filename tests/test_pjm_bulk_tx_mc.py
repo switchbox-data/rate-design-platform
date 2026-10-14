@@ -17,7 +17,7 @@ from datetime import datetime
 import polars as pl
 import pytest
 
-from utils.data_prep.marginal_costs.bulk_tx_pjm import (
+from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_pjm import (
     UTILITY_TO_NITS_ZONE,
     VALID_PJM_UTILITIES,
     allocate_pcaf,
@@ -264,11 +264,13 @@ class TestComputePjmBulkTxLoadYear:
         """NITS comes from --year; PCAF peaks come from --load-year."""
         from datetime import datetime as dt
 
-        from utils.data_prep.marginal_costs.bulk_tx_pjm import compute_pjm_bulk_tx_mc
+        from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_pjm import (
+            compute_pjm_bulk_tx_mc,
+        )
         from utils.data_prep.marginal_costs.supply_utils import remap_year_if_needed
 
         monkeypatch.setattr(
-            "utils.data_prep.marginal_costs.bulk_tx_pjm.load_nits_rates",
+            "utils.data_prep.marginal_costs.bulk_tx.bulk_tx_pjm.load_nits_rates",
             lambda nits_csv_path=None: _make_nits_df(2025, "BGE", 40.0, 50.0),
         )
 
@@ -298,7 +300,7 @@ class TestComputePjmBulkTxLoadYear:
             return loads[year]
 
         monkeypatch.setattr(
-            "utils.data_prep.marginal_costs.bulk_tx_pjm.load_hourly_demand",
+            "utils.data_prep.marginal_costs.bulk_tx.bulk_tx_pjm.load_hourly_demand",
             fake_load,
         )
 

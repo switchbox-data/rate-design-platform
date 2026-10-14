@@ -19,6 +19,7 @@ import argparse
 from pathlib import Path
 from typing import Literal
 
+import openpyxl
 import polars as pl
 
 Voltage = Literal["primary", "secondary"]
@@ -227,6 +228,31 @@ def _as_int(value: object) -> int | None:
     return int(number)
 
 
+def read_sheet(path_xlsx: Path, sheet_name: str) -> pl.DataFrame:
+    """One sheet's cached cell values as untyped (Object) columns.
+
+    ``pl.read_excel`` turns a column that mixes text and numbers into strings
+    and drops digits (``3.561253561e-05`` becomes ``0.000035613``). openpyxl
+    returns the stored floats.
+    """
+    workbook = openpyxl.load_workbook(path_xlsx, data_only=True, read_only=True)
+    try:
+        rows = list(workbook[sheet_name].iter_rows(values_only=True))
+    finally:
+        workbook.close()
+    width = max((len(row) for row in rows), default=0)
+    return pl.DataFrame(
+        [
+            pl.Series(
+                f"column_{col + 1}",
+                [row[col] if col < len(row) else None for row in rows],
+                dtype=pl.Object,
+            )
+            for col in range(width)
+        ]
+    )
+
+
 def _filename(kind: str, voltage: Voltage) -> str:
     return f"month_hour_marginal_costs_{kind}_{voltage}.parquet"
 
@@ -239,11 +265,7 @@ def write_month_hour_parquets(
         raise ValueError(
             f"path looks like an uninterpolated Just variable: {path_xlsx} {path_output_dir}"
         )
-    raw = pl.read_excel(
-        path_xlsx, sheet_name=_MARGINAL_COST_SHEETS[voltage], has_header=False
-    )
-    if not isinstance(raw, pl.DataFrame):
-        raise TypeError(f"expected one sheet from Attachment 2 {voltage}")
+    raw = read_sheet(path_xlsx, _MARGINAL_COST_SHEETS[voltage])
     all_days, weekday, weekend = month_hour_marginal_costs(raw, voltage)
     path_output_dir.mkdir(parents=True, exist_ok=True)
     for kind, frame in (

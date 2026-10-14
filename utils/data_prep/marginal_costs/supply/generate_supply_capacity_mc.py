@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from utils.file_io import get_aws_storage_options
 from utils.data_prep.marginal_costs.mc_manifest import require_published_code
-from utils.data_prep.marginal_costs.supply_capacity_nyiso import (
+from utils.data_prep.marginal_costs.supply.supply_capacity_nyiso import (
     N_PEAK_HOURS_PER_MONTH,
     compute_supply_capacity_mc,
 )
@@ -244,7 +244,7 @@ def main() -> None:
         print(f"  Capacity zone ID:     {capacity_zone_id}")
         print("=" * 60)
 
-        from utils.data_prep.marginal_costs.supply_capacity_isone import (
+        from utils.data_prep.marginal_costs.supply.supply_capacity_isone import (
             compute_isone_supply_capacity_mc,
         )
 
@@ -267,7 +267,7 @@ def main() -> None:
         print(f"  Price zone:           {price_zone}")
         print("=" * 60)
 
-        from utils.data_prep.marginal_costs.supply_capacity_pjm import (
+        from utils.data_prep.marginal_costs.supply.supply_capacity_pjm import (
             compute_supply_capacity_mc_pjm,
         )
 

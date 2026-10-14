@@ -152,6 +152,34 @@ rate6_ratemc_trans:
     riders_total: 0.04139
     delivery_total: 0.13570
 # ─────────────────────────────────────────────────────────────────────────────
+# Rate 6 RATE=MC, MFC=0, TX=MC — ct_eversource_rate6_ratemc_mfc0_trans
+# Same as RATE=MC, but winter Block 2 drops the Unit FC Recovery (MFC) and
+# reconciliation adjustment entirely (not moved to fixed charge), and the
+# transmission rider is replaced with the marginal cost of bulk transmission.
+# Block 1, non-heating, and fixed charge unchanged from RATE=MC.
+# Source: Google Sheets tab "CLP-RATES-6, 2 of 3 (RATE=MC, MFC=0)"
+# ─────────────────────────────────────────────────────────────────────────────
+rate6_ratemc_mfc0_trans:
+  fixed_charge_per_month: 30.95 # unchanged
+  winter_block1_le_700kwh:
+    distribution: 0.09431 # unchanged
+    riders_transmission: 0.05050
+    riders_other: -0.00911
+    riders_total: 0.04139
+    delivery_total: 0.13570
+  winter_block2_gt_700kwh:
+    distribution: 0.00258 # = MC Energy w/GET only; MFC (FC recovery) dropped entirely
+    riders_transmission: 0.00832 # = mc_bulk_tx: AESC $69/kW-yr (2024$) → 2026$ → ÷8760
+    riders_other: -0.00911
+    riders_total: -0.00079 # = 0.00832 + (-0.00911)
+    delivery_total: 0.00179 # = 0.00258 + (-0.00079)
+  non_heating_all_kwh:
+    distribution: 0.09431
+    riders_transmission: 0.05050
+    riders_other: -0.00911
+    riders_total: 0.04139
+    delivery_total: 0.13570
+# ─────────────────────────────────────────────────────────────────────────────
 # Rate 6 FIXED+RATE=MC, TX=MC — ct_eversource_rate6_fixed_ratemc_trans
 # Same as FIXED+RATE=MC, but winter Block 2 transmission rider replaced with
 # the marginal cost of bulk transmission.
@@ -189,4 +217,5 @@ rate6_fixed_ratemc_trans:
 # Rate 6 RATE=MC               30.95      0.13570      0.08291      0.13570
 # Rate 6 FIXED+RATE=MC         57.13      0.09676      0.04397      0.09676
 # Rate 6 RATE=MC, TX=MC        30.95      0.13570      0.04073      0.13570
+# Rate 6 RATE=MC, MFC=0, TX=MC 30.95      0.13570      0.00179      0.13570
 # Rate 6 FIXED+RATE=MC, TX=MC  57.13      0.09676      0.00179      0.09676

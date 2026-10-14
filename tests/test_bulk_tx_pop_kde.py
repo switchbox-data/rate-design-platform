@@ -8,9 +8,8 @@ import numpy as np
 import polars as pl
 import pytest
 
-from utils.data_prep.marginal_costs.bulk_tx_isone import (
+from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_isone import (
     AESC_2024_DOLLAR_YEAR,
-    BULK_TX_METHODS,
     DEFAULT_POP_KDE_HISTORY_YEARS,
     compute_isone_bulk_tx_pop_kde,
     parse_history_years,
@@ -44,7 +43,6 @@ def _history(years: tuple[int, ...], *, seed: int = 0) -> pl.DataFrame:
 
 
 def test_constants() -> None:
-    assert BULK_TX_METHODS == ("exceedance_top_n", "pop_kde")
     assert DEFAULT_POP_KDE_HISTORY_YEARS == (2022, 2023, 2024, 2025)
     assert AESC_2024_DOLLAR_YEAR == 2024
 

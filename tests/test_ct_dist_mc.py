@@ -23,7 +23,7 @@ from data.isone.hourly_demand.aggregate_isone_utility_loads import (
     get_utility_zone_mapping,
 )
 from data.isone.zone_mapping.generate_zone_mapping_csv import build_zone_mapping
-from utils.data_prep.marginal_costs.generate_utility_tx_dx_mc import (
+from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
     allocate_costs_to_hours,
     calculate_pop_weights,
     get_marginal_cost_for_utility,

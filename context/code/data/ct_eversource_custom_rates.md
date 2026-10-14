@@ -180,10 +180,11 @@ build: (A) marginal cost subtotal `$0.04152` (Unit FC Recovery w/GET `$0.03894` 
 
 ### Source spreadsheet tabs
 
-| Variant       | Tab name                                | gid          |
-| ------------- | --------------------------------------- | ------------ |
-| RATE=MC       | `CLP-RATES-6, 2 of 3 (RATE=MC)`         | `1354576119` |
-| FIXED+RATE=MC | `CLP-RATES-6, 2 of 3 (FIXED + RATE=MC)` | `1176698813` |
+| Variant        | Tab name                                | gid          |
+| -------------- | --------------------------------------- | ------------ |
+| RATE=MC        | `CLP-RATES-6, 2 of 3 (RATE=MC)`         | `1354576119` |
+| FIXED+RATE=MC  | `CLP-RATES-6, 2 of 3 (FIXED + RATE=MC)` | `1176698813` |
+| RATE=MC, MFC=0 | `CLP-RATES-6, 2 of 3 (RATE=MC, MFC=0)`  | `386826584`  |
 
 ### Rate 6 RATE=MC (`ct_eversource_rate6_ratemc`)
 
@@ -242,7 +243,7 @@ average transmission rider.
 
 The marginal cost is derived from the **AESC 2024 avoided PTF cost** (Synapse, AESC 2024 study):
 $69/kW-yr in 2024 dollars (see `context/methods/marginal_costs/ct_bulk_transmission_marginal_cost.md`
-and `utils/data_prep/marginal_costs/bulk_tx_isone.py` line 52: `AESC_2024_AVOIDED_PTF_KW_YEAR = 69.0`).
+and `utils/data_prep/marginal_costs/bulk_tx/bulk_tx_isone.py` line 52: `AESC_2024_AVOIDED_PTF_KW_YEAR = 69.0`).
 
 To convert to a flat $/kWh rate in 2026 dollars:
 
@@ -309,6 +310,56 @@ For these variants, the Block 2 riders break down as:
 | **RATE=MC TX=MC delivery Block 2**       | **0.04073**   | derived                                               | distribution 0.04152 + riders −0.00079                               |
 | **FIXED+RATE=MC TX=MC delivery Block 2** | **0.00179**   | derived                                               | distribution 0.00258 + riders −0.00079                               |
 
+## Rate 6 MC-trans, MFC=0 variant (RATE=MC, MFC=0, TX=MC)
+
+A third variant combines the Block 2 TX=MC rider swap above with a different treatment of the
+Marginal Facilities Cost (MFC, the Unit FC Recovery component): instead of collecting it
+volumetrically (RATE=MC) or moving it into the fixed charge (FIXED+RATE=MC), this variant **drops
+it entirely**. The fixed charge and Block 1/non-heating rates stay at the plain RATE=MC levels — the
+MFC revenue is simply foregone on this tier's Block 2, rather than recovered elsewhere.
+
+This comes from a third tab in the same
+[Google Sheets](https://docs.google.com/spreadsheets/d/1fJgtMgTGnVaeymypZjOeb9xvc1kcmN28/edit)
+workbook: `CLP-RATES-6, 2 of 3 (RATE=MC, MFC=0)`.
+
+### What the adjustment does
+
+Starting from the RATE=MC Block 2 build (marginal cost subtotal `$0.04152/kWh` = Unit FC Recovery
+w/GET `$0.03894` + MC Energy w/GET `$0.00258`), this variant **zeroes the Unit FC Recovery term**
+rather than keeping it in distribution (RATE=MC) or moving it to the fixed charge
+(FIXED+RATE=MC). Winter Block 2 distribution becomes MC Energy only, `$0.00258/kWh`. The
+transmission rider on Block 2 is then also swapped for the marginal cost of bulk transmission
+(`$0.00832/kWh`, same derivation as the other MC-trans variants above), giving Block 2 riders_total
+`-$0.00079/kWh`.
+
+### Rate 6 RATE=MC, MFC=0, TX=MC (`ct_eversource_rate6_ratemc_mfc0_trans`)
+
+- **Customer charge:** $30.95/month (unchanged from RATE=MC).
+- **Distribution:** winter (Nov–Mar) tiered `$0.09431` (≤700 kWh) / `$0.00258` (>700 kWh, MFC
+  dropped); non-heating (Apr–Oct) flat `$0.09431`.
+- **Delivery energy** = distribution + riders (Block 2 uses mc-trans riders):
+
+| Season / block        | Delivery ($/kWh) | + supply → supply-JSON ($/kWh) |
+| --------------------- | ---------------- | ------------------------------ |
+| Winter ≤700 (Jan–Mar) | 0.13570          | 0.24760 (+0.1119)              |
+| Winter >700 (Jan–Mar) | 0.00179          | 0.11369 (+0.1119)              |
+| Non-heating (Apr–Jun) | 0.13570          | 0.24760 (+0.1119)              |
+| Non-heating (Jul–Oct) | 0.13570          | 0.23318 (+0.09748)             |
+| Winter ≤700 (Nov–Dec) | 0.13570          | 0.23318 (+0.09748)             |
+| Winter >700 (Nov–Dec) | 0.00179          | 0.09927 (+0.09748)             |
+
+Block 2's delivery rate (`$0.00179`) is numerically identical to FIXED+RATE=MC TX=MC's Block 2 —
+distribution is MC Energy only in both — but the fixed charge and Block 1/non-heating here stay at
+RATE=MC's levels (`$30.95`/`$0.13570`) instead of FIXED+RATE=MC's (`$57.13`/`$0.09676`), so the MFC
+revenue is not recovered anywhere in this variant.
+
+### Per-number provenance (MFC=0 variant)
+
+| Component                          | Value        | Source                           | Derivation                                       |
+| ---------------------------------- | ------------ | -------------------------------- | ------------------------------------------------ |
+| MFC=0: Distribution Block 2 winter | $0.00258/kWh | Spreadsheet tab `RATE=MC, MFC=0` | = MC Energy w/GET only; Unit FC Recovery dropped |
+| **MFC=0, TX=MC delivery Block 2**  | **0.00179**  | derived                          | distribution 0.00258 + riders −0.00079           |
+
 ## Files
 
 - `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate6.json` (+ `_supply.json`)
@@ -316,6 +367,7 @@ For these variants, the Block 2 riders break down as:
 - `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate6_fixed_ratemc.json` (+ `_supply.json`)
 - `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate6_ratemc_trans.json` (+ `_supply.json`)
 - `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate6_fixed_ratemc_trans.json` (+ `_supply.json`)
+- `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate6_ratemc_mfc0_trans.json` (+ `_supply.json`)
 - `rate_design/hp_rates/ct/config/tariffs/electric/ct_eversource_rate1_proposed.json` (+ `_supply.json`)
 - `rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate6_monthly_rates_2025.yaml`
 - `rate_design/hp_rates/ct/config/rev_requirement/top-ups/monthly_rates/ct_eversource_rate1_proposed_monthly_rates_ry1.yaml`

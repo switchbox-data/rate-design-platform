@@ -472,30 +472,91 @@ def resolve_annual_mc(
     same annual total from the same CSV.
     """
     as_filed = get_marginal_cost_for_utility(mc_df, utility)
-    allocated = as_filed
-    dollar_year: int | None = None
-    cpi_factor = 1.0
 
-    if "dollar_year" in mc_df.columns:
-        dollar_year_val = mc_df.filter(pl.col("utility") == utility)["dollar_year"][0]
-        if dollar_year_val is not None:
-            dollar_year = int(dollar_year_val)
-            if dollar_year != target_dollar_year:
-                cpi_factor = load_cpi_inflation_factor(
-                    cpi_s3_base, dollar_year, target_dollar_year, storage_options
-                )
-                allocated = as_filed * cpi_factor
-                print(f"  Inflated MC: ${as_filed:.2f} → ${allocated:.2f}/kW-yr")
-            else:
-                print(
-                    f"\n  MC already in {target_dollar_year} dollars — no inflation applied"
-                )
-        else:
-            print("\n  dollar_year is null in MC table — no inflation applied")
-    else:
+    if "dollar_year" not in mc_df.columns:
         print("\n  No dollar_year column in MC table — using raw value (no inflation)")
+        return ResolvedAnnualMc(as_filed, as_filed, None, 1.0)
+    dollar_year_val = mc_df.filter(pl.col("utility") == utility)["dollar_year"][0]
+    if dollar_year_val is None:
+        print("\n  dollar_year is null in MC table — no inflation applied")
+        return ResolvedAnnualMc(as_filed, as_filed, None, 1.0)
+    return inflate_annual_mc(
+        as_filed,
+        int(dollar_year_val),
+        target_dollar_year,
+        cpi_s3_base,
+        storage_options,
+    )
 
+
+def inflate_annual_mc(
+    as_filed: float,
+    dollar_year: int,
+    target_dollar_year: int,
+    cpi_s3_base: str,
+    storage_options: dict[str, str],
+) -> ResolvedAnnualMc:
+    """Express a $/kW-yr filed in ``dollar_year`` in ``target_dollar_year``.
+
+    CPI is only read when the years differ.
+    """
+    if dollar_year == target_dollar_year:
+        print(f"\n  MC already in {target_dollar_year} dollars — no inflation applied")
+        return ResolvedAnnualMc(as_filed, as_filed, dollar_year, 1.0)
+    cpi_factor = load_cpi_inflation_factor(
+        cpi_s3_base, dollar_year, target_dollar_year, storage_options
+    )
+    allocated = as_filed * cpi_factor
+    print(f"  Inflated MC: ${as_filed:.2f} → ${allocated:.2f}/kW-yr")
     return ResolvedAnnualMc(as_filed, allocated, dollar_year, cpi_factor)
+
+
+def month_hour_costs_from_probability(
+    probability: pl.DataFrame, annual_kw_yr: float, *, label: str
+) -> pl.DataFrame:
+    """Month-hour ``$/kWh`` from an annual ``$/kW-yr`` and a probability of peak.
+
+    The OCC-863 Attachment 2 recipe. Pages 1 and 2 compute each month-hour as
+    the loss-adjusted $/kW-yr times that day type's probability of peak,
+    divided by the month's day count for that day type. This applies the same
+    division to ``annual_kw_yr``:
+    ``mc_total_per_kwh = annual_kw_yr * probability_of_peak / num_days``.
+
+    ``probability`` has ``month`` (1–12), ``hour`` (0–23), ``num_days``, and
+    ``probability_of_peak`` (a fraction). The result has ``month``, ``hour``,
+    and ``mc_total_per_kwh``, ready for ``expand_month_hour_mc_to_8760``.
+    """
+    required = {"month", "hour", "num_days", "probability_of_peak"}
+    missing = required - set(probability.columns)
+    if missing:
+        raise ValueError(f"{label} probability table is missing {sorted(missing)}")
+    if annual_kw_yr <= 0:
+        raise ValueError(
+            f"{label}: annual $/kW-yr must be positive, got {annual_kw_yr}"
+        )
+    rates = probability.select(sorted(required))
+    n_unique = rates.select("month", "hour").n_unique()
+    if rates.height != 12 * 24 or n_unique != rates.height:
+        raise ValueError(
+            f"{label} probability table must have 288 unique month-hour rows"
+        )
+    if rates.filter(pl.col("num_days") <= 0).height:
+        raise ValueError(f"{label} probability table has a non-positive day count")
+    out_of_range = rates.filter(
+        (pl.col("probability_of_peak") < 0) | (pl.col("probability_of_peak") > 1)
+    )
+    if out_of_range.height:
+        raise ValueError(
+            f"{label} probability_of_peak is outside 0–1: "
+            f"{out_of_range.select('month', 'hour').rows()}"
+        )
+    return rates.select(
+        "month",
+        "hour",
+        (annual_kw_yr * pl.col("probability_of_peak") / pl.col("num_days")).alias(
+            "mc_total_per_kwh"
+        ),
+    )
 
 
 def scale_8760_to_annual(
@@ -539,10 +600,20 @@ def load_cpi_inflation_factor(
         Inflation factor (CPI_to / CPI_from)
     """
     cpi_glob = cpi_s3_base.rstrip("/") + "/*.parquet"
-    collected = pl.scan_parquet(cpi_glob, storage_options=storage_options).collect()
+    collected = pl.scan_parquet(
+        cpi_glob, storage_options=storage_options, include_file_paths="path"
+    ).collect()
     if not isinstance(collected, pl.DataFrame):
         raise TypeError("Expected DataFrame from CPI collect()")
-    cpi_df = collected
+    # The prefix holds full-history snapshots. Overlapping years would otherwise
+    # let an older file win, depending on read order.
+    vintage = pl.col("path").str.extract(r"(\d{8})\.parquet$").cast(pl.Int64)
+    latest_vintage = collected.select(vintage.max()).item()
+    if latest_vintage is None:
+        raise ValueError(
+            f"CPI parquet names under {cpi_s3_base} have no YYYYMMDD before .parquet"
+        )
+    cpi_df = collected.filter(vintage == latest_vintage)
 
     years_needed = {from_year, to_year}
     available_years = set(cpi_df["year"].to_list())
@@ -559,6 +630,7 @@ def load_cpi_inflation_factor(
     factor = cpi_to / cpi_from
 
     print(f"\nCPI Inflation Adjustment ({from_year} → {to_year} dollars):")
+    print(f"  Snapshot: {latest_vintage}")
     print(f"  CPI {from_year}: {cpi_from:.4f}")
     print(f"  CPI {to_year}:   {cpi_to:.4f}")
     print(f"  Factor: {factor:.6f}")

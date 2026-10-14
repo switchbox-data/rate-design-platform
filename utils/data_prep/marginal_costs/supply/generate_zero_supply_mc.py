@@ -7,7 +7,7 @@ writes only the placeholders, for utilities that have no real supply MC yet
 ``manifest.yaml``.
 
 Usage:
-    uv run python utils/data_prep/marginal_costs/generate_zero_supply_mc.py \\
+    uv run python utils/data_prep/marginal_costs/supply/generate_zero_supply_mc.py \\
         --utility ct_eversource --year 2025 \\
         --output-s3-base s3://data.sb/switchbox/marginal_costs/ct/supply/ --upload
 """

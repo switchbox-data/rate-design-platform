@@ -41,7 +41,7 @@ import numpy as np
 import polars as pl
 from scipy.special import ndtr
 
-from utils.data_prep.marginal_costs.generate_utility_tx_dx_mc import (
+from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
     expand_month_hour_mc_to_8760,
 )
 from utils.data_prep.marginal_costs.supply_utils import build_cairo_8760_timestamps

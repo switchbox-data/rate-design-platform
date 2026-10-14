@@ -168,7 +168,7 @@ runs zone-load probability-of-peak with the same CSV scalar. Both write the stan
 ### 3.1 Method: standard PoP allocation (same as NY, RI, MD)
 
 Use the same Probability of Peak (PoP) allocation method already implemented in
-[`generate_utility_tx_dx_mc.py`](../../../utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py)
+[`generate_utility_tx_dx_mc.py`](../../../utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py)
 and used for NY, RI, and MD. The method:
 
 1. Load hourly utility load data for the target year.
@@ -194,7 +194,7 @@ CL&P's MCOS used an hourly probability-of-peak analysis (MCOS-1, p. 14)(https://
 - Forward adjustments for BTM solar and heat-pump adoption through 2031
 - Results summarized into TOU-period buckets (MCOS-2 Table 2A/2B)
 
-OCC-733 later described the calculation: normalize each hour by that year's average load, set a delimiter from the highest month × day-type × hour mean, and take the tail of a truncated Gaussian KDE in each cell. That calculation is now `probability_of_peak` in `utils/data_prep/marginal_costs/probability_of_peak.py` ([probability_of_peak_kde.md](probability_of_peak_kde.md)), and it is the CT bulk transmission default (`create-bulk-tx-mc-data` passes `--bulk-tx-method pop_kde`). It is not what §3.1 runs. The distribution 8760s here are still the month-hour tables (§7) or the top-100 allocator.
+OCC-733 later described the calculation: normalize each hour by that year's average load, set a delimiter from the highest month × day-type × hour mean, and take the tail of a truncated Gaussian KDE in each cell. That calculation is now `probability_of_peak` in `utils/data_prep/marginal_costs/probability_of_peak.py` ([probability_of_peak_kde.md](probability_of_peak_kde.md)), and it is the CT bulk transmission default (`create-bulk-tx-mc-data` passes `--method pop_kde`). It is not what §3.1 runs. The distribution 8760s here are still the month-hour tables (§7) or the top-100 allocator.
 
 We don't have CL&P's underlying hourly PoP curve (the MCOS-2 back-up tables, including Back-Up 36
 "Probabilities of peak by month and time of day period," were listed in the table of contents but not
@@ -411,7 +411,7 @@ The tables live at
 
 Each has 288 rows (`month` 1–12, `hour` 0–23, `num_days`, `mc_total_per_kwh`). The recipe uses
 the **secondary** voltage pair. Implementation is `expand_month_hour_mc_to_8760` in
-`utils/data_prep/marginal_costs/generate_utility_tx_dx_mc.py`.
+`utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py`.
 
 ### 7.1 Day type
 

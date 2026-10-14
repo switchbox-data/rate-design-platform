@@ -16,18 +16,21 @@ Energy Supply Components study (Synapse Energy Economics), which publishes
 an avoided PTF (Pool Transmission Facility) cost in $/kW-year.  For
 AESC 2024 this value is **$69/kW-year** across all six New England states.
 
-Two hourly allocations are available, both on the aggregate New England
-system load (all 8 ISO-NE load zones summed) by default:
+Two load-based hourly allocations live here, both on the aggregate New
+England system load (all 8 ISO-NE load zones summed) by default:
 
-- ``exceedance_top_n``: the **top-100-hour exceedance** method on one year of
+- ``isone_aesc_ptf``: the **top-100-hour exceedance** method on one year of
   load.  This is consistent with how RNS costs are peak-driven and with the
   sub-TX/dist PoP methodology used elsewhere in the platform.
 - ``pop_kde``: a month x day-type x hour **probability of peak** from several
   years of load (truncated Gaussian KDE, ``probability_of_peak.py``), spread
   as ``$/kW-yr x PoP / num_days`` on the CAIRO 8760.  The default history is
   2022-2025, the same four years Eversource used for its own PoP.  The CT
-  Justfile passes this method; the CLI default remains ``exceedance_top_n``
+  Justfile passes this method; the CLI default remains ``isone_aesc_ptf``
   so RI is unchanged.
+
+A third method, ``month_hour``, uses OCC-863's published probability of peak
+instead of a load curve; it lives in ``generate_bulk_tx_mc.py``.
 
 Unit chain
 ----------
@@ -52,7 +55,7 @@ from utils.data_prep.marginal_costs.probability_of_peak import (
     allocate_annual_cost_by_pop,
     probability_of_peak,
 )
-from utils.data_prep.marginal_costs.supply_capacity_isone import (
+from utils.data_prep.marginal_costs.supply.supply_capacity_isone import (
     load_isone_zone_loads,
 )
 from utils.data_prep.marginal_costs.supply_utils import (
@@ -69,9 +72,9 @@ from utils.data_prep.marginal_costs.supply_utils import (
 # Source: https://www.synapse-energy.com/aesc-2024-materials
 AESC_2024_AVOIDED_PTF_KW_YEAR: float = 69.0
 
-# AESC 2024 states its avoided costs in 2024 dollars.  The pop_kde method
-# inflates the PTF value to the analysis year with CPI; exceedance_top_n uses
-# it as given.
+# AESC 2024 states its avoided costs in 2024 dollars.  The month_hour and
+# pop_kde methods inflate the PTF value to the target dollar year with CPI;
+# isone_aesc_ptf (exceedance) uses it as given.
 AESC_2024_DOLLAR_YEAR: int = 2024
 
 # Default number of top system-load hours for exceedance allocation.
@@ -84,8 +87,6 @@ DEFAULT_N_PEAK_HOURS: int = 100
 # the OCC-863 probability of peak, so the bulk-tx and distribution signals
 # rest on the same years.
 DEFAULT_POP_KDE_HISTORY_YEARS: tuple[int, ...] = (2022, 2023, 2024, 2025)
-
-BULK_TX_METHODS: tuple[str, str] = ("exceedance_top_n", "pop_kde")
 
 
 # ── Core logic ────────────────────────────────────────────────────────────────
