@@ -24,8 +24,20 @@ Usage
     uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --utility rie --year 2025 --load-year 2025 --upload
 
+    # ISO-NE / CT: KDE probability of peak on 2022-2025 NE system load (the CT
+    # Justfile default). AESC PTF inflated from 2024 to 2025 dollars, day
+    # types on the 2025 calendar.
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
+        --iso isone --utility ct_eversource --year 2025 --load-year 2025 \\
+        --method pop_kde --upload
+
+    # ISO-NE / CT: fit the PoP on CT zone load instead of the NE system
+    uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
+        --iso isone --utility ct_eversource --year 2025 --load-year 2025 \\
+        --method pop_kde --allocation-load utility_zone --upload
+
     # ISO-NE / CT exceedance, NE system load. This is the CLI default when
-    # --method is omitted. The CT Justfile default is month_hour (below).
+    # --method is omitted (RI's method).
     uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --utility ct_eversource --year 2025 --load-year 2025
 
@@ -35,7 +47,6 @@ Usage
         --allocation-load utility_zone
 
     # ISO-NE / CT Eversource: month-hour from OCC-863 probability of peak
-    # (the CT Justfile default)
     uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --method month_hour --utility ct_eversource --year 2025 \\
         --path-weekday-pop month_hour_probability_of_peak_weekday.parquet \\
@@ -67,6 +78,7 @@ from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_isone import (
     AESC_2024_AVOIDED_PTF_KW_YEAR,
     AESC_2024_DOLLAR_YEAR,
     DEFAULT_N_PEAK_HOURS,
+    DEFAULT_POP_KDE_HISTORY_YEARS,
 )
 from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
     _parse_bool,
@@ -245,14 +257,19 @@ def _parse_args() -> argparse.Namespace:
         "--method",
         type=str,
         default="isone_aesc_ptf",
-        choices=["isone_aesc_ptf", "month_hour"],
+        choices=["isone_aesc_ptf", "month_hour", "pop_kde"],
         help=(
             "[ISO-NE only] isone_aesc_ptf (this CLI's default; RI and the "
             "CT exceedance path): top-N exceedance on the allocation load. "
-            "month_hour (the CT Justfile default, ct_eversource only): weekday "
-            "vs weekend-and-holiday lookup of $/kWh built from the AESC "
-            "$/kW-yr times a probability of peak, divided by that month's day "
-            "count, then CPI-adjusted to --target-dollar-year."
+            "month_hour (ct_eversource only): weekday vs weekend-and-holiday "
+            "lookup of $/kWh built from the AESC $/kW-yr times OCC-863's "
+            "probability of peak, divided by that month's day count, then "
+            "CPI-adjusted to --target-dollar-year. pop_kde (the CT Justfile "
+            "default): month x day-type x hour probability of peak from a "
+            "truncated Gaussian KDE on several years of allocation load "
+            "(--pop-history-years), spread as PoP / num_days on the "
+            "--calendar-year calendar, PTF inflated from --ptf-dollar-year to "
+            "--target-dollar-year by CPI."
         ),
     )
     parser.add_argument(
@@ -285,8 +302,9 @@ def _parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help=(
-            "[ISO-NE month_hour] Calendar that classifies weekdays, weekends, "
-            "and holidays (default: --year). Restamped onto --year by position."
+            "[ISO-NE month_hour, pop_kde] Calendar that classifies weekdays, "
+            "weekends, and holidays and sets each cell's day count "
+            "(default: --year). Restamped onto --year by position."
         ),
     )
     parser.add_argument(
@@ -300,7 +318,7 @@ def _parse_args() -> argparse.Namespace:
         type=int,
         default=AESC_2024_DOLLAR_YEAR,
         help=(
-            "[ISO-NE month_hour] Dollar year of --aesc-ptf-kw-year "
+            "[ISO-NE month_hour, pop_kde] Dollar year of --aesc-ptf-kw-year "
             f"(default: {AESC_2024_DOLLAR_YEAR}, the AESC 2024 study year)."
         ),
     )
@@ -309,8 +327,9 @@ def _parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help=(
-            "[ISO-NE month_hour] Dollar year to inflate the AESC $/kW-yr to "
-            "(default: --year). No CPI when this matches --ptf-dollar-year."
+            "[ISO-NE month_hour, pop_kde] Dollar year to inflate the AESC "
+            "$/kW-yr to (default: --year). No CPI when this matches "
+            "--ptf-dollar-year."
         ),
     )
     parser.add_argument(
@@ -318,8 +337,8 @@ def _parse_args() -> argparse.Namespace:
         type=str,
         default="s3://data.sb/fred/cpi/",
         help=(
-            "[ISO-NE month_hour] Base S3 path for CPIAUCSL annual parquets "
-            "(default: s3://data.sb/fred/cpi/)."
+            "[ISO-NE month_hour, pop_kde] Base S3 path for CPIAUCSL annual "
+            "parquets (default: s3://data.sb/fred/cpi/)."
         ),
     )
     parser.add_argument(
@@ -333,6 +352,22 @@ def _parse_args() -> argparse.Namespace:
             "with how bulk TX peaks are driven regionally. 'utility_zone' uses only "
             "the utility's own zone load — closer to embedded-cost RNS allocation "
             "mechanics but defensible for marginal cost work."
+        ),
+    )
+    parser.add_argument(
+        "--pop-history-years",
+        type=str,
+        default="-".join(
+            str(y)
+            for y in (
+                DEFAULT_POP_KDE_HISTORY_YEARS[0],
+                DEFAULT_POP_KDE_HISTORY_YEARS[-1],
+            )
+        ),
+        help=(
+            "[ISO-NE pop_kde only] Calendar years of allocation load the PoP is "
+            "fit on, as a range '2022-2025' or a list '2022,2023,2024,2025'. "
+            "Default 2022-2025, the four years Eversource used for its OCC-863 PoP."
         ),
     )
     # Shared args
@@ -849,6 +884,18 @@ def _run_isone(
         ISONE_ALL_LOAD_ZONES if allocation_load == "ne_system" else [utility_zone]
     )
 
+    if args.method == "pop_kde":
+        _run_isone_pop_kde(
+            args,
+            utility,
+            year,
+            output_s3_base,
+            zone_loads_s3_base,
+            storage_options,
+            allocation_zones=allocation_zones,
+        )
+        return
+
     print(f"  AESC avoided PTF:     ${aesc_ptf:.2f}/kW-yr")
     print(f"  Peak hours:           {n_peak}")
     print(
@@ -928,6 +975,126 @@ def _run_isone(
         print("\n✓ ISO-NE bulk transmission MC generation completed and uploaded")
     else:
         print("\n✓ ISO-NE bulk transmission MC generation completed (inspect only)")
+
+
+def _run_isone_pop_kde(
+    args: argparse.Namespace,
+    utility: str,
+    year: int,
+    output_s3_base: str,
+    zone_loads_s3_base: str,
+    storage_options: dict[str, str],
+    *,
+    allocation_zones: list[str],
+) -> None:
+    """PTF $/kW-yr spread by a KDE probability of peak on several load years."""
+    from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_isone import (
+        compute_isone_bulk_tx_pop_kde,
+        load_isone_zone_load_history,
+        parse_history_years,
+        print_pop_summary,
+        print_summary,
+        save_output,
+        validate_allocation,
+    )
+    from utils.data_prep.marginal_costs.probability_of_peak import (
+        DEFAULT_TRUNCATION_SIGMAS,
+    )
+    from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
+        load_cpi_inflation_factor,
+    )
+
+    aesc_ptf = args.aesc_ptf_kw_year
+    allocation_load = args.allocation_load
+    history_years = parse_history_years(args.pop_history_years)
+    calendar_year = args.calendar_year if args.calendar_year else year
+    target_dollar_year = args.target_dollar_year if args.target_dollar_year else year
+    aesc_dollar_year = args.ptf_dollar_year
+
+    print("  Method:               pop_kde (truncated Gaussian KDE PoP)")
+    print(f"  AESC avoided PTF:     ${aesc_ptf:.2f}/kW-yr ({aesc_dollar_year} dollars)")
+    print(f"  Target dollar year:   {target_dollar_year}")
+    print(f"  History years:        {', '.join(str(y) for y in history_years)}")
+    print(f"  Calendar year:        {calendar_year}")
+    print(
+        f"  Allocation load:      {allocation_load} ({', '.join(sorted(allocation_zones))})"
+    )
+    print("=" * 60)
+
+    cpi_factor = 1.0
+    if aesc_dollar_year != target_dollar_year:
+        cpi_factor = load_cpi_inflation_factor(
+            args.cpi_s3_base, aesc_dollar_year, target_dollar_year, storage_options
+        )
+    ptf_allocated = aesc_ptf * cpi_factor
+    print(
+        f"\n  PTF to allocate: ${aesc_ptf:.4f} x {cpi_factor:.6f} = ${ptf_allocated:.4f}/kW-yr"
+    )
+
+    load_history = load_isone_zone_load_history(
+        zone_loads_s3_base=zone_loads_s3_base,
+        zone_names=allocation_zones,
+        years=history_years,
+        storage_options=storage_options,
+    )
+    output_df, pop = compute_isone_bulk_tx_pop_kde(
+        load_history,
+        ptf_allocated,
+        year,
+        calendar_year=calendar_year,
+    )
+    print_pop_summary(pop)
+    validate_allocation(output_df, ptf_allocated)
+    print_summary(output_df)
+
+    if args.upload:
+        inputs = [
+            partition
+            for load_year in history_years
+            for partition in _zone_partition_inputs(
+                zone_loads_s3_base, allocation_zones, load_year
+            )
+        ]
+        if cpi_factor != 1.0:
+            inputs.append(input_partition("cpi", args.cpi_s3_base))
+        spec = McSpec(
+            mc_type="bulk_tx",
+            method="isone_aesc_ptf_pop_kde",
+            utility=utility,
+            year=year,
+            params={
+                "ptf_kw_year": aesc_ptf,
+                "aesc_dollar_year": aesc_dollar_year,
+                "target_dollar_year": target_dollar_year,
+                "cpi_factor": cpi_factor,
+                "ptf_kw_year_allocated": ptf_allocated,
+                "allocation_load": allocation_load,
+                "allocation_zones": sorted(allocation_zones),
+                "history_years": list(history_years),
+                "calendar_year": calendar_year,
+                "timestamp_year": year,
+                "weighting": "pop_kde_per_day",
+                "kde_bandwidth": "scott",
+                "kde_truncation_sigmas": DEFAULT_TRUNCATION_SIGMAS,
+                "delimiter": pop.delimiter,
+                "delimiter_share_of_peak": pop.delimiter_share_of_peak,
+                "holiday_rule": "5 USC 6103, Sat->Fri, Sun->Mon, Juneteenth from 2021",
+            },
+            source=args.source
+            or (
+                "AESC 2024 avoided PTF cost, CPI-adjusted to the analysis year"
+                if aesc_ptf == AESC_2024_AVOIDED_PTF_KW_YEAR
+                else "AESC avoided PTF cost, overridden via --aesc-ptf-kw-year, "
+                "CPI-adjusted to the analysis year"
+            ),
+            inputs=inputs,
+        )
+        _save_with_manifest(
+            save_output, output_df, spec, output_s3_base, storage_options
+        )
+        print("\n✓ ISO-NE bulk transmission MC (pop_kde) completed and uploaded")
+    else:
+        print("\n✓ ISO-NE bulk transmission MC (pop_kde) completed (inspect only)")
 
 
 if __name__ == "__main__":

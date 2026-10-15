@@ -995,11 +995,21 @@ def run_batch(
         dep_outputs = check_dependency(
             batch_dir, config.state, config.utility, scenario.depends_on[0]
         )
-        dep_precalc = {
-            "precalc_delivery": dep_outputs["precalc_delivery"],
-            "precalc_supply": dep_outputs["precalc_supply"],
-        }
-        derive_tariffs(config, scenario, dep_precalc)
+        if scenario.derive_method == "icos":
+            from utils.mid.derive_icos_tariff import derive_icos_tariffs
+
+            derive_icos_tariffs(config, scenario, dep_outputs)
+        elif scenario.derive_method is not None:
+            raise ValueError(
+                f"Unknown derive_method {scenario.derive_method!r} on "
+                f"scenario {scenario.name!r}"
+            )
+        else:
+            dep_precalc = {
+                "precalc_delivery": dep_outputs["precalc_delivery"],
+                "precalc_supply": dep_outputs["precalc_supply"],
+            }
+            derive_tariffs(config, scenario, dep_precalc)
         run_quartet(
             scenario.name,
             state=config.state,
