@@ -34,7 +34,7 @@ marginal_costs:
   # See ct_bulk_transmission_marginal_cost.md.
   bulk_tx:
     path: s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/utility=ct_eversource/year=2025/data.parquet
-    key: aesc_ptf69_pop_kde_ne_system_hist2022to2025_cal2025_2025usd
+    key: aesc_ptf69_pop_kde_ne_system_hist2022to2025_cal2025_2026usd
   # No supply MC 8760s exist for CT (no ISO-NE LMP/FCM pipeline wired up yet);
   # point directly at zero.parquet so both delivery and supply runs get zero supply MCs.
   supply_energy:
@@ -87,74 +87,84 @@ scenarios:
     # Fair flat rate: delivery rate set so avg bill_after = avg bill_before + avg ΔMC.
     quartet: single_rate_uncalibrated
     tariff_base: icos_fair_flat
+    depends_on: default_ry1_r1_uncalibrated
+    derive_method: icos
+    structure: flat
+    icos:
+      heating_types: [natgas, delivered_fuels]
   default_ry1_icos_fair_seasonal_uncalibrated:
     # Fair seasonal rate: summer at base Rate 1, winter adjusted for annual constraint.
     quartet: single_rate_uncalibrated
     tariff_base: icos_fair_seasonal
-    # hp_seasonal_percustomer_passthrough:
-    #   quartet: multi_rate_collapsed
-    #   depends_on: default
-    #   promote: hp
-    #   residual_allocation:
-    #     delivery: percustomer
-    #     supply: passthrough
-    #   subclass_config:
-    #     group_col: has_hp
-    #     subgroups:
-    #       hp:
-    #         values: ["true"]
-    #         structure: seasonal
-    #       non-hp:
-    #         values: ["false"]
-    #         structure: base
-    # hp_seasonal_epmc_passthrough:
-    #   quartet: multi_rate_collapsed
-    #   depends_on: default
-    #   promote: hp
-    #   residual_allocation:
-    #     delivery: epmc
-    #     supply: passthrough
-    #   subclass_config:
-    #     group_col: has_hp
-    #     subgroups:
-    #       hp:
-    #         values: ["true"]
-    #         structure: seasonal
-    #       non-hp:
-    #         values: ["false"]
-    #         structure: base
-    # hp_flat_percustomer_passthrough:
-    #   quartet: multi_rate_collapsed
-    #   depends_on: default
-    #   promote: hp
-    #   residual_allocation:
-    #     delivery: percustomer
-    #     supply: passthrough
-    #   subclass_config:
-    #     group_col: has_hp
-    #     subgroups:
-    #       hp:
-    #         values: ["true"]
-    #         structure: flat
-    #       non-hp:
-    #         values: ["false"]
-    #         structure: base
-    # hp_flat_epmc_passthrough:
-    #   quartet: multi_rate_collapsed
-    #   depends_on: default
-    #   promote: hp
-    #   residual_allocation:
-    #     delivery: epmc
-    #     supply: passthrough
-    #   subclass_config:
-    #     group_col: has_hp
-    #     subgroups:
-    #       hp:
-    #         values: ["true"]
-    #         structure: flat
-    #       non-hp:
-    #         values: ["false"]
-    #         structure: base
+    depends_on: default_ry1_r1_uncalibrated
+    derive_method: icos
+    structure: seasonal
+    icos:
+      heating_types: [natgas, delivered_fuels]
+      # hp_seasonal_percustomer_passthrough:
+      #   quartet: multi_rate_collapsed
+      #   depends_on: default
+      #   promote: hp
+      #   residual_allocation:
+      #     delivery: percustomer
+      #     supply: passthrough
+      #   subclass_config:
+      #     group_col: has_hp
+      #     subgroups:
+      #       hp:
+      #         values: ["true"]
+      #         structure: seasonal
+      #       non-hp:
+      #         values: ["false"]
+      #         structure: base
+      # hp_seasonal_epmc_passthrough:
+      #   quartet: multi_rate_collapsed
+      #   depends_on: default
+      #   promote: hp
+      #   residual_allocation:
+      #     delivery: epmc
+      #     supply: passthrough
+      #   subclass_config:
+      #     group_col: has_hp
+      #     subgroups:
+      #       hp:
+      #         values: ["true"]
+      #         structure: seasonal
+      #       non-hp:
+      #         values: ["false"]
+      #         structure: base
+      # hp_flat_percustomer_passthrough:
+      #   quartet: multi_rate_collapsed
+      #   depends_on: default
+      #   promote: hp
+      #   residual_allocation:
+      #     delivery: percustomer
+      #     supply: passthrough
+      #   subclass_config:
+      #     group_col: has_hp
+      #     subgroups:
+      #       hp:
+      #         values: ["true"]
+      #         structure: flat
+      #       non-hp:
+      #         values: ["false"]
+      #         structure: base
+      # hp_flat_epmc_passthrough:
+      #   quartet: multi_rate_collapsed
+      #   depends_on: default
+      #   promote: hp
+      #   residual_allocation:
+      #     delivery: epmc
+      #     supply: passthrough
+      #   subclass_config:
+      #     group_col: has_hp
+      #     subgroups:
+      #       hp:
+      #         values: ["true"]
+      #         structure: flat
+      #       non-hp:
+      #         values: ["false"]
+      #         structure: base
 # The one stage every other run's bills are compared against, joined onto the
 # master tables as baseline_elec_* columns by post-processing.
 bill_change_baseline:
