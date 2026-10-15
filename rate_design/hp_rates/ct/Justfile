@@ -19,8 +19,8 @@ path_s3_mc_root := "s3://data.sb/switchbox/marginal_costs/ct/"
 path_local_mc_root := "/ebs/data/switchbox/marginal_costs/ct/"
 # month_hour (default), pop_occ863, or pop_isone_zone. See create-dist-mc-data.
 dist_mc_method := env_var_or_default('DIST_MC_METHOD', 'month_hour')
-# month_hour (default) or isone_aesc_ptf. See create-bulk-tx-mc-data.
-bulk_tx_method := env_var_or_default('BULK_TX_METHOD', 'month_hour')
+# pop_kde (default), month_hour, or isone_aesc_ptf. See create-bulk-tx-mc-data.
+bulk_tx_method := env_var_or_default('BULK_TX_METHOD', 'pop_kde')
 include_holidays := env_var_or_default('INCLUDE_HOLIDAYS', 'true')
 # Calendar for month_hour's weekday/weekend/holiday rule. Empty: year_arg, which is
 # right because CAIRO rotates the AMY2018 loads onto the run year's weekdays.
@@ -85,11 +85,24 @@ run-with-lmi batch *scenarios:
 # bulk_tx_method picks the 8760. The annual cost is the AESC 2024 avoided PTF,
 # $69/kW-yr in 2024 dollars.
 #
-#   month_hour (default)
+#   pop_kde (default)
+#     $69 inflated from 2024 dollars to 2026 (--target-dollar-year 2026).
+#     2026 is the dollar year of Eversource's distribution MC, the MCOS-2
+#     secondary $21.22/kW-yr that create-dist-mc-data allocates, so the two
+#     delivery components are in the same dollars. Spread by a month × day-type
+#     × hour probability of peak fit with a truncated Gaussian KDE on 2022-2025
+#     NE system load,
+#     the method Eversource described in OCC-733 and the same four years it
+#     used. $/kWh = S × PoP / num_days on the month_hour_calendar_year calendar
+#     (default year_arg). --allocation-load utility_zone fits on CT zone load.
+#     Applies to ct_eversource and ct_ui.
+#
+#   month_hour
 #     For each month-hour, $/kWh = S × OCC-863 Attachment 2 page 3
 #     probability_of_peak / num_days, weekday and weekend-holiday separately.
 #     S is $69 inflated from 2024 dollars to --target-dollar-year (2026 here,
-#     matching create-dist-mc-data). Days are classified on
+#     matching the dollar year of Eversource's distribution MC, as pop_kde
+#     does). Days are classified on
 #     month_hour_calendar_year (default year_arg), with the same federal-holiday
 #     rule as create-dist-mc-data. Every hour is then multiplied by one factor
 #     so the 8760 sums to S. The recipe wires Eversource's probability files, so
@@ -100,9 +113,10 @@ run-with-lmi batch *scenarios:
 #     same methodology as RI. --allocation-load utility_zone uses CT zone load.
 #     No CPI. Applies to ct_eversource and ct_ui.
 #
-# Both write bulk_tx/utility=<utility>/year=<year_arg>/data.parquet and append
-# a manifest entry. The pipeline YAML's marginal_costs.bulk_tx.key must match
-# the latest entry. Keys: context/code/marginal_costs/mc_provenance_manifest.md.
+# All three write bulk_tx/utility=<utility>/year=<year_arg>/data.parquet and
+# append a manifest entry. The pipeline YAML's marginal_costs.bulk_tx.key must
+# match the latest entry. Keys: context/code/marginal_costs/mc_provenance_manifest.md.
+# Methods: context/methods/marginal_costs/ct_bulk_transmission_marginal_cost.md.
 # =============================================================================
 
 ct_bulk_tx_years := "2025"
@@ -111,6 +125,7 @@ ct_bulk_tx_years := "2025"
 #
 #   just -f ct/Justfile create-bulk-tx-mc-data ct_eversource 2025
 #   just -f ct/Justfile create-bulk-tx-mc-data ct_eversource 2025 --upload
+#   just -f ct/Justfile bulk_tx_method=month_hour create-bulk-tx-mc-data ct_eversource 2025
 #   just -f ct/Justfile bulk_tx_method=isone_aesc_ptf create-bulk-tx-mc-data ct_eversource 2025
 # BULK_TX_METHOD=isone_aesc_ptf just s ct create-bulk-tx-mc-data ct_ui 2025
 create-bulk-tx-mc-data utility_arg year_arg *extra_args:
@@ -119,6 +134,14 @@ create-bulk-tx-mc-data utility_arg year_arg *extra_args:
     calendar_year="{{ month_hour_calendar_year }}"
     calendar_year="${calendar_year:-{{ year_arg }}}"
     case "{{ bulk_tx_method }}" in
+      pop_kde)
+        method_args=(
+          --method pop_kde
+          --load-year {{ year_arg }}
+          --calendar-year "${calendar_year}"
+          --target-dollar-year 2026
+        )
+        ;;
       isone_aesc_ptf)
         method_args=(
           --method isone_aesc_ptf
@@ -143,7 +166,7 @@ create-bulk-tx-mc-data utility_arg year_arg *extra_args:
         )
         ;;
       *)
-        echo "bulk_tx_method must be isone_aesc_ptf or month_hour (got '{{ bulk_tx_method }}')" >&2
+        echo "bulk_tx_method must be pop_kde, month_hour, or isone_aesc_ptf (got '{{ bulk_tx_method }}')" >&2
         exit 1
         ;;
     esac
@@ -209,8 +232,9 @@ create-bulk-tx-mc-data-all *extra_args:
 #
 # CL&P's MCOS-2 covers ct_eversource only; ct_ui has no MCOS-derived value yet
 # (see the methodology doc's open questions), so this recipe does not loop
-# over utilities. create-bulk-tx-mc-data-all does, but its default method
-# (month_hour) also refuses anything other than ct_eversource.
+# over utilities. create-bulk-tx-mc-data-all does. Its default (pop_kde) covers
+# both utilities; bulk_tx_method=month_hour refuses anything other than
+# ct_eversource.
 # =============================================================================
 
 # Generate dist+sub-tx MC for ct_eversource and one year.

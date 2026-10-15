@@ -16,15 +16,27 @@ Energy Supply Components study (Synapse Energy Economics), which publishes
 an avoided PTF (Pool Transmission Facility) cost in $/kW-year.  For
 AESC 2024 this value is **$69/kW-year** across all six New England states.
 
-The hourly allocation uses the **top-100-hour exceedance** method on the
-aggregate New England system load (all 8 ISO-NE load zones summed).  This
-is consistent with how RNS costs are peak-driven and with the sub-TX/dist
-PoP methodology used elsewhere in the platform.
+Two load-based hourly allocations live here, both on the aggregate New
+England system load (all 8 ISO-NE load zones summed) by default:
+
+- ``isone_aesc_ptf``: the **top-100-hour exceedance** method on one year of
+  load.  This is consistent with how RNS costs are peak-driven and with the
+  sub-TX/dist PoP methodology used elsewhere in the platform.
+- ``pop_kde``: a month x day-type x hour **probability of peak** from several
+  years of load (truncated Gaussian KDE, ``probability_of_peak.py``), spread
+  as ``$/kW-yr x PoP / num_days`` on the CAIRO 8760.  The default history is
+  2022-2025, the same four years Eversource used for its own PoP.  The CT
+  Justfile passes this method; the CLI default remains ``isone_aesc_ptf``
+  so RI is unchanged.
+
+A third method, ``month_hour``, uses OCC-863's published probability of peak
+instead of a load curve; it lives in ``generate_bulk_tx_mc.py``.
 
 Unit chain
 ----------
 $/kW-year (AESC avoided PTF)
   --[top-100-hour exceedance on NE system load]--> $/kW per peak hour
+  --[or: PoP on 2022-2025 NE system load / days per cell]--> $/kWh per hour type
   --[output as bulk_tx_cost_enduse]--> hourly signal for CAIRO BAT
 
 For NYISO bulk transmission, see ``bulk_tx_nyiso.py``.
@@ -37,6 +49,15 @@ from typing import cast
 
 import polars as pl
 
+from utils.data_prep.marginal_costs.probability_of_peak import (
+    WEEKEND_HOLIDAY,
+    ProbabilityOfPeak,
+    allocate_annual_cost_by_pop,
+    probability_of_peak,
+)
+from utils.data_prep.marginal_costs.supply.supply_capacity_isone import (
+    load_isone_zone_loads,
+)
 from utils.data_prep.marginal_costs.supply_utils import (
     allocate_annual_exceedance_to_hours,
     build_cairo_8760_timestamps,
@@ -50,6 +71,10 @@ from utils.data_prep.marginal_costs.supply_utils import (
 #
 # Source: https://www.synapse-energy.com/aesc-2024-materials
 AESC_2024_AVOIDED_PTF_KW_YEAR: float = 69.0
+
+# AESC 2024 states its avoided costs in 2024 dollars.  The month_hour and
+# pop_kde methods inflate the PTF value to the target dollar year with CPI;
+# isone_aesc_ptf (exceedance) uses it as given.
 AESC_2024_DOLLAR_YEAR: int = 2024
 
 # Default number of top system-load hours for exceedance allocation.
@@ -57,6 +82,11 @@ AESC_2024_DOLLAR_YEAR: int = 2024
 # allocation.  Bulk TX may justify a narrower window (e.g. 50), but 100 is
 # consistent and the difference is unlikely to be material for the BAT.
 DEFAULT_N_PEAK_HOURS: int = 100
+
+# History for the pop_kde method: the four complete years Eversource used for
+# the OCC-863 probability of peak, so the bulk-tx and distribution signals
+# rest on the same years.
+DEFAULT_POP_KDE_HISTORY_YEARS: tuple[int, ...] = (2022, 2023, 2024, 2025)
 
 
 # ── Core logic ────────────────────────────────────────────────────────────────
@@ -118,6 +148,111 @@ def compute_isone_bulk_tx_signal(
     )
 
     return peak_hours_df
+
+
+def parse_history_years(text: str) -> tuple[int, ...]:
+    """Parse ``2022-2025`` or ``2022,2023,2024,2025`` into sorted years."""
+    text = text.strip()
+    if "-" in text and "," not in text:
+        first, last = (int(part) for part in text.split("-", 1))
+        if last < first:
+            raise ValueError(f"history years {text!r}: end before start")
+        return tuple(range(first, last + 1))
+    years = tuple(sorted({int(part) for part in text.split(",") if part.strip()}))
+    if not years:
+        raise ValueError("history years must name at least one year")
+    return years
+
+
+def load_isone_zone_load_history(
+    zone_loads_s3_base: str,
+    zone_names: list[str],
+    years: tuple[int, ...],
+    storage_options: dict[str, str],
+) -> pl.DataFrame:
+    """Several calendar years of summed ISO-NE zone load, one row per hour.
+
+    Each year goes through :func:`load_isone_zone_loads`, so the time zone is
+    handled the same way as the exceedance method: ``interval_start_et`` is
+    hour-beginning Eastern prevailing time, kept as naive wall-clock time, with
+    the fall-back duplicate 1 AM averaged and the spring-forward 2 AM
+    interpolated onto the CAIRO 8760 (which also drops December 31 in a leap
+    year).  Returns ``timestamp`` and ``load_mw`` sorted by time.
+    """
+    frames = []
+    for year in years:
+        print(f"\n── Allocation load history (year={year}) ──")
+        frames.append(
+            load_isone_zone_loads(
+                zone_loads_s3_base=zone_loads_s3_base,
+                zone_names=zone_names,
+                year=year,
+                storage_options=storage_options,
+            )
+        )
+    return pl.concat(frames).sort("timestamp")
+
+
+def compute_isone_bulk_tx_pop_kde(
+    load_history: pl.DataFrame,
+    aesc_ptf_kw_year: float,
+    year: int,
+    *,
+    calendar_year: int | None = None,
+) -> tuple[pl.DataFrame, ProbabilityOfPeak]:
+    """Spread the PTF cost over the 8760 by a KDE probability of peak.
+
+    Args:
+        load_history: Hourly allocation load over one or more complete
+            calendar years (columns ``timestamp``, ``load_mw``), e.g. from
+            :func:`load_isone_zone_load_history`.
+        aesc_ptf_kw_year: Annual PTF cost to recover, in the dollars of the
+            analysis year.
+        year: Year stamped on the output timestamps.
+        calendar_year: Calendar that classifies weekdays, weekends, and
+            holidays and sets the day counts (default ``year``).
+
+    Returns:
+        The 8760 (``timestamp``, ``bulk_tx_cost_enduse``) and the
+        :class:`ProbabilityOfPeak` behind it.
+    """
+    pop = probability_of_peak(load_history)
+    hourly = allocate_annual_cost_by_pop(
+        pop.cells,
+        aesc_ptf_kw_year,
+        year,
+        calendar_year=calendar_year,
+        value_col="bulk_tx_cost_enduse",
+    )
+    return hourly.select("timestamp", "bulk_tx_cost_enduse"), pop
+
+
+def print_pop_summary(pop: ProbabilityOfPeak) -> None:
+    """Print the delimiter, per-year normalization, and where the PoP lands."""
+    print("\n── Probability of Peak (KDE) ──")
+    print(f"  Delimiter: {pop.delimiter:.4f} x year mean load")
+    print(f"  Delimiter / normalized peak: {pop.delimiter_share_of_peak:.4f}")
+    print(pop.years)
+    by_month = (
+        pop.cells.group_by("month")
+        .agg(pl.col("probability_of_peak").sum().alias("pop"))
+        .sort("month")
+        .filter(pl.col("pop") > 0)
+    )
+    weekend = pop.cells.filter(pl.col("daytype") == WEEKEND_HOLIDAY)[
+        "probability_of_peak"
+    ].sum()
+    nonzero = pop.cells.filter(pl.col("probability_of_peak") > 0).height
+    print(f"  Weekend-and-holiday share: {float(weekend):.4f}")
+    print(f"  Nonzero cells: {nonzero} of {pop.cells.height}")
+    print("  PoP by month (nonzero):")
+    print(by_month)
+    print("  Top 5 cells:")
+    print(
+        pop.cells.sort("probability_of_peak", descending=True)
+        .head(5)
+        .select("month", "daytype", "hour", "n_obs", "probability_of_peak")
+    )
 
 
 def prepare_output(allocated_df: pl.DataFrame, year: int) -> pl.DataFrame:
