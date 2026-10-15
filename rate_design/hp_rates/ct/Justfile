@@ -86,9 +86,12 @@ run-with-lmi batch *scenarios:
 # $69/kW-yr in 2024 dollars.
 #
 #   pop_kde (default)
-#     $69 inflated from 2024 dollars to the analysis year (--target-dollar-year
-#     defaults to --year) and spread by a month × day-type × hour probability
-#     of peak fit with a truncated Gaussian KDE on 2022-2025 NE system load,
+#     $69 inflated from 2024 dollars to 2026 (--target-dollar-year 2026).
+#     2026 is the dollar year of Eversource's distribution MC, the MCOS-2
+#     secondary $21.22/kW-yr that create-dist-mc-data allocates, so the two
+#     delivery components are in the same dollars. Spread by a month × day-type
+#     × hour probability of peak fit with a truncated Gaussian KDE on 2022-2025
+#     NE system load,
 #     the method Eversource described in OCC-733 and the same four years it
 #     used. $/kWh = S × PoP / num_days on the month_hour_calendar_year calendar
 #     (default year_arg). --allocation-load utility_zone fits on CT zone load.
@@ -98,7 +101,8 @@ run-with-lmi batch *scenarios:
 #     For each month-hour, $/kWh = S × OCC-863 Attachment 2 page 3
 #     probability_of_peak / num_days, weekday and weekend-holiday separately.
 #     S is $69 inflated from 2024 dollars to --target-dollar-year (2026 here,
-#     matching create-dist-mc-data). Days are classified on
+#     matching the dollar year of Eversource's distribution MC, as pop_kde
+#     does). Days are classified on
 #     month_hour_calendar_year (default year_arg), with the same federal-holiday
 #     rule as create-dist-mc-data. Every hour is then multiplied by one factor
 #     so the 8760 sums to S. The recipe wires Eversource's probability files, so
@@ -135,6 +139,7 @@ create-bulk-tx-mc-data utility_arg year_arg *extra_args:
           --method pop_kde
           --load-year {{ year_arg }}
           --calendar-year "${calendar_year}"
+          --target-dollar-year 2026
         )
         ;;
       isone_aesc_ptf)
