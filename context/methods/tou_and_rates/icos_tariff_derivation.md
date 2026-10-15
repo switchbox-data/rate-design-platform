@@ -46,12 +46,12 @@ The target population is configurable via `icos.heating_types` in the pipeline Y
 
 All inputs come from CAIRO output directories of the parent scenario's delivery runs:
 
-| File | Stage | Columns used |
-| --- | --- | --- |
-| `customer_metadata.csv` | precalc (u00) | `bldg_id`, `weight`, `postprocess_group.heating_type_v2` |
-| `cross_subsidization/cross_subsidization_BAT_values.csv` | precalc + calibrated | `bldg_id`, `customer_level_economic_burden` |
-| `billing_kwh_annual.parquet` | precalc + calibrated | `bldg_id`, `annual_kwh_grid` |
-| `billing_kwh_8760.parquet` | calibrated only | `bldg_id`, `timestamp`, `grid_cons_kwh` (seasonal only) |
+| File                                                     | Stage                | Columns used                                             |
+| -------------------------------------------------------- | -------------------- | -------------------------------------------------------- |
+| `customer_metadata.csv`                                  | precalc (u00)        | `bldg_id`, `weight`, `postprocess_group.heating_type_v2` |
+| `cross_subsidization/cross_subsidization_BAT_values.csv` | precalc + calibrated | `bldg_id`, `customer_level_economic_burden`              |
+| `billing_kwh_annual.parquet`                             | precalc + calibrated | `bldg_id`, `annual_kwh_grid`                             |
+| `billing_kwh_8760.parquet`                               | calibrated only      | `bldg_id`, `timestamp`, `grid_cons_kwh` (seasonal only)  |
 
 ## Supply tariff
 
@@ -93,8 +93,8 @@ default_ry1_icos_fair_flat_uncalibrated:
 
 ### Config fields
 
-| Field | Type | Purpose |
-| --- | --- | --- |
-| `derive_method` | `str \| None` | Derivation method; `"icos"` for ICOS. When set, the pipeline calls the appropriate derive function instead of `derive_tariffs`. |
-| `structure` | `str \| None` | Rate structure: `"flat"` or `"seasonal"`. Mirrors the `structure` field in multi-rate subgroup configs. |
-| `icos` | `dict \| None` | ICOS-specific parameters. Currently only `heating_types: list[str]`. |
+| Field           | Type           | Purpose                                                                                                                         |
+| --------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `derive_method` | `str \| None`  | Derivation method; `"icos"` for ICOS. When set, the pipeline calls the appropriate derive function instead of `derive_tariffs`. |
+| `structure`     | `str \| None`  | Rate structure: `"flat"` or `"seasonal"`. Mirrors the `structure` field in multi-rate subgroup configs.                         |
+| `icos`          | `dict \| None` | ICOS-specific parameters. Currently only `heating_types: list[str]`.                                                            |
