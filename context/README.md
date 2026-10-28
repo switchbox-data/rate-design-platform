@@ -189,7 +189,7 @@ Pipelines and config that build the marginal-cost signal used in BAT and TOU.
 
 ## docs/
 
-Technical documentation extracted from PDFs (e.g. Cambium, ResStock dataset docs). Add via the **extract-pdf-to-markdown** slash command.
+Technical documentation extracted from PDFs (e.g. Cambium, ResStock dataset docs). Add via the **extract-pdf-to-markdown** slash command (in the reports2 repo).
 
 | File                                                     | Use when working on …                                                                                                                                        |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -208,7 +208,7 @@ Technical documentation extracted from PDFs (e.g. Cambium, ResStock dataset docs
 
 ## sources/
 
-Primary sources like academic articles and documents, mostly extracted from PDFs via the **extract-pdf-to-markdown** slash command.
+Primary sources like academic articles and documents, mostly extracted from PDFs via the **extract-pdf-to-markdown** slash command (in the reports2 repo).
 
 ### sources/papers/
 

@@ -118,7 +118,7 @@ We run BAT on ResStock and Cambium; key reference material lives in `context/` s
 
 For the current list of files and when to use each, see **`context/README.md`**.
 
-To add or refresh extracted PDF content: use the **extract-pdf-to-markdown** slash command (`.cursor/commands/extract-pdf-to-markdown.md`) and place output under `context/docs/` or `context/sources/papers/` as appropriate.
+To add or refresh extracted PDF content: use the **extract-pdf-to-markdown** slash command, which lives in the [reports2 repo](https://github.com/switchbox-data/reports2) (`.cursor/commands/extract-pdf-to-markdown.md`; run it there, then copy the markdown here), and place output under `context/docs/` or `context/sources/papers/` as appropriate.
 
 ## How to work in this repo
 
