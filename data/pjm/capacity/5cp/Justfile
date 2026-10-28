@@ -5,7 +5,7 @@
 # captured as committed, reviewable markdown intermediates under sources/
 # (5cp_YYYY.md); `convert` deterministically rebuilds fivecp_peaks.csv from
 # them. To add/revise a summer: extract the PDF to sources/5cp_YYYY.md (see the
-# repo extract-pdf-to-markdown command), `just convert`, review the CSV diff,
+# reports2 extract-pdf-to-markdown command), `just convert`, review the CSV diff,
 # `just validate`, commit, `just upload`.
 #
 # Run from repo root: just -f data/pjm/capacity/5cp/Justfile <recipe>
