@@ -255,8 +255,8 @@ year is 2025, not the AMY2018 weather year, because CAIRO rotates the 2018 loads
 year's weekdays (see the methodology doc §7.2). `month_hour_calendar_year=<y>` overrides it.
 
 `create-bulk-tx-mc-data` defaults to `bulk_tx_method=pop_kde`, key
-`aesc_ptf69_pop_kde_ne_system_hist2022to2025_cal2025_2025usd` (AESC 2024 dollars inflated to
-2025), the key in `pipeline_ct_eversource.yaml`; it covers `ct_eversource` and `ct_ui`.
+`aesc_ptf69_pop_kde_ne_system_hist2022to2025_cal2025_2026usd` (AESC 2024 dollars inflated to
+2026), the key in `pipeline_ct_eversource.yaml`; it covers `ct_eversource` and `ct_ui`.
 `bulk_tx_method=month_hour` writes `month_hour_occ863att2_aesc_ptf69_holidays_cal2025_2026usd`
 (AESC 2024 dollars inflated to 2026); the ct recipe supplies Eversource's probability files, so
 that one is `ct_eversource` only. `bulk_tx_method=isone_aesc_ptf` writes
