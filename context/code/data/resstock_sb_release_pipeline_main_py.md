@@ -22,6 +22,7 @@ For the older Justfile-based workflow, see `context/code/data/resstock_data_prep
 | 8. Aggregate load curves   | Step 2d: `_add_aggregate_loads`       | Implemented |
 | 9. Upload aggregated to S3 | Step 2d: `_add_aggregate_loads`       | Implemented |
 | Upload raw + `_sb` to S3   | Step 3: `_upload`                     | Implemented |
+| Real-world checks          | Step 4: `run_post_pipeline_checks`    | Implemented |
 
 ---
 
@@ -55,6 +56,10 @@ Release-level defaults are loaded from `data/resstock/config.yaml`. State-specif
 | `--path-s3-gis-dir`            | `s3://data.sb/gis/utility_boundaries/`         | S3 directory for NY utility polygon CSVs                                            |
 | `--add-monthly-loads`          | `True`                                         | Aggregate hourly → monthly and upload (needs `load_curve_hourly` in `--file-types`) |
 | `--add-annual-loads`           | `True`                                         | Aggregate hourly → annual and upload (needs `load_curve_hourly` in `--file-types`)  |
+| `--real-world-checks`          | `True`                                         | Step 4: compare upgrade-00 stock to EIA-861, EIA-176, ACS PUMS; warn only           |
+| `--real-world-eia-year`        | AMY year in the release name                   | EIA-861 / EIA-176 year for step 4 (required for TMY releases)                       |
+| `--path-s3-eia861-dir`         | `s3://data.sb/eia/861/electric_utility_stats`  | EIA-861 utility stats root for step 4                                               |
+| `--notify`                     | `True` (`False` with `--sample`)               | Post the run outcome to Slack (`SLACK_WEBHOOK_URL` in `.env`); never fails the run  |
 | `--aggregation-workers`        | `50`                                           | Parallel worker count for load curve aggregation                                    |
 | `--path-output-dir`            | `/ebs/data/nrel/resstock`                      | Local EBS output root                                                               |
 | `--path-s3-dir`                | `s3://data.sb/nrel/resstock`                   | S3 mirror root                                                                      |
@@ -98,9 +103,13 @@ paths:
   output_dir: /ebs/data/nrel/resstock
   s3_dir: s3://data.sb/nrel/resstock
   s3_pums_dir: s3://data.sb/census/pums
+  s3_eia861_dir: s3://data.sb/eia/861/electric_utility_stats
 pums:
   survey: acs5
   year: "2021"
+real_world_checks:
+  tolerances: { ... } # see step 4
+  ignore: []
 ```
 
 ### `data/resstock/state_configs.yaml`
@@ -372,9 +381,40 @@ Uploads both releases to S3 via `aws s3 sync`:
 Validation: `validate_s3_objects` spot-checks up to 5 S3 objects per `(file_type, state, upgrade)`. The `_sb` validation uses `sb_file_types` (plus integrity expects step-produced monthly/annual when `add_aggregate_loads` ran).
 Manifests are uploaded separately via `_upload_manifest`.
 
+### Step 4: Real-world checks
+
+`data/resstock/validations/real_world_checks.py`, called as `run_post_pipeline_checks` after the S3 upload validation and before `finish_run`. It reads the upgrade-00 files just written to EBS and compares them to real-world data. It **only warns**: any failure (missing file, PUDL unreachable) becomes a `skipped` result, and the step never fails the run. Because the data is already on S3, it cannot block an upload. Skipped when `--sample` is set or upgrade 00 isn't in `--upgrade-ids`.
+
+| Check                                   | Benchmark                         | Notes                                                                                                                                                                |
+| --------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Electric customers, statewide + utility | EIA-861 residential customers     | EIA rows matched by `utility_code`, else `utility_id_eia` via `utils/utility_codes.py`; unmatched rows (competitive suppliers) are dropped                           |
+| Electricity, customer-normalized        | EIA-861 residential sales         | `_sb` is held to the tolerance; raw is reported for context. `electric_kwh_sb_drift` warns if `_sb` sits further from EIA than raw                                   |
+| Gas kWh, statewide                      | EIA-176 sales + transport         | Tight tolerance when `_sb` gas differs from raw (the EIA-176 scaler ran), loose otherwise. Never divided by a customer count                                         |
+| Gas kWh, per gas utility                | EIA-176 by operator               | After one statewide kWh scaling. Only states in `GAS_OPERATORS_BY_STATE` (CT today)                                                                                  |
+| Gas meters, statewide + utility         | EIA-176 consumers                 | `estimate_gas_meters` turns dwellings into a min/max meter band using shared gas heating / hot water, units per building, and in-unit gas end uses (master metering) |
+| HP approximation share + unclassified   | Internal                          | Upgrades in `approx_upgrade_ids`; warns above `hp_approx_max_share_pct` or if any approximated building matches neither targeting rule                               |
+| Heating fuel, building type, year built | ACS PUMS housing (occupied units) | ResStock restricted to `in.vacancy_status == "Occupied"`; percentage-point tolerance                                                                                 |
+| Master-metered share of gas households  | ACS `GASFP = 1` (gas in rent)     | Compared to the ResStock min/max master-metered share from the meter estimate                                                                                        |
+
+Tolerances live in `config.yaml` under `real_world_checks.tolerances`; per-state overrides and an `ignore` list (`"<check>"` or `"<check>:<scope>"`) go under `real_world_checks` in `state_configs.yaml`. Per-utility checks are skipped below `min_utility_customers` EIA customers (too few ResStock samples) and for utilities with zero EIA residential customers.
+
+Each warning names the reports2 notebook section (`reports/templates/data_prep/investigate_resstock.qmd`, with a `#sec-...` anchor) that shows the full comparison. Results go to the manifest step `real_world_checks` (counts, report paths, and every warned result), warnings are appended to the run's `warnings` and reprinted before "Pipeline complete.", and a full YAML report is written to `path_sb/real_world_checks_<STATE>_<ts>.yaml`.
+
+Run the same checks on an existing release with `just -f data/resstock/Justfile check-real-world <STATE> [--location s3]`.
+
 ### Finalization
 
 On success, the run record is marked `completed` and written to both manifests. On failure caught by Python (e.g. `RuntimeError`, `ValueError`), the run is marked `failed` with the error message, written to whichever manifest directories exist, and the process exits with code 1. On ungraceful termination (e.g. OOM kill), the crash recording system (see above) marks the run as `crashed` with the actual exit code.
+
+### Slack notifications
+
+`data/resstock/notify.py` posts one message per run outcome to the Slack incoming webhook in `SLACK_WEBHOOK_URL` (from the environment or the project `.env`):
+
+- **Completed**: posted after the manifest upload. Lists the real-world check counts per state, up to 10 warnings with their notebook sections, and the report paths. The icon is a warning sign when any check warned. Clean runs post too, so a missing message means the run never finished.
+- **Failed**: posted from the `except` block for any handled exception, including pre-flight validations. Gives the error, the last completed step, and the command.
+- **Crashed**: posted by `mark_crashed_runs` callers: the `run-pipeline` Justfile wrapper (via `manifest --mark-crashed --exit-code N`, right after the process dies) or, without the wrapper, the next run's startup. Runs are de-duplicated by `run_id` across the raw and `_sb` manifests.
+
+Each run records its `notify` setting in the manifest (`--notify`; default true except for `--sample` runs), and crash messages honor the crashed run's own setting. Posting is best-effort: a missing URL or Slack error prints one `NOTE` line and nothing else. Test the webhook with `just -f data/resstock/Justfile notify-test`, or preview a real-world summary with `check-real-world <STATE> --notify`.
 
 ---
 
@@ -433,7 +473,9 @@ When `--sample N` is passed (N > 0):
 | `data/resstock/config.yaml`                            | Pipeline defaults (release, paths, file types, PUMS)                                                                    |
 | `data/resstock/constants.py`                           | Path constants, column-name constants, CLI for Justfile config access                                                   |
 | `data/resstock/manifest.py`                            | Provenance: run records, YAML I/O, crash recording (`mark_crashed_runs`), status CLI (`--mark-crashed`)                 |
-| `data/resstock/validations.py`                         | Post-step validation (local files, S3 objects, metadata schema)                                                         |
+| `data/resstock/validations/preflight.py`               | Pre-flight and post-step validation that halts the run (local files, S3 objects, metadata schema, utility assignment)   |
+| `data/resstock/notify.py`                              | Slack notifications for completed, failed, and crashed runs (`SLACK_WEBHOOK_URL`)                                       |
+| `data/resstock/validations/real_world_checks.py`       | Step 4: advisory comparison to EIA-861, EIA-176, ACS PUMS; also `check-real-world` CLI                                  |
 | `data/resstock/nrel/fetch_resstock_data.py`            | bsf wrapper                                                                                                             |
 | `data/resstock/nrel/copy_resstock_data.py`             | Directory copy utility (`copy_dir`)                                                                                     |
 | `data/resstock/metadata/identify_hp_customers.py`      | Adds `postprocess_group.has_hp`                                                                                         |
@@ -445,7 +487,6 @@ When `--sample N` is passed (N > 0):
 | `data/resstock/load_curve/adjust_mf_electricity.py`    | Re-exports from `utils/pre/adjust_mf_electricity.py`                                                                    |
 | `utils/pre/adjust_mf_electricity.py`                   | MF non-HVAC electricity scaling, per-building hourly adjustment                                                         |
 | `data/resstock/state_configs.yaml`                     | Per-state config: FIPS, flags; `utility_assignment` sub-key with CRS, polygon filenames, excluded gas utilities         |
-| `data/resstock/validations.py`                         | Post-step and pre-flight validation (local files, S3 objects, utility assignment)                                       |
 | `data/resstock/utility/utils.py`                       | State-generic GIS helpers: PUMA overlap, probability tables, sampling, diagnostics                                      |
 | `data/resstock/utility/assign_utility.py`              | Dynamic dispatch facade; imports state module from `state_configs.yaml` via `importlib`                                 |
 | `data/resstock/utility/assign_utility_ny.py`           | NY-specific thin wrapper: builds name map, passes excluded gas utilities to generic `create_hh_utilities` in `utils.py` |

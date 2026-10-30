@@ -91,6 +91,15 @@ run-pipeline state *args:
 status *args:
     cd "{{ path_local_repo }}" && uv run python -m data.resstock.manifest {{ args }}
 
+# Post a test message to the Slack webhook in SLACK_WEBHOOK_URL (.env).
+# run-pipeline posts every run's outcome there: completed (with the real-world
+# check summary), failed (including pre-flight), or crashed.
+#
+# Examples:
+# just -f data/resstock/Justfile notify-test
+notify-test:
+    cd "{{ path_local_repo }}" && uv run python -m data.resstock.notify --test
+
 # Mark any stale in_progress runs in the local manifest as crashed.
 # Use after an unexpected kill (OOM, SIGKILL, hard reboot) to clean up
 # the manifest without starting a new pipeline run.  The run-pipeline
@@ -117,6 +126,21 @@ mark-crashed *args:
 # just -f data/resstock/Justfile check-integrity NY --output /tmp/report.yaml
 check-integrity state *args:
     cd "{{ path_local_repo }}" && uv run python -m data.resstock.manifest --check-integrity --state {{ state }} {{ args }}
+
+# Compare an already-built release's upgrade-00 stock to EIA-861 (customers,
+# electricity), EIA-176 (gas, estimated gas meters), and ACS PUMS (heating fuel,
+# building type, year built, master metering). The same checks run at the end
+# of run-pipeline. Prints a warning for each gap beyond the tolerances in
+# config.yaml (real_world_checks), pointing at the reports2 notebook section
+# reports/templates/data_prep/investigate_resstock.qmd that shows the detail.
+#
+# Examples:
+#   just -f data/resstock/Justfile check-real-world CT
+#   just -f data/resstock/Justfile check-real-world "CT MD" --location s3
+#   just -f data/resstock/Justfile check-real-world CT --notify
+# just -f data/resstock/Justfile check-real-world NY --path-report /tmp/ny.yaml
+check-real-world state *args:
+    cd "{{ path_local_repo }}" && uv run python -m data.resstock.validations.real_world_checks --state {{ state }} {{ args }}
 
 ################################################################################
 # Individual step recipes (for debugging and partial re-runs)
