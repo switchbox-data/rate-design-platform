@@ -59,6 +59,7 @@ Release-level defaults are loaded from `data/resstock/config.yaml`. State-specif
 | `--real-world-checks`          | `True`                                         | Step 4: compare upgrade-00 stock to EIA-861, EIA-176, ACS PUMS; warn only           |
 | `--real-world-eia-year`        | AMY year in the release name                   | EIA-861 / EIA-176 year for step 4 (required for TMY releases)                       |
 | `--path-s3-eia861-dir`         | `s3://data.sb/eia/861/electric_utility_stats`  | EIA-861 utility stats root for step 4                                               |
+| `--notify`                     | `True` (`False` with `--sample`)               | Post the run outcome to Slack (`SLACK_WEBHOOK_URL` in `.env`); never fails the run  |
 | `--aggregation-workers`        | `50`                                           | Parallel worker count for load curve aggregation                                    |
 | `--path-output-dir`            | `/ebs/data/nrel/resstock`                      | Local EBS output root                                                               |
 | `--path-s3-dir`                | `s3://data.sb/nrel/resstock`                   | S3 mirror root                                                                      |
@@ -405,6 +406,16 @@ Run the same checks on an existing release with `just -f data/resstock/Justfile 
 
 On success, the run record is marked `completed` and written to both manifests. On failure caught by Python (e.g. `RuntimeError`, `ValueError`), the run is marked `failed` with the error message, written to whichever manifest directories exist, and the process exits with code 1. On ungraceful termination (e.g. OOM kill), the crash recording system (see above) marks the run as `crashed` with the actual exit code.
 
+### Slack notifications
+
+`data/resstock/notify.py` posts one message per run outcome to the Slack incoming webhook in `SLACK_WEBHOOK_URL` (from the environment or the project `.env`):
+
+- **Completed**: posted after the manifest upload. Lists the real-world check counts per state, up to 10 warnings with their notebook sections, and the report paths. The icon is a warning sign when any check warned. Clean runs post too, so a missing message means the run never finished.
+- **Failed**: posted from the `except` block for any handled exception, including pre-flight validations. Gives the error, the last completed step, and the command.
+- **Crashed**: posted by `mark_crashed_runs` callers: the `run-pipeline` Justfile wrapper (via `manifest --mark-crashed --exit-code N`, right after the process dies) or, without the wrapper, the next run's startup. Runs are de-duplicated by `run_id` across the raw and `_sb` manifests.
+
+Each run records its `notify` setting in the manifest (`--notify`; default true except for `--sample` runs), and crash messages honor the crashed run's own setting. Posting is best-effort: a missing URL or Slack error prints one `NOTE` line and nothing else. Test the webhook with `just -f data/resstock/Justfile notify-test`, or preview a real-world summary with `check-real-world <STATE> --notify`.
+
 ---
 
 ## File types in `_sb` releases
@@ -463,6 +474,7 @@ When `--sample N` is passed (N > 0):
 | `data/resstock/constants.py`                           | Path constants, column-name constants, CLI for Justfile config access                                                   |
 | `data/resstock/manifest.py`                            | Provenance: run records, YAML I/O, crash recording (`mark_crashed_runs`), status CLI (`--mark-crashed`)                 |
 | `data/resstock/validations/preflight.py`               | Pre-flight and post-step validation that halts the run (local files, S3 objects, metadata schema, utility assignment)   |
+| `data/resstock/notify.py`                              | Slack notifications for completed, failed, and crashed runs (`SLACK_WEBHOOK_URL`)                                       |
 | `data/resstock/validations/real_world_checks.py`       | Step 4: advisory comparison to EIA-861, EIA-176, ACS PUMS; also `check-real-world` CLI                                  |
 | `data/resstock/nrel/fetch_resstock_data.py`            | bsf wrapper                                                                                                             |
 | `data/resstock/nrel/copy_resstock_data.py`             | Directory copy utility (`copy_dir`)                                                                                     |

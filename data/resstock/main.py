@@ -101,6 +101,7 @@ from data.resstock.validations import (
     validate_s3_objects,
     validate_utility_assignment_args,
 )
+from data.resstock.notify import notify_completed, notify_crashed, notify_failed
 from data.resstock.validations.real_world_checks import run_post_pipeline_checks
 from data.resstock.warnings import collect_run_warnings
 
@@ -1008,6 +1009,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="S3_URI",
         help="S3 base URI for EIA-861 utility stats (used by the real-world checks).",
     )
+    parser.add_argument(
+        "--notify",
+        type=parse_bool,
+        default=None,
+        metavar="BOOL",
+        help=(
+            "Post the run outcome (completed with real-world check summary, failed, "
+            "or crashed) to Slack via SLACK_WEBHOOK_URL in .env. Never fails the run. "
+            "Default: True, except for --sample runs."
+        ),
+    )
 
     # GIS-based utility assignment polygon filenames
     parser.add_argument(
@@ -1104,6 +1116,7 @@ def main(argv: list[str] | None = None) -> None:
             "add_monthly_loads": args.add_monthly_loads,
             "add_annual_loads": args.add_annual_loads,
             "real_world_checks": args.real_world_checks,
+            "notify": args.notify if args.notify is not None else args.sample == 0,
             "aggregation_workers": args.aggregation_workers,
             "sample": args.sample,
         },
@@ -1119,8 +1132,7 @@ def main(argv: list[str] | None = None) -> None:
         # ungraceful exit (e.g. OOM kill, SIGKILL) as crashed.  Must run
         # *before* inserting this run — otherwise mark_crashed_runs would
         # immediately mark the brand-new in_progress entry as crashed.
-        mark_crashed_runs(path_raw)
-        mark_crashed_runs(path_sb)
+        notify_crashed(mark_crashed_runs(path_raw) + mark_crashed_runs(path_sb))
 
         # Record the run in _sb immediately so that even a pre-flight crash
         # leaves a trace in the manifest.
@@ -1516,6 +1528,7 @@ def main(argv: list[str] | None = None) -> None:
             )
             for msg in real_world_warnings:
                 print(f"WARNING {msg}", flush=True)
+        notify_completed(run, real_world_warnings)
         print("Pipeline complete.", flush=True)
 
     except Exception as e:
@@ -1529,6 +1542,7 @@ def main(argv: list[str] | None = None) -> None:
                 upsert_run(path, run)
             except Exception:
                 pass
+        notify_failed(run)
         sys.exit(1)
 
 

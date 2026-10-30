@@ -40,6 +40,7 @@ from data.resstock.load_curve.adjust_gas_usage import (
     EIA176_DISPOSITION,
     KWH_PER_MMBTU,
 )
+from data.resstock.notify import format_real_world_checks, post_slack
 from data.resstock.utils import load_state_configs
 from utils import get_aws_region
 from utils.post.compare_resstock_eia176_gas import (
@@ -1675,6 +1676,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Write the YAML report here (one state only). Default: print only.",
     )
+    parser.add_argument(
+        "--notify",
+        action="store_true",
+        help="Also post the summary to Slack (SLACK_WEBHOOK_URL in .env).",
+    )
     return parser.parse_args(argv)
 
 
@@ -1686,7 +1692,7 @@ def main(argv: list[str] | None = None) -> None:
     eia_year = args.eia_year or eia_year_for_resstock_release(args.release)
     with CONFIG_PATH.open() as f:
         approx_upgrades = yaml.safe_load(f)["resstock"]["approx_upgrade_ids"]
-    n_warn = 0
+    outcome = PostPipelineChecks()
     for state in states:
         inputs = load_release_inputs(
             state=state,
@@ -1703,10 +1709,21 @@ def main(argv: list[str] | None = None) -> None:
             ),
             cfg=load_check_config(state),
         )
-        n_warn += len(summarize(state, results))
+        outcome.results[state] = results
+        outcome.warnings.extend(summarize(state, results))
         if args.path_report is not None and len(states) == 1:
-            print(f"  Report: {write_report(args.path_report, state, results)}")
-    print(f"Done: {n_warn} warning(s).")
+            path = write_report(args.path_report, state, results)
+            outcome.reports[state] = str(path)
+            print(f"  Report: {path}")
+    print(f"Done: {len(outcome.warnings)} warning(s).")
+    if args.notify:
+        post_slack(
+            format_real_world_checks(
+                f"{args.release}_sb ({args.location})",
+                outcome.manifest_details(),
+                outcome.warnings,
+            )
+        )
 
 
 if __name__ == "__main__":
