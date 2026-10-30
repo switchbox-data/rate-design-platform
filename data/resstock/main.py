@@ -6,6 +6,8 @@ Runs three phases for each requested state:
               heating type, natural gas connection, vulnerability columns).
               All four transforms are on by default; pass False to skip any.
   3. Upload — sync the modified local files to the corresponding S3 path.
+  4. Real-world checks — compare the upgrade-00 stock to EIA-861, EIA-176, and
+              ACS PUMS and warn on large gaps (advisory; never fails the run).
 
 Metadata transforms run in dependency order:
   identify_hp_customers → identify_heating_type → identify_natgas_connection
@@ -99,6 +101,7 @@ from data.resstock.validations import (
     validate_s3_objects,
     validate_utility_assignment_args,
 )
+from data.resstock.validations.real_world_checks import run_post_pipeline_checks
 from data.resstock.warnings import collect_run_warnings
 
 
@@ -111,6 +114,7 @@ _DEFAULT_OUTPUT_DIR: str = _cfg["paths"]["output_dir"]
 _DEFAULT_S3_DIR: str = _cfg["paths"]["s3_dir"]
 _DEFAULT_S3_PUMS_DIR: str = _cfg["paths"]["s3_pums_dir"]
 _DEFAULT_S3_GIS_DIR: str = _cfg["paths"]["s3_gis_dir"]
+_DEFAULT_S3_EIA861_DIR: str = _cfg["paths"]["s3_eia861_dir"]
 _DEFAULT_RELEASE_YEAR: int = _cfg["resstock"]["release_year"]
 _DEFAULT_WEATHER_FILE: str = _cfg["resstock"]["weather_file"]
 _DEFAULT_RELEASE_VERSION: int = _cfg["resstock"]["release_version"]
@@ -976,6 +980,35 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
 
+    parser.add_argument(
+        "--real-world-checks",
+        type=parse_bool,
+        default=True,
+        metavar="BOOL",
+        help=(
+            "After upload, compare the upgrade-00 stock to EIA-861, EIA-176, and "
+            "ACS PUMS and warn on large gaps (default: True). Never fails the run. "
+            "Skipped with --sample or without upgrade 00. Tolerances: "
+            "real_world_checks in config.yaml."
+        ),
+    )
+    parser.add_argument(
+        "--real-world-eia-year",
+        type=int,
+        default=None,
+        metavar="YEAR",
+        help=(
+            "EIA-861 / EIA-176 year for the real-world checks. Default: the AMY "
+            "year in the release name (required for TMY releases)."
+        ),
+    )
+    parser.add_argument(
+        "--path-s3-eia861-dir",
+        default=_DEFAULT_S3_EIA861_DIR,
+        metavar="S3_URI",
+        help="S3 base URI for EIA-861 utility stats (used by the real-world checks).",
+    )
+
     # GIS-based utility assignment polygon filenames
     parser.add_argument(
         "--electric-poly-filename",
@@ -1070,6 +1103,7 @@ def main(argv: list[str] | None = None) -> None:
             "assign_utility": args.assign_utility,
             "add_monthly_loads": args.add_monthly_loads,
             "add_annual_loads": args.add_annual_loads,
+            "real_world_checks": args.real_world_checks,
             "aggregation_workers": args.aggregation_workers,
             "sample": args.sample,
         },
@@ -1441,6 +1475,32 @@ def main(argv: list[str] | None = None) -> None:
             local_base=path_sb,
         )
 
+        # ── 4. Real-world checks (advisory) ───────────────────────────────────
+        # Compares the upgrade-00 stock just written to EBS against EIA-861,
+        # EIA-176, and ACS PUMS. Runs after upload, so it can only warn; the
+        # results reach S3 with the manifest upload below.
+        real_world_warnings: list[str] = []
+        if args.real_world_checks:
+            print("Running real-world checks...", flush=True)
+            real_world = run_post_pipeline_checks(
+                states=args.state,
+                upgrade_ids=args.upgrade_ids,
+                sample=args.sample,
+                release=release,
+                path_raw=path_raw,
+                path_sb=path_sb,
+                eia_year=args.real_world_eia_year,
+                path_s3_eia861_dir=args.path_s3_eia861_dir,
+                path_s3_pums_dir=args.path_s3_pums_dir,
+                pums_survey=args.pums_survey,
+                pums_year=args.pums_year,
+                approx_upgrades=_APPROX_UPGRADES,
+            )
+            real_world_warnings = real_world.warnings
+            record_step(run, "real_world_checks", **real_world.manifest_details())
+            if real_world_warnings:
+                run.setdefault("warnings", []).extend(real_world_warnings)
+
         # ── Done ──────────────────────────────────────────────────────────────
         # Finalize the run record before uploading manifests to S3 so the S3
         # copy reflects the completed status, not in_progress.
@@ -1449,6 +1509,13 @@ def main(argv: list[str] | None = None) -> None:
         upsert_run(path_sb, run)
         upload_manifest(path_raw, s3_base_raw)
         upload_manifest(path_sb, s3_base_sb)
+        if real_world_warnings:
+            print(
+                f"\n{len(real_world_warnings)} real-world check warning(s):",
+                flush=True,
+            )
+            for msg in real_world_warnings:
+                print(f"WARNING {msg}", flush=True)
         print("Pipeline complete.", flush=True)
 
     except Exception as e:

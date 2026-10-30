@@ -12,6 +12,8 @@ All commands assume the project root as the current working directory unless not
 
 `main.py` runs the full pipeline end-to-end on the local EBS mount. All steps are enabled by default and controlled by flags. See `context/code/data/resstock_sb_release_pipeline_main_py.md` for full documentation.
 
+The last step compares the finished upgrade-00 stock to EIA-861, EIA-176, and ACS PUMS and prints a warning (pointing at the matching section of reports2's `reports/templates/data_prep/investigate_resstock.qmd`) for any gap beyond the tolerances in `config.yaml`. It never fails the run. To run it on an existing release: `just -f data/resstock/Justfile check-real-world <STATE>`.
+
 ### Justfile structure
 
 The ResStock data pipeline uses a three-tier Justfile structure:

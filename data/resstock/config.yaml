@@ -37,6 +37,9 @@ paths:
   output_dir: /ebs/data/nrel/resstock
   s3_dir: s3://data.sb/nrel/resstock
   s3_pums_dir: s3://data.sb/census/pums
+  # EIA-861 utility stats (year=<YYYY>/state=<ST>/data.parquet), read by the
+  # real-world checks.
+  s3_eia861_dir: s3://data.sb/eia/861/electric_utility_stats
   s3_gis_dir: s3://data.sb/gis/utility_boundaries/
   # S3 URI for PUMA boundary shapefiles (state-partitioned: .../state=XX/).
   s3_pumas_dir: s3://data.sb/gis/pumas
@@ -45,3 +48,25 @@ paths:
 pums:
   survey: acs5
   year: "2021"
+# End-of-pipeline comparisons of the upgrade-00 stock against EIA-861, EIA-176,
+# and ACS PUMS (data/resstock/validations/real_world_checks.py). They only warn.
+# Percent tolerances are in percent; "_pp" tolerances are percentage points.
+# Per-state overrides go under real_world_checks in state_configs.yaml.
+real_world_checks:
+  tolerances:
+    electric_customers_statewide_pct: 10
+    electric_customers_utility_pct: 20
+    electric_kwh_statewide_pct: 10
+    electric_kwh_utility_pct: 20
+    electric_kwh_sb_drift_pp: 5
+    gas_kwh_statewide_scaled_pct: 1
+    gas_kwh_statewide_unscaled_pct: 15
+    gas_kwh_utility_pct: 25
+    gas_meters_band_pct: 10
+    hp_approx_max_share_pct: 35
+    acs_share_pp: 5
+    acs_master_metering_pp: 5
+    min_utility_customers: 5000
+  # Known, accepted mismatches: "<check>" or "<check>:<scope>",
+  # e.g. "electric_kwh_utility:utility=frp".
+  ignore: []
