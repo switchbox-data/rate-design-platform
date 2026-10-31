@@ -18,7 +18,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from data.resstock.utils import upload
+from data.resstock.utils import eia_year_for_resstock_release, upload
+
+
+def test_eia_year_for_resstock_release() -> None:
+    assert eia_year_for_resstock_release("res_2024_amy2018_2_sb") == 2018
+    assert eia_year_for_resstock_release("res_2024_AMY2012") == 2012
+    with pytest.raises(ValueError, match="amyYYYY"):
+        eia_year_for_resstock_release("res_2024_tmy3")
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────

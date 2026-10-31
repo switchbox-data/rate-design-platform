@@ -14,7 +14,11 @@ from pathlib import Path
 
 import polars as pl
 
-from data.eia.constants import PUDL_STABLE_VERSION
+from data.eia.constants import (
+    PUDL_EIA176_BY_CONSUMER_URL,
+    PUDL_EIA176_DISPOSITION_URL,
+)
+from data.eia.utils import load_eia176_residential_by_operator
 
 BLDG_ID_COL = "bldg_id"
 WEIGHT_COL = "weight"
@@ -39,68 +43,38 @@ HOURLY_GAS_COLS = tuple(
     for suffix in ("energy_consumption", "energy_consumption_intensity")
 )
 
-# 1 MMBtu = 1e6 Btu; 1 kWh = 3412.141633 Btu.
-KWH_PER_MMBTU = 1_000_000 / 3412.141633
-
-_PUDL_PARQUET = (
-    f"https://s3.us-west-2.amazonaws.com/pudl.catalyst.coop/{PUDL_STABLE_VERSION}"
-)
-EIA176_BY_CONSUMER = (
-    f"{_PUDL_PARQUET}/core_eia176__yearly_gas_disposition_by_consumer.parquet"
-)
-EIA176_DISPOSITION = f"{_PUDL_PARQUET}/core_eia176__yearly_gas_disposition.parquet"
-
 
 def load_eia176_residential_kwh(
     state: str,
     year: int,
-    path_by_consumer: str = EIA176_BY_CONSUMER,
-    path_disposition: str = EIA176_DISPOSITION,
+    path_by_consumer: str = PUDL_EIA176_BY_CONSUMER_URL,
+    path_disposition: str = PUDL_EIA176_DISPOSITION_URL,
 ) -> float:
     """Statewide EIA-176 residential deliveries (sales + transportation) in kWh.
 
-    Transportation volumes are gas the utility delivers to residential customers
-    who buy the commodity from a marketer; ResStock models their use too.
+    Operators with no delivered-gas heat content get the state median; see
+    ``load_eia176_residential_by_operator``.
     """
-    sales = (
-        pl.scan_parquet(path_by_consumer)
-        .filter(
-            (pl.col("operating_state") == state)
-            & (pl.col("report_year") == year)
-            & (pl.col("customer_class") == "residential")
-            & pl.col("revenue_class").cast(pl.String).is_in(["sales", "transport"])
-        )
-        .group_by("operator_id_eia")
-        .agg(pl.col("volume_mcf").cast(pl.Float64).sum())
+    by_operator = load_eia176_residential_by_operator(
+        state,
+        year,
+        path_by_consumer=path_by_consumer,
+        path_disposition=path_disposition,
     )
-    heat = (
-        pl.scan_parquet(path_disposition)
-        .filter((pl.col("operating_state") == state) & (pl.col("report_year") == year))
-        .select(
-            "operator_id_eia",
-            pl.col("delivered_gas_heat_content_mmbtu_per_mcf").cast(pl.Float64),
+    imputed = by_operator.filter(pl.col("heat_content_imputed"))
+    if imputed.height:
+        share = (
+            float(imputed["volume_mcf"].sum())
+            / float(by_operator["volume_mcf"].sum())
+            * 100
         )
-    )
-    joined = sales.join(heat, on="operator_id_eia", how="left").collect()
-    if joined.height == 0:
-        raise ValueError(f"EIA-176 has no residential deliveries for {state} {year}.")
-    missing_heat = joined.filter(
-        pl.col("delivered_gas_heat_content_mmbtu_per_mcf").is_null()
-    )["operator_id_eia"].to_list()
-    if missing_heat:
-        raise ValueError(
-            f"EIA-176 is missing delivered-gas heat content for {state} {year} "
-            f"operator(s) {missing_heat}."
+        print(
+            f"  WARNING: EIA-176 {state} {year} has no delivered-gas heat content for "
+            f"operator(s) {imputed['operator_id_eia'].to_list()} ({share:.1f}% of "
+            "residential volume); using the state median.",
+            flush=True,
         )
-    return float(
-        joined.select(
-            (
-                pl.col("volume_mcf")
-                * pl.col("delivered_gas_heat_content_mmbtu_per_mcf")
-                * KWH_PER_MMBTU
-            ).sum()
-        ).item()
-    )
+    return float(by_operator["eia_kwh"].sum())
 
 
 def resstock_weighted_gas_kwh(load_curve_annual: pl.LazyFrame) -> float:

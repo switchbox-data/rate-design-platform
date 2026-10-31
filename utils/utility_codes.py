@@ -26,6 +26,12 @@ Adding a new state
      data/eia/861/fetch_electric_utility_stat_parquets.py to discover IDs.
      Enables get_eia_utility_id_to_std_name() and the utility_code column.
 
+   - eia176_operator_ids: EIA-176 operator_id_eia values (e.g. "17602792CT") for
+     a gas utility in this state. Look up in the EIA-176 company list or PUDL's
+     core_eia176__yearly_gas_disposition_by_consumer table. Enables
+     get_eia176_operator_id_to_std_name(), used by the per-utility gas checks in
+     data/resstock/validations/real_world_checks.py.
+
    - gas_tariff_key / electric_tariff_key: keys used in tariff filenames and
     tariff_map CSVs. Must match keys in rate_design/hp_rates/<state>/config/
     tariffs (electricity/ and gas/) and tariff_maps (electric/ and gas/).
@@ -61,6 +67,7 @@ class UtilityRecord(TypedDict, total=False):
     ny_open_data_state_names: list[str]
     hifld_names: list[str]
     eia_utility_ids: list[int]
+    eia176_operator_ids: list[str]
     gas_tariff_key: str
     electric_tariff_key: str
     rate_acuity_utility_names: list[str]
@@ -462,6 +469,7 @@ UTILITIES: list[UtilityRecord] = [
         # Electric HIFLD: CITY OF NORWICH - (CT); gas HIFLD: NORWICH PUB UTILITIES
         "hifld_names": ["CITY OF NORWICH - (CT)", "NORWICH PUB UTILITIES"],
         "eia_utility_ids": [13831],
+        "eia176_operator_ids": ["17610359CT"],  # NORWICH PUBLIC UTILITIES
         "gas_tariff_key": "norwich_muni",
         "rate_acuity_utility_names": ["Norwich Public Utilities"],
     },
@@ -530,6 +538,7 @@ UTILITIES: list[UtilityRecord] = [
         "display_name": "Connecticut Natural Gas (Avangrid)",
         # Note: HIFLD has a typo — "CONNETICUT" (missing 'c')
         "hifld_names": ["CONNETICUT NATURAL GAS CORP"],
+        "eia176_operator_ids": ["17619018CT"],  # CONNECTICUT NAT GAS CORP
         "gas_tariff_key": "ct_natural_gas",
         "rate_acuity_utility_names": ["Connecticut Natural Gas"],
     },
@@ -539,6 +548,7 @@ UTILITIES: list[UtilityRecord] = [
         "fuels": ["gas"],
         "display_name": "Yankee Gas (Eversource)",
         "hifld_names": ["YANKEE GAS SERVICE CO."],
+        "eia176_operator_ids": ["17602792CT"],  # YANKEE GAS SVC CO
         "gas_tariff_key": "yankee_gas",
         "rate_acuity_utility_names": ["Yankee Gas Services (Eversource)"],
     },
@@ -548,6 +558,7 @@ UTILITIES: list[UtilityRecord] = [
         "fuels": ["gas"],
         "display_name": "Southern Connecticut Gas (Avangrid)",
         "hifld_names": ["SOUTHERN CONNECTICUT GAS"],
+        "eia176_operator_ids": ["17619865CT"],  # SOUTHERN CONNECTICUT GAS COMPANY
         "gas_tariff_key": "southern_ct_gas",
         "rate_acuity_utility_names": ["Southern Connecticut Gas"],
     },
@@ -634,6 +645,18 @@ def get_eia_utility_id_to_std_name(state: str) -> dict[int, str]:
             continue
         for eia_id in u.get("eia_utility_ids", []):
             result[eia_id] = u["std_name"]
+    return result
+
+
+def get_eia176_operator_id_to_std_name(state: str) -> dict[str, str]:
+    """Map EIA-176 operator_id_eia -> gas utility std_name for a state."""
+    state_upper = state.upper()
+    result: dict[str, str] = {}
+    for u in UTILITIES:
+        if u.get("state") != state_upper:
+            continue
+        for operator_id in u.get("eia176_operator_ids", []):
+            result[operator_id] = u["std_name"]
     return result
 
 

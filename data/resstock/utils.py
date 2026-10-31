@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 from pathlib import Path
 
@@ -10,6 +11,24 @@ import polars as pl
 import yaml
 
 from data.resstock.constants import STATE_CONFIGS_PATH
+
+_AMY_YEAR = re.compile(r"amy(\d{4})", re.IGNORECASE)
+
+
+def eia_year_for_resstock_release(release: str) -> int:
+    """Return the AMY weather year embedded in a ResStock release name.
+
+    EIA-861 and EIA-176 benchmarks should come from the same year as the
+    weather the release was simulated on (e.g. 2018 for ``res_2024_amy2018_2``).
+    """
+    match = _AMY_YEAR.search(release)
+    if match is None:
+        raise ValueError(
+            f"Cannot infer the EIA year from ResStock release {release!r}. "
+            "Expected a name containing amyYYYY, such as res_2024_amy2018_2_sb. "
+            "Pass --eia-year."
+        )
+    return int(match.group(1))
 
 
 def load_state_configs(path: Path | None = None) -> dict[str, dict]:

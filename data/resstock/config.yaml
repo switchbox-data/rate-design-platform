@@ -61,12 +61,21 @@ real_world_checks:
     electric_kwh_sb_drift_pp: 5
     gas_kwh_statewide_scaled_pct: 1
     gas_kwh_statewide_unscaled_pct: 15
-    gas_kwh_utility_pct: 25
+    # Each gas utility's share of mapped-utility gas use, ResStock vs EIA-176.
+    gas_share_utility_pp: 5
+    gas_share_utility_pct: 25
     gas_meters_band_pct: 10
     hp_approx_max_share_pct: 35
+    # Heating fuel, building type, year built: each category's share, ResStock
+    # vs ACS. The relative check skips categories below acs_share_min_pct.
     acs_share_pp: 5
+    acs_share_pct: 25
+    acs_share_min_pct: 2
     acs_master_metering_pp: 5
-    min_utility_customers: 5000
+    # Comparisons on a slice of the sample (one utility or category) use
+    # max(tolerance, z / sqrt(n_buildings)), so a gap within z standard errors
+    # of ResStock sampling noise doesn't warn.
+    sampling_noise_z: 2
   # Known, accepted mismatches: "<check>" or "<check>:<scope>",
   # e.g. "electric_kwh_utility:utility=frp".
   ignore: []
