@@ -5,11 +5,15 @@ Compares the baseline stock (upgrade 00) of a built release to:
 - EIA-861 residential customers and sales, statewide and by electric utility.
 - EIA-176 residential gas deliveries (sales + transport), statewide and by gas
   utility, plus an estimated gas *meter* count against EIA-176 consumers.
-- ACS PUMS occupied housing units: heating fuel, single-family vs multifamily,
-  year built, and the share of gas households whose gas is included in rent
-  (master metering).
+- ACS PUMS housing units: heating fuel and the share of gas households whose
+  gas is included in rent (master metering) for occupied units; single-family
+  vs multifamily and year built for all units, occupied and vacant.
 
 It also sanity-checks the heat-pump approximation on the approximated upgrades.
+
+Comparisons against a small slice of the sample (one utility, one category)
+widen their tolerance to the sampling noise of the ResStock buildings behind
+them: ``max(tolerance, z / sqrt(n))``. See ``sampling_tolerance``.
 
 Every check only warns. Each warning names the section of the reports2 notebook
 ``reports/templates/data_prep/investigate_resstock.qmd`` that shows the full
@@ -24,6 +28,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, fields, replace
@@ -34,20 +39,15 @@ from typing import Any, Literal
 import polars as pl
 import yaml
 
+from data.eia.utils import load_eia176_residential_by_operator
 from data.resstock.constants import CONFIG_PATH
-from data.resstock.load_curve.adjust_gas_usage import (
-    EIA176_BY_CONSUMER,
-    EIA176_DISPOSITION,
-    KWH_PER_MMBTU,
-)
 from data.resstock.notify import format_real_world_checks, post_slack
-from data.resstock.utils import load_state_configs
+from data.resstock.utils import eia_year_for_resstock_release, load_state_configs
 from utils import get_aws_region
-from utils.post.compare_resstock_eia176_gas import (
-    GAS_OPERATORS_BY_STATE,
-    eia_year_for_resstock_release,
+from utils.utility_codes import (
+    get_eia176_operator_id_to_std_name,
+    get_eia_utility_id_to_std_name,
 )
-from utils.utility_codes import get_eia_utility_id_to_std_name
 
 BLDG_ID = "bldg_id"
 WEIGHT = "weight"
@@ -122,7 +122,10 @@ NOTEBOOK_SECTIONS: dict[str, NotebookSection] = {
     "gas_kwh_statewide": NotebookSection(
         _SEC_GAS, "Statewide gas", "sec-gas-statewide"
     ),
-    "gas_kwh_utility": NotebookSection(
+    "gas_share_utility_pp": NotebookSection(
+        _SEC_GAS, "Gas use by gas utility", "sec-gas-by-utility"
+    ),
+    "gas_share_utility_rel": NotebookSection(
         _SEC_GAS, "Gas use by gas utility", "sec-gas-by-utility"
     ),
     "gas_meters": NotebookSection(
@@ -138,13 +141,21 @@ NOTEBOOK_SECTIONS: dict[str, NotebookSection] = {
         "Approximated buildings by upgrade",
         "sec-hp-approximation-by-upgrade",
     ),
-    "acs_heating_fuel": NotebookSection(
-        _SEC_HEAT, "Heating fuel: ResStock vs ACS and RECS", "sec-heating-fuel"
-    ),
-    "acs_building_type": NotebookSection(
-        _SEC_STOCK, "Single-family vs multifamily", "sec-sf-mf"
-    ),
-    "acs_year_built": NotebookSection(_SEC_STOCK, "Year built", "sec-year-built"),
+    **{
+        f"{check}_{kind}": section
+        for check, section in {
+            "acs_heating_fuel": NotebookSection(
+                _SEC_HEAT, "Heating fuel: ResStock vs ACS and RECS", "sec-heating-fuel"
+            ),
+            "acs_building_type": NotebookSection(
+                _SEC_STOCK, "Single-family vs multifamily", "sec-sf-mf"
+            ),
+            "acs_year_built": NotebookSection(
+                _SEC_STOCK, "Year built", "sec-year-built"
+            ),
+        }.items()
+        for kind in ("pp", "rel")
+    },
     "acs_master_metering": NotebookSection(
         _SEC_GAS, "Customer counts by gas utility", "sec-gas-customers-by-utility"
     ),
@@ -169,14 +180,18 @@ class RealWorldCheckConfig:
     electric_kwh_sb_drift_pp: float = 5.0
     gas_kwh_statewide_scaled_pct: float = 1.0
     gas_kwh_statewide_unscaled_pct: float = 15.0
-    gas_kwh_utility_pct: float = 25.0
+    gas_share_utility_pp: float = 5.0
+    gas_share_utility_pct: float = 25.0
     gas_meters_band_pct: float = 10.0
     hp_approx_max_share_pct: float = 35.0
     acs_share_pp: float = 5.0
+    acs_share_pct: float = 25.0
+    # The relative ACS share check is skipped for categories below this ACS
+    # share: a 1% category can double without mattering.
+    acs_share_min_pct: float = 2.0
     acs_master_metering_pp: float = 5.0
-    # Per-utility checks are skipped below this many EIA residential customers:
-    # a utility that small has too few ResStock samples to compare.
-    min_utility_customers: float = 5000.0
+    # Number of standard errors of sampling noise to tolerate; see sampling_tolerance.
+    sampling_noise_z: float = 2.0
     # Entries are "<check>" or "<check>:<scope>", e.g. "electric_kwh_utility:utility=frp".
     ignore: tuple[str, ...] = field(default_factory=tuple)
 
@@ -229,6 +244,9 @@ class CheckResult:
     status: Status
     resstock_value_high: float | None = None
     note: str | None = None
+    # ResStock sample buildings behind resstock_value, when the tolerance was
+    # widened for sampling noise.
+    n_buildings: int | None = None
 
     @property
     def notebook_section(self) -> NotebookSection:
@@ -258,11 +276,16 @@ def format_warning(state: str, result: CheckResult) -> str:
         resstock = _fmt_value(result.resstock_value, result.unit)
     sign = "%" if result.diff_unit == "pct" else " pp"
     diff = "n/a" if result.diff is None else f"{result.diff:+.1f}{sign}"
+    tol = (
+        f"{result.tolerance:g}"
+        if float(result.tolerance).is_integer()
+        else f"{result.tolerance:.1f}"
+    )
     msg = (
         f"[real-world] {state} {result.label}, {result.scope} ({result.release}): "
         f"ResStock {resstock} vs {result.benchmark_name} "
         f"{_fmt_value(result.benchmark_value, result.unit)} "
-        f"({diff}, tolerance ±{result.tolerance:g}{sign})."
+        f"({diff}, tolerance ±{tol}{sign})."
     )
     if result.note:
         msg += f" {result.note}."
@@ -271,6 +294,40 @@ def format_warning(state: str, result: CheckResult) -> str:
 
 def _pct_diff(resstock: float, benchmark: float) -> float:
     return (resstock - benchmark) / benchmark * 100
+
+
+def sampling_tolerance(
+    tolerance: float, n_buildings: int, z: float, *, scale: float = 100.0
+) -> float:
+    """Widen ``tolerance`` to the sampling noise of ``n_buildings`` ResStock buildings.
+
+    Each ResStock building stands in for about 252 dwellings, so a total or
+    share estimated from ``n`` buildings has a relative standard error of
+    roughly ``1 / sqrt(n)``: about 22% for 20 buildings, 10% for 100. A gap
+    smaller than ``z`` standard errors can't be told apart from noise, so the
+    tolerance becomes ``max(tolerance, z / sqrt(n) * scale)``.
+
+    ``scale`` puts that relative noise in the tolerance's unit: 100 for a
+    percent difference, or the benchmark share (in percent) for a
+    percentage-point difference. With no buildings there is no sample to be
+    noisy, so the tolerance is returned unchanged.
+    """
+    if n_buildings <= 0:
+        return tolerance
+    return max(tolerance, z / math.sqrt(n_buildings) * scale)
+
+
+def _noise_note(base: float, widened: float, n_buildings: int, sign: str) -> str | None:
+    if widened <= base:
+        return None
+    return (
+        f"tolerance widened from ±{base:g}{sign} to ±{widened:.1f}{sign} "
+        f"for sampling noise ({n_buildings:,} ResStock buildings)"
+    )
+
+
+def _join_notes(*notes: str | None) -> str | None:
+    return "; ".join(n for n in notes if n) or None
 
 
 def _pct_result(
@@ -285,7 +342,15 @@ def _pct_result(
     benchmark: float,
     tolerance: float,
     note: str | None = None,
+    n_buildings: int | None = None,
+    noise_z: float | None = None,
 ) -> CheckResult:
+    """Percent-difference result. With ``n_buildings`` and ``noise_z``, the
+    tolerance is widened for sampling noise."""
+    if n_buildings is not None and noise_z is not None:
+        widened = sampling_tolerance(tolerance, n_buildings, noise_z)
+        note = _join_notes(note, _noise_note(tolerance, widened, n_buildings, "%"))
+        tolerance = widened
     if benchmark == 0:
         return CheckResult(
             check=check,
@@ -301,6 +366,7 @@ def _pct_result(
             tolerance=tolerance,
             status="skipped",
             note=f"{benchmark_name} is zero",
+            n_buildings=n_buildings,
         )
     diff = _pct_diff(resstock, benchmark)
     return CheckResult(
@@ -317,6 +383,7 @@ def _pct_result(
         tolerance=tolerance,
         status="warn" if abs(diff) > tolerance else "ok",
         note=note,
+        n_buildings=n_buildings,
     )
 
 
@@ -349,6 +416,8 @@ class ReleaseInputs:
 
     ``annual_sb`` is None when the ``_sb`` annual load curve hasn't been built.
     ``approx_metadata`` maps upgrade id → (``_sb`` metadata, raw metadata).
+    ``base_sb`` is the ``_sb`` release root (local path or ``s3://`` URI), used
+    to read the run manifest when deciding whether gas was scaled.
     """
 
     state: str
@@ -362,6 +431,7 @@ class ReleaseInputs:
     approx_metadata: dict[str, tuple[pl.DataFrame, pl.DataFrame]] = field(
         default_factory=dict
     )
+    base_sb: str | None = None
 
 
 def _is_s3(path: str) -> bool:
@@ -483,6 +553,7 @@ def load_release_inputs(
         annual_sb=annual_sb,
         utility_assignment=assignment,
         approx_metadata=approx,
+        base_sb=base_sb,
     )
 
 
@@ -527,61 +598,25 @@ def load_eia861_residential(path_eia861: str, state: str) -> pl.DataFrame:
     )
 
 
-def load_eia176_by_operator(
-    state: str,
-    year: int,
-    path_by_consumer: str = EIA176_BY_CONSUMER,
-    path_disposition: str = EIA176_DISPOSITION,
-) -> pl.DataFrame:
-    """EIA-176 residential sales + transport per operator: kWh and consumers (meters).
-
-    An operator with deliveries but no delivered-gas heat content gets the state
-    median, flagged in ``heat_content_imputed``.
-    """
-    deliveries = (
-        pl.scan_parquet(path_by_consumer)
-        .filter(
-            (pl.col("operating_state") == state)
-            & (pl.col("report_year") == year)
-            & (pl.col("customer_class") == "residential")
-            & pl.col("revenue_class").cast(pl.String).is_in(["sales", "transport"])
-        )
-        .group_by("operator_id_eia")
-        .agg(
-            pl.col("volume_mcf").cast(pl.Float64).sum().alias("volume_mcf"),
-            pl.col("consumers").cast(pl.Float64).sum().alias("eia_customers"),
-        )
-    )
-    heat = (
-        pl.scan_parquet(path_disposition)
-        .filter((pl.col("operating_state") == state) & (pl.col("report_year") == year))
-        .select(
-            "operator_id_eia",
-            pl.col("delivered_gas_heat_content_mmbtu_per_mcf").cast(pl.Float64),
-        )
-    )
-    joined = deliveries.join(heat, on="operator_id_eia", how="left").collect()
-    if not isinstance(joined, pl.DataFrame) or joined.height == 0:
-        raise ValueError(f"EIA-176 has no residential deliveries for {state} {year}.")
-    heat_col = pl.col("delivered_gas_heat_content_mmbtu_per_mcf")
-    if joined["delivered_gas_heat_content_mmbtu_per_mcf"].drop_nulls().len() == 0:
-        raise ValueError(
-            f"EIA-176 has no delivered-gas heat content for {state} {year}."
-        )
-    return joined.select(
-        "operator_id_eia",
-        (
-            pl.col("volume_mcf") * heat_col.fill_null(heat_col.median()) * KWH_PER_MMBTU
-        ).alias("eia_kwh"),
-        "eia_customers",
-        heat_col.is_null().alias("heat_content_imputed"),
-    )
-
-
 def load_acs_housing(path_pums_housing: str) -> pl.DataFrame:
-    """Occupied, non-group-quarters ACS PUMS housing units with the columns we compare."""
-    df = _read(path_pums_housing, ("typehugq", "hfl", "bld", "yrblt", "gasfp", "wgtp"))
-    return df.filter((pl.col("typehugq") == "1") & pl.col("hfl").is_not_null())
+    """ACS PUMS housing units (occupied and vacant, no group quarters), with ``occupied``.
+
+    A unit is occupied when ``VACS`` (vacancy status) is blank **and** ``NP``
+    (persons in the household) is positive. The two agree in the PUMS files
+    we've checked; requiring both guards against either being miscoded. ACS
+    leaves ``HFL`` (heating fuel) and ``GASFP`` (gas payment) blank for vacant
+    units, but fills ``BLD`` (building type) and ``YRBLT`` (year built).
+    """
+    df = _read(
+        path_pums_housing,
+        ("typehugq", "vacs", "np", "hfl", "bld", "yrblt", "gasfp", "wgtp"),
+    )
+    return df.filter(pl.col("typehugq") == "1").with_columns(
+        (
+            pl.col("vacs").is_null()
+            & (pl.col("np").cast(pl.Int32, strict=False).fill_null(0) > 0)
+        ).alias("occupied")
+    )
 
 
 # ── ResStock aggregations (pure) ──────────────────────────────────────────────
@@ -600,7 +635,10 @@ def weighted_by_utility(
     utility_col: str,
     kwh_col: str,
 ) -> pl.DataFrame:
-    """Weighted ResStock dwellings and kWh per utility. ``resstock_kwh`` is null without annual."""
+    """Weighted ResStock dwellings and kWh per utility, plus ``n_buildings`` (sample size).
+
+    ``resstock_kwh`` is null without annual.
+    """
     df = metadata.select(BLDG_ID, WEIGHT).join(
         assignment.select(BLDG_ID, utility_col), on=BLDG_ID, how="inner"
     )
@@ -613,9 +651,31 @@ def weighted_by_utility(
         df.filter(pl.col(utility_col).is_not_null())
         .group_by(utility_col)
         .agg(
-            pl.col(WEIGHT).sum().alias("resstock_customers"), kwh.alias("resstock_kwh")
+            pl.col(WEIGHT).sum().alias("resstock_customers"),
+            kwh.alias("resstock_kwh"),
+            pl.len().alias("n_buildings"),
         )
         .rename({utility_col: "utility_code"})
+    )
+
+
+def gas_use_by_utility(
+    metadata: pl.DataFrame, annual: pl.DataFrame, assignment: pl.DataFrame
+) -> pl.DataFrame:
+    """Weighted ResStock gas kWh per ``sb.gas_utility``, counting only gas-using buildings.
+
+    ``n_buildings`` is the number of sample buildings with positive annual gas.
+    """
+    return (
+        metadata.select(BLDG_ID, WEIGHT)
+        .join(annual.select(BLDG_ID, ANNUAL_GAS), on=BLDG_ID, how="inner")
+        .join(assignment.select(BLDG_ID, GAS_UTILITY), on=BLDG_ID, how="inner")
+        .filter(pl.col(GAS_UTILITY).is_not_null() & (pl.col(ANNUAL_GAS) > 0))
+        .group_by(pl.col(GAS_UTILITY).alias("utility_code"))
+        .agg(
+            (pl.col(ANNUAL_GAS) * pl.col(WEIGHT)).sum().alias("resstock_kwh"),
+            pl.len().alias("n_buildings"),
+        )
     )
 
 
@@ -639,13 +699,21 @@ def estimate_gas_meters(
 
     EIA-176 counts meters; ResStock counts dwellings. A multifamily building whose
     heating or hot water comes from a shared gas system has a building (master)
-    meter, which each of its dwellings holds ``1 / n_units`` of. Whether that
-    building's in-unit gas (cooking, drying) is on the master meter too is not in
-    ResStock, so:
+    meter, which each of its dwellings holds ``1 / n_units`` of.
 
-    - ``meters_max`` / ``master_share_min``: in-unit gas use gets its own meter.
-    - ``meters_min`` / ``master_share_max``: a shared-gas building is fully
-      master-metered.
+    "No gas used in the unit" is the typical electrically-cooked apartment on a
+    building boiler: ResStock still assigns a share of the plant's gas to the
+    dwelling (so annual gas is positive and the dwelling is in this table), but
+    the tenant has no gas appliances and no gas bill. Those dwellings are
+    master-metered for sure. In-unit gas (a range, dryer, fireplace, or an
+    in-unit furnace / water heater) may or may not sit on the same building
+    meter, which ResStock does not say, so:
+
+    - ``meters_max`` / ``master_share_min``: own meter unless the dwelling is in
+      a shared-gas building *and* has no in-unit gas. That is the sure
+      master-metered share.
+    - ``meters_min`` / ``master_share_max``: every shared-gas building is one
+      meter, even if dwellings have a gas range.
 
     Only dwellings with positive annual gas are counted. Returns one ``statewide``
     row, plus one row per ``sb.gas_utility`` when ``assignment`` is given.
@@ -704,6 +772,7 @@ def estimate_gas_meters(
     )
     w = pl.col(WEIGHT)
     aggs = [
+        pl.len().alias("n_buildings"),
         w.sum().alias("gas_dwellings"),
         (w * pl.col("_meters_min")).sum().alias("meters_min"),
         (w * pl.col("_meters_max")).sum().alias("meters_max"),
@@ -741,11 +810,23 @@ def heating_fuel_resstock(col: pl.Expr) -> pl.Expr:
 
 
 def heating_fuel_acs(col: pl.Expr) -> pl.Expr:
-    # HFL: 1 utility gas, 2 bottled/tank/LP, 3 electricity, 4 fuel oil.
-    return col.replace_strict(
-        {"1": "Natural gas", "2": "Propane", "3": "Electricity", "4": "Fuel oil"},
-        default="Other / none",
-        return_dtype=pl.String,
+    # HFL: 1 utility gas, 2 bottled/tank/LP, 3 electricity, 4 fuel oil,
+    # 5-9 coal, wood, solar, other, none. Blank (vacant units) is dropped.
+    return (
+        pl.when(col.is_null())
+        .then(pl.lit(None, dtype=pl.String))
+        .otherwise(
+            col.replace_strict(
+                {
+                    "1": "Natural gas",
+                    "2": "Propane",
+                    "3": "Electricity",
+                    "4": "Fuel oil",
+                },
+                default="Other / none",
+                return_dtype=pl.String,
+            )
+        )
     )
 
 
@@ -773,20 +854,23 @@ def building_class_acs(col: pl.Expr) -> pl.Expr:
     )
 
 
+# ResStock ``in.vintage`` values in res_2024. Unrecognized or empty values map
+# to None and are dropped from the year-built comparison, not dumped into 2010+.
+RESSTOCK_VINTAGE: dict[str, str] = {
+    "<1940": "Before 1950",
+    "1940s": "Before 1950",
+    "1950s": "1950-59",
+    "1960s": "1960-79",
+    "1970s": "1960-79",
+    "1980s": "1980-99",
+    "1990s": "1980-99",
+    "2000s": "2000-09",
+    "2010s": "2010+",
+}
+
+
 def vintage_resstock(col: pl.Expr) -> pl.Expr:
-    return (
-        pl.when(col.is_in(["<1940", "1940s"]))
-        .then(pl.lit("Before 1950"))
-        .when(col == "1950s")
-        .then(pl.lit("1950-59"))
-        .when(col.is_in(["1960s", "1970s"]))
-        .then(pl.lit("1960-79"))
-        .when(col.is_in(["1980s", "1990s"]))
-        .then(pl.lit("1980-99"))
-        .when(col == "2000s")
-        .then(pl.lit("2000-09"))
-        .otherwise(pl.lit("2010+"))
-    )
+    return col.replace_strict(RESSTOCK_VINTAGE, default=None, return_dtype=pl.String)
 
 
 def vintage_acs(col: pl.Expr) -> pl.Expr:
@@ -812,12 +896,15 @@ def vintage_acs(col: pl.Expr) -> pl.Expr:
 def weighted_shares(
     df: pl.DataFrame, category: pl.Expr, weight_col: str
 ) -> pl.DataFrame:
-    """Weighted percent share per category, ignoring null categories."""
+    """Weighted percent share per category, ignoring null categories.
+
+    ``n`` is the number of (unweighted) rows in each category.
+    """
     return (
         df.select(category.alias("category"), pl.col(weight_col).cast(pl.Float64))
         .filter(pl.col("category").is_not_null())
         .group_by("category")
-        .agg(pl.col(weight_col).sum().alias("weighted"))
+        .agg(pl.col(weight_col).sum().alias("weighted"), pl.len().alias("n"))
         .with_columns(
             (pl.col("weighted") / pl.col("weighted").sum() * 100).alias("pct")
         )
@@ -841,22 +928,26 @@ def acs_master_metered_share(pums: pl.DataFrame) -> float:
 # ── Checks ────────────────────────────────────────────────────────────────────
 
 
-def _utility_skip_note(eia_customers: float, cfg: RealWorldCheckConfig) -> str | None:
+def _utility_skip_note(eia_customers: float) -> str | None:
     if eia_customers <= 0:
         return "EIA reports zero residential customers (industrial- or commercial-only utility)"
-    if eia_customers < cfg.min_utility_customers:
-        return (
-            f"fewer than {cfg.min_utility_customers:,.0f} EIA residential customers; "
-            "too few ResStock samples to compare"
-        )
     return None
 
 
 def check_electricity(
     inputs: ReleaseInputs, eia861: pl.DataFrame, cfg: RealWorldCheckConfig
 ) -> list[CheckResult]:
-    """Customer counts and customer-normalized kWh against EIA-861."""
+    """Customer counts and customer-normalized kWh against EIA-861.
+
+    Per-utility tolerances are widened for the number of ResStock buildings
+    assigned to the utility (``sampling_tolerance``).
+    """
     results: list[CheckResult] = []
+    # ResStock customers include vacant dwellings (about 10% of the stock).
+    # EIA-861 counts billed accounts, and most vacant units keep one: seasonal
+    # homes stay connected, and for-rent or for-sale units usually keep service
+    # in the owner's name. So vacant dwellings stay in, unlike the ACS checks
+    # on occupant attributes (heating fuel, gas payment).
     rs_customers = float(inputs.metadata_sb[WEIGHT].sum())
     eia_customers = float(eia861["eia_customers"].sum())
     eia_kwh = float(eia861["eia_kwh"].sum())
@@ -972,13 +1063,14 @@ def check_electricity(
                     )
                 )
             continue
-        skip = _utility_skip_note(row["eia_customers"], cfg)
+        skip = _utility_skip_note(row["eia_customers"])
         if skip is not None:
             for check in ("electric_customers_utility", "electric_kwh_utility"):
                 results.append(
                     _skipped(check, "electricity", scope, inputs.release_sb, skip)
                 )
             continue
+        n_buildings = int(row["n_buildings"])
         results.append(
             _pct_result(
                 check="electric_customers_utility",
@@ -990,6 +1082,8 @@ def check_electricity(
                 benchmark_name="EIA-861",
                 benchmark=row["eia_customers"],
                 tolerance=cfg.electric_customers_utility_pct,
+                n_buildings=n_buildings,
+                noise_z=cfg.sampling_noise_z,
             )
         )
         if row["resstock_kwh"] is None:
@@ -1007,6 +1101,8 @@ def check_electricity(
                 benchmark_name="EIA-861",
                 benchmark=row["eia_kwh"],
                 tolerance=cfg.electric_kwh_utility_pct,
+                n_buildings=n_buildings,
+                noise_z=cfg.sampling_noise_z,
             )
         )
     return results
@@ -1021,7 +1117,8 @@ def _meter_band_result(
     cfg: RealWorldCheckConfig,
 ) -> CheckResult:
     lo, hi = float(row["meters_min"]), float(row["meters_max"])
-    tol = cfg.gas_meters_band_pct
+    n_buildings = int(row["n_buildings"])
+    tol = sampling_tolerance(cfg.gas_meters_band_pct, n_buildings, cfg.sampling_noise_z)
     if eia_customers < lo:
         diff = _pct_diff(eia_customers, lo)
     elif eia_customers > hi:
@@ -1037,6 +1134,9 @@ def _meter_band_result(
     if hi > lo:
         implied = share_lo + (hi - eia_customers) / (hi - lo) * (share_hi - share_lo)
         note += f"; matching EIA-176 needs about {implied:.0f}%"
+    note = _join_notes(
+        note, _noise_note(cfg.gas_meters_band_pct, tol, n_buildings, "%")
+    )
     return CheckResult(
         check="gas_meters",
         label="gas meters (estimated from dwellings)",
@@ -1052,7 +1152,82 @@ def _meter_band_result(
         tolerance=tol,
         status="ok" if inside else "warn",
         note=note,
+        n_buildings=n_buildings,
     )
+
+
+def _share_pair(
+    *,
+    check: str,
+    label: str,
+    scope: str,
+    release: str,
+    resstock_pct: float,
+    benchmark_name: str,
+    benchmark_pct: float,
+    n_buildings: int,
+    pp_tolerance: float,
+    rel_tolerance: float,
+    noise_z: float,
+    min_rel_share_pct: float = 0.0,
+) -> list[CheckResult]:
+    """Absolute (``<check>_pp``) and relative (``<check>_rel``) comparisons of one share.
+
+    The absolute check catches a large category that is off by many points
+    (a 40% share at 50%); the relative check catches a small one that is off by
+    a large fraction of itself (a 4% share at 8%), which a points tolerance
+    misses. Both tolerances are widened for the sampling noise of the
+    ``n_buildings`` ResStock buildings in the category. The relative check is
+    skipped when the benchmark share is below ``min_rel_share_pct``.
+    """
+    pp_tol = sampling_tolerance(pp_tolerance, n_buildings, noise_z, scale=benchmark_pct)
+    diff_pp = resstock_pct - benchmark_pct
+    absolute = CheckResult(
+        check=f"{check}_pp",
+        label=f"{label} (percentage points)",
+        scope=scope,
+        release=release,
+        unit="%",
+        resstock_value=resstock_pct,
+        benchmark_name=benchmark_name,
+        benchmark_value=benchmark_pct,
+        diff=diff_pp,
+        diff_unit="pp",
+        tolerance=pp_tol,
+        status="warn" if abs(diff_pp) > pp_tol else "ok",
+        note=_noise_note(pp_tolerance, pp_tol, n_buildings, " pp"),
+        n_buildings=n_buildings,
+    )
+    if benchmark_pct < min_rel_share_pct:
+        relative = replace(
+            _skipped(
+                f"{check}_rel",
+                f"{label} (relative)",
+                scope,
+                release,
+                f"{benchmark_name} share {benchmark_pct:.1f}% is below the "
+                f"{min_rel_share_pct:g}% floor for the relative check",
+            ),
+            unit="%",
+            resstock_value=resstock_pct,
+            benchmark_name=benchmark_name,
+            benchmark_value=benchmark_pct,
+        )
+    else:
+        relative = _pct_result(
+            check=f"{check}_rel",
+            label=f"{label} (relative)",
+            scope=scope,
+            release=release,
+            unit="%",
+            resstock=resstock_pct,
+            benchmark_name=benchmark_name,
+            benchmark=benchmark_pct,
+            tolerance=rel_tolerance,
+            n_buildings=n_buildings,
+            noise_z=noise_z,
+        )
+    return [absolute, relative]
 
 
 def infer_gas_scaled(inputs: ReleaseInputs) -> bool | None:
@@ -1064,6 +1239,77 @@ def infer_gas_scaled(inputs: ReleaseInputs) -> bool | None:
     return raw > 0 and abs(sb / raw - 1) > 1e-3
 
 
+def _load_sb_manifest(release_dir: str | Path) -> dict[str, Any]:
+    from data.resstock.manifest import (
+        MANIFEST_FILENAME,
+        read_manifest,
+        read_manifest_from_s3,
+    )
+
+    uri = str(release_dir).rstrip("/")
+    if uri.startswith("s3://"):
+        return read_manifest_from_s3(f"{uri}/{MANIFEST_FILENAME}")
+    return read_manifest(Path(uri))
+
+
+def gas_scaled_from_manifest(release_dir: str | Path, state: str) -> bool | None:
+    """Whether the last write of hourly gas for ``state`` was the EIA-176 scaler.
+
+    Walks the ``_sb`` manifest newest-first. The last step that wrote hourly
+    gas for this state decides:
+
+    - ``adjust_gas_usage`` with this state in ``details.scale_factors`` → True
+    - ``clone`` of ``load_curve_hourly`` covering this state → False (raw copy)
+
+    A later metadata-only run does not change the answer: its clone does not
+    touch hourly files. Failed and in-progress runs still count; their
+    completed steps already wrote files. Returns None if the manifest has
+    neither event, so the caller can infer from the files.
+    """
+    runs = _load_sb_manifest(release_dir).get("runs") or []
+    state_key = state.upper()
+    for run in reversed(runs):
+        args = run.get("args") or {}
+        run_states = [str(s).upper() for s in (args.get("states") or [])]
+        if run_states and state_key not in run_states:
+            continue
+        file_types = args.get("file_types") or []
+        for step in reversed(run.get("steps") or []):
+            name = step.get("step")
+            details = step.get("details") or {}
+            if name == "adjust_gas_usage":
+                factors = {str(k).upper() for k in (details.get("scale_factors") or {})}
+                if state_key in factors:
+                    return True
+            elif name == "clone" and "load_curve_hourly" in file_types:
+                return False
+    return None
+
+
+def resolve_gas_scaled(inputs: ReleaseInputs) -> tuple[bool | None, str | None]:
+    """Prefer the ``_sb`` manifest; fall back to comparing ``_sb`` gas against raw."""
+    if inputs.base_sb:
+        from_manifest = gas_scaled_from_manifest(inputs.base_sb, inputs.state)
+        if from_manifest is True:
+            return True, "manifest: last hourly-gas write was adjust_gas_usage"
+        if from_manifest is False:
+            return (
+                False,
+                "manifest: last hourly-gas write was clone (unscaled raw copy)",
+            )
+    inferred = infer_gas_scaled(inputs)
+    if inferred is None:
+        return None, None
+    if inputs.base_sb:
+        source = (
+            "inferred from _sb vs raw gas "
+            "(no adjust_gas_usage or clone of hourly in the manifest)"
+        )
+    else:
+        source = "inferred from _sb vs raw gas (no _sb manifest path)"
+    return inferred, source
+
+
 def check_gas(
     inputs: ReleaseInputs,
     eia176: pl.DataFrame,
@@ -1071,9 +1317,16 @@ def check_gas(
     cfg: RealWorldCheckConfig,
     gas_scaled: bool | None = None,
 ) -> list[CheckResult]:
-    """Statewide and per-utility gas kWh and meters against EIA-176.
+    """Statewide gas kWh, gas meters, and each utility's share of gas use against EIA-176.
 
     Gas kWh is never divided by a customer count: EIA-176 consumers are meters.
+    The per-utility share checks test how gas is split across utilities, not
+    its level, which ``gas_kwh_statewide`` covers.
+
+    Whether the tight (scaled) or loose (unscaled) statewide kWh tolerance
+    applies is read from the ``_sb`` manifest when ``gas_scaled`` is None:
+    the last ``adjust_gas_usage`` or hourly ``clone`` for this state. The
+    files on disk, not this run's ``--adjust-gas-usage`` flag.
     """
     results: list[CheckResult] = []
     eia_kwh = float(eia176["eia_kwh"].sum())
@@ -1089,8 +1342,11 @@ def check_gas(
             f"EIA-176 heat content imputed with the state median for {imputed}"
         )
 
+    source_note: str | None = None
     if gas_scaled is None:
-        gas_scaled = infer_gas_scaled(inputs)
+        gas_scaled, source_note = resolve_gas_scaled(inputs)
+    if source_note:
+        notes.append(source_note)
     sb_kwh: float | None = None
     if inputs.annual_sb is None:
         results.append(
@@ -1141,30 +1397,35 @@ def check_gas(
         )
     )
 
+    per_utility_checks = ("gas_meters", "gas_share_utility_pp", "gas_share_utility_rel")
     if not operator_map:
-        for check in ("gas_kwh_utility", "gas_meters"):
+        for check in per_utility_checks:
             results.append(
                 _skipped(
                     check,
                     "gas",
                     "by utility",
                     inputs.release_sb,
-                    f"no EIA-176 operator map for {inputs.state} in GAS_OPERATORS_BY_STATE",
+                    f"no eia176_operator_ids for {inputs.state} in utils/utility_codes.py",
                 )
             )
         return results
     if inputs.utility_assignment is None:
-        results.append(
-            _skipped(
-                "gas_meters",
-                "gas",
-                "by utility",
-                inputs.release_sb,
-                "utility_assignment.parquet not found",
+        for check in per_utility_checks:
+            results.append(
+                _skipped(
+                    check,
+                    "gas",
+                    "by utility",
+                    inputs.release_sb,
+                    "utility_assignment.parquet not found",
+                )
             )
-        )
         return results
 
+    # Shares are taken over mapped utilities only, on both sides: unmapped
+    # EIA-176 operators and unassigned ResStock dwellings would otherwise
+    # shrink every share by different amounts.
     eia_by_utility = (
         eia176.filter(pl.col("operator_id_eia").is_in(list(operator_map)))
         .with_columns(
@@ -1174,25 +1435,40 @@ def check_gas(
         )
         .group_by("utility_code")
         .agg(pl.col("eia_kwh").sum(), pl.col("eia_customers").sum())
+        .with_columns(
+            (pl.col("eia_kwh") / pl.col("eia_kwh").sum() * 100).alias("eia_share")
+        )
+    )
+    mapped = eia_by_utility["utility_code"].to_list()
+    # Shares don't depend on the statewide gas scale factor, so raw annual works
+    # when the _sb annual hasn't been built.
+    annual_for_shares, share_release = (
+        (inputs.annual_sb, inputs.release_sb)
+        if inputs.annual_sb is not None
+        else (inputs.annual_raw, inputs.release_raw)
+    )
+    rs_by_utility = (
+        gas_use_by_utility(
+            inputs.metadata_sb, annual_for_shares, inputs.utility_assignment
+        )
+        .filter(pl.col("utility_code").is_in(mapped))
+        .with_columns(
+            (pl.col("resstock_kwh") / pl.col("resstock_kwh").sum() * 100).alias(
+                "resstock_share"
+            )
+        )
+        .rename({"n_buildings": "n_share_buildings"})
     )
     meters_by_utility = meters.filter(pl.col("utility_code") != STATEWIDE)
-    rs_by_utility = weighted_by_utility(
-        inputs.metadata_sb,
-        inputs.annual_sb,
-        inputs.utility_assignment,
-        GAS_UTILITY,
-        ANNUAL_GAS,
-    )
-    scale = eia_kwh / sb_kwh if sb_kwh else None
     joined = eia_by_utility.join(meters_by_utility, on="utility_code", how="left").join(
-        rs_by_utility.select("utility_code", "resstock_kwh"),
+        rs_by_utility.select("utility_code", "resstock_share", "n_share_buildings"),
         on="utility_code",
         how="left",
     )
     for row in joined.sort("utility_code").iter_rows(named=True):
         scope = f"utility={row['utility_code']}"
         if row["gas_dwellings"] is None:
-            for check in ("gas_meters", "gas_kwh_utility"):
+            for check in per_utility_checks:
                 results.append(
                     _skipped(
                         check,
@@ -1203,9 +1479,9 @@ def check_gas(
                     )
                 )
             continue
-        skip = _utility_skip_note(row["eia_customers"], cfg)
+        skip = _utility_skip_note(row["eia_customers"])
         if skip is not None:
-            for check in ("gas_meters", "gas_kwh_utility"):
+            for check in per_utility_checks:
                 results.append(_skipped(check, "gas", scope, inputs.release_sb, skip))
             continue
         results.append(
@@ -1217,20 +1493,18 @@ def check_gas(
                 cfg=cfg,
             )
         )
-        if scale is None or row["resstock_kwh"] is None:
-            continue
-        results.append(
-            _pct_result(
-                check="gas_kwh_utility",
-                label="gas, after one statewide kWh scaling",
-                scope=scope,
-                release=inputs.release_sb,
-                unit="kWh",
-                resstock=row["resstock_kwh"] * scale,
-                benchmark_name="EIA-176",
-                benchmark=row["eia_kwh"],
-                tolerance=cfg.gas_kwh_utility_pct,
-            )
+        results += _share_pair(
+            check="gas_share_utility",
+            label="share of mapped-utility gas use",
+            scope=scope,
+            release=share_release,
+            resstock_pct=row["resstock_share"] or 0.0,
+            benchmark_name="EIA-176",
+            benchmark_pct=row["eia_share"],
+            n_buildings=row["n_share_buildings"] or 0,
+            pp_tolerance=cfg.gas_share_utility_pp,
+            rel_tolerance=cfg.gas_share_utility_pct,
+            noise_z=cfg.sampling_noise_z,
         )
     return results
 
@@ -1312,12 +1586,17 @@ def _share_results(
     *,
     check: str,
     label: str,
+    scope: str,
     release: str,
     resstock: pl.DataFrame,
     acs: pl.DataFrame,
-    tolerance: float,
+    cfg: RealWorldCheckConfig,
+    note: str | None = None,
 ) -> list[CheckResult]:
-    joined = resstock.select("category", pl.col("pct").alias("rs_pct")).join(
+    """An absolute and a relative check for every category in either dataset."""
+    joined = resstock.select(
+        "category", pl.col("pct").alias("rs_pct"), pl.col("n").alias("rs_n")
+    ).join(
         acs.select("category", pl.col("pct").alias("acs_pct")),
         on="category",
         how="full",
@@ -1325,68 +1604,89 @@ def _share_results(
     )
     results = []
     for row in joined.sort("category").iter_rows(named=True):
-        rs = row["rs_pct"] or 0.0
-        benchmark = row["acs_pct"] or 0.0
-        diff = rs - benchmark
-        results.append(
-            CheckResult(
-                check=check,
-                label=label,
-                scope=f"statewide, {row['category']}",
-                release=release,
-                unit="%",
-                resstock_value=rs,
-                benchmark_name="ACS",
-                benchmark_value=benchmark,
-                diff=diff,
-                diff_unit="pp",
-                tolerance=tolerance,
-                status="warn" if abs(diff) > tolerance else "ok",
-            )
+        pair = _share_pair(
+            check=check,
+            label=label,
+            scope=f"{scope}, {row['category']}",
+            release=release,
+            resstock_pct=row["rs_pct"] or 0.0,
+            benchmark_name="ACS",
+            benchmark_pct=row["acs_pct"] or 0.0,
+            n_buildings=row["rs_n"] or 0,
+            pp_tolerance=cfg.acs_share_pp,
+            rel_tolerance=cfg.acs_share_pct,
+            noise_z=cfg.sampling_noise_z,
+            min_rel_share_pct=cfg.acs_share_min_pct,
         )
+        if note:
+            pair = [replace(r, note=_join_notes(r.note, note)) for r in pair]
+        results += pair
     return results
 
 
 def check_acs(
     inputs: ReleaseInputs, pums: pl.DataFrame, cfg: RealWorldCheckConfig
 ) -> list[CheckResult]:
-    """Occupied-stock shares against ACS PUMS: fuel, building type, vintage, master metering."""
+    """Stock shares against ACS PUMS: fuel, building type, vintage, master metering.
+
+    ``pums`` is ``load_acs_housing`` output. Heating fuel and master metering
+    describe the household, which ACS only reports for occupied units, so both
+    sides are restricted to occupied units. Building type and year built
+    describe the structure and are reported for vacant units too, so those
+    compare all housing units. Unrecognized or empty ResStock ``in.vintage``
+    values are dropped from the year-built shares, not assigned to 2010+.
+    """
     occupied = _occupied(inputs.metadata_raw)
+    acs_occupied = pums.filter(pl.col("occupied"))
     release = inputs.release_raw
     results = _share_results(
         check="acs_heating_fuel",
         label="heating-fuel share",
+        scope="statewide occupied",
         release=release,
         resstock=weighted_shares(
             occupied, heating_fuel_resstock(pl.col("in.heating_fuel")), WEIGHT
         ),
-        acs=weighted_shares(pums, heating_fuel_acs(pl.col("hfl")), "wgtp"),
-        tolerance=cfg.acs_share_pp,
+        acs=weighted_shares(acs_occupied, heating_fuel_acs(pl.col("hfl")), "wgtp"),
+        cfg=cfg,
     )
     results += _share_results(
         check="acs_building_type",
         label="building-type share",
+        scope="statewide all units",
         release=release,
         resstock=weighted_shares(
-            occupied,
+            inputs.metadata_raw,
             building_class_resstock(pl.col("in.geometry_building_type_recs")),
             WEIGHT,
         ),
         acs=weighted_shares(pums, building_class_acs(pl.col("bld")), "wgtp"),
-        tolerance=cfg.acs_share_pp,
+        cfg=cfg,
+    )
+    vintage_col = vintage_resstock(pl.col("in.vintage"))
+    n_unmapped_vintage = (
+        inputs.metadata_raw.select(vintage_col.alias("v"))
+        .filter(pl.col("v").is_null())
+        .height
+    )
+    unmapped_note = (
+        f"{n_unmapped_vintage} ResStock buildings excluded "
+        "(unrecognized or empty in.vintage)"
+        if n_unmapped_vintage
+        else None
     )
     results += _share_results(
         check="acs_year_built",
         label="year-built share",
+        scope="statewide all units",
         release=release,
-        resstock=weighted_shares(
-            occupied, vintage_resstock(pl.col("in.vintage")), WEIGHT
-        ),
+        resstock=weighted_shares(inputs.metadata_raw, vintage_col, WEIGHT),
         acs=weighted_shares(pums, vintage_acs(pl.col("yrblt")), "wgtp"),
-        tolerance=cfg.acs_share_pp,
+        cfg=cfg,
+        note=unmapped_note,
     )
 
-    acs_share = acs_master_metered_share(pums)
+    acs_share = acs_master_metered_share(acs_occupied)
     meters = estimate_gas_meters(occupied, inputs.annual_raw).row(0, named=True)
     lo, hi = float(meters["master_share_min"]), float(meters["master_share_max"])
     tol = cfg.acs_master_metering_pp
@@ -1458,9 +1758,10 @@ def run_real_world_checks(
     path_eia861: str,
     path_pums_housing: str,
     cfg: RealWorldCheckConfig,
-    gas_scaled: bool | None = None,
     load_eia861: Callable[[str, str], pl.DataFrame] = load_eia861_residential,
-    load_eia176: Callable[[str, int], pl.DataFrame] = load_eia176_by_operator,
+    load_eia176: Callable[
+        [str, int], pl.DataFrame
+    ] = load_eia176_residential_by_operator,
     load_acs: Callable[[str], pl.DataFrame] = load_acs_housing,
 ) -> list[CheckResult]:
     """Run every check for one state. Never raises: failures become ``skipped`` results."""
@@ -1479,9 +1780,8 @@ def run_real_world_checks(
         lambda: check_gas(
             inputs,
             load_eia176(state, eia_year),
-            GAS_OPERATORS_BY_STATE.get(state),
+            get_eia176_operator_id_to_std_name(state) or None,
             cfg,
-            gas_scaled=gas_scaled,
         ),
     )
     results += _guard(
@@ -1491,7 +1791,7 @@ def run_real_world_checks(
         lambda: check_hp_approximation(inputs, cfg),
     )
     results += _guard(
-        "acs_heating_fuel",
+        "acs_heating_fuel_pp",
         "stock vs ACS",
         inputs.release_raw,
         lambda: check_acs(inputs, load_acs(path_pums_housing), cfg),
@@ -1582,7 +1882,6 @@ def run_post_pipeline_checks(
     pums_survey: str,
     pums_year: str,
     approx_upgrades: Sequence[str],
-    gas_scaled: bool | None = None,
 ) -> PostPipelineChecks:
     """End-of-pipeline entry point for ``main.py``. Never raises."""
     out = PostPipelineChecks()
@@ -1621,7 +1920,6 @@ def run_post_pipeline_checks(
                     path_s3_pums_dir, pums_survey, pums_year, state
                 ),
                 cfg=cfg,
-                gas_scaled=gas_scaled,
             )
             out.results[state] = results
             out.warnings += summarize(state, results)

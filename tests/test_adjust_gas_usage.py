@@ -7,16 +7,17 @@ from pathlib import Path
 import polars as pl
 import pytest
 
+from data.eia.utils import load_eia176_residential_by_operator
 from data.resstock.load_curve.adjust_gas_usage import (
     ANNUAL_GAS_TOTAL_COL,
     HOURLY_GAS_COLS,
-    KWH_PER_MMBTU,
     adjust_gas_usage_hourly_dir,
     load_eia176_residential_kwh,
     resstock_weighted_gas_kwh,
     scale_gas_hourly,
 )
 from data.resstock.validations import validate_gas_usage_inputs
+from utils.units import KWH_PER_MMBTU
 
 ELEC_COL = "out.electricity.total.energy_consumption"
 
@@ -81,6 +82,7 @@ def _write_eia(tmp_path: Path) -> tuple[str, str]:
             ],
             "revenue_class": ["sales", "transport", "sales", "sales", "sales", "sales"],
             "volume_mcf": [100.0, 10.0, 200.0, 999.0, 999.0, 999.0],
+            "consumers": [5.0, 1.0, 8.0, 99.0, 99.0, 99.0],
         }
     ).write_parquet(by_consumer)
     pl.DataFrame(
@@ -102,6 +104,34 @@ def test_eia176_residential_includes_transport_and_excludes_other_rows(
         "CT", 2018, path_by_consumer=by_consumer, path_disposition=disposition
     )
     assert kwh == pytest.approx(((100.0 + 10.0) * 1.0 + 200.0 * 1.05) * KWH_PER_MMBTU)
+
+
+def test_eia176_missing_heat_content_uses_state_median(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    by_consumer, _ = _write_eia(tmp_path)
+    disposition = tmp_path / "disposition_gap.parquet"
+    pl.DataFrame(
+        {
+            "report_year": [2018, 2018],
+            "operator_id_eia": ["A", "B"],
+            "operating_state": ["CT", "CT"],
+            "delivered_gas_heat_content_mmbtu_per_mcf": [1.0, None],
+        }
+    ).write_parquet(disposition)
+    by_operator = load_eia176_residential_by_operator(
+        "CT", 2018, path_by_consumer=by_consumer, path_disposition=str(disposition)
+    )
+    b = by_operator.filter(pl.col("operator_id_eia") == "B").row(0, named=True)
+    assert b["heat_content_imputed"] is True
+    assert b["heat_content_mmbtu_per_mcf"] == pytest.approx(1.0)
+    assert b["eia_customers"] == 8.0
+
+    kwh = load_eia176_residential_kwh(
+        "CT", 2018, path_by_consumer=by_consumer, path_disposition=str(disposition)
+    )
+    assert kwh == pytest.approx((110.0 + 200.0) * KWH_PER_MMBTU)
+    assert "state median" in capsys.readouterr().out
 
 
 def test_eia176_residential_raises_when_no_rows(tmp_path: Path) -> None:

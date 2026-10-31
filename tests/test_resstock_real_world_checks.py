@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 import pytest
@@ -135,6 +137,7 @@ def test_meter_band_inside_and_outside():
         "master_share_min": 10.0,
         "master_share_max": 30.0,
         "gas_dwellings": 250.0,
+        "n_buildings": 10_000,
     }
     inside = rw._meter_band_result(
         scope="statewide", release="r", row=row, eia_customers=150.0, cfg=cfg
@@ -208,7 +211,8 @@ def test_check_electricity_statewide_and_utility_rules():
             "eia_customers": [5_000.0, 1_000.0, 0.0],
         }
     )
-    cfg = RealWorldCheckConfig(min_utility_customers=2_000)
+    # z = 0 turns off the sampling-noise widening so the base tolerances apply.
+    cfg = RealWorldCheckConfig(sampling_noise_z=0)
     results = {
         (r.check, r.scope, r.release): r
         for r in rw.check_electricity(inputs, eia861, cfg)
@@ -226,13 +230,43 @@ def test_check_electricity_statewide_and_utility_rules():
     assert big_kwh.resstock_value == pytest.approx(50_000_000.0)
     assert big_kwh.status == "warn"
 
-    assert (
-        results[("electric_customers_utility", "utility=muni", "raw_sb")].status
-        == "skipped"
-    )
+    # Small utilities are compared, not skipped.
+    muni = results[("electric_kwh_utility", "utility=muni", "raw_sb")]
+    assert muni.status == "warn"
     industrial = results[("electric_customers_utility", "utility=industrial", "raw_sb")]
     assert industrial.status == "skipped"
     assert "zero residential customers" in (industrial.note or "")
+
+
+def test_sampling_tolerance():
+    # 2 / sqrt(4) = 100%; 2 / sqrt(400) = 10% is below the 20% floor.
+    assert rw.sampling_tolerance(20.0, 4, 2.0) == pytest.approx(100.0)
+    assert rw.sampling_tolerance(20.0, 400, 2.0) == pytest.approx(20.0)
+    # Percentage points: relative noise times the benchmark share.
+    assert rw.sampling_tolerance(5.0, 4, 2.0, scale=40.0) == pytest.approx(40.0)
+    assert rw.sampling_tolerance(20.0, 0, 2.0) == 20.0
+
+
+def test_per_utility_tolerance_widens_for_few_buildings():
+    inputs = _elec_inputs()
+    eia861 = pl.DataFrame(
+        {
+            "utility_code": ["big"],
+            "eia_kwh": [40_000_000.0],
+            "eia_customers": [5_000.0],
+        }
+    )
+    results = rw.check_electricity(inputs, eia861, RealWorldCheckConfig())
+    big_kwh = next(
+        r
+        for r in results
+        if r.check == "electric_kwh_utility" and r.scope == "utility=big"
+    )
+    # 4 buildings: tolerance max(20%, 2 / sqrt(4)) = 100%, so +25% is noise.
+    assert big_kwh.n_buildings == 4
+    assert big_kwh.tolerance == pytest.approx(100.0)
+    assert big_kwh.status == "ok"
+    assert "4 ResStock buildings" in (big_kwh.note or "")
 
 
 def test_raw_electricity_is_context_only():
@@ -290,9 +324,9 @@ def _eia176() -> pl.DataFrame:
     )
 
 
-def test_check_gas_uses_statewide_kwh_scaling_not_customers():
+def test_check_gas_statewide_and_utility_shares():
     inputs = _gas_inputs()
-    cfg = RealWorldCheckConfig(min_utility_customers=0)
+    cfg = RealWorldCheckConfig(sampling_noise_z=0)
     results = rw.check_gas(inputs, _eia176(), {"op1": "g1", "op2": "g2"}, cfg)
     by_key = {(r.check, r.scope): r for r in results}
 
@@ -302,19 +336,118 @@ def test_check_gas_uses_statewide_kwh_scaling_not_customers():
     # _sb differs from raw, so the scaled (tight) tolerance applies.
     assert statewide.tolerance == cfg.gas_kwh_statewide_scaled_pct
 
-    # Statewide scale is 1, and g2 has fewer EIA meters than dwellings: its kWh
-    # must not be shrunk by the meter count.
-    g2 = by_key[("gas_kwh_utility", "utility=g2")]
-    assert g2.resstock_value == pytest.approx(20_000_000.0)
-    assert g2.status == "ok"
+    # Both utilities use half the gas on both sides. g2's share is not shrunk
+    # by it having fewer EIA meters than dwellings.
+    for check in ("gas_share_utility_pp", "gas_share_utility_rel"):
+        g2 = by_key[(check, "utility=g2")]
+        assert g2.resstock_value == pytest.approx(50.0)
+        assert g2.benchmark_value == pytest.approx(50.0)
+        assert g2.status == "ok"
     assert by_key[("gas_meters", "utility=g1")].status == "ok"
     assert by_key[("gas_meters", "utility=g2")].status == "warn"
+
+
+def test_gas_shares_use_mapped_utilities_only():
+    inputs = _gas_inputs()
+    assert inputs.annual_sb is not None and inputs.utility_assignment is not None
+    # An unmapped ResStock utility and an unmapped EIA operator, each large.
+    metadata = pl.concat(
+        [inputs.metadata_sb, _metadata([{"bldg_id": 3, "weight": 10_000.0}])]
+    )
+    annual_sb = pl.concat(
+        [
+            inputs.annual_sb,
+            _annual([{"bldg_id": 3, ANNUAL_GAS: 50_000.0}]),
+        ],
+        how="diagonal",
+    )
+    assignment = pl.concat(
+        [
+            inputs.utility_assignment,
+            pl.DataFrame(
+                {"bldg_id": [3], "sb.electric_utility": ["e"], "sb.gas_utility": ["g3"]}
+            ),
+        ]
+    )
+    eia = pl.concat(
+        [
+            _eia176(),
+            pl.DataFrame(
+                {
+                    "operator_id_eia": ["op3"],
+                    "eia_kwh": [900_000_000.0],
+                    "eia_customers": [50_000.0],
+                    "heat_content_imputed": [False],
+                }
+            ),
+        ]
+    )
+    inputs = replace_inputs(
+        metadata_raw=metadata,
+        metadata_sb=metadata,
+        annual_raw=annual_sb,
+        annual_sb=annual_sb,
+        utility_assignment=assignment,
+    )
+    results = rw.check_gas(
+        inputs, eia, {"op1": "g1", "op2": "g2"}, RealWorldCheckConfig()
+    )
+    g1 = next(
+        r
+        for r in results
+        if r.check == "gas_share_utility_pp" and r.scope == "utility=g1"
+    )
+    assert g1.resstock_value == pytest.approx(50.0)
+    assert g1.benchmark_value == pytest.approx(50.0)
+    assert not any(r.scope == "utility=g3" for r in results)
+
+
+def test_share_pair_relative_check_catches_small_categories():
+    pp, rel = rw._share_pair(
+        check="acs_heating_fuel",
+        label="heating-fuel share",
+        scope="statewide occupied, Propane",
+        release="r",
+        resstock_pct=8.0,
+        benchmark_name="ACS",
+        benchmark_pct=4.0,
+        n_buildings=10_000,
+        pp_tolerance=5.0,
+        rel_tolerance=25.0,
+        noise_z=2.0,
+    )
+    assert (pp.check, pp.status) == ("acs_heating_fuel_pp", "ok")
+    assert (rel.check, rel.status) == ("acs_heating_fuel_rel", "warn")
+    assert rel.diff == pytest.approx(100.0)
+
+
+def test_share_pair_skips_relative_check_below_floor():
+    _, rel = rw._share_pair(
+        check="acs_building_type",
+        label="building-type share",
+        scope="statewide all units, Mobile home",
+        release="r",
+        resstock_pct=1.5,
+        benchmark_name="ACS",
+        benchmark_pct=0.8,
+        n_buildings=10_000,
+        pp_tolerance=5.0,
+        rel_tolerance=25.0,
+        noise_z=2.0,
+        min_rel_share_pct=2.0,
+    )
+    assert rel.status == "skipped"
+    assert "below" in (rel.note or "")
 
 
 def test_check_gas_without_operator_map_skips_per_utility():
     results = rw.check_gas(_gas_inputs(), _eia176(), None, RealWorldCheckConfig())
     skipped = [r for r in results if r.scope == "by utility"]
-    assert {r.check for r in skipped} == {"gas_kwh_utility", "gas_meters"}
+    assert {r.check for r in skipped} == {
+        "gas_meters",
+        "gas_share_utility_pp",
+        "gas_share_utility_rel",
+    }
     assert all(r.status == "skipped" for r in skipped)
     assert any(r.check == "gas_meters" and r.scope == "statewide" for r in results)
 
@@ -325,6 +458,96 @@ def test_check_gas_notes_imputed_heat_content():
     statewide = next(r for r in results if r.check == "gas_kwh_statewide")
     assert "imputed" in (statewide.note or "")
     assert "op1" in (statewide.note or "")
+
+
+def _sb_run(
+    tmp_path: Path,
+    run_id: str,
+    *,
+    states: list[str],
+    file_types: list[str],
+    steps: list[tuple[str, dict[str, Any]]],
+) -> None:
+    from data.resstock.manifest import new_run_record, record_step, upsert_run
+
+    run = new_run_record(
+        release="r",
+        release_sb="r_sb",
+        states=states,
+        upgrade_ids=["0"],
+        file_types=file_types,
+        flags={},
+    )
+    run["run_id"] = run_id
+    for name, details in steps:
+        record_step(run, name, **details)
+    upsert_run(tmp_path, run)
+
+
+def test_gas_scaled_from_manifest_last_hourly_write_wins(tmp_path: Path):
+    _sb_run(
+        tmp_path,
+        "scale",
+        states=["CT"],
+        file_types=["load_curve_hourly"],
+        steps=[
+            ("clone", {"files_copied": 10}),
+            ("adjust_gas_usage", {"scale_factors": {"CT": 1.2}}),
+        ],
+    )
+    assert rw.gas_scaled_from_manifest(tmp_path, "CT") is True
+
+    # Metadata-only clone does not touch hourly, so the prior scale still holds.
+    _sb_run(
+        tmp_path,
+        "metadata",
+        states=["CT"],
+        file_types=["metadata"],
+        steps=[("clone", {"files_copied": 1})],
+    )
+    assert rw.gas_scaled_from_manifest(tmp_path, "CT") is True
+
+    # Cloning hourly without scaling overwrites the scaled files.
+    _sb_run(
+        tmp_path,
+        "reclone",
+        states=["CT"],
+        file_types=["load_curve_hourly", "metadata"],
+        steps=[("clone", {"files_copied": 10})],
+    )
+    assert rw.gas_scaled_from_manifest(tmp_path, "CT") is False
+    assert rw.gas_scaled_from_manifest(tmp_path / "missing", "CT") is None
+
+
+def test_gas_scaled_from_manifest_ignores_other_states(tmp_path: Path):
+    _sb_run(
+        tmp_path,
+        "ny",
+        states=["NY"],
+        file_types=["load_curve_hourly"],
+        steps=[("adjust_gas_usage", {"scale_factors": {"NY": 1.1}})],
+    )
+    assert rw.gas_scaled_from_manifest(tmp_path, "CT") is None
+
+
+def test_check_gas_uses_manifest_over_inference(tmp_path: Path):
+    # Files look scaled (annual_sb = 2× raw) but the last hourly write was clone.
+    _sb_run(
+        tmp_path,
+        "reclone",
+        states=["XX"],
+        file_types=["load_curve_hourly"],
+        steps=[("clone", {"files_copied": 10})],
+    )
+    inputs = replace(_gas_inputs(), base_sb=str(tmp_path))
+    cfg = RealWorldCheckConfig()
+    statewide = next(
+        r
+        for r in rw.check_gas(inputs, _eia176(), None, cfg)
+        if r.check == "gas_kwh_statewide"
+    )
+    assert statewide.tolerance == cfg.gas_kwh_statewide_unscaled_pct
+    assert "clone" in (statewide.note or "")
 
 
 # ── HP approximation ──────────────────────────────────────────────────────────
@@ -360,12 +583,27 @@ def test_hp_approximation_share_and_unclassified():
 
 
 def replace_inputs(**changes) -> ReleaseInputs:
-    from dataclasses import replace
-
     return replace(_elec_inputs(), **changes)
 
 
 # ── ACS ───────────────────────────────────────────────────────────────────────
+
+
+def test_vintage_resstock_maps_known_and_drops_unknown():
+    df = pl.DataFrame(
+        {"v": ["<1940", "1940s", "1950s", "2010s", None, "", "unknown", "2000s"]}
+    )
+    out = df.select(rw.vintage_resstock(pl.col("v")).alias("b"))
+    assert out["b"].to_list() == [
+        "Before 1950",
+        "Before 1950",
+        "1950-59",
+        "2010+",
+        None,
+        None,
+        None,
+        "2000-09",
+    ]
 
 
 def test_acs_category_mappings():
@@ -396,7 +634,27 @@ def test_acs_master_metered_share():
     assert rw.acs_master_metered_share(pums) == pytest.approx(25.0)
 
 
-def test_check_acs_compares_occupied_stock_only():
+def test_load_acs_housing_flags_occupied_units(tmp_path: Path):
+    path = tmp_path / "pums.parquet"
+    pl.DataFrame(
+        {
+            "typehugq": ["1", "1", "1", "2"],
+            "vacs": [None, "1", None, None],
+            "np": [2, 0, 0, 1],
+            "hfl": ["1", None, "3", None],
+            "bld": ["02", "06", "02", None],
+            "yrblt": ["1975", "1990", "2005", None],
+            "gasfp": ["4", None, "3", None],
+            "wgtp": [10, 20, 30, 0],
+        }
+    ).write_parquet(path)
+    out = rw.load_acs_housing(str(path))
+    # Group quarters are dropped; occupied needs blank VACS *and* NP > 0.
+    assert out.height == 3
+    assert out["occupied"].to_list() == [True, False, False]
+
+
+def test_check_acs_occupancy_by_attribute():
     metadata = _metadata(
         [
             {"bldg_id": 1},
@@ -405,7 +663,55 @@ def test_check_acs_compares_occupied_stock_only():
                 "bldg_id": 3,
                 "in.heating_fuel": "Fuel Oil",
                 "in.vacancy_status": "Vacant",
+                "in.geometry_building_type_recs": "Multi-Family with 5+ Units",
             },
+        ]
+    )
+    inputs = replace_inputs(
+        metadata_raw=metadata,
+        annual_raw=_annual(
+            [
+                {"bldg_id": 1, ANNUAL_GAS: 1.0, GAS.format("heating"): 1.0},
+                {"bldg_id": 2},
+                {"bldg_id": 3},
+            ]
+        ),
+    )
+    pums = pl.DataFrame(
+        {
+            "hfl": ["1", "4", None],
+            "bld": ["02", "02", "06"],
+            "yrblt": ["1975", "1975", "1975"],
+            "gasfp": ["4", "3", None],
+            "wgtp": [50, 50, 50],
+            "occupied": [True, True, False],
+        }
+    )
+    results = rw.check_acs(inputs, pums, RealWorldCheckConfig())
+    by_key = {(r.check, r.scope): r for r in results}
+
+    # Heating fuel: occupied only, so the vacant oil home is left out.
+    oil = by_key[("acs_heating_fuel_pp", "statewide occupied, Fuel oil")]
+    assert oil.resstock_value == pytest.approx(50.0)
+    assert oil.benchmark_value == pytest.approx(50.0)
+    assert oil.status == "ok"
+    # Building type: all units, so the vacant multifamily unit counts on both sides.
+    mf = by_key[("acs_building_type_pp", "statewide all units, Multifamily")]
+    assert mf.resstock_value == pytest.approx(100 / 3)
+    assert mf.benchmark_value == pytest.approx(100 / 3)
+    assert ("acs_building_type_rel", "statewide all units, Multifamily") in by_key
+
+    master = next(r for r in results if r.check == "acs_master_metering")
+    assert master.benchmark_value == 0.0
+    assert master.status == "ok"
+
+
+def test_check_acs_excludes_unmapped_vintages():
+    metadata = _metadata(
+        [
+            {"bldg_id": 1, "in.vintage": "1970s"},
+            {"bldg_id": 2, "in.vintage": "1970s"},
+            {"bldg_id": 3, "in.vintage": None},
         ]
     )
     inputs = replace_inputs(
@@ -425,15 +731,17 @@ def test_check_acs_compares_occupied_stock_only():
             "yrblt": ["1975", "1975"],
             "gasfp": ["4", "3"],
             "wgtp": [50, 50],
+            "occupied": [True, True],
         }
     )
     results = rw.check_acs(inputs, pums, RealWorldCheckConfig())
-    fuel = {r.scope: r for r in results if r.check == "acs_heating_fuel"}
-    assert fuel["statewide, Fuel oil"].resstock_value == pytest.approx(50.0)
-    assert fuel["statewide, Fuel oil"].status == "ok"
-    master = next(r for r in results if r.check == "acs_master_metering")
-    assert master.benchmark_value == 0.0
-    assert master.status == "ok"
+    year = next(
+        r for r in results if r.check == "acs_year_built_pp" and "1960-79" in r.scope
+    )
+    # The unmapped building is out of the denominator, so 1970s is 100%.
+    assert year.resstock_value == pytest.approx(100.0)
+    assert year.n_buildings == 2
+    assert "excluded" in (year.note or "")
 
 
 # ── Messages, config, runner ──────────────────────────────────────────────────
