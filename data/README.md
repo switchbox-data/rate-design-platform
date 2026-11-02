@@ -4,7 +4,7 @@ Scripts in `data/` fetch, convert, and upload datasets to S3. Each subdirectory 
 
 **Directory naming**: Use `org/dataproduct` (e.g. `eia/861`, `hud/ami`, `fred/cpi`, `nrel/cambium`). This matches the S3 path under the bucket: `s3://data.sb/<org>/<dataproduct>/` (e.g. `s3://data.sb/eia/861/`, `s3://data.sb/hud/ami/`).
 
-**When adding or changing a data pipeline, follow the conventions below** so all pipelines stay consistent and LLMs/tools can follow the same patterns.
+Agents follow `.cursor/skills/data-pipeline/SKILL.md`. This file is the same conventions for people editing a pipeline by hand. Change a rule in both places.
 
 ## Pipeline shape
 

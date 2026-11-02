@@ -1477,8 +1477,8 @@ build-master-bat batch run_delivery run_supply *batch_overrides:
 #
 # Runs scenarios defined in a per-utility pipeline YAML
 # (config/scenarios/pipeline_{utility}.yaml) via Prefect. See
-# context/code/orchestration/prefect_pipeline.md for the full architecture
-# and a state-specific end-to-end example.
+# .cursor/skills/run-hp-rates/ for how to launch, resume, and read a batch.
+# context/code/orchestration/prefect_pipeline.md for architecture and path templates.
 # =============================================================================
 
 # Start a local Prefect server to track flows/tasks/run state for pipeline
