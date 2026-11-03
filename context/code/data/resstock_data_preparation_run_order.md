@@ -18,31 +18,27 @@ The last step compares the finished upgrade-00 stock to EIA-861, EIA-176, and AC
 
 The ResStock data pipeline uses a three-tier Justfile structure:
 
-1. **`data/resstock/Justfile`** — State-generic recipes. Every recipe takes `state` as an argument. Config values (release, paths, etc.) are read via the `data.resstock.constants` CLI module. This is the primary interface for running the pipeline.
+1. **`data/resstock/Justfile`** — State-generic recipes. Every recipe takes `state` as an argument. Config values (release, paths, etc.) are read via the `data.resstock.constants` CLI module. This is the primary interface for running the pipeline. `run-pipeline` takes its upgrade list from that state's `upgrade_ids` in `state_configs.yaml`, or from `resstock.upgrade_ids` in `config.yaml` when the state has no list. NY and RI are `0` and `2`. Maryland and Connecticut use `0` through `5`.
 
-2. **`rate_design/hp_rates/ny/Justfile`** — NY-specific wrappers (prefixed `resstock-*`). Pin NY defaults (state code, upgrade IDs, polygon filenames from `state_configs.yaml`) and delegate to the generic recipes. Also contain NY-only operations like polygon downloads.
+2. **`rate_design/hp_rates/ny/Justfile`** — NY partial-re-run wrappers (prefixed `resstock-*`) and NY-only polygon downloads. A full release is `run-pipeline` in the generic Justfile, not one of these wrappers.
 
-3. **`rate_design/hp_rates/ri/Justfile`** — RI-specific wrappers (prefixed `resstock-*`). Same pattern as NY but for RI. RI uses rule-based utility assignment (no polygon files).
+3. **`rate_design/hp_rates/ri/Justfile`** — RI partial-re-run wrappers (prefixed `resstock-*`). RI uses rule-based utility assignment (no polygon files).
 
 ### Invocation examples
 
-**Via state-specific Justfile (recommended for state work):**
+**Full pipeline (any state):**
 
 ```bash
-# NY — full pipeline
-just -f rate_design/hp_rates/ny/Justfile resstock-run-pipeline
-
-# RI — full pipeline
-just -f rate_design/hp_rates/ri/Justfile resstock-run-pipeline
+just -f data/resstock/Justfile run-pipeline NY
+just -f data/resstock/Justfile run-pipeline RI
+just -f data/resstock/Justfile run-pipeline MD
 ```
 
-**Via generic Justfile (for any state, any flags):**
+NY and RI in one run share upgrades `0` and `2`, so `run-pipeline "NY RI"` works. A run that mixes a state with its own list and a state that uses the release catalog stops until `--upgrade-ids` is passed.
+
+**With overrides:**
 
 ```bash
-# Full pipeline
-just -f data/resstock/Justfile run-pipeline NY --upgrade-ids 0 2
-
-# Generic with overrides
 just -f data/resstock/Justfile run-pipeline NY \
     --upgrade-ids 0 2 \
     --electric-poly-filename ny_electric_utilities_20260309.csv \
@@ -254,21 +250,12 @@ just -f data/resstock/Justfile upload-monthly-loads <STATE> "<UPGRADE_IDS>"
 
 ---
 
-## End-to-end shortcuts
+## End-to-end shortcut
 
-Both invoke `main.py` via the generic `run-pipeline` recipe. See the "Recommended approach" section at the top for full details.
-
-**Via state-specific Justfile (simplest):**
+One `run-pipeline` invocation. The upgrade list comes from state config. See the "Recommended approach" section at the top for full details.
 
 ```bash
-just -f rate_design/hp_rates/ny/Justfile resstock-run-pipeline
-just -f rate_design/hp_rates/ri/Justfile resstock-run-pipeline
-```
-
-**Via generic Justfile:**
-
-```bash
-just -f data/resstock/Justfile run-pipeline <STATE> --upgrade-ids 0 2 [flags]
+just -f data/resstock/Justfile run-pipeline <STATE> [flags]
 ```
 
 ---
@@ -277,10 +264,10 @@ just -f data/resstock/Justfile run-pipeline <STATE> --upgrade-ids 0 2 [flags]
 
 **Recommended (single invocation via main.py):**
 
-| Action                                                                              |
-| ----------------------------------------------------------------------------------- |
-| `just -f rate_design/hp_rates/ny/Justfile resstock-run-pipeline` (or `.../ri/...`)  |
-| Or: `just -f data/resstock/Justfile run-pipeline <STATE> --upgrade-ids 0 2 [flags]` |
+| Action                                                              |
+| ------------------------------------------------------------------- |
+| `just -f data/resstock/Justfile run-pipeline <STATE>`               |
+| Add `--upgrade-ids <IDS>` to override that state's list for one run |
 
 **Individual Justfile recipes (for debugging or partial re-runs):**
 

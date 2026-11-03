@@ -39,7 +39,7 @@ Release-level defaults are loaded from `data/resstock/config.yaml`. State-specif
 | Argument                       | Default                                        | Description                                                                         |
 | ------------------------------ | ---------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `--state`                      | (required)                                     | One or more 2-letter state codes                                                    |
-| `--upgrade-ids`                | `0 1 2 3 4 5`                                  | Upgrade IDs to download                                                             |
+| `--upgrade-ids`                | state's `upgrade_ids`, else `0`–`5`            | Upgrade IDs to download. Omitted: `state_configs.yaml`, then `config.yaml`          |
 | `--file-types`                 | `metadata load_curve_hourly load_curve_annual` | File types to fetch from NREL                                                       |
 | `--sample`                     | `0` (all)                                      | Number of buildings to download (0 = full population)                               |
 | `--identify-hp-customers`      | `True`                                         | Add `postprocess_group.has_hp`                                                      |
@@ -66,7 +66,7 @@ Release-level defaults are loaded from `data/resstock/config.yaml`. State-specif
 
 ### Example invocations
 
-Full NY run:
+Full NY run. NY and RI default to upgrades `0` and `2` from `state_configs.yaml`. A state with no `upgrade_ids` list, including MD and CT, uses `0` through `5` from `config.yaml`.
 
 ```bash
 uv run python -m data.resstock.main --state NY
