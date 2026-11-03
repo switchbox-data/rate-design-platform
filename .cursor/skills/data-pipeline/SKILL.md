@@ -11,11 +11,11 @@ description: >-
 
 One dataset per directory, named `data/<org>/<dataproduct>/` so it matches `s3://data.sb/<org>/<dataproduct>/`. The Justfile in that directory is the interface. Scripts live beside it.
 
-`data/README.md` mirrors this file for people editing a pipeline outside the skill. When you change a rule here, change it there. Do not open `data/README.md` to follow the procedure.
+`data/README.md` points here for the procedure. It also keeps the notes this file does not: the EIA zone-load upload exception in more detail, `path_local_fpl_yaml`, which pipelines use `update`, the EIA-861 object path, and the script filenames already in the repo. Read that file when the pipeline is one of those.
 
 ## Output
 
-- Local staging only (parquet, csv, json, xlsx, or zips). Nothing uploaded from inside fetch or convert.
+- Local staging only (parquet, csv, json, xlsx, or zips). Nothing uploaded from inside fetch or convert, except a pipeline that already writes straight to S3 (EIA zone loads).
 - After a separate upload step, a Parquet dataset at the pipeline's `path_s3_*` prefix.
 - A `clean` recipe that deletes the staging directories.
 - Staging paths listed in `.gitignore`.

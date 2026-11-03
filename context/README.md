@@ -105,11 +105,11 @@ ResStock load-curve methodology: infiltration correction, MF adjustment, non-HP 
 
 ## code/
 
-Documents that answer **"How does this tool work? What are its pitfalls and work arounds? How do I run this?"** — CAIRO behavior, orchestration, data sources, marginal-cost pipelines. Subdirs group by theme.
+How a tool works, what its pitfalls are, and how it is wired: CAIRO behavior, orchestration, data sources, marginal-cost pipelines. Run procedures are skills (`run-hp-rates`, `polars-parquet`, `data-pipeline`). Subdirs group by theme.
 
 ### code/orchestration/
 
-Run ordering, Justfile dependency chain, and multi-step workflows.
+Run ordering, Justfile dependency chain, and multi-step workflows. The current batch procedure is the `run-hp-rates` skill; these files keep the architecture, the legacy runs 1–16 chain, and the per-workflow notes.
 
 | File                                    | Purpose                                                                                                                                                                                                     |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
