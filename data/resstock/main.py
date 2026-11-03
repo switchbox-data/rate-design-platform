@@ -88,6 +88,7 @@ from data.resstock.utils import (
     load_state_configs,
     normalize_nargs_list,
     parse_bool,
+    resolve_upgrade_ids,
     upload,
     upload_manifest,
 )
@@ -844,9 +845,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--upgrade-ids",
         nargs="+",
-        default=_DEFAULT_UPGRADE_IDS,
+        default=None,
         metavar="ID",
-        help="Upgrade IDs to download (space-separated integers).",
+        help=(
+            "Upgrade IDs to download (space-separated integers). "
+            "Default: the state's upgrade_ids in state_configs.yaml, "
+            "or resstock.upgrade_ids in config.yaml when the state has no list."
+        ),
     )
     parser.add_argument(
         "--file-types",
@@ -1072,7 +1077,11 @@ def main(argv: list[str] | None = None) -> None:
     # Normalize nargs="+" lists that may contain space-separated entries
     # (e.g. from Justfile invocation: --state "MD CT" → ["MD CT"] → ["MD", "CT"]).
     args.state = normalize_nargs_list(args.state)
-    args.upgrade_ids = normalize_nargs_list(args.upgrade_ids)
+    args.upgrade_ids = (
+        resolve_upgrade_ids(args.state, _STATE_CONFIGS, _DEFAULT_UPGRADE_IDS)
+        if args.upgrade_ids is None
+        else normalize_nargs_list(args.upgrade_ids)
+    )
     args.file_types = normalize_nargs_list(args.file_types)
 
     release = f"res_{args.release_year}_{args.weather_file}_{args.release_version}"
