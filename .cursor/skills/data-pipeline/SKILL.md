@@ -11,6 +11,8 @@ description: >-
 
 One dataset per directory, named `data/<org>/<dataproduct>/` so it matches `s3://data.sb/<org>/<dataproduct>/`. The Justfile in that directory is the interface. Scripts live beside it.
 
+A ResStock `_sb` release is the `resstock-sb-release` skill. This recipe table does not apply to it.
+
 `data/README.md` points here for the procedure. It also keeps the notes this file does not: the EIA zone-load upload exception in more detail, `path_local_fpl_yaml`, which pipelines use `update`, the EIA-861 object path, and the script filenames already in the repo. Read that file when the pipeline is one of those.
 
 ## Output

@@ -38,13 +38,6 @@ _rs_release := `uv run python -m data.resstock.constants resstock_release`
 [private]
 _rs_release_sb := `uv run python -m data.resstock.constants resstock_release_sb`
 
-# ── Full pipeline ─────────────────────────────────────────────────────────────
-
-# Run the full RI _sb release pipeline for upgrades 0 and 2.
-# add-vulnerability-columns defaults to False for RI via state_configs.yaml.
-resstock-run-pipeline *args:
-    just -f "{{ _resstock_jf }}" run-pipeline RI --upgrade-ids 0 2 {{ args }}
-
 # ── Fetch ─────────────────────────────────────────────────────────────────────
 
 # Download RI ResStock data from NREL.

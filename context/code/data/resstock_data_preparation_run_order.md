@@ -1,56 +1,10 @@
 # ResStock data preparation: run order
 
-This document describes how to prepare a Switchbox `_sb` ResStock release from the standard NREL release. The end state covers: HP identification, non-HP approximation, multifamily electricity adjustment, utility assignment, monthly load curves (aggregated from hourly for gas/oil/propane billing), and upload to S3.
+The `resstock-sb-release` skill is the procedure for preparing or uploading a `_sb` release. This file is the legacy Justfile steps for a partial re-run, and how that old per-step workflow differs from `main.py`. Step internals and constants are in `resstock_sb_release_pipeline_main_py.md`.
 
-**The recommended approach is `data/resstock/main.py`** (run via the Justfile recipes in the "Complete, all-in-one recipes" section). It consolidates the entire pipeline into a single invocation with provenance tracking. The individual Justfile recipes documented below are retained for debugging and partial re-runs.
+Commands below assume the repo root. Generic recipes are in `data/resstock/Justfile`. NY and RI partial-re-run recipes are in `rate_design/hp_rates/{ny,ri}/Justfile` (NY polygon downloads; RI has no polygon files). Both read paths through `data.resstock.constants`.
 
-All commands assume the project root as the current working directory unless noted. ResStock Justfile: `data/resstock/Justfile`. Default release names: standard `res_2024_amy2018_2`, sb release `res_2024_amy2018_2_sb`.
-
----
-
-## Recommended approach: main.py
-
-`main.py` runs the full pipeline end-to-end on the local EBS mount. All steps are enabled by default and controlled by flags. See `context/code/data/resstock_sb_release_pipeline_main_py.md` for full documentation.
-
-The last step compares the finished upgrade-00 stock to EIA-861, EIA-176, and ACS PUMS and prints a warning (pointing at the matching section of reports2's `reports/templates/data_prep/investigate_resstock.qmd`) for any gap beyond the tolerances in `config.yaml`. It never fails the run. To run it on an existing release: `just -f data/resstock/Justfile check-real-world <STATE>`.
-
-### Justfile structure
-
-The ResStock data pipeline uses a three-tier Justfile structure:
-
-1. **`data/resstock/Justfile`** — State-generic recipes. Every recipe takes `state` as an argument. Config values (release, paths, etc.) are read via the `data.resstock.constants` CLI module. This is the primary interface for running the pipeline.
-
-2. **`rate_design/hp_rates/ny/Justfile`** — NY-specific wrappers (prefixed `resstock-*`). Pin NY defaults (state code, upgrade IDs, polygon filenames from `state_configs.yaml`) and delegate to the generic recipes. Also contain NY-only operations like polygon downloads.
-
-3. **`rate_design/hp_rates/ri/Justfile`** — RI-specific wrappers (prefixed `resstock-*`). Same pattern as NY but for RI. RI uses rule-based utility assignment (no polygon files).
-
-### Invocation examples
-
-**Via state-specific Justfile (recommended for state work):**
-
-```bash
-# NY — full pipeline
-just -f rate_design/hp_rates/ny/Justfile resstock-run-pipeline
-
-# RI — full pipeline
-just -f rate_design/hp_rates/ri/Justfile resstock-run-pipeline
-```
-
-**Via generic Justfile (for any state, any flags):**
-
-```bash
-# Full pipeline
-just -f data/resstock/Justfile run-pipeline NY --upgrade-ids 0 2
-
-# Generic with overrides
-just -f data/resstock/Justfile run-pipeline NY \
-    --upgrade-ids 0 2 \
-    --electric-poly-filename ny_electric_utilities_20260309.csv \
-    --gas-poly-filename ny_gas_utilities_20260309.csv \
-    --sample 10
-```
-
-**Key differences from the old Justfile workflow:**
+## How the old workflow differs from main.py
 
 | Old workflow                                                     | main.py                                                                                                                                 |
 | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
@@ -252,35 +206,7 @@ just -f data/resstock/Justfile upload-monthly-loads <STATE> "<UPGRADE_IDS>"
 
 - **Result:** `s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb/load_curve_monthly/state=<STATE>/upgrade=<ID>/` is populated; the sb release on S3 is complete for rate-design and post-processing.
 
----
-
-## End-to-end shortcuts
-
-Both invoke `main.py` via the generic `run-pipeline` recipe. See the "Recommended approach" section at the top for full details.
-
-**Via state-specific Justfile (simplest):**
-
-```bash
-just -f rate_design/hp_rates/ny/Justfile resstock-run-pipeline
-just -f rate_design/hp_rates/ri/Justfile resstock-run-pipeline
-```
-
-**Via generic Justfile:**
-
-```bash
-just -f data/resstock/Justfile run-pipeline <STATE> --upgrade-ids 0 2 [flags]
-```
-
----
-
 ## Summary checklist
-
-**Recommended (single invocation via main.py):**
-
-| Action                                                                              |
-| ----------------------------------------------------------------------------------- |
-| `just -f rate_design/hp_rates/ny/Justfile resstock-run-pipeline` (or `.../ri/...`)  |
-| Or: `just -f data/resstock/Justfile run-pipeline <STATE> --upgrade-ids 0 2 [flags]` |
 
 **Individual Justfile recipes (for debugging or partial re-runs):**
 
@@ -297,5 +223,3 @@ just -f data/resstock/Justfile run-pipeline <STATE> --upgrade-ids 0 2 [flags]
 | 9    | `resstock-upload-monthly-loads`                              | `upload-monthly-loads <STATE> "<IDS>"`                            |
 
 State-specific recipes are in `rate_design/hp_rates/{ny,ri}/Justfile`; generic recipes are in `data/resstock/Justfile`. Both read config values from `data/resstock/config.yaml` and `data/resstock/state_configs.yaml` via the `data.resstock.constants` CLI.
-
-After the pipeline completes, the `_sb` release on S3 and EBS includes `metadata`, `metadata_utility`, `load_curve_hourly`, and `load_curve_monthly`, and is ready for rate-design runs (CAIRO) and post-processing (master bills, gas/oil/propane bills) using `res_2024_amy2018_2_sb` and the chosen state/upgrade.

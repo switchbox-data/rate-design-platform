@@ -1,4 +1,5 @@
 # ResStock data pipeline: fetch, modify, and upload to S3.
+# Preparing or uploading a _sb release: .cursor/skills/resstock-sb-release/
 #
 # All recipes here are state-generic — they take a `state` argument and
 # dispatch to the appropriate scripts.  State-specific convenience wrappers
@@ -9,13 +10,9 @@
 # constants module CLI (data.resstock.constants).  See constants.py for
 # supported config keys.
 #
-# Usage (from anywhere):
-#   just -f data/resstock/Justfile run-pipeline NY --upgrade-ids 0 2
+# Other recipes, from anywhere:
 #   just -f data/resstock/Justfile fetch NY
 #   just -f data/resstock/Justfile status --state NY --location ebs
-#
-# Or from within data/resstock/:
-#   just run-pipeline NY --upgrade-ids 0 2
 
 # All shell commands (backtick variable assignments and recipe bodies) run from
 # this directory, regardless of where `just` is invoked.  This means relative
@@ -47,23 +44,9 @@ pums_year := `uv run python -m data.resstock.constants pums.year`
 # Full pipeline (all via main.py)
 ################################################################################
 
-# Run the full _sb release pipeline for one or more states.
-# Covers: fetch → clone to _sb → metadata transforms → non-HP approximation
-#         → MF electricity adjustment → utility assignment → monthly loads → upload.
-# All steps are enabled by default; pass any main.py flag in args to override.
-#
-# Polygon filenames and add-vulnerability-columns default from state_configs.yaml;
-# override with CLI flags if needed.
-#
-# Crash recording: if the pipeline exits non-zero (including OOM kill / SIGKILL
-# exit code 137), the wrapper calls `manifest --mark-crashed --exit-code <N>` to
-# retroactively mark the in_progress run as crashed with the actual exit code.
-# See also: `just -f data/resstock/Justfile mark-crashed`.
-#
-# Examples:
-#   just -f data/resstock/Justfile run-pipeline NY --upgrade-ids 0 2
-#   just -f data/resstock/Justfile run-pipeline "NY RI" --upgrade-ids 0 2
-# just -f data/resstock/Justfile run-pipeline NY --sample 10 --upgrade-ids 0 2
+# Full _sb release. Procedure: .cursor/skills/resstock-sb-release/
+# A non-zero exit, including SIGKILL 137, calls manifest --mark-crashed
+# with that exit code. See also: `just -f data/resstock/Justfile mark-crashed`.
 run-pipeline state *args:
     #!/usr/bin/env bash
     set -uo pipefail
