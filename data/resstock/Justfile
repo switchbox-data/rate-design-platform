@@ -10,12 +10,12 @@
 # supported config keys.
 #
 # Usage (from anywhere):
-#   just -f data/resstock/Justfile run-pipeline NY --upgrade-ids 0 2
+#   just -f data/resstock/Justfile run-pipeline NY
 #   just -f data/resstock/Justfile fetch NY
 #   just -f data/resstock/Justfile status --state NY --location ebs
 #
 # Or from within data/resstock/:
-#   just run-pipeline NY --upgrade-ids 0 2
+#   just run-pipeline NY
 
 # All shell commands (backtick variable assignments and recipe bodies) run from
 # this directory, regardless of where `just` is invoked.  This means relative
@@ -60,9 +60,13 @@ pums_year := `uv run python -m data.resstock.constants pums.year`
 # retroactively mark the in_progress run as crashed with the actual exit code.
 # See also: `just -f data/resstock/Justfile mark-crashed`.
 #
+# The upgrade list is that state's upgrade_ids in state_configs.yaml, or
+# resstock.upgrade_ids in config.yaml when the state has none. NY and RI are
+# 0 and 2. --upgrade-ids overrides one run. States in one run must agree.
+#
 # Examples:
-#   just -f data/resstock/Justfile run-pipeline NY --upgrade-ids 0 2
-#   just -f data/resstock/Justfile run-pipeline "NY RI" --upgrade-ids 0 2
+#   just -f data/resstock/Justfile run-pipeline NY
+#   just -f data/resstock/Justfile run-pipeline "NY RI"
 # just -f data/resstock/Justfile run-pipeline NY --sample 10 --upgrade-ids 0 2
 run-pipeline state *args:
     #!/usr/bin/env bash
