@@ -80,33 +80,6 @@ def get_excluded_gas_utilities(
     return frozenset(excluded)
 
 
-def resolve_upgrade_ids(
-    states: list[str],
-    state_configs: dict[str, dict],
-    default: list[str],
-) -> list[str]:
-    """Return upgrade ids for a run that did not pass ``--upgrade-ids``.
-
-    Each state uses its ``upgrade_ids`` entry, or *default*
-    (``resstock.upgrade_ids`` in ``config.yaml``) when it has none. One run
-    applies a single list, so the states in the run must agree.
-    """
-    chosen: dict[str, tuple[str, ...]] = {}
-    for state in states:
-        raw = state_configs.get(state, {}).get("upgrade_ids", default)
-        chosen[state] = tuple(str(upgrade_id) for upgrade_id in raw)
-    lists = set(chosen.values())
-    if len(lists) != 1:
-        detail = ", ".join(
-            f"{state}={' '.join(upgrade_ids)}" for state, upgrade_ids in chosen.items()
-        )
-        raise ValueError(
-            "States in this run have different upgrade_ids ("
-            f"{detail}). Pass --upgrade-ids to use one list for the whole run."
-        )
-    return list(next(iter(lists)))
-
-
 def normalize_nargs_list(values: list[str]) -> list[str]:
     """Flatten a ``nargs="+"`` list that may contain space-separated entries.
 

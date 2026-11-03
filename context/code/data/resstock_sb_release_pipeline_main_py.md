@@ -37,7 +37,7 @@ Release-level defaults are loaded from `data/resstock/config.yaml`. State-specif
 | Argument                       | Default                                        | Description                                                                         |
 | ------------------------------ | ---------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `--state`                      | (required)                                     | One or more 2-letter state codes                                                    |
-| `--upgrade-ids`                | state's `upgrade_ids`, else `0`–`5`            | Upgrade IDs to download. Omitted: `state_configs.yaml`, then `config.yaml`          |
+| `--upgrade-ids`                | `0 1 2 3 4 5`                                  | Upgrade IDs to download                                                             |
 | `--file-types`                 | `metadata load_curve_hourly load_curve_annual` | File types to fetch from NREL                                                       |
 | `--sample`                     | `0` (all)                                      | Number of buildings to download (0 = full population)                               |
 | `--identify-hp-customers`      | `True`                                         | Add `postprocess_group.has_hp`                                                      |

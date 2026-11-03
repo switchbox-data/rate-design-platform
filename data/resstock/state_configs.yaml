@@ -6,21 +6,12 @@
 # Add a new state by adding a new top-level key.  Only the fields actually
 # consumed by that state's pipeline need to be set.
 #
-# `upgrade_ids`, when set, is the default for `just run-pipeline <STATE>`.
-# A state without it uses `resstock.upgrade_ids` in config.yaml. Pass
-# `--upgrade-ids` to override for one run. Every state in a single run must
-# resolve to the same list.
-#
 # Currently used by:
 #   - data/resstock/main.py (per-state defaults: add_vulnerability_columns, utility assignment)
 #   - data/resstock/utility/assign_utility.py (SUPPORTED_UTILITY_STATES derived from
 #     presence of the "utility_assignment" key; dynamic module import via "module")
 NY:
   state_fips: "36"
-  # Baseline and the heat-pump package. Previously pinned on the NY Justfile.
-  upgrade_ids:
-    - "0"
-    - "2"
   # Whether to add LMI vulnerability columns from PUMS during metadata
   # transforms.  Used as the per-state default when the CLI flag
   # --add-vulnerability-columns is not explicitly provided.
@@ -60,17 +51,12 @@ NY:
         - stlaw
 RI:
   state_fips: "44"
-  # Baseline and the heat-pump package. Previously pinned on the RI Justfile.
-  upgrade_ids:
-    - "0"
-    - "2"
   add_vulnerability_columns: false
   # RI uses rule-based (non-GIS) utility assignment; no kwargs needed.
   utility_assignment:
     module: data.resstock.utility.assign_utility_ri
 MD:
   state_fips: "24"
-  # upgrade_ids omitted: run-pipeline uses resstock.upgrade_ids in config.yaml.
   add_vulnerability_columns: false
   utility_assignment:
     module: data.resstock.utility.assign_utility_md
@@ -86,7 +72,6 @@ MD:
       # assignment time via filter_hifld_for_state().
 CT:
   state_fips: "09"
-  # upgrade_ids omitted: run-pipeline uses resstock.upgrade_ids in config.yaml.
   add_vulnerability_columns: false
   utility_assignment:
     module: data.resstock.utility.assign_utility_ct

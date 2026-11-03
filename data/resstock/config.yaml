@@ -7,9 +7,6 @@ resstock:
   release_year: 2024
   weather_file: amy2018
   release_version: 2
-  # Every upgrade this release contains. `run-pipeline` uses a state's
-  # `upgrade_ids` in state_configs.yaml when that key is set, and this list
-  # otherwise. `--upgrade-ids` overrides either one.
   upgrade_ids:
     - "0"
     - "1"

@@ -26,11 +26,15 @@ Release names come from `data/resstock/config.yaml`. Today they are `res_2024_am
 
 ## Procedure
 
-1. **Launch one command** from the repo root. The upgrade list is that state's `upgrade_ids` in `state_configs.yaml`. NY and RI are unchanged: `0` and `2`, the baseline and the heat-pump package. A state with no list, including MD and CT, uses every id in `config.yaml` (`0` through `5`). `--upgrade-ids` overrides the list for one run. States in one run must resolve to the same list.
+1. **Launch one command** from the repo root. NY and RI pin upgrades `0` and `2` (the baseline and the heat-pump package) on `resstock-run-pipeline`. Every other state uses `run-pipeline`, which downloads upgrades `0` through `5` from `config.yaml` unless `--upgrade-ids` is passed.
 
 ```bash
+just -f rate_design/hp_rates/ny/Justfile resstock-run-pipeline
+just -f rate_design/hp_rates/ri/Justfile resstock-run-pipeline
 just -f data/resstock/Justfile run-pipeline <STATE>
 ```
+
+NY or RI through the generic recipe still needs the upgrade list: `just -f data/resstock/Justfile run-pipeline NY --upgrade-ids 0 2`.
 
 A production run leaves `--sample` at 0. `--sample N` is a development run: the gas factor and the multifamily ratios are computed on the sample, and the real-world checks are skipped.
 

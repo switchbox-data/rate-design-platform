@@ -2,7 +2,7 @@
 
 The `resstock-sb-release` skill is the procedure for preparing or uploading a `_sb` release. This file is the legacy Justfile steps for a partial re-run, and how that old per-step workflow differs from `main.py`. Step internals and constants are in `resstock_sb_release_pipeline_main_py.md`.
 
-Commands below assume the repo root. Generic recipes are in `data/resstock/Justfile`. NY and RI partial-re-run recipes are in `rate_design/hp_rates/{ny,ri}/Justfile` (NY polygon downloads; RI has no polygon files). Both read paths through `data.resstock.constants`.
+Commands below assume the repo root. Generic recipes are in `data/resstock/Justfile`. NY and RI wrappers, including `resstock-run-pipeline`, are in `rate_design/hp_rates/{ny,ri}/Justfile` (NY polygon downloads; RI has no polygon files). Both read paths through `data.resstock.constants`.
 
 ## How the old workflow differs from main.py
 
