@@ -1,8 +1,6 @@
 # Polars laziness, collect, and runtime data validation
 
-A guide for data scientists on how LazyFrames, deferred execution, and
-streaming interact with runtime data-quality checks. The concepts are general
-but the examples are from our codebase.
+The `polars-parquet` skill is the procedure (one collect, then assert). This file is why a second `.collect()` re-reads every source, and how to embed checks when streaming. Open it for those cases.
 
 ## What is a LazyFrame?
 

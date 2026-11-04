@@ -1,4 +1,5 @@
 # ResStock data pipeline: fetch, modify, and upload to S3.
+# Preparing or uploading a _sb release: .cursor/skills/resstock-sb-release/
 #
 # All recipes here are state-generic — they take a `state` argument and
 # dispatch to the appropriate scripts.  State-specific convenience wrappers
@@ -47,27 +48,18 @@ pums_year := `uv run python -m data.resstock.constants pums.year`
 # Full pipeline (all via main.py)
 ################################################################################
 
-# Run the full _sb release pipeline for one or more states.
-# Covers: fetch → clone to _sb → metadata transforms → non-HP approximation
-#         → MF electricity adjustment → utility assignment → monthly loads → upload.
-# All steps are enabled by default; pass any main.py flag in args to override.
-#
-# Polygon filenames and add-vulnerability-columns default from state_configs.yaml;
-# override with CLI flags if needed.
-#
-# Crash recording: if the pipeline exits non-zero (including OOM kill / SIGKILL
-# exit code 137), the wrapper calls `manifest --mark-crashed --exit-code <N>` to
-# retroactively mark the in_progress run as crashed with the actual exit code.
-# See also: `just -f data/resstock/Justfile mark-crashed`.
-#
-# The upgrade list is that state's upgrade_ids in state_configs.yaml, or
+# Full _sb release. Procedure: .cursor/skills/resstock-sb-release/
+# Upgrade list: that state's upgrade_ids in state_configs.yaml, or
 # resstock.upgrade_ids in config.yaml when the state has none. NY and RI are
 # 0 and 2. --upgrade-ids overrides one run. States in one run must agree.
 #
 # Examples:
 #   just -f data/resstock/Justfile run-pipeline NY
 #   just -f data/resstock/Justfile run-pipeline "NY RI"
-# just -f data/resstock/Justfile run-pipeline NY --sample 10 --upgrade-ids 0 2
+#   just -f data/resstock/Justfile run-pipeline NY --sample 10 --upgrade-ids 0 2
+#
+# A non-zero exit, including SIGKILL 137, calls manifest --mark-crashed
+# with that exit code. See also: `just -f data/resstock/Justfile mark-crashed`.
 run-pipeline state *args:
     #!/usr/bin/env bash
     set -uo pipefail

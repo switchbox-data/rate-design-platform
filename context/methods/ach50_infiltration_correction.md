@@ -159,7 +159,7 @@ From `data/resstock/Justfile`:
 
 ### Reproducing a release
 
-Both recipes require the `_sb` release to already exist for the target state/upgrades (built via `just -f data/resstock/Justfile run-pipeline <state>`, which uses that state's upgrade list, or `--upgrade-ids` to override). If MF buildings need `approximate_non_hp_load`-adjusted profiles reflected in the regression (buildings flagged `approximated_hp_load` are excluded from WLS fitting but still corrected), run that step first.
+Both recipes require the `_sb` release to already exist for the target state/upgrades (the `resstock-sb-release` skill: `just -f data/resstock/Justfile run-pipeline <state>`, which uses that state's upgrade list, or `--upgrade-ids` to override). If MF buildings need `approximate_non_hp_load`-adjusted profiles reflected in the regression (buildings flagged `approximated_hp_load` are excluded from WLS fitting but still corrected), run that step first.
 
 **Fitted-ratio (current):**
 
