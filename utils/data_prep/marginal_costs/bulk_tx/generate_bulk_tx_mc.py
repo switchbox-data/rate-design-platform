@@ -25,16 +25,18 @@ Usage
         --iso isone --utility rie --year 2025 --load-year 2025 --upload
 
     # ISO-NE / CT: KDE probability of peak on 2022-2025 NE system load (the CT
-    # Justfile default). AESC PTF inflated from 2024 to 2025 dollars, day
-    # types on the 2025 calendar.
+    # Justfile default). AESC PTF inflated from 2024 to 2026 dollars, matching
+    # the dollar year of Eversource's distribution MC. Day types on the 2025
+    # calendar.
     uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --utility ct_eversource --year 2025 --load-year 2025 \\
-        --method pop_kde --upload
+        --method pop_kde --target-dollar-year 2026 --upload
 
     # ISO-NE / CT: fit the PoP on CT zone load instead of the NE system
     uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \\
         --iso isone --utility ct_eversource --year 2025 --load-year 2025 \\
-        --method pop_kde --allocation-load utility_zone --upload
+        --method pop_kde --target-dollar-year 2026 \\
+        --allocation-load utility_zone --upload
 
     # ISO-NE / CT exceedance, NE system load. This is the CLI default when
     # --method is omitted (RI's method).
