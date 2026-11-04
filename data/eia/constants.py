@@ -1,9 +1,9 @@
-"""Shared constants for the EIA-861 data pipeline.
+"""Shared constants for the EIA data pipelines (EIA-861 and EIA-176).
 
 Single source of truth for PUDL upstream version, S3 paths, and state code
 validation.  Imported by ``fetch_electric_utility_stat_parquets.py``,
 ``fetch_service_territory.py``, ``utils.py``, and downstream consumers like
-``data.resstock.utility.assign_utility_md``.
+``data.resstock.utility.assign_utility_md`` and the ResStock gas scaler.
 """
 
 from __future__ import annotations
@@ -22,6 +22,16 @@ PUDL_YEARLY_SALES_URL: str = f"{_PUDL_S3_BASE}/core_eia861__yearly_sales.parquet
 PUDL_SERVICE_TERRITORY_URL: str = (
     f"{_PUDL_S3_BASE}/core_eia861__yearly_service_territory.parquet"
 )
+
+PUDL_EIA176_BY_CONSUMER_URL: str = (
+    f"{_PUDL_S3_BASE}/core_eia176__yearly_gas_disposition_by_consumer.parquet"
+)
+"""EIA-176 deliveries by operator, customer class, and revenue class (Mcf, consumers)."""
+
+PUDL_EIA176_DISPOSITION_URL: str = (
+    f"{_PUDL_S3_BASE}/core_eia176__yearly_gas_disposition.parquet"
+)
+"""EIA-176 disposition by operator, including delivered-gas heat content (MMBtu/Mcf)."""
 
 # ── Our S3 outputs ────────────────────────────────────────────────────────────
 

@@ -156,6 +156,38 @@ Each handler receives a `DeriveContext` dataclass with all inputs (run_dir, base
 
 The `base` structure is handled directly in the pipeline (copy + relabel) since it's not a derivation.
 
+## ICOS tariff derivation
+
+Scenarios with `derive_method: icos` bypass the BAT-based `derive_tariffs` path entirely. Instead, `derive_icos_tariffs()` (from `utils/mid/derive_icos_tariff.py`) computes a delivery rate that zeroes the weighted-average overpayment for the target population directly from CAIRO outputs.
+
+The dispatch lives in `run_pipeline.py`'s dependent-scenario loop:
+
+```python
+if scenario.derive_method is not None:
+    derive_icos_tariffs(config, scenario, dep_outputs)
+else:
+    derive_tariffs(config, scenario, dep_precalc)
+```
+
+### ICOS config fields
+
+| Field           | Type           | Purpose                                                                                                   |
+| --------------- | -------------- | --------------------------------------------------------------------------------------------------------- |
+| `derive_method` | `str \| None`  | `"icos"` triggers ICOS derivation. When `None`, the standard `derive_tariffs` path is used.               |
+| `structure`     | `str \| None`  | `"flat"` or `"seasonal"`. Determines whether a single volumetric rate or a winter/summer pair is derived. |
+| `icos`          | `dict \| None` | ICOS-specific parameters: `heating_types: list[str]` (e.g. `[natgas, delivered_fuels]`).                  |
+
+### Data flow
+
+1. The parent scenario's delivery runs (precalc + calibrated) provide per-building economic burden and annual kWh.
+2. `customer_metadata.csv` from the precalc run filters to the target population.
+3. Weighted-average delta-MC, kWh-before, and kWh-after are computed over that population.
+4. The ICOS formula produces the new delivery rate(s).
+5. A supply component (base supply avg − base delivery avg) is added to each period.
+6. Delivery + supply URDB JSONs are written to the tariff directory.
+
+See [`context/methods/tou_and_rates/icos_tariff_derivation.md`](../../methods/tou_and_rates/icos_tariff_derivation.md) for the full mathematical derivation.
+
 ## Pipeline YAML structure
 
 ```yaml

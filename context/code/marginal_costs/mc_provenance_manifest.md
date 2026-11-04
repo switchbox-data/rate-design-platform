@@ -254,11 +254,9 @@ The ct Justfile's `create-dist-mc-data` writes all three methods to
 year is 2025, not the AMY2018 weather year, because CAIRO rotates the 2018 loads onto the run
 year's weekdays (see the methodology doc §7.2). `month_hour_calendar_year=<y>` overrides it.
 
-`create-bulk-tx-mc-data` defaults to `bulk_tx_method=pop_kde` with `--target-dollar-year 2026`,
-key `aesc_ptf69_pop_kde_ne_system_hist2022to2025_cal2025_2026usd`. AESC 2024 dollars are inflated
-to 2026 because that is the dollar year of Eversource's distribution MC (the MCOS-2 secondary
-`$21.22/kW-yr` that `create-dist-mc-data` allocates), so the two delivery components match. It is
-the key in `pipeline_ct_eversource.yaml` and covers `ct_eversource` and `ct_ui`.
+`create-bulk-tx-mc-data` defaults to `bulk_tx_method=pop_kde`, key
+`aesc_ptf69_pop_kde_ne_system_hist2022to2025_cal2025_2026usd` (AESC 2024 dollars inflated to
+2026), the key in `pipeline_ct_eversource.yaml`; it covers `ct_eversource` and `ct_ui`.
 `bulk_tx_method=month_hour` writes `month_hour_occ863att2_aesc_ptf69_holidays_cal2025_2026usd`
 (AESC 2024 dollars inflated to the same 2026); the ct recipe supplies Eversource's probability files, so
 that one is `ct_eversource` only. `bulk_tx_method=isone_aesc_ptf` writes

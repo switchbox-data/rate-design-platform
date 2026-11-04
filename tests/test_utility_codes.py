@@ -8,6 +8,7 @@ from utils.types import ElectricUtility, GasUtility
 from utils.utility_codes import (
     UTILITIES,
     get_all_std_names,
+    get_eia176_operator_id_to_std_name,
     get_eia_utility_id_to_std_name,
     get_electric_std_names,
     get_gas_std_names,
@@ -40,6 +41,19 @@ def test_get_eia_utility_id_to_std_name_ny():
     assert mapping[16183] == "rge"
     assert mapping[3249] == "cenhud"
     assert mapping[14154] == "or"
+
+
+def test_get_eia176_operator_id_to_std_name_ct():
+    """EIA-176 operator ids map to CT gas utilities; other states have none yet."""
+    assert get_eia176_operator_id_to_std_name("ct") == {
+        "17602792CT": "yankee_gas",
+        "17619018CT": "ct_natural_gas",
+        "17619865CT": "southern_ct_gas",
+        "17610359CT": "norwich_muni",
+    }
+    assert get_eia176_operator_id_to_std_name("NY") == {}
+    for std_name in get_eia176_operator_id_to_std_name("CT").values():
+        assert std_name in get_gas_std_names()
 
 
 def test_get_rate_acuity_utility_names():

@@ -178,6 +178,9 @@ class ScenarioConfig:
     residual_allocation_delivery: str | None = None
     residual_allocation_supply: str | None = None
     subclass_config: SubclassConfig | None = None
+    derive_method: str | None = None
+    structure: str | None = None
+    icos: dict[str, Any] | None = None
 
     @property
     def precalc_is_multi(self) -> bool:
@@ -540,6 +543,9 @@ def _parse_scenario(name: str, raw: dict[str, Any]) -> ScenarioConfig:
         residual_allocation_delivery=ra.get("delivery"),
         residual_allocation_supply=ra.get("supply"),
         subclass_config=_parse_subclass_config(raw.get("subclass_config")),
+        derive_method=raw.get("derive_method"),
+        structure=raw.get("structure"),
+        icos=raw.get("icos"),
     )
 
 
@@ -1330,7 +1336,7 @@ def validate_preflight_inputs(
     # Single-rate tariff JSONs must exist (they're input, not derived)
     selected = _select_scenarios(config, scenarios)
     for sc in selected:
-        if sc.is_single_rate:
+        if sc.is_single_rate and sc.derive_method is None:
             for supply_flag in (False, True):
                 stem = tariff_stem(
                     config.utility, sc, supply=supply_flag, calibrated=False

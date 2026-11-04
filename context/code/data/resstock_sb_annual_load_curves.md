@@ -6,7 +6,7 @@ How we build `load_curve_annual` for the Switchbox `_sb` ResStock release (`res_
 
 **Pipeline:** `data/resstock/main.py` step 2d (`_add_aggregate_loads`) runs when `--add-monthly-loads` and/or `--add-annual-loads` is True (both default True) and `load_curve_hourly` is in `--file-types`. Manifest step `add_aggregate_loads` records whichever of `load_curve_monthly` / `load_curve_annual` were produced.
 
-**Related:** `resstock_sb_release_pipeline_main_py.md` (pipeline / `SB_CLONE_EXCLUDED_FILE_TYPES`), `approximate_non_hp_load.md` (hourly HVAC rewrite), `investigate_resstock_eia_load_discrepancy.md` / MF adj (hourly electricity rewrite).
+**Related:** `resstock_sb_release_pipeline_main_py.md` (pipeline / `SB_CLONE_EXCLUDED_FILE_TYPES`), `approximate_non_hp_load.md` (hourly HVAC rewrite), `context/methods/adjust_mf_electricity_loads.md` / MF adj (hourly electricity rewrite).
 
 **Downstream use:** Maryland gas tariff mapping reads this `_sb` annual dataset.
 `utils/pre/gas_tariff_mapper.py` converts

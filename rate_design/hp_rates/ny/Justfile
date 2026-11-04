@@ -319,12 +319,6 @@ _rs_elec_poly := `uv run python -m data.resstock.constants state_config.NY.utili
 [private]
 _rs_gas_poly := `uv run python -m data.resstock.constants state_config.NY.utility_assignment.kwargs.gas_poly_filename`
 
-# ── Full pipeline ─────────────────────────────────────────────────────────────
-
-# Run the full NY _sb release pipeline for upgrades 0 and 2.
-resstock-run-pipeline *args:
-    just -f "{{ _resstock_jf }}" run-pipeline NY --upgrade-ids 0 2 {{ args }}
-
 # ── Fetch ─────────────────────────────────────────────────────────────────────
 
 # Download NY ResStock data from NREL.

@@ -172,13 +172,13 @@ The earlier analysis showed:
 
 ## ResStock vs EIA-861 by electric utility (NY and RI)
 
-Utility-level **`kwh_pct_diff`** from `compare_resstock_eia_by_utility` in `utils/post/investigate_resstock_eia_load_discrepancy.py`: ResStock aggregate kWh scaled by `eia_residential_customers / resstock_customers`, then compared to EIA residential kWh. EIA-861 **`year=2018`** state slices (`NY`, `RI`) match AMY 2018. See [`investigate_resstock_eia_load_discrepancy.md`](../code/data/investigate_resstock_eia_load_discrepancy.md).
+Utility-level **`kwh_pct_diff`**: ResStock aggregate kWh scaled by `eia_residential_customers / resstock_customers`, then compared to EIA residential kWh. EIA-861 **`year=2018`** state slices (`NY`, `RI`) match AMY 2018. These tables were produced by the since-removed `utils/post/investigate_resstock_eia_load_discrepancy.py` (see git history); the same customer-normalized comparison now runs at the end of every pipeline build as the `electric_kwh_utility` check in `data/resstock/validations/real_world_checks.py`.
 
 Rhode Island’s ResStock sample has a **single** Switchbox electric code, **`rie`** (Narragansett / Rhode Island Energy), so one row appears for RI in each table. New York rows are unchanged from the prior NY-only comparison.
 
 ### Before `adjust_mf_electricity` (base release)
 
-**`res_2024_amy2018_2`**, `upgrade=00`, local `load_curve_annual` + `metadata_utility/state={NY|RI}/utility_assignment.parquet` per state. Unadjusted ResStock; positive ⇒ ResStock above EIA after customer normalization. **% bldg_id multifamily** = share of sample buildings per utility whose `in.geometry_building_type_recs` contains `Multi-Family` (same definition as `building_type_share_by_utility` in `investigate_resstock_eia_load_discrepancy.py`). Both tables list utilities in **ascending** multifamily share **across NY and RI**; the multifamily column matches between the two EIA tables (assignment and building type from the base release).
+**`res_2024_amy2018_2`**, `upgrade=00`, local `load_curve_annual` + `metadata_utility/state={NY|RI}/utility_assignment.parquet` per state. Unadjusted ResStock; positive ⇒ ResStock above EIA after customer normalization. **% bldg_id multifamily** = share of sample buildings per utility whose `in.geometry_building_type_recs` contains `Multi-Family`. Both tables list utilities in **ascending** multifamily share **across NY and RI**; the multifamily column matches between the two EIA tables (assignment and building type from the base release).
 
 | Electric utility | % difference (ResStock − EIA) | % bldg_id multifamily |
 | ---------------- | ----------------------------: | --------------------: |

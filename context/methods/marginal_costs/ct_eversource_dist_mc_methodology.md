@@ -358,7 +358,7 @@ allocation or as a direct replacement. This is a nice-to-have, not a blocker for
    manifest records which one produced the current file.
 8. ~~Point a CT scenario's `path_dist_and_sub_tx_mc` at a built 8760.~~ The pipeline YAML
    points at the standard path and declares the expected key
-   (`pop_occ863att3_100h_load2025_2026usd`); preflight stops if the file carries another key.
+   (`month_hour_occ863att2_secondary_holidays_cal2025`); preflight stops if the file carries another key.
 
 ---
 

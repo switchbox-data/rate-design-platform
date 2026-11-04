@@ -48,6 +48,7 @@ from typing import Any
 import yaml
 
 from data.resstock.constants import CONFIG_PATH
+from data.resstock.notify import notify_crashed
 
 MANIFEST_FILENAME = "manifest.yaml"
 
@@ -178,6 +179,7 @@ def fail_run(run: dict[str, Any], error: str) -> None:
 
 
 _EXIT_CODE_SIGNALS: dict[int, str] = {
+    130: "SIGINT (interrupted, e.g. Ctrl-C)",
     137: "SIGKILL (likely OOM killer)",
     139: "SIGSEGV (segmentation fault)",
     134: "SIGABRT (abort)",
@@ -202,7 +204,7 @@ def mark_crashed_runs(
     release_dir: Path,
     *,
     exit_code: int | None = None,
-) -> int:
+) -> list[dict[str, Any]]:
     """Retroactively mark any stale ``in_progress`` runs in the manifest as ``crashed``.
 
     When a pipeline run is killed unexpectedly (e.g. by the OOM killer, a hard
@@ -218,13 +220,13 @@ def mark_crashed_runs(
     2. **At startup of the next run** — ``main.py`` calls this without
        ``exit_code`` as a safety net (e.g. when running without the Justfile).
 
-    Returns the number of runs that were updated.
+    Returns the runs that were updated.
     """
     if not release_dir.is_dir():
-        return 0
+        return []
     manifest = read_manifest(release_dir)
     runs: list[dict[str, Any]] = manifest.get("runs", [])
-    updated = 0
+    updated: list[dict[str, Any]] = []
     for run in runs:
         if run.get("status") == "in_progress":
             run["status"] = "crashed"
@@ -232,12 +234,12 @@ def mark_crashed_runs(
             run["error"] = _crash_reason(exit_code)
             if exit_code is not None:
                 run["exit_code"] = exit_code
-            updated += 1
+            updated.append(run)
     if updated:
         manifest["runs"] = runs
         write_manifest(release_dir, manifest)
         print(
-            f"  NOTE: marked {updated} stale in_progress run(s) as crashed "
+            f"  NOTE: marked {len(updated)} stale in_progress run(s) as crashed "
             f"in {release_dir / MANIFEST_FILENAME}.",
             flush=True,
         )
@@ -1080,11 +1082,14 @@ def _status_main() -> None:
     ebs_base = cfg["paths"]["output_dir"]
 
     if args.mark_crashed:
+        crashed: list[dict[str, Any]] = []
         for rel in (release, release_sb):
             d = Path(ebs_base) / rel
-            n = mark_crashed_runs(d, exit_code=args.exit_code)
-            if n == 0:
+            marked = mark_crashed_runs(d, exit_code=args.exit_code)
+            if not marked:
                 print(f"  {d}: no stale in_progress runs found.")
+            crashed.extend(marked)
+        notify_crashed(crashed)
         return
 
     if args.check_integrity:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 from pathlib import Path
 
@@ -10,6 +11,24 @@ import polars as pl
 import yaml
 
 from data.resstock.constants import STATE_CONFIGS_PATH
+
+_AMY_YEAR = re.compile(r"amy(\d{4})", re.IGNORECASE)
+
+
+def eia_year_for_resstock_release(release: str) -> int:
+    """Return the AMY weather year embedded in a ResStock release name.
+
+    EIA-861 and EIA-176 benchmarks should come from the same year as the
+    weather the release was simulated on (e.g. 2018 for ``res_2024_amy2018_2``).
+    """
+    match = _AMY_YEAR.search(release)
+    if match is None:
+        raise ValueError(
+            f"Cannot infer the EIA year from ResStock release {release!r}. "
+            "Expected a name containing amyYYYY, such as res_2024_amy2018_2_sb. "
+            "Pass --eia-year."
+        )
+    return int(match.group(1))
 
 
 def load_state_configs(path: Path | None = None) -> dict[str, dict]:
@@ -59,6 +78,33 @@ def get_excluded_gas_utilities(
         kwargs = ua.get("kwargs") or {}
         excluded.update(kwargs.get("excluded_gas_utilities") or [])
     return frozenset(excluded)
+
+
+def resolve_upgrade_ids(
+    states: list[str],
+    state_configs: dict[str, dict],
+    default: list[str],
+) -> list[str]:
+    """Return upgrade ids for a run that did not pass ``--upgrade-ids``.
+
+    Each state uses its ``upgrade_ids`` entry, or *default*
+    (``resstock.upgrade_ids`` in ``config.yaml``) when it has none. One run
+    applies a single list, so the states in the run must agree.
+    """
+    chosen: dict[str, tuple[str, ...]] = {}
+    for state in states:
+        raw = state_configs.get(state, {}).get("upgrade_ids", default)
+        chosen[state] = tuple(str(upgrade_id) for upgrade_id in raw)
+    lists = set(chosen.values())
+    if len(lists) != 1:
+        detail = ", ".join(
+            f"{state}={' '.join(upgrade_ids)}" for state, upgrade_ids in chosen.items()
+        )
+        raise ValueError(
+            "States in this run have different upgrade_ids ("
+            f"{detail}). Pass --upgrade-ids to use one list for the whole run."
+        )
+    return list(next(iter(lists)))
 
 
 def normalize_nargs_list(values: list[str]) -> list[str]:
