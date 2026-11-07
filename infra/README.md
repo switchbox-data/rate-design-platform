@@ -33,8 +33,8 @@ This will:
 
 - Create the EC2 instance
 - Set up the EBS volume and S3 mount
-- Install system dependencies (including **Quarto** for manuscript-style reports)
-- Install `just`, `uv`, `gh`, and AWS CLI on the instance via SSM (idempotent)
+- Install system dependencies (including **Quarto** for manuscript-style reports and headless **LibreOffice Writer** for checking Word output as PDF)
+- Install `just`, `uv`, `gh`, AWS CLI, Quarto and LibreOffice on the instance via SSM (idempotent; this is how an existing instance gets tools added to `user-data.sh` later)
 - Create a CloudWatch alarm to auto-stop the instance after idle period
 
 ### User Login
