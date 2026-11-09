@@ -390,7 +390,7 @@ def _p40_participant_vs_excluded_hist(df: pl.DataFrame) -> None:
 
     fig, ax = plt.subplots(figsize=(10, 6))
     all_vals = has_gas["gas_total_bill"].to_numpy()
-    bins = np.linspace(all_vals.min(), all_vals.max(), 50)
+    bins = np.linspace(all_vals.min(), all_vals.max(), 50).tolist()
     ax.hist(
         parts["gas_total_bill"].to_numpy(),
         bins=bins,

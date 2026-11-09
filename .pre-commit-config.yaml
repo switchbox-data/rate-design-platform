@@ -39,7 +39,7 @@ repos:
       - id: format-justfile
         name: Justfile formatter (format-justfile)
   - repo: https://github.com/scop/pre-commit-shfmt
-    rev: v3.10.0-1
+    rev: v3.14.1-1
     hooks:
       - id: shfmt
         name: Shell script formatter (shfmt)
@@ -51,7 +51,7 @@ repos:
         entry: dprint fmt
         language: python
         types: [markdown]
-        additional_dependencies: [dprint-py]
+        additional_dependencies: [dprint-py==0.64.3.0]
       - id: ty
         name: Python type checker (ty)
         entry: uv run ty check .

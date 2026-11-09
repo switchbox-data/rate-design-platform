@@ -11,7 +11,7 @@ import os
 import random
 import sys
 import time
-from collections.abc import Iterator
+from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -114,7 +114,7 @@ def assert_output_dir_is_mounted(
 
 
 @contextlib.contextmanager
-def _timed(label: str) -> Iterator[None]:
+def _timed(label: str) -> Generator[None, None, None]:
     t0 = time.perf_counter()
     yield
     log.info("TIMING %s: %.1fs", label, time.perf_counter() - t0)
