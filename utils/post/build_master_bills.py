@@ -117,10 +117,7 @@ UPGRADE_02_RUNS = {
     39,
     40,
 }
-VALID_RUN_PAIRS = {
-    (r, r + 1)
-    for r in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39)
-}
+VALID_RUN_PAIRS = {(r, r + 1) for r in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39)}
 
 META_COLS = [
     BLDG_ID,
@@ -233,9 +230,7 @@ def _extract_fixed_charges_from_tariff_config(
             label = items[0].get("label") or items[0].get("name") or "calibrated"
             fc = items[0].get("fixedchargefirstmeter")
             if fc is None:
-                raise ValueError(
-                    "URDB tariff_final_config has 'items' but no fixedchargefirstmeter"
-                )
+                raise ValueError("URDB tariff_final_config has 'items' but no fixedchargefirstmeter")
             return {str(label): float(fc)}
         raise ValueError("tariff_final_config has 'items' but it is empty")
 
@@ -244,10 +239,7 @@ def _extract_fixed_charges_from_tariff_config(
         if isinstance(value, dict):
             fc = value.get("ur_monthly_fixed_charge")
             if fc is None:
-                raise ValueError(
-                    f"Tariff key '{key}' in tariff_final_config.json "
-                    "has no ur_monthly_fixed_charge"
-                )
+                raise ValueError(f"Tariff key '{key}' in tariff_final_config.json has no ur_monthly_fixed_charge")
             result[key] = float(fc)
     if not result:
         raise ValueError(
@@ -280,13 +272,11 @@ def _read_fixed_charges(
     unique_fcs = set(fc_by_key.values())
     if len(unique_fcs) == 1:
         fc_value = next(iter(unique_fcs))
-        return pl.DataFrame(
-            {BLDG_ID: sorted(bldg_ids), "elec_fixed_charge_monthly": fc_value}
-        ).cast({BLDG_ID: pl.Int64, "elec_fixed_charge_monthly": pl.Float64})
+        return pl.DataFrame({BLDG_ID: sorted(bldg_ids), "elec_fixed_charge_monthly": fc_value}).cast(
+            {BLDG_ID: pl.Int64, "elec_fixed_charge_monthly": pl.Float64}
+        )
 
-    tariff_map_path = _resolve_tariff_map_path(
-        dir_delivery, path_elec_tariff_map_override
-    )
+    tariff_map_path = _resolve_tariff_map_path(dir_delivery, path_elec_tariff_map_override)
     tariff_map = pl.read_csv(tariff_map_path, schema_overrides={BLDG_ID: pl.Int64})
 
     fc_lookup = pl.DataFrame(
@@ -295,9 +285,7 @@ def _read_fixed_charges(
             "elec_fixed_charge_monthly": list(fc_by_key.values()),
         }
     )
-    result = tariff_map.join(fc_lookup, on="tariff_key", how="inner").select(
-        BLDG_ID, "elec_fixed_charge_monthly"
-    )
+    result = tariff_map.join(fc_lookup, on="tariff_key", how="inner").select(BLDG_ID, "elec_fixed_charge_monthly")
 
     result_ids = set(result[BLDG_ID].to_list())
     missing = bldg_ids - result_ids
@@ -338,10 +326,7 @@ def _resolve_tariff_map_path(
 
     path = settings.get("path_tariff_maps_electric")
     if not path:
-        raise ValueError(
-            f"scenario_settings.json at {settings_uri} has no "
-            "path_tariff_maps_electric field"
-        )
+        raise ValueError(f"scenario_settings.json at {settings_uri} has no path_tariff_maps_electric field")
     return str(path)
 
 
@@ -368,9 +353,7 @@ def _find_run_dir(s3_base: str, run_num: int) -> str:
     for dirname in prefixes:
         if marker in dirname:
             return f"{s3_base.rstrip('/')}/{dirname}"
-    raise FileNotFoundError(
-        f"No run directory matching '{marker}' under {s3_base}. Available: {prefixes}"
-    )
+    raise FileNotFoundError(f"No run directory matching '{marker}' under {s3_base}. Available: {prefixes}")
 
 
 def _parse_batch_overrides(raw: list[str] | None) -> dict[str, str]:
@@ -380,9 +363,7 @@ def _parse_batch_overrides(raw: list[str] | None) -> dict[str, str]:
     overrides: dict[str, str] = {}
     for item in raw:
         if "=" not in item:
-            raise ValueError(
-                f"Invalid --batch-override format '{item}'; expected UTILITY=BATCH"
-            )
+            raise ValueError(f"Invalid --batch-override format '{item}'; expected UTILITY=BATCH")
         utility, batch = item.split("=", 1)
         overrides[utility] = batch
     return overrides
@@ -406,18 +387,14 @@ def _upgrade_for_run(run_delivery: int) -> str:
         return "00"
     if run_delivery in UPGRADE_02_RUNS:
         return "02"
-    raise ValueError(
-        f"Cannot infer upgrade for run {run_delivery}; not in UPGRADE_00_RUNS or UPGRADE_02_RUNS"
-    )
+    raise ValueError(f"Cannot infer upgrade for run {run_delivery}; not in UPGRADE_00_RUNS or UPGRADE_02_RUNS")
 
 
 def _validate_run_pair(run_delivery: int, run_supply: int) -> None:
     """Require a valid delivery+supply pair (1+2, 3+4, ..., 11+12)."""
     if (run_delivery, run_supply) not in VALID_RUN_PAIRS:
         expected = ", ".join(f"{d}+{s}" for d, s in sorted(VALID_RUN_PAIRS))
-        raise ValueError(
-            f"Invalid run pair {run_delivery}+{run_supply}. Expected one of: {expected}"
-        )
+        raise ValueError(f"Invalid run pair {run_delivery}+{run_supply}. Expected one of: {expected}")
 
 
 def _assert_building_match(
@@ -440,22 +417,17 @@ def _assert_building_match(
         )
 
 
-def _assert_rows_per_building(
-    df: pl.DataFrame, expected: int, label: str, utility: str
-) -> None:
+def _assert_rows_per_building(df: pl.DataFrame, expected: int, label: str, utility: str) -> None:
     counts = df.group_by(BLDG_ID).agg(pl.len().alias("n"))
     bad = counts.filter(pl.col("n") != expected)
     if not bad.is_empty():
         examples = bad.head(5).to_dicts()
         raise AssertionError(
-            f"[{utility}] {label}: expected {expected} rows per building, "
-            f"but found exceptions: {examples}"
+            f"[{utility}] {label}: expected {expected} rows per building, but found exceptions: {examples}"
         )
 
 
-def _assert_identity(
-    df: pl.DataFrame, lhs: str, rhs_cols: list[str], tol: float, utility: str
-) -> None:
+def _assert_identity(df: pl.DataFrame, lhs: str, rhs_cols: list[str], tol: float, utility: str) -> None:
     rhs_sum = pl.sum_horizontal(*[pl.col(c) for c in rhs_cols])
     diff = (pl.col(lhs) - rhs_sum).abs()
     violations = df.filter(diff > tol)
@@ -490,9 +462,7 @@ def _attach_run12_passthrough_columns(
     """Baseline ``run_1+2`` electric passthrough columns (see ``master_run12_passthrough``)."""
     if run_delivery == 1 and run_supply == 2:
         return df.with_columns(
-            (pl.col("elec_fixed_charge") + pl.col("elec_delivery_bill")).alias(
-                "passthrough_delivery"
-            ),
+            (pl.col("elec_fixed_charge") + pl.col("elec_delivery_bill")).alias("passthrough_delivery"),
             pl.col("elec_supply_bill").alias("passthrough_supply"),
         )
     ref = load_passthrough_reference_monthly(
@@ -574,9 +544,7 @@ def _apply_lmi_discounts_to_master(
 
     if state_upper == "RI":
         if len(utilities) != 1:
-            raise ValueError(
-                f"RI LMI expects exactly one utility in the run; got {utilities}"
-            )
+            raise ValueError(f"RI LMI expects exactly one utility in the run; got {utilities}")
         return apply_ri_lmi_to_master(
             master,
             utility=utilities[0],
@@ -591,10 +559,7 @@ def _apply_lmi_discounts_to_master(
             opts=opts,
         )
 
-    raise ValueError(
-        f"--calculate-lmi is not supported for state {state_upper!r}. "
-        "Supported states: MD, NY, RI."
-    )
+    raise ValueError(f"--calculate-lmi is not supported for state {state_upper!r}. Supported states: MD, NY, RI.")
 
 
 # ---------------------------------------------------------------------------
@@ -644,17 +609,13 @@ def _process_utility(
 
     elec_d_ids = set(elec_delivery_df[BLDG_ID].unique().to_list())
     elec_s_ids = set(elec_supply_df[BLDG_ID].unique().to_list())
-    _assert_building_match(
-        "elec_delivery", elec_d_ids, "elec_supply", elec_s_ids, utility
-    )
+    _assert_building_match("elec_delivery", elec_d_ids, "elec_supply", elec_s_ids, utility)
     _assert_building_match("elec_bills", elec_d_ids, "metadata", meta_bldg_ids, utility)
     _assert_rows_per_building(elec_delivery_df, 13, "elec_delivery", utility)
     _assert_rows_per_building(elec_supply_df, 13, "elec_supply", utility)
 
     # Validate weights match
-    weight_check = elec_delivery_df.select(
-        BLDG_ID, "month", pl.col("weight").alias("w_d")
-    ).join(
+    weight_check = elec_delivery_df.select(BLDG_ID, "month", pl.col("weight").alias("w_d")).join(
         elec_supply_df.select(BLDG_ID, "month", pl.col("weight").alias("w_s")),
         on=[BLDG_ID, "month"],
         how="inner",
@@ -706,9 +667,7 @@ def _process_utility(
             .alias("elec_fixed_charge"),
         )
         .with_columns(
-            (pl.col("bill_delivery") - pl.col("elec_fixed_charge")).alias(
-                "elec_delivery_bill"
-            ),
+            (pl.col("bill_delivery") - pl.col("elec_fixed_charge")).alias("elec_delivery_bill"),
             (pl.col("bill_supply") - pl.col("bill_delivery")).alias("elec_supply_bill"),
             pl.col("bill_supply").alias("elec_total_bill"),
         )
@@ -728,29 +687,21 @@ def _process_utility(
     t = _log("  Computing gas bills from tariff JSONs...")
     gas_tariff_map = load_gas_tariff_map(state, utility, upgrade)
     gas_map_ids = set(gas_tariff_map[BLDG_ID].to_list())
-    _assert_building_match(
-        "gas_tariff_map", gas_map_ids, "metadata", meta_bldg_ids, utility
-    )
+    _assert_building_match("gas_tariff_map", gas_map_ids, "metadata", meta_bldg_ids, utility)
 
     # --- Load curves (shared by gas + oil/propane) ---
     t = _log(f"  Reading load_curve_monthly (local, {n_bldgs} buildings)...")
-    load_curves = scan_load_curves_for_utility(
-        path_load_curves_local, state.upper(), upgrade, utility, "monthly"
-    )
+    load_curves = scan_load_curves_for_utility(path_load_curves_local, state.upper(), upgrade, utility, "monthly")
     _log_done("  Reading load curves", t)
 
-    gas = compute_gas_bills(
-        load_curves, gas_tariff_map, gas_rate_table, gas_fixed_charges
-    ).collect()
+    gas = compute_gas_bills(load_curves, gas_tariff_map, gas_rate_table, gas_fixed_charges).collect()
     _log_done("  Gas bills", t, f"{gas.height} rows")
 
     gas_ids = set(gas[BLDG_ID].unique().to_list())
     _assert_building_match("gas_bills", gas_ids, "elec_bills", elec_d_ids, utility)
     _assert_rows_per_building(gas, 13, "gas_bills", utility)
 
-    n_gas = gas.filter(
-        (pl.col("month") != ANNUAL_MONTH) & (pl.col("gas_total_bill") > 0)
-    )[BLDG_ID].n_unique()
+    n_gas = gas.filter((pl.col("month") != ANNUAL_MONTH) & (pl.col("gas_total_bill") > 0))[BLDG_ID].n_unique()
     _log(f"  Buildings with nonzero gas: {n_gas}")
 
     # --- Oil and propane bills ---
@@ -761,12 +712,10 @@ def _process_utility(
     fuel_ids = set(fuel_bills[BLDG_ID].unique().to_list())
     _assert_building_match("load_curves", fuel_ids, "metadata", meta_bldg_ids, utility)
 
-    n_oil = fuel_bills.filter(
-        (pl.col("month") != ANNUAL_MONTH) & (pl.col("oil_total_bill") > 0)
-    )[BLDG_ID].n_unique()
-    n_propane = fuel_bills.filter(
-        (pl.col("month") != ANNUAL_MONTH) & (pl.col("propane_total_bill") > 0)
-    )[BLDG_ID].n_unique()
+    n_oil = fuel_bills.filter((pl.col("month") != ANNUAL_MONTH) & (pl.col("oil_total_bill") > 0))[BLDG_ID].n_unique()
+    n_propane = fuel_bills.filter((pl.col("month") != ANNUAL_MONTH) & (pl.col("propane_total_bill") > 0))[
+        BLDG_ID
+    ].n_unique()
     _log(f"  Buildings with nonzero oil: {n_oil}, propane: {n_propane}")
 
     _assert_no_nulls(fuel_bills, ["oil_total_bill", "propane_total_bill"], utility)
@@ -775,12 +724,8 @@ def _process_utility(
     monthly_consumption = load_curves.select(
         pl.col(BLDG_ID),
         pl.col("month"),
-        grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL)
-        .fill_null(0.0)
-        .alias("elec_grid_kwh"),
-        (pl.col(GAS_CONSUMPTION_COL).fill_null(0.0) / KWH_PER_THERM).alias(
-            "gas_therms"
-        ),
+        grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL).fill_null(0.0).alias("elec_grid_kwh"),
+        (pl.col(GAS_CONSUMPTION_COL).fill_null(0.0) / KWH_PER_THERM).alias("gas_therms"),
     ).collect()
     month_int_to_str: dict[int, str] = {
         1: "Jan",
@@ -854,10 +799,7 @@ def _process_utility(
 
     expected_rows = n_bldgs * 13
     if joined.height != expected_rows:
-        raise AssertionError(
-            f"[{utility}] Expected {expected_rows} rows ({n_bldgs} bldgs * 13), "
-            f"got {joined.height}"
-        )
+        raise AssertionError(f"[{utility}] Expected {expected_rows} rows ({n_bldgs} bldgs * 13), got {joined.height}")
 
     _assert_identity(
         joined,
@@ -950,9 +892,7 @@ def _parse_args() -> argparse.Namespace:
         default="s3://data.sb/eia/heating_fuel_prices/",
         help="S3 path to Hive-partitioned EIA heating fuel prices.",
     )
-    parser.add_argument(
-        "--price-year", type=int, default=2024, help="Year for EIA fuel prices."
-    )
+    parser.add_argument("--price-year", type=int, default=2024, help="Year for EIA fuel prices.")
     parser.add_argument(
         "--utilities",
         default=None,
@@ -1049,9 +989,7 @@ def main() -> None:
     if batch_overrides:
         _log(f"  Batch overrides: {batch_overrides}")
 
-    output_batch_all_util = args.output_batch or _build_output_path_suffix(
-        args.batch, batch_overrides
-    )
+    output_batch_all_util = args.output_batch or _build_output_path_suffix(args.batch, batch_overrides)
     storage_options = get_aws_storage_options()
 
     # --- Load shared data ---
@@ -1065,16 +1003,14 @@ def main() -> None:
         f"{len(gas_tariffs)} tariffs, {gas_rate_table.height} rate rows",
     )
 
-    t = _log(
-        f"Loading EIA fuel prices (state={state_upper}, year={args.price_year})..."
-    )
-    monthly_prices = load_monthly_fuel_prices(
-        args.path_heating_fuel_prices, state_upper, args.price_year
-    )
+    t = _log(f"Loading EIA fuel prices (state={state_upper}, year={args.price_year})...")
+    monthly_prices = load_monthly_fuel_prices(args.path_heating_fuel_prices, state_upper, args.price_year)
     _log_done("Loading EIA fuel prices", t)
 
     t = _log("Loading metadata from utility_assignment.parquet...")
-    meta_path = f"{args.path_resstock_release.rstrip('/')}/metadata_utility/state={state_upper}/utility_assignment.parquet"
+    meta_path = (
+        f"{args.path_resstock_release.rstrip('/')}/metadata_utility/state={state_upper}/utility_assignment.parquet"
+    )
     metadata = pl.scan_parquet(meta_path).collect()
     n_bldgs_total = metadata[BLDG_ID].n_unique()
     _log_done("Loading metadata", t, f"{n_bldgs_total} buildings")
@@ -1111,10 +1047,7 @@ def main() -> None:
         )
 
         # --- Write per-utility output ---
-        per_util_output_s3 = (
-            f"{s3_base}/run_{args.run_delivery}+{args.run_supply}/"
-            f"comb_bills_year_target/"
-        )
+        per_util_output_s3 = f"{s3_base}/run_{args.run_delivery}+{args.run_supply}/comb_bills_year_target/"
         t_util = _log(f"  Writing per-utility output to {per_util_output_s3}...")
         tmp_util_dir = Path(tempfile.mkdtemp(prefix=f"master_bills_{utility}_"))
         try:
@@ -1147,21 +1080,16 @@ def main() -> None:
     expected_bldgs = sum(bldgs_per_utility[u] for u in utilities)
     if final_bldg_count != expected_bldgs:
         raise AssertionError(
-            f"Final building count {final_bldg_count} != expected {expected_bldgs} "
-            f"(across {len(utilities)} utilities)"
+            f"Final building count {final_bldg_count} != expected {expected_bldgs} (across {len(utilities)} utilities)"
         )
 
-    per_util_check = master.group_by("sb.electric_utility").agg(
-        pl.col(BLDG_ID).n_unique().alias("n_bldgs")
-    )
+    per_util_check = master.group_by("sb.electric_utility").agg(pl.col(BLDG_ID).n_unique().alias("n_bldgs"))
     for row in per_util_check.iter_rows(named=True):
         u = row["sb.electric_utility"]
         actual = row["n_bldgs"]
         expected = bldgs_per_utility.get(u, -1)
         if actual != expected:
-            raise AssertionError(
-                f"Utility {u}: expected {expected} buildings, got {actual}"
-            )
+            raise AssertionError(f"Utility {u}: expected {expected} buildings, got {actual}")
 
     _assert_identity(
         master,

@@ -18,15 +18,15 @@ from data.nyiso.lbmp.convert_lbmp_zonal_zips_to_parquet import (
 )
 from data.nyiso.lbmp.fetch_lbmp_zonal_zips import (
     _last_complete_month,
-    _parse_yyyy_mm,
     _month_range,
+    _parse_yyyy_mm,
 )
 from data.nyiso.lbmp.validate_lbmp_zonal_parquet import (
-    expected_rows_day_ahead,
-    expected_rows_real_time,
+    CANONICAL_NYISO_ZONES,
     check_schema,
     check_zones,
-    CANONICAL_NYISO_ZONES,
+    expected_rows_day_ahead,
+    expected_rows_real_time,
 )
 
 
@@ -127,9 +127,7 @@ def test_expected_rows_real_time() -> None:
 def test_check_schema_ok() -> None:
     df = pl.DataFrame(
         {
-            "interval_start_est": pl.Series([datetime(2024, 1, 1)]).cast(
-                pl.Datetime("us", "America/New_York")
-            ),
+            "interval_start_est": pl.Series([datetime(2024, 1, 1)]).cast(pl.Datetime("us", "America/New_York")),
             "zone": ["CAPITL"],
             "ptid": [61757],
             "lbmp_usd_per_mwh": [28.5],

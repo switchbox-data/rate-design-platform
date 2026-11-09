@@ -37,13 +37,7 @@ MONTH_INT_TO_STR: dict[int, str] = {
 
 def _config_root(state: str) -> Path:
     """Return the config directory for a state."""
-    return (
-        Path(__file__).resolve().parents[2]
-        / "rate_design"
-        / "hp_rates"
-        / state
-        / "config"
-    )
+    return Path(__file__).resolve().parents[2] / "rate_design" / "hp_rates" / state / "config"
 
 
 def _normalize_tariff_json(data: dict) -> dict:
@@ -173,17 +167,12 @@ def compute_gas_bills(
     with_tariff = consumption.join(gas_tariff_map.lazy(), on=BLDG_ID, how="left")
 
     # Expand by tiers: each building-month gets one row per tier
-    with_tiers = with_tariff.join(
-        rate_table.lazy(), on=["tariff_key", "month"], how="left"
-    )
+    with_tiers = with_tariff.join(rate_table.lazy(), on=["tariff_key", "month"], how="left")
 
     # Per-tier consumption: clip(min(total, ceiling) - floor, 0)
     monthly_volumetric = (
         with_tiers.with_columns(
-            (
-                pl.min_horizontal(pl.col("gas_kwh"), pl.col("tier_ceiling_kwh"))
-                - pl.col("tier_floor_kwh")
-            )
+            (pl.min_horizontal(pl.col("gas_kwh"), pl.col("tier_ceiling_kwh")) - pl.col("tier_floor_kwh"))
             .clip(lower_bound=0.0)
             .alias("tier_kwh")
         )
@@ -193,20 +182,14 @@ def compute_gas_bills(
     )
 
     # Join fixed charges
-    monthly_bills = monthly_volumetric.join(
-        fixed_charges.lazy(), on="tariff_key", how="left"
-    ).with_columns(
-        (pl.col("gas_fixed_charge") + pl.col("gas_volumetric_bill")).alias(
-            "gas_total_bill"
-        ),
+    monthly_bills = monthly_volumetric.join(fixed_charges.lazy(), on="tariff_key", how="left").with_columns(
+        (pl.col("gas_fixed_charge") + pl.col("gas_volumetric_bill")).alias("gas_total_bill"),
     )
 
     # Convert month int to string
     monthly = monthly_bills.select(
         BLDG_ID,
-        pl.col("month")
-        .replace_strict(MONTH_INT_TO_STR, return_dtype=pl.String)
-        .alias("month"),
+        pl.col("month").replace_strict(MONTH_INT_TO_STR, return_dtype=pl.String).alias("month"),
         "gas_fixed_charge",
         "gas_volumetric_bill",
         "gas_total_bill",

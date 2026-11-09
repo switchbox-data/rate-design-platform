@@ -72,11 +72,7 @@ def _build_smi_threshold_column(
     expr = pl.lit(smi_thresholds.get(8, 0.0))
     for hh_size in range(8, 0, -1):
         thresh = smi_thresholds.get(hh_size, 0.0)
-        expr = (
-            pl.when(pl.col(occupants_col) == hh_size)
-            .then(pl.lit(thresh))
-            .otherwise(expr)
-        )
+        expr = pl.when(pl.col(occupants_col) == hh_size).then(pl.lit(thresh)).otherwise(expr)
     return expr
 
 
@@ -117,45 +113,27 @@ def _build_tier_consumption(
     # For AMI territories, load area-level AMI thresholds at 100%
     ami_100: dict[int, float] | None = None
     if electric_utility in ami_territories:
-        ami_100 = get_ami_threshold_for_utility(
-            electric_utility, inflation_year, 100.0, opts, ny_eap_config
-        )
+        ami_100 = get_ami_threshold_for_utility(electric_utility, inflation_year, 100.0, opts, ny_eap_config)
 
     meta = pl.scan_parquet(meta_path, storage_options=opts)
     util = pl.scan_parquet(util_path, storage_options=opts, hive_partitioning=True)
 
     # Filter to buildings served by this electric utility
     meta = meta.join(
-        util.filter(pl.col("electric_utility") == electric_utility).select(
-            BLDG_ID_COL, "gas_utility"
-        ),
+        util.filter(pl.col("electric_utility") == electric_utility).select(BLDG_ID_COL, "gas_utility"),
         on=BLDG_ID_COL,
         how="inner",
     )
 
     # Parse occupants, inflate income, compute FPL% and SMI%
     meta = meta.with_columns(parse_occupants_expr("in.occupants").alias(occupants_num))
-    meta = meta.with_columns(
-        fpl_threshold_expr(occupants_num, fpl["base"], fpl["increment"]).alias(
-            fpl_threshold
-        )
-    )
-    meta = meta.with_columns(
-        inflate_income_expr("in.representative_income", cpi_ratio).alias(
-            income_inflated
-        )
-    )
-    meta = meta.with_columns(
-        fpl_pct_expr(income_inflated, pl.col(fpl_threshold)).alias(fpl_pct)
-    )
+    meta = meta.with_columns(fpl_threshold_expr(occupants_num, fpl["base"], fpl["increment"]).alias(fpl_threshold))
+    meta = meta.with_columns(inflate_income_expr("in.representative_income", cpi_ratio).alias(income_inflated))
+    meta = meta.with_columns(fpl_pct_expr(income_inflated, pl.col(fpl_threshold)).alias(fpl_pct))
 
     # SMI threshold by household size
-    meta = meta.with_columns(
-        _build_smi_threshold_column(occupants_num, smi_100).alias(smi_threshold)
-    )
-    meta = meta.with_columns(
-        smi_pct_expr(income_inflated, smi_threshold).alias(smi_pct)
-    )
+    meta = meta.with_columns(_build_smi_threshold_column(occupants_num, smi_100).alias(smi_threshold))
+    meta = meta.with_columns(smi_pct_expr(income_inflated, smi_threshold).alias(smi_pct))
 
     # AMI threshold and percentage (AMI territories only)
     ami_pct_col_name: str | None = None
@@ -163,12 +141,8 @@ def _build_tier_consumption(
         ami_threshold_col = "ami_threshold"
         ami_pct_name = "ami_pct"
         ami_pct_col_name = ami_pct_name
-        meta = meta.with_columns(
-            _build_smi_threshold_column(occupants_num, ami_100).alias(ami_threshold_col)
-        )
-        meta = meta.with_columns(
-            smi_pct_expr(income_inflated, ami_threshold_col).alias(ami_pct_name)
-        )
+        meta = meta.with_columns(_build_smi_threshold_column(occupants_num, ami_100).alias(ami_threshold_col))
+        meta = meta.with_columns(smi_pct_expr(income_inflated, ami_threshold_col).alias(ami_pct_name))
 
     # Filter out vacant units (income = 0, demographics unavailable)
     meta = meta.filter(pl.col("in.vacancy_status") != "Vacant")
@@ -191,9 +165,7 @@ def _build_tier_consumption(
     if participation_rate >= 1.0:
         meta = meta.with_columns(eligible.alias("participates"))
     elif participation_mode == "uniform":
-        participates = participation_uniform_expr(
-            BLDG_ID_COL, participation_rate, seed, eligible
-        )
+        participates = participation_uniform_expr(BLDG_ID_COL, participation_rate, seed, eligible)
         meta = meta.with_columns(participates.alias("participates"))
     else:
         eligible_df = (
@@ -202,9 +174,7 @@ def _build_tier_consumption(
             .with_columns((1.0 / pl.col(fpl_pct).clip(1.0, None)).alias("weight"))
             .collect()
         )
-        part_df = select_participants_weighted(
-            eligible_df, participation_rate, seed, "weight", BLDG_ID_COL
-        )
+        part_df = select_participants_weighted(eligible_df, participation_rate, seed, "weight", BLDG_ID_COL)
         meta = meta.join(part_df.lazy(), on=BLDG_ID_COL, how="left")
         meta = meta.with_columns(
             pl.when(eligible)
@@ -214,10 +184,7 @@ def _build_tier_consumption(
         )
 
     meta = meta.with_columns(
-        pl.when(pl.col("participates"))
-        .then(pl.col(tier_col))
-        .otherwise(pl.lit(0))
-        .alias("elec_lmi_tier")
+        pl.when(pl.col("participates")).then(pl.col(tier_col)).otherwise(pl.lit(0)).alias("elec_lmi_tier")
     )
     meta = meta.with_columns(pl.col("elec_lmi_tier").alias("gas_lmi_tier"))
     meta = meta.with_columns((pl.col(gas_kwh_col) / KWH_PER_THERM).alias("gas_therms"))
@@ -256,12 +223,8 @@ def _apply_discounts_to_bills(
     tier_col = "lmi_tier_raw"
     storage = opts if isinstance(run_dir, S3Path) else None
 
-    elec_bills = pl.scan_csv(
-        _run_dir_bills(run_dir, "elec_bills_year_run.csv"), storage_options=storage
-    )
-    gas_bills = pl.scan_csv(
-        _run_dir_bills(run_dir, "gas_bills_year_run.csv"), storage_options=storage
-    )
+    elec_bills = pl.scan_csv(_run_dir_bills(run_dir, "elec_bills_year_run.csv"), storage_options=storage)
+    gas_bills = pl.scan_csv(_run_dir_bills(run_dir, "gas_bills_year_run.csv"), storage_options=storage)
 
     tc = tier_consumption
 
@@ -317,14 +280,10 @@ def _apply_discounts_to_bills(
     )
     # Apply credit: subtract from bill. Annual = 12× monthly credit.
     elec_credit_amount = (
-        pl.when(pl.col("month") == ANNUAL_MONTH_VALUE)
-        .then(elec_monthly_credit * 12.0)
-        .otherwise(elec_monthly_credit)
+        pl.when(pl.col("month") == ANNUAL_MONTH_VALUE).then(elec_monthly_credit * 12.0).otherwise(elec_monthly_credit)
     )
     # Only apply to participants with tier > 0
-    elec_credit_applied = (
-        pl.when(pl.col("elec_lmi_tier") > 0).then(elec_credit_amount).otherwise(0.0)
-    )
+    elec_credit_applied = pl.when(pl.col("elec_lmi_tier") > 0).then(elec_credit_amount).otherwise(0.0)
     elec_bills = elec_bills.with_columns(elec_credit_applied.alias("discount_elec"))
 
     # --- Gas credits ---
@@ -347,13 +306,9 @@ def _apply_discounts_to_bills(
         .otherwise(pl.col("credit_gas_nonheat").fill_null(0.0))
     )
     gas_credit_amount = (
-        pl.when(pl.col("month") == ANNUAL_MONTH_VALUE)
-        .then(gas_monthly_credit * 12.0)
-        .otherwise(gas_monthly_credit)
+        pl.when(pl.col("month") == ANNUAL_MONTH_VALUE).then(gas_monthly_credit * 12.0).otherwise(gas_monthly_credit)
     )
-    gas_credit_applied = (
-        pl.when(pl.col("gas_lmi_tier") > 0).then(gas_credit_amount).otherwise(0.0)
-    )
+    gas_credit_applied = pl.when(pl.col("gas_lmi_tier") > 0).then(gas_credit_amount).otherwise(0.0)
     gas_bills = gas_bills.with_columns(gas_credit_applied.alias("discount_gas"))
 
     # --- Rider (optional cost recovery) ---
@@ -383,9 +338,7 @@ def _apply_discounts_to_bills(
         rider_per_kwh = (td_elec / tk_non) if tk_non > 0 else 0.0
         rider_per_therm = (td_gas / tg_non) if tg_non > 0 else 0.0
         rider_elec_annual = (
-            pl.when(~pl.col("participates").fill_null(False))
-            .then(pl.col("elec_kwh") * rider_per_kwh)
-            .otherwise(0.0)
+            pl.when(~pl.col("participates").fill_null(False)).then(pl.col("elec_kwh") * rider_per_kwh).otherwise(0.0)
         )
         rider_gas_annual = (
             pl.when(~pl.col("participates").fill_null(False))
@@ -398,24 +351,16 @@ def _apply_discounts_to_bills(
 
     # Apply: subtract credit, add rider
     rider_elec_row = (
-        pl.when(pl.col("month") == ANNUAL_MONTH_VALUE)
-        .then(rider_elec_annual)
-        .otherwise(rider_elec_annual / 12)
+        pl.when(pl.col("month") == ANNUAL_MONTH_VALUE).then(rider_elec_annual).otherwise(rider_elec_annual / 12)
     )
     rider_gas_row = (
-        pl.when(pl.col("month") == ANNUAL_MONTH_VALUE)
-        .then(rider_gas_annual)
-        .otherwise(rider_gas_annual / 12)
+        pl.when(pl.col("month") == ANNUAL_MONTH_VALUE).then(rider_gas_annual).otherwise(rider_gas_annual / 12)
     )
     elec_bills = elec_bills.with_columns(
-        (pl.col("bill_level") - pl.col("discount_elec") + rider_elec_row).alias(
-            "bill_level"
-        )
+        (pl.col("bill_level") - pl.col("discount_elec") + rider_elec_row).alias("bill_level")
     )
     gas_bills = gas_bills.with_columns(
-        (pl.col("bill_level") - pl.col("discount_gas") + rider_gas_row).alias(
-            "bill_level"
-        )
+        (pl.col("bill_level") - pl.col("discount_gas") + rider_gas_row).alias("bill_level")
     )
 
     # Drop helper columns
@@ -487,11 +432,7 @@ def _upload_discounted_bills(
         gas_for_comb,
         on=[BLDG_ID_COL, "weight", "month", "dollar_year"],
         how="left",
-    ).with_columns(
-        (pl.col("bill_level_elec") + pl.col("bill_level_gas").fill_null(0)).alias(
-            "bill_level"
-        )
-    )
+    ).with_columns((pl.col("bill_level_elec") + pl.col("bill_level_gas").fill_null(0)).alias("bill_level"))
     comb = comb.select(
         BLDG_ID_COL,
         "weight",
@@ -515,7 +456,7 @@ def _write_or_print_outputs(
     opts: dict[str, str],
 ) -> None:
     """Write discounted elec/gas/comb CSVs to run_dir/bills or print paths."""
-    pct_label = int(round(participation_rate * 100))
+    pct_label = round(participation_rate * 100)
     rider_label = "rider" if rider else "no_rider"
     suffix = f"p{pct_label}_{rider_label}"
     out_elec = _run_dir_bills(run_dir, f"elec_bills_year_run_with_lmi_{suffix}.csv")
@@ -530,16 +471,10 @@ def _write_or_print_outputs(
 
 def main() -> None:
     load_dotenv()
-    parser = argparse.ArgumentParser(
-        description="Apply NY EAP/EEAP discounts to CAIRO electric and gas bills."
-    )
-    parser.add_argument(
-        "--run-dir", required=True, help="S3 path to CAIRO run directory"
-    )
+    parser = argparse.ArgumentParser(description="Apply NY EAP/EEAP discounts to CAIRO electric and gas bills.")
+    parser.add_argument("--run-dir", required=True, help="S3 path to CAIRO run directory")
     parser.add_argument("--state", required=True, help="State abbreviation (NY)")
-    parser.add_argument(
-        "--utility", required=True, help="Electric utility std_name (e.g. coned, nimo)"
-    )
+    parser.add_argument("--utility", required=True, help="Electric utility std_name (e.g. coned, nimo)")
     parser.add_argument(
         "--resstock-release",
         default="res_2024_amy2018_2_sb",
@@ -569,9 +504,7 @@ def main() -> None:
         default="uniform",
         help="Participation sampling: uniform or weighted by need",
     )
-    parser.add_argument(
-        "--seed", type=int, default=42, help="RNG seed for participation"
-    )
+    parser.add_argument("--seed", type=int, default=42, help="RNG seed for participation")
     parser.add_argument(
         "--rider",
         action="store_true",
@@ -584,9 +517,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    run_dir = (
-        S3Path(args.run_dir) if args.run_dir.startswith("s3://") else Path(args.run_dir)
-    )
+    run_dir = S3Path(args.run_dir) if args.run_dir.startswith("s3://") else Path(args.run_dir)
     s3_base = f"s3://data.sb/nrel/resstock/{args.resstock_release}"
     meta_path = f"{s3_base}/metadata/state={args.state}/upgrade={args.upgrade}/metadata-sb.parquet"
     util_path = f"{s3_base}/metadata_utility/state={args.state}"
@@ -609,9 +540,7 @@ def main() -> None:
     )
 
     # 3. Load bills, join tier, apply fixed monthly credits and optional rider
-    elec_bills, gas_bills = _apply_discounts_to_bills(
-        run_dir, tier_consumption, args.utility, args.rider, opts
-    )
+    elec_bills, gas_bills = _apply_discounts_to_bills(run_dir, tier_consumption, args.utility, args.rider, opts)
 
     # 4. Write outputs (or print paths)
     _write_or_print_outputs(

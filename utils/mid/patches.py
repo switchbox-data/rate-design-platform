@@ -100,9 +100,7 @@ def _return_loads_combined(
     #    the same 8760-hour series, so one file is sufficient.
     first_table = pq.read_table(paths[0], columns=["timestamp"])
     ts_first = first_table.column("timestamp").to_numpy()
-    assert len(ts_first) == 8760, (
-        f"Expected 8760 rows in first file, got {len(ts_first)}"
-    )
+    assert len(ts_first) == 8760, f"Expected 8760 rows in first file, got {len(ts_first)}"
     del first_table
 
     # 3. Compute timeshift parameters from source timestamps
@@ -113,9 +111,7 @@ def _return_loads_combined(
     offset_hours = offset_days * 24
 
     # 4. Build the time index (8760 unique values, shared by all buildings)
-    year_offset = pd.Timestamp(f"{target_year}-01-01") - pd.Timestamp(
-        f"{source_year}-01-01"
-    )
+    year_offset = pd.Timestamp(f"{target_year}-01-01") - pd.Timestamp(f"{source_year}-01-01")
     unique_times = pd.DatetimeIndex(ts_first) + year_offset
     del ts_first
     if force_tz is not None:
@@ -133,9 +129,7 @@ def _return_loads_combined(
     table = ds.to_table(columns=_DATA_COLS)
     _log_mem("after to_table (3 data cols, arrow)")
 
-    assert len(table) == n_rows, (
-        f"Expected {n_rows} rows ({n_bldgs} bldgs × 8760) but got {len(table)}"
-    )
+    assert len(table) == n_rows, f"Expected {n_rows} rows ({n_bldgs} bldgs × 8760) but got {len(table)}"
 
     # 6. Extract numpy arrays and free the Arrow table.
     #    combine_chunks inside to_numpy creates contiguous copies; after del table
@@ -148,13 +142,9 @@ def _return_loads_combined(
 
     # 7. Vectorized timeshift (AMY2018 → target_year)
     if offset_hours > 0:
-        elec_total = np.roll(
-            elec_total.reshape(n_bldgs, 8760), -offset_hours, axis=1
-        ).ravel()
+        elec_total = np.roll(elec_total.reshape(n_bldgs, 8760), -offset_hours, axis=1).ravel()
         elec_pv = np.roll(elec_pv.reshape(n_bldgs, 8760), -offset_hours, axis=1).ravel()
-        gas_total = np.roll(
-            gas_total.reshape(n_bldgs, 8760), -offset_hours, axis=1
-        ).ravel()
+        gas_total = np.roll(gas_total.reshape(n_bldgs, 8760), -offset_hours, axis=1).ravel()
         _log_mem("after timeshift")
 
     # 8. PV sign correction per building block (replicates CAIRO __load_buildingprofile__)
@@ -249,8 +239,7 @@ def prepare_billing_kwh(
     grid_cons_2d = np.maximum(elec_net_2d, 0)
 
     assert grid_cons_2d.shape == load_data_2d.shape, (
-        f"Shape mismatch: grid_cons={grid_cons_2d.shape}, "
-        f"load_data={load_data_2d.shape}"
+        f"Shape mismatch: grid_cons={grid_cons_2d.shape}, load_data={load_data_2d.shape}"
     )
 
     annual_grid = grid_cons_2d.sum(axis=1)
@@ -351,11 +340,11 @@ def _vectorized_process_building_demand_by_period(
         agg_solar: Index=['bldg_id'], columns=['month','period','tier','net_exports',
                    'self_cons','pv_generation','charge_type','tariff']
     """
+    from cairo.rates_tool import tariffs as tariff_funcs
     from cairo.rates_tool.loads import (
         _return_energy_charge_aggregation_method,
         extract_energy_charge_map,
     )
-    from cairo.rates_tool import tariffs as tariff_funcs
 
     # Use the saved-before-patching original to avoid infinite recursion.
     _orig_pbdbp = _orig_process_building_demand_by_period
@@ -380,18 +369,12 @@ def _vectorized_process_building_demand_by_period(
     )
 
     # Classify each tariff once
-    tier_tou_check = {
-        k: _return_energy_charge_aggregation_method(v) for k, v in tariff_dicts.items()
-    }
+    tier_tou_check = {k: _return_energy_charge_aggregation_method(v) for k, v in tariff_dicts.items()}
 
     # Fall back to CAIRO for any tiered or combined tariff
-    has_tiered_or_combined = any(
-        v in ("tiered", "combined") for v in tier_tou_check.values()
-    )
+    has_tiered_or_combined = any(v in ("tiered", "combined") for v in tier_tou_check.values())
     if has_tiered_or_combined:
-        log.info(
-            "PATCH_FALLBACK _vectorized_process_building_demand_by_period reason=tiered_or_combined"
-        )
+        log.info("PATCH_FALLBACK _vectorized_process_building_demand_by_period reason=tiered_or_combined")
         if is_gas:
             # _return_loads_combined already converted kWh → therms, but CAIRO's
             # original path will call _load_worker → _adjust_gas_loads which
@@ -430,20 +413,10 @@ def _vectorized_process_building_demand_by_period(
     has_pv = not is_gas and "pv_generation" in cols_present
     has_net_exp_raw = not is_gas and "net_exports" in cols_present
 
-    elec_net_2d = (
-        prepassed_load["electricity_net"].values.reshape(n_bldg, n_hours)
-        if has_elec_net
-        else None
-    )
-    pv_gen_2d = (
-        np.abs(prepassed_load["pv_generation"].values.reshape(n_bldg, n_hours))
-        if has_pv
-        else None
-    )
+    elec_net_2d = prepassed_load["electricity_net"].values.reshape(n_bldg, n_hours) if has_elec_net else None
+    pv_gen_2d = np.abs(prepassed_load["pv_generation"].values.reshape(n_bldg, n_hours)) if has_pv else None
     if has_net_exp_raw and not has_pv:
-        pv_gen_2d = np.abs(
-            prepassed_load["net_exports"].values.reshape(n_bldg, n_hours)
-        )
+        pv_gen_2d = np.abs(prepassed_load["net_exports"].values.reshape(n_bldg, n_hours))
 
     grid_cons_2d: np.ndarray | None = None
     net_exports_2d: np.ndarray | None = None
@@ -453,11 +426,7 @@ def _vectorized_process_building_demand_by_period(
         if has_elec_net and elec_net_2d is not None:
             grid_cons_2d = np.maximum(elec_net_2d, 0)
             del elec_net_2d
-        if (
-            (has_pv or has_net_exp_raw)
-            and grid_cons_2d is None
-            and pv_gen_2d is not None
-        ):
+        if (has_pv or has_net_exp_raw) and grid_cons_2d is None and pv_gen_2d is not None:
             grid_cons_2d = load_data_2d - pv_gen_2d
         if pv_gen_2d is not None and grid_cons_2d is not None:
             net_exports_2d = np.clip(pv_gen_2d - load_data_2d, 0, None)
@@ -527,8 +496,7 @@ def _vectorized_process_building_demand_by_period(
         # Safe when period < 100 and tier < 100 (URDB tariffs use single-digit
         # values; the max observed is ~12 periods × ~6 tiers).
         assert hour_periods.max() < 100 and hour_tiers.max() < 100, (
-            f"composite encoding overflow: period_max={hour_periods.max()}, "
-            f"tier_max={hour_tiers.max()}"
+            f"composite encoding overflow: period_max={hour_periods.max()}, tier_max={hour_tiers.max()}"
         )
         composite = months_8760 * 10000 + hour_periods * 100 + hour_tiers
         unique_composites, hour_group_ids = np.unique(composite, return_inverse=True)
@@ -615,11 +583,7 @@ def _vectorized_process_building_demand_by_period(
     all_solar = (
         pd.concat(solar_parts, ignore_index=True)
         if solar_parts
-        else pd.DataFrame(
-            columns=["bldg_id", "month", "period", "tier"]
-            + avail_pv_cols
-            + ["charge_type", "tariff"]
-        )
+        else pd.DataFrame(columns=["bldg_id", "month", "period", "tier", *avail_pv_cols, "charge_type", "tariff"])
     )
     for col in ["net_exports", "self_cons", "pv_generation"]:
         if col not in all_solar.columns:
@@ -679,7 +643,7 @@ def _vectorized_run_system_revenues(
 
     # Normalize solar_compensation_df the same way CAIRO does
     if solar_compensation_df is None:
-        solar_compensation_df_norm = {k: None for k in set(tariff_map_dict.values())}
+        solar_compensation_df_norm = dict.fromkeys(set(tariff_map_dict.values()))
     else:
         solar_compensation_df_norm = solar_compensation_df
 
@@ -710,9 +674,7 @@ def _vectorized_run_system_revenues(
         )
 
     if has_solar_compensation and solar_compensation_style == "net_billing":
-        log.info(
-            "PATCH_FALLBACK _vectorized_run_system_revenues reason=net_billing_unsupported"
-        )
+        log.info("PATCH_FALLBACK _vectorized_run_system_revenues reason=net_billing_unsupported")
         return _orig_rsr(
             aggregated_load=aggregated_load,
             aggregated_solar=aggregated_solar,
@@ -751,9 +713,7 @@ def _vectorized_run_system_revenues(
 
     if not process_agg_load:
         # Non-standard path — fall back to CAIRO
-        log.info(
-            "PATCH_FALLBACK _vectorized_run_system_revenues reason=process_agg_load_false"
-        )
+        log.info("PATCH_FALLBACK _vectorized_run_system_revenues reason=process_agg_load_false")
         return _orig_rsr(
             aggregated_load=aggregated_load,
             aggregated_solar=aggregated_solar,
@@ -766,9 +726,7 @@ def _vectorized_run_system_revenues(
         )
 
     if prototype_ids is None:
-        log.info(
-            "PATCH_FALLBACK _vectorized_run_system_revenues reason=prototype_ids_none"
-        )
+        log.info("PATCH_FALLBACK _vectorized_run_system_revenues reason=prototype_ids_none")
         return _orig_rsr(
             aggregated_load=aggregated_load,
             aggregated_solar=aggregated_solar,
@@ -782,33 +740,25 @@ def _vectorized_run_system_revenues(
 
     # --- Vectorized energy charge calculation ---
     # Filter to energy_charge rows only
-    energy_rows = aggregated_load[
-        aggregated_load["charge_type"] == "energy_charge"
-    ].copy()
+    energy_rows = aggregated_load[aggregated_load["charge_type"] == "energy_charge"].copy()
     energy_rows = energy_rows.reset_index()  # bring bldg_id into columns
 
     # Merge energy rates (by tariff + period + tier)
-    energy_rows = energy_rows.merge(
-        rate_lookup, on=["tariff", "period", "tier"], how="left"
-    )
+    energy_rows = energy_rows.merge(rate_lookup, on=["tariff", "period", "tier"], how="left")
     # For electricity: bill on grid_cons; for gas: bill on load_data (no grid_cons column)
     billing_col = "grid_cons" if "grid_cons" in energy_rows.columns else "load_data"
     energy_rows["costs"] = energy_rows[billing_col] * energy_rows["rate"]
 
     # Sum energy costs by (bldg_id, month)
-    monthly_energy = energy_rows.groupby(["bldg_id", "month"], as_index=False)[
-        "costs"
-    ].sum()
+    monthly_energy = energy_rows.groupby(["bldg_id", "month"], as_index=False)["costs"].sum()
 
     # Pivot to wide format: rows=bldg_id, columns=month (1..12)
-    monthly_wide = monthly_energy.pivot(
-        index="bldg_id", columns="month", values="costs"
-    )
+    monthly_wide = monthly_energy.pivot(index="bldg_id", columns="month", values="costs")
     # Ensure all 12 months are present
     for m in range(1, 13):
         if m not in monthly_wide.columns:
             monthly_wide[m] = 0.0
-    monthly_wide = monthly_wide[[m for m in range(1, 13)]]
+    monthly_wide = monthly_wide[list(range(1, 13))]
 
     # --- Vectorized net-metering solar compensation ---
     # Only reached when solar_compensation_style == "net_metering" (net_billing
@@ -835,21 +785,15 @@ def _vectorized_run_system_revenues(
         solar_df = aggregated_solar.reset_index()
         solar_df["period"] = solar_df["period"].astype(float)
         solar_df["tier"] = solar_df["tier"].astype(float)
-        solar_df = solar_df.merge(
-            sell_lookup, on=["tariff", "period", "tier"], how="left"
-        )
+        solar_df = solar_df.merge(sell_lookup, on=["tariff", "period", "tier"], how="left")
         solar_df["costs"] = solar_df["net_exports"] * solar_df["sell_rate"] * -1
 
-        solar_monthly = solar_df.groupby(["bldg_id", "month"], as_index=False)[
-            "costs"
-        ].sum()
-        solar_wide = solar_monthly.pivot(
-            index="bldg_id", columns="month", values="costs"
-        ).fillna(0.0)
+        solar_monthly = solar_df.groupby(["bldg_id", "month"], as_index=False)["costs"].sum()
+        solar_wide = solar_monthly.pivot(index="bldg_id", columns="month", values="costs").fillna(0.0)
         for m in range(1, 13):
             if m not in solar_wide.columns:
                 solar_wide[m] = 0.0
-        solar_wide = solar_wide[[m for m in range(1, 13)]]
+        solar_wide = solar_wide[list(range(1, 13))]
 
         common_ids = monthly_wide.index.intersection(solar_wide.index)
         if len(common_ids) > 0:
@@ -876,9 +820,7 @@ def _vectorized_run_system_revenues(
         # but for min_charge=0.0 the max() has no effect on positive bills.
         # We still apply it for correctness.
         if min_ch > 0.0:
-            monthly_wide.loc[bldg_id, :] = monthly_wide.loc[bldg_id, :].clip(
-                lower=min_ch
-            )
+            monthly_wide.loc[bldg_id, :] = monthly_wide.loc[bldg_id, :].clip(lower=min_ch)
 
     # Reorder to match prototype_ids order (CAIRO preserves insertion order)
     monthly_wide = monthly_wide.reindex(prototype_ids)
@@ -939,9 +881,7 @@ def _vectorized_calculate_gas_bills(
     if isinstance(gas_tariff_map, pd.DataFrame):
         tariff_map_df = gas_tariff_map
     else:
-        raise TypeError(
-            f"gas_tariff_map must be a DataFrame, got {type(gas_tariff_map)}"
-        )
+        raise TypeError(f"gas_tariff_map must be a DataFrame, got {type(gas_tariff_map)}")
 
     tariff_map_dict, tariff_dicts = tariff_funcs._load_base_tariffs(
         tariff_base=gas_tariff_base,
@@ -967,33 +907,25 @@ def _vectorized_calculate_gas_bills(
     rate_lookup = pd.DataFrame(rate_rows)
 
     # Filter to energy_charge rows; reset_index to bring bldg_id into columns
-    energy_rows = aggregated_gas_load[
-        aggregated_gas_load["charge_type"] == "energy_charge"
-    ].copy()
+    energy_rows = aggregated_gas_load[aggregated_gas_load["charge_type"] == "energy_charge"].copy()
     energy_rows = energy_rows.reset_index()  # bldg_id now a column
 
     # Merge rates on [tariff, period, tier]
-    energy_rows = energy_rows.merge(
-        rate_lookup, on=["tariff", "period", "tier"], how="left"
-    )
+    energy_rows = energy_rows.merge(rate_lookup, on=["tariff", "period", "tier"], how="left")
 
     # Gas consumption is in load_data (therms); no grid_cons column
     energy_rows["costs"] = energy_rows["load_data"] * energy_rows["rate"]
 
     # Sum energy costs by (bldg_id, month)
-    monthly_energy = energy_rows.groupby(["bldg_id", "month"], as_index=False)[
-        "costs"
-    ].sum()
+    monthly_energy = energy_rows.groupby(["bldg_id", "month"], as_index=False)["costs"].sum()
 
     # Pivot to wide format: rows=bldg_id, columns=month (1..12)
-    monthly_wide = monthly_energy.pivot(
-        index="bldg_id", columns="month", values="costs"
-    )
+    monthly_wide = monthly_energy.pivot(index="bldg_id", columns="month", values="costs")
     # Ensure all 12 months present
     for m in range(1, 13):
         if m not in monthly_wide.columns:
             monthly_wide[m] = 0.0
-    monthly_wide = monthly_wide[[m for m in range(1, 13)]]
+    monthly_wide = monthly_wide[list(range(1, 13))]
 
     # Vectorized fixed charge addition + min_charge per building
     for bldg_id in prototype_ids:
@@ -1008,9 +940,7 @@ def _vectorized_calculate_gas_bills(
         monthly_wide.loc[bldg_id, :] += fixed
 
         if min_ch > 0.0:
-            monthly_wide.loc[bldg_id, :] = monthly_wide.loc[bldg_id, :].clip(
-                lower=min_ch
-            )
+            monthly_wide.loc[bldg_id, :] = monthly_wide.loc[bldg_id, :].clip(lower=min_ch)
 
     # Reorder to match prototype_ids order
     monthly_wide = monthly_wide.reindex(prototype_ids)
@@ -1032,9 +962,7 @@ def _vectorized_calculate_gas_bills(
 # _vectorized_process_building_demand_by_period don't recurse into the patch.
 _orig_process_building_demand_by_period = _cairo_loads.process_building_demand_by_period
 
-_cairo_loads.process_building_demand_by_period = cast(
-    Any, _vectorized_process_building_demand_by_period
-)
+_cairo_loads.process_building_demand_by_period = cast(Any, _vectorized_process_building_demand_by_period)
 log.info(
     "PATCH_APPLIED cairo.rates_tool.loads.process_building_demand_by_period -> %s",
     _vectorized_process_building_demand_by_period.__name__,
@@ -1056,9 +984,7 @@ log.info(
 # Import _initialize_tariffs from systemsimulator (module-level function)
 _cairo_initialize_tariffs = _cairo_sim._initialize_tariffs
 
-_orig_calculate_gas_bills = (
-    _cairo_sim.MeetRevenueSufficiencySystemWide._calculate_gas_bills
-)
+_orig_calculate_gas_bills = _cairo_sim.MeetRevenueSufficiencySystemWide._calculate_gas_bills
 
 
 def _patched_calculate_gas_bills(
@@ -1126,9 +1052,7 @@ def _patched_calculate_gas_bills(
         return gas_bills
 
     except Exception:
-        log.warning(
-            "Vectorized gas billing failed, falling back to CAIRO", exc_info=True
-        )
+        log.warning("Vectorized gas billing failed, falling back to CAIRO", exc_info=True)
         return _orig_calculate_gas_bills(
             self,
             prototype_ids=prototype_ids,
@@ -1141,9 +1065,7 @@ def _patched_calculate_gas_bills(
         )
 
 
-_cairo_sim.MeetRevenueSufficiencySystemWide._calculate_gas_bills = cast(
-    Any, _patched_calculate_gas_bills
-)
+_cairo_sim.MeetRevenueSufficiencySystemWide._calculate_gas_bills = cast(Any, _patched_calculate_gas_bills)
 log.info(
     "PATCH_APPLIED MeetRevenueSufficiencySystemWide._calculate_gas_bills -> %s",
     _patched_calculate_gas_bills.__name__,
@@ -1190,9 +1112,7 @@ def _patched_process_residential_hourly_demand(
     return result
 
 
-_cairo_loads.process_residential_hourly_demand = cast(
-    Any, _patched_process_residential_hourly_demand
-)
+_cairo_loads.process_residential_hourly_demand = cast(Any, _patched_process_residential_hourly_demand)
 log.info(
     "PATCH_APPLIED cairo.rates_tool.loads.process_residential_hourly_demand -> %s",
     _patched_process_residential_hourly_demand.__name__,
@@ -1254,16 +1174,12 @@ def _patched_determine_residual_cost_allocation(
     annual_customer_economic_burden: pd.Series,
 ) -> pd.Series | pd.DataFrame:
     """Patched residual allocation: adds EPMC, disables broken peak."""
-    vol = self._allocate_residual_volumetric(
-        building_metadata, raw_hourly_load, costs_by_type
-    )
+    vol = self._allocate_residual_volumetric(building_metadata, raw_hourly_load, costs_by_type)
     # peak = self._allocate_residual_peak(
     #     building_metadata, raw_hourly_load, marginal_system_prices, costs_by_type
     # )
     percust = self._allocate_residual_percustomer(building_metadata, costs_by_type)
-    epmc = self._allocate_residual_epmc(
-        building_metadata, annual_customer_economic_burden, costs_by_type
-    )
+    epmc = self._allocate_residual_epmc(building_metadata, annual_customer_economic_burden, costs_by_type)
 
     parts: list[pd.Series | pd.DataFrame] = [vol, percust]
     # if peak is not None:
@@ -1272,14 +1188,14 @@ def _patched_determine_residual_cost_allocation(
         parts.append(epmc)
 
     return reduce(
-        lambda left, right: pd.merge(
-            left, right, left_index=True, right_index=True, how="left"
-        ),
+        lambda left, right: pd.merge(left, right, left_index=True, right_index=True, how="left"),
         parts,
     )
 
 
-_orig_return_eb_and_residual = _cairo_postproc.InternalCrossSubsidizationProcessor._return_customer_level_economic_burden_and_residual_share
+_orig_return_eb_and_residual = (
+    _cairo_postproc.InternalCrossSubsidizationProcessor._return_customer_level_economic_burden_and_residual_share
+)
 
 
 def _patched_return_eb_and_residual(
@@ -1290,9 +1206,7 @@ def _patched_return_eb_and_residual(
     costs_by_type: pd.Series,
 ) -> tuple[pd.Series, pd.DataFrame]:
     """Patched: computes EB first, then threads it into residual allocation."""
-    annual_customer_economic_burden = self._determine_marginal_cost_allocation(
-        raw_hourly_load, marginal_system_prices
-    )
+    annual_customer_economic_burden = self._determine_marginal_cost_allocation(raw_hourly_load, marginal_system_prices)
     annual_customer_residual_share = self._determine_residual_cost_allocation(
         building_metadata,
         raw_hourly_load,
@@ -1316,19 +1230,15 @@ def _patched_return_cross_subsidization_metrics(
     year_run: int,
 ) -> None:
     """Patched: adds BAT_epmc computation and balance check."""
-    economic_burden, residual_share = (
-        self._return_customer_level_economic_burden_and_residual_share(
-            building_metadata,
-            raw_hourly_load,
-            marginal_system_prices,
-            costs_by_type,
-        )
+    economic_burden, residual_share = self._return_customer_level_economic_burden_and_residual_share(
+        building_metadata,
+        raw_hourly_load,
+        marginal_system_prices,
+        costs_by_type,
     )
 
     bat_df = reduce(
-        lambda left, right: pd.merge(
-            left, right, left_index=True, right_index=True, how="left"
-        ),
+        lambda left, right: pd.merge(left, right, left_index=True, right_index=True, how="left"),
         [
             customer_bills.set_index("bldg_id")[["Annual"]],
             economic_burden,
@@ -1338,49 +1248,31 @@ def _patched_return_cross_subsidization_metrics(
     )
 
     bat_df["BAT_vol"] = bat_df["Annual"].sub(
-        bat_df["customer_level_economic_burden"].add(
-            bat_df["customer_level_residual_share_volumetric"]
-        )
+        bat_df["customer_level_economic_burden"].add(bat_df["customer_level_residual_share_volumetric"])
     )
     if "customer_level_residual_share_peak" in bat_df.columns:
         bat_df["BAT_peak"] = bat_df["Annual"].sub(
-            bat_df["customer_level_economic_burden"].add(
-                bat_df["customer_level_residual_share_peak"]
-            )
+            bat_df["customer_level_economic_burden"].add(bat_df["customer_level_residual_share_peak"])
         )
     bat_df["BAT_percustomer"] = bat_df["Annual"].sub(
-        bat_df["customer_level_economic_burden"].add(
-            bat_df["customer_level_residual_share_percustomer"]
-        )
+        bat_df["customer_level_economic_burden"].add(bat_df["customer_level_residual_share_percustomer"])
     )
     if "customer_level_residual_share_epmc" in bat_df.columns:
         bat_df["BAT_epmc"] = bat_df["Annual"].sub(
-            bat_df["customer_level_economic_burden"].add(
-                bat_df["customer_level_residual_share_epmc"]
-            )
+            bat_df["customer_level_economic_burden"].add(bat_df["customer_level_residual_share_epmc"])
         )
 
     if self.run_type == "precalc":
         if np.round(bat_df["BAT_vol"].mul(bat_df["weight"]).sum(), 1) != 0:
-            _postproc_log.error(
-                "BAT w/ volumetric residual cost allocation imbalanced!"
-            )
-        if "BAT_peak" in bat_df.columns and (
-            np.round(bat_df["BAT_peak"].mul(bat_df["weight"]).sum(), 1) != 0
-        ):
+            _postproc_log.error("BAT w/ volumetric residual cost allocation imbalanced!")
+        if "BAT_peak" in bat_df.columns and (np.round(bat_df["BAT_peak"].mul(bat_df["weight"]).sum(), 1) != 0):
             _postproc_log.error("BAT w/ peak residual cost allocation imbalanced!")
         if np.round(bat_df["BAT_percustomer"].mul(bat_df["weight"]).sum(), 1) != 0:
-            _postproc_log.error(
-                "BAT w/ per-customer residual cost allocation imbalanced!"
-            )
-        if "BAT_epmc" in bat_df.columns and (
-            np.round(bat_df["BAT_epmc"].mul(bat_df["weight"]).sum(), 1) != 0
-        ):
+            _postproc_log.error("BAT w/ per-customer residual cost allocation imbalanced!")
+        if "BAT_epmc" in bat_df.columns and (np.round(bat_df["BAT_epmc"].mul(bat_df["weight"]).sum(), 1) != 0):
             _postproc_log.error("BAT w/ EPMC residual cost allocation imbalanced!")
     else:
-        _postproc_log.info(
-            "WARNING: in default mode there is currently no mechanism to ensure BAT aligns!"
-        )
+        _postproc_log.info("WARNING: in default mode there is currently no mechanism to ensure BAT aligns!")
 
     bat_df["dollar_year"] = year_run
     bat_df.to_csv(
@@ -1391,9 +1283,7 @@ def _patched_return_cross_subsidization_metrics(
     self._return_average_bat_by_segment(building_metadata, bat_df)
 
 
-_orig_calculate_bat_stats = (
-    _cairo_postproc.InternalCrossSubsidizationProcessor.calculate_BAT_stats_by_group
-)
+_orig_calculate_bat_stats = _cairo_postproc.InternalCrossSubsidizationProcessor.calculate_BAT_stats_by_group
 
 
 def _patched_calculate_bat_stats_by_group(
@@ -1407,45 +1297,25 @@ def _patched_calculate_bat_stats_by_group(
         weighted_avg_by_group,
     )
 
-    bat_df_grouped = (
-        bat_df.copy().reset_index().merge(metadata_df[["bldg_id", gcn]], on="bldg_id")
-    )
-    bat_cols = [
-        col
-        for col in ("BAT_vol", "BAT_peak", "BAT_percustomer", "BAT_epmc")
-        if col in bat_df_grouped.columns
-    ]
+    bat_df_grouped = bat_df.copy().reset_index().merge(metadata_df[["bldg_id", gcn]], on="bldg_id")
+    bat_cols = [col for col in ("BAT_vol", "BAT_peak", "BAT_percustomer", "BAT_epmc") if col in bat_df_grouped.columns]
     if not bat_cols:
         return pd.DataFrame()
 
     bat_var_aggs = {col: ["std", coeff_var, quartile_coeff_of_disp] for col in bat_cols}
-    bat_var_df = (
-        bat_df_grouped.set_index("bldg_id")
-        .groupby(gcn)
-        .agg({**bat_var_aggs, "dollar_year": ["first"]})
-    )
+    bat_var_df = bat_df_grouped.set_index("bldg_id").groupby(gcn).agg({**bat_var_aggs, "dollar_year": ["first"]})
     bat_var_df = _group_summary_bat_formatting(bat_var_df, gcn)
 
     bat_stats_aggs = {col: ["mean", "median"] for col in bat_cols}
-    bat_stats_df = (
-        bat_df_grouped.set_index("bldg_id")
-        .groupby(gcn)
-        .agg({**bat_stats_aggs, "dollar_year": ["first"]})
-    )
+    bat_stats_df = bat_df_grouped.set_index("bldg_id").groupby(gcn).agg({**bat_stats_aggs, "dollar_year": ["first"]})
     bat_stats_df = _group_summary_bat_formatting(bat_stats_df, gcn)
 
     bat_weight_aggs = {col: [weighted_avg_by_group] for col in bat_cols}
-    bat_stats_w_df = (
-        bat_df_grouped.set_index("weight")
-        .groupby(gcn)
-        .agg({**bat_weight_aggs, "dollar_year": ["first"]})
-    )
+    bat_stats_w_df = bat_df_grouped.set_index("weight").groupby(gcn).agg({**bat_weight_aggs, "dollar_year": ["first"]})
     bat_stats_w_df = _group_summary_bat_formatting(bat_stats_w_df, gcn)
 
     bat_df_grouped = reduce(
-        lambda left, right: pd.merge(
-            left, right, left_index=True, right_index=True, how="left"
-        ),
+        lambda left, right: pd.merge(left, right, left_index=True, right_index=True, how="left"),
         [bat_stats_df, bat_stats_w_df, bat_var_df],
     ).reset_index()
 
@@ -1453,37 +1323,25 @@ def _patched_calculate_bat_stats_by_group(
 
 
 # --- Apply EPMC patches ---
-setattr(
-    _cairo_postproc.InternalCrossSubsidizationProcessor,
-    "_allocate_residual_epmc",
-    _allocate_residual_epmc,
-)
+_cairo_postproc.InternalCrossSubsidizationProcessor._allocate_residual_epmc = _allocate_residual_epmc  # ty: ignore[unresolved-attribute]
 log.info("PATCH_APPLIED InternalCrossSubsidizationProcessor._allocate_residual_epmc")
 
 _cairo_postproc.InternalCrossSubsidizationProcessor._determine_residual_cost_allocation = cast(
     Any, _patched_determine_residual_cost_allocation
 )
-log.info(
-    "PATCH_APPLIED InternalCrossSubsidizationProcessor._determine_residual_cost_allocation"
-)
+log.info("PATCH_APPLIED InternalCrossSubsidizationProcessor._determine_residual_cost_allocation")
 
 _cairo_postproc.InternalCrossSubsidizationProcessor._return_customer_level_economic_burden_and_residual_share = cast(
     Any, _patched_return_eb_and_residual
 )
-log.info(
-    "PATCH_APPLIED InternalCrossSubsidizationProcessor._return_customer_level_economic_burden_and_residual_share"
-)
+log.info("PATCH_APPLIED InternalCrossSubsidizationProcessor._return_customer_level_economic_burden_and_residual_share")
 
 _cairo_postproc.InternalCrossSubsidizationProcessor._return_cross_subsidization_metrics = cast(
     Any, _patched_return_cross_subsidization_metrics
 )
-log.info(
-    "PATCH_APPLIED InternalCrossSubsidizationProcessor._return_cross_subsidization_metrics"
-)
+log.info("PATCH_APPLIED InternalCrossSubsidizationProcessor._return_cross_subsidization_metrics")
 
 _cairo_postproc.InternalCrossSubsidizationProcessor.calculate_BAT_stats_by_group = cast(
     Any, _patched_calculate_bat_stats_by_group
 )
-log.info(
-    "PATCH_APPLIED InternalCrossSubsidizationProcessor.calculate_BAT_stats_by_group"
-)
+log.info("PATCH_APPLIED InternalCrossSubsidizationProcessor.calculate_BAT_stats_by_group")

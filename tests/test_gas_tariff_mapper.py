@@ -19,8 +19,8 @@ def test_excluded_gas_utilities_compiled_from_state_configs():
     """Mapper exclusion set is the union of state_configs.yaml lists."""
     from data.resstock.utils import get_excluded_gas_utilities
 
-    assert EXCLUDED_GAS_UTILITIES == get_excluded_gas_utilities()
-    assert EXCLUDED_GAS_UTILITIES == get_excluded_gas_utilities("NY")
+    assert get_excluded_gas_utilities() == EXCLUDED_GAS_UTILITIES
+    assert get_excluded_gas_utilities("NY") == EXCLUDED_GAS_UTILITIES
     assert "easton_muni" not in EXCLUDED_GAS_UTILITIES
 
 
@@ -275,14 +275,9 @@ def test_map_gas_tariff_small_utilities_become_null():
 def test_map_gas_tariff_ny_keys_match_yaml() -> None:
     """Every tariff_key produced by the mapper for NY utilities exists in rateacuity_tariffs.yaml."""
     project_root = Path(__file__).resolve().parents[1]
-    yaml_path = (
-        project_root
-        / "rate_design/hp_rates/ny/config/tariffs/gas/rateacuity_tariffs.yaml"
-    )
+    yaml_path = project_root / "rate_design/hp_rates/ny/config/tariffs/gas/rateacuity_tariffs.yaml"
     _state, utilities = load_config(yaml_path)
-    valid_tariff_keys = {
-        tk for _u, tariffs in utilities.items() for tk in tariffs.keys()
-    }
+    valid_tariff_keys = {tk for _u, tariffs in utilities.items() for tk in tariffs}
     # null_gas_tariff is assigned by mapper for small utilities / null gas_utility; not in YAML
     valid_tariff_keys.add("null_gas_tariff")
 
@@ -348,9 +343,7 @@ def test_map_gas_tariff_ny_keys_match_yaml() -> None:
     df = result.collect()
     produced_keys = set(df["tariff_key"].to_list())
     missing = produced_keys - valid_tariff_keys
-    assert not missing, (
-        f"Mapper produced tariff_key(s) not in NY rateacuity_tariffs.yaml: {missing}"
-    )
+    assert not missing, f"Mapper produced tariff_key(s) not in NY rateacuity_tariffs.yaml: {missing}"
 
 
 def test_map_gas_tariff_md_single_key_utilities():
@@ -515,13 +508,7 @@ def test_default_annual_load_path_does_not_fall_back_to_raw(
     """Missing _sb annual loads must not silently use stale raw annual loads."""
     release_sb = tmp_path / "res_2024_amy2018_2_sb"
     (release_sb / "metadata").mkdir(parents=True)
-    raw_annual_dir = (
-        tmp_path
-        / "res_2024_amy2018_2"
-        / "load_curve_annual"
-        / "state=MD"
-        / "upgrade=02"
-    )
+    raw_annual_dir = tmp_path / "res_2024_amy2018_2" / "load_curve_annual" / "state=MD" / "upgrade=02"
     raw_annual_dir.mkdir(parents=True)
 
     result = _default_path_load_curve_annual(release_sb / "metadata", "MD", "02")
@@ -540,8 +527,7 @@ def _md_metadata(
             "bldg_id": bldg_ids,
             "sb.electric_utility": [electric_utility] * len(bldg_ids),
             "sb.gas_utility": gas_utilities,
-            "in.geometry_building_type_recs": ["Single-Family Detached"]
-            * len(bldg_ids),
+            "in.geometry_building_type_recs": ["Single-Family Detached"] * len(bldg_ids),
             "heats_with_natgas": heats_with_natgas,
         }
     )
@@ -734,9 +720,7 @@ def test_map_gas_tariff_md_keys_match_tariff_json_files() -> None:
     df = result.collect()
     produced_keys = set(df["tariff_key"].to_list()) - {"null_gas_tariff"}
     missing = produced_keys - available_stems
-    assert not missing, (
-        f"Mapper produced MD tariff_key(s) with no matching JSON file: {missing}"
-    )
+    assert not missing, f"Mapper produced MD tariff_key(s) with no matching JSON file: {missing}"
 
 
 # ── CT gas tariff mapper tests ────────────────────────────────────────────────
@@ -880,10 +864,7 @@ def test_map_gas_tariff_ct_building_size_does_not_change_key():
             return "norwich_muni_general"
         return f"{gas}_{'heating' if heats else 'nonheating'}"
 
-    expected = {
-        bldg_id: expected_key(gas, heats)
-        for bldg_id, (gas, _, heats) in zip(bldg_ids, cases, strict=True)
-    }
+    expected = {bldg_id: expected_key(gas, heats) for bldg_id, (gas, _, heats) in zip(bldg_ids, cases, strict=True)}
 
     electric_utilities: tuple[ElectricUtility, ...] = ("ct_eversource", "ct_ui")
     for electric_utility in electric_utilities:
@@ -898,9 +879,7 @@ def test_map_gas_tariff_ct_building_size_does_not_change_key():
             SB_metadata=metadata,
             electric_utility_name=electric_utility,
         ).collect()
-        got = dict(
-            zip(df["bldg_id"].to_list(), df["tariff_key"].to_list(), strict=True)
-        )
+        got = dict(zip(df["bldg_id"].to_list(), df["tariff_key"].to_list(), strict=True))
         assert got == expected
         assert _CT_LANDLORD_TARIFF_KEYS.isdisjoint(got.values())
 
@@ -1006,6 +985,4 @@ def test_map_gas_tariff_ct_keys_match_tariff_json_files() -> None:
     df = result.collect()
     produced_keys = set(df["tariff_key"].to_list()) - {"null_gas_tariff"}
     missing = produced_keys - available_stems
-    assert not missing, (
-        f"Mapper produced CT tariff_key(s) with no matching JSON file: {missing}"
-    )
+    assert not missing, f"Mapper produced CT tariff_key(s) with no matching JSON file: {missing}"

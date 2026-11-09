@@ -50,7 +50,6 @@ from pathlib import Path
 import fsspec
 import polars as pl
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # MANUAL DECISION: Per-project voltage evidence
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -293,9 +292,7 @@ def classify_project(row: dict) -> dict:
             "bat_included": True,
             "voltage_kv": ev["voltage_kv"],
             "confidence": ev["confidence"],
-            "inference_method": "tier1_direct"
-            if ev["confidence"] == "high"
-            else "tier2_systemic",
+            "inference_method": "tier1_direct" if ev["confidence"] == "high" else "tier2_systemic",
             "evidence": ev["evidence"],
         }
 
@@ -319,9 +316,7 @@ def classify_project(row: dict) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Classify PSEG-LI MCOS projects as sub_tx or distribution"
-    )
+    parser = argparse.ArgumentParser(description="Classify PSEG-LI MCOS projects as sub_tx or distribution")
     parser.add_argument(
         "--path-csv",
         required=True,
@@ -362,11 +357,7 @@ def main() -> None:
         .sort("classification")
     )
     for row in summary.iter_rows(named=True):
-        print(
-            f"  {row['classification']:<15} "
-            f"{row['n_projects']:>3} projects  "
-            f"{row['total_mva']:>10,.1f} MVA"
-        )
+        print(f"  {row['classification']:<15} {row['n_projects']:>3} projects  {row['total_mva']:>10,.1f} MVA")
 
     # ── Confidence breakdown ──
     print("\n=== Confidence Breakdown (T-Substation only) ===")
@@ -380,9 +371,7 @@ def main() -> None:
         .sort("confidence")
     )
     for row in conf_summary.iter_rows(named=True):
-        print(
-            f"  {row['confidence']:<8} {row['n']:>3} projects  {row['mva']:>10,.1f} MVA"
-        )
+        print(f"  {row['confidence']:<8} {row['n']:>3} projects  {row['mva']:>10,.1f} MVA")
 
     # ── Per-project detail for T-Substations ──
     print("\n=== T-Substation Classifications ===")

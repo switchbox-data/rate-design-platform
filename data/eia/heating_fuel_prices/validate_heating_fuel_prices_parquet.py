@@ -11,12 +11,12 @@ Usage:
 
 from __future__ import annotations
 
-from utils.numeric import as_float
-
 import sys
 from pathlib import Path
 
 import polars as pl
+
+from utils.numeric import as_float
 
 EXPECTED_PRODUCTS = {"heating_oil", "propane"}
 EXPECTED_PRICE_TYPES = {"residential", "wholesale"}
@@ -137,23 +137,14 @@ def check_dimensions(df: pl.DataFrame, result: ValidationResult) -> None:
     if not missing_prod and not missing_pt:
         result.passed(
             "Dimensions",
-            f"products: {sorted(products)}, price_types: {sorted(price_types)}, "
-            f"{len(states)} states: {states}",
+            f"products: {sorted(products)}, price_types: {sorted(price_types)}, {len(states)} states: {states}",
         )
 
 
 def check_state_product_coverage(df: pl.DataFrame, result: ValidationResult) -> None:
     """Check that key states have data for both products."""
-    state_products = (
-        df.select(["state", "product"])
-        .unique()
-        .group_by("state")
-        .agg(pl.col("product").sort())
-    )
-    sp_map = {
-        row["state"]: set(row["product"])
-        for row in state_products.iter_rows(named=True)
-    }
+    state_products = df.select(["state", "product"]).unique().group_by("state").agg(pl.col("product").sort())
+    sp_map = {row["state"]: set(row["product"]) for row in state_products.iter_rows(named=True)}
 
     missing: list[str] = []
     for st in sorted(STATES_BOTH_PRODUCTS):
@@ -177,9 +168,7 @@ def check_seasonal_completeness(df: pl.DataFrame, result: ValidationResult) -> N
     years = sorted(df["year"].unique().to_list())
     min_year, max_year = years[0], years[-1]
 
-    pre_2024_off_season = df.filter(
-        (pl.col("year") < 2024) & (pl.col("month").is_in(list(OFF_SEASON_MONTHS)))
-    )
+    pre_2024_off_season = df.filter((pl.col("year") < 2024) & (pl.col("month").is_in(list(OFF_SEASON_MONTHS))))
     if pre_2024_off_season.height > 0:
         result.warn(
             "Seasonal completeness",
@@ -266,9 +255,7 @@ def check_price_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
         )
 
 
-def check_wholesale_below_residential(
-    df: pl.DataFrame, result: ValidationResult
-) -> None:
+def check_wholesale_below_residential(df: pl.DataFrame, result: ValidationResult) -> None:
     """Wholesale prices should generally be below residential."""
     joined = (
         df.filter(pl.col("price_type") == "residential")
@@ -298,8 +285,7 @@ def check_wholesale_below_residential(
     else:
         result.passed(
             "Wholesale < residential",
-            f"holds in {joined.height - violations.height}/{joined.height} pairs "
-            f"({100 - pct:.1f}%)",
+            f"holds in {joined.height - violations.height}/{joined.height} pairs ({100 - pct:.1f}%)",
         )
 
 
@@ -313,9 +299,7 @@ def check_cross_year_continuity(df: pl.DataFrame, result: ValidationResult) -> N
     )
 
     jumps: list[str] = []
-    for (product, state), group in annual.group_by(
-        "product", "state", maintain_order=True
-    ):
+    for (product, state), group in annual.group_by("product", "state", maintain_order=True):
         prices = group["avg_price"].to_list()
         years = group["year"].to_list()
         for i in range(1, len(prices)):
@@ -358,9 +342,7 @@ def print_report(result: ValidationResult) -> None:
 def main() -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Validate EIA-877 heating fuel price parquet."
-    )
+    parser = argparse.ArgumentParser(description="Validate EIA-877 heating fuel price parquet.")
     parser.add_argument(
         "--path-local-parquet",
         type=Path,

@@ -9,9 +9,7 @@ NATGAS_CONSUMPTION_COLUMN = "out.natural_gas.total.energy_consumption.kwh"
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
 
-def identify_natgas_connection(
-    metadata: pl.LazyFrame, load_curve_annual: pl.LazyFrame
-) -> pl.LazyFrame:
+def identify_natgas_connection(metadata: pl.LazyFrame, load_curve_annual: pl.LazyFrame) -> pl.LazyFrame:
     """
     Identify if the building has a natural gas connection.
 
@@ -41,9 +39,7 @@ def identify_natgas_connection(
     # silently fan out metadata rows during the join below.  Missing bldg_ids are
     # intentional in sample-mode runs (only N buildings were downloaded) and are
     # handled correctly by the left join + fill_null(False) that follows.
-    n_lca_unique = (
-        natgas_from_load.select(pl.col("bldg_id").n_unique()).collect()
-    ).item()
+    n_lca_unique = (natgas_from_load.select(pl.col("bldg_id").n_unique()).collect()).item()
     n_lca_total = (natgas_from_load.select(pl.len()).collect()).item()
     if n_lca_total != n_lca_unique:
         raise ValueError(
@@ -76,9 +72,7 @@ def identify_natgas_connection(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Add has_natgas_connection column to ResStock metadata."
-    )
+    parser = argparse.ArgumentParser(description="Add has_natgas_connection column to ResStock metadata.")
     parser.add_argument(
         "--input_metadata_dir",
         required=True,
@@ -115,24 +109,14 @@ if __name__ == "__main__":
     input_metadata_path = S3Path(args.input_metadata_dir) / args.input_metadata_filename
     if not input_metadata_path.exists():
         raise FileNotFoundError(f"Metadata file {input_metadata_path} does not exist")
-    input_metadata = pl.scan_parquet(
-        str(input_metadata_path), storage_options=STORAGE_OPTIONS
-    )
+    input_metadata = pl.scan_parquet(str(input_metadata_path), storage_options=STORAGE_OPTIONS)
     # Read input load curve annual file
-    input_load_curve_annual_path = (
-        S3Path(args.input_load_curve_annual_dir) / args.input_load_curve_annual_filename
-    )
+    input_load_curve_annual_path = S3Path(args.input_load_curve_annual_dir) / args.input_load_curve_annual_filename
     if not input_load_curve_annual_path.exists():
-        raise FileNotFoundError(
-            f"Load curve annual file {input_load_curve_annual_path} does not exist"
-        )
-    input_load_curve_annual = pl.scan_parquet(
-        str(input_load_curve_annual_path), storage_options=STORAGE_OPTIONS
-    )
+        raise FileNotFoundError(f"Load curve annual file {input_load_curve_annual_path} does not exist")
+    input_load_curve_annual = pl.scan_parquet(str(input_load_curve_annual_path), storage_options=STORAGE_OPTIONS)
     # Add `has_natgas_connection` column
-    output_metadata = identify_natgas_connection(
-        metadata=input_metadata, load_curve_annual=input_load_curve_annual
-    )
+    output_metadata = identify_natgas_connection(metadata=input_metadata, load_curve_annual=input_load_curve_annual)
     # Write output metadata file
     output_path = S3Path(args.output_dir) / args.output_filename
     if not output_path.parent.exists():

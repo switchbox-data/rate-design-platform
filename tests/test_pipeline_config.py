@@ -110,9 +110,7 @@ class TestMultiRateFixed:
     def _fixed_scenario_yaml(self) -> dict[str, Any]:
         """Pipeline YAML with a valid multi_rate_fixed scenario."""
         data = _minimal_pipeline_yaml()
-        data["revenue_requirement"]["single_rate_uncalibrated"] = (
-            "rev_requirement/bge_uncalibrated_large.yaml"
-        )
+        data["revenue_requirement"]["single_rate_uncalibrated"] = "rev_requirement/bge_uncalibrated_large.yaml"
         data["scenarios"]["default_rd_uncalibrated"] = {
             "quartet": "single_rate_uncalibrated",
             "tariff_base": "rd_default",
@@ -175,35 +173,23 @@ class TestMultiRateFixed:
 
     def test_missing_copy_from_rejected(self, tmp_path: Path) -> None:
         data = self._fixed_scenario_yaml()
-        del data["scenarios"]["hp_rd_vs_default"]["subclass_config"]["subgroups"]["hp"][
-            "copy_from"
-        ]
+        del data["scenarios"]["hp_rd_vs_default"]["subclass_config"]["subgroups"]["hp"]["copy_from"]
         with pytest.raises(ValueError, match="requires 'copy_from'"):
             load_pipeline_config(_write(tmp_path, data))
 
-    def test_manual_rr_yaml_bypasses_candidate_tariff_scenario(
-        self, tmp_path: Path
-    ) -> None:
+    def test_manual_rr_yaml_bypasses_candidate_tariff_scenario(self, tmp_path: Path) -> None:
         """candidate_tariff_rr_yaml_path lets 'depends_on' omit the RD scenario."""
         data = self._fixed_scenario_yaml()
         del data["scenarios"]["hp_rd_vs_default"]["candidate_tariff_scenario"]
-        data["scenarios"]["hp_rd_vs_default"]["candidate_tariff_rr_yaml_path"] = (
-            "rev_requirement/bge_hp_vs_non-hp.yaml"
-        )
+        data["scenarios"]["hp_rd_vs_default"]["candidate_tariff_rr_yaml_path"] = "rev_requirement/bge_hp_vs_non-hp.yaml"
         config = load_pipeline_config(_write(tmp_path, data))
         sc = config.scenario("hp_rd_vs_default")
         assert sc.candidate_tariff_scenario is None
-        assert (
-            sc.candidate_tariff_rr_yaml_path == "rev_requirement/bge_hp_vs_non-hp.yaml"
-        )
+        assert sc.candidate_tariff_rr_yaml_path == "rev_requirement/bge_hp_vs_non-hp.yaml"
 
-    def test_manual_rr_yaml_and_candidate_tariff_scenario_both_set_rejected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_manual_rr_yaml_and_candidate_tariff_scenario_both_set_rejected(self, tmp_path: Path) -> None:
         data = self._fixed_scenario_yaml()
-        data["scenarios"]["hp_rd_vs_default"]["candidate_tariff_rr_yaml_path"] = (
-            "rev_requirement/bge_hp_vs_non-hp.yaml"
-        )
+        data["scenarios"]["hp_rd_vs_default"]["candidate_tariff_rr_yaml_path"] = "rev_requirement/bge_hp_vs_non-hp.yaml"
         with pytest.raises(ValueError, match="sets both"):
             load_pipeline_config(_write(tmp_path, data))
 
@@ -213,9 +199,7 @@ class TestMultiRateFixed:
             "values": ["true"],
             "structure": "base",
             "tariff_json_path": "tariffs/electric/bge_rd_default_calibrated.json",
-            "tariff_json_supply_path": (
-                "tariffs/electric/bge_rd_default_supply_calibrated.json"
-            ),
+            "tariff_json_supply_path": ("tariffs/electric/bge_rd_default_supply_calibrated.json"),
         }
         config = load_pipeline_config(_write(tmp_path, data))
         subclass_config = config.scenario("hp_rd_vs_default").subclass_config
@@ -224,9 +208,7 @@ class TestMultiRateFixed:
         assert sg.copy_from is None
         assert sg.tariff_json_path == "tariffs/electric/bge_rd_default_calibrated.json"
 
-    def test_manual_tariff_path_without_supply_path_rejected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_manual_tariff_path_without_supply_path_rejected(self, tmp_path: Path) -> None:
         data = self._fixed_scenario_yaml()
         data["scenarios"]["hp_rd_vs_default"]["subclass_config"]["subgroups"]["hp"] = {
             "values": ["true"],
@@ -236,16 +218,14 @@ class TestMultiRateFixed:
         with pytest.raises(ValueError, match="must both be set or both be omitted"):
             load_pipeline_config(_write(tmp_path, data))
 
-    def test_manual_tariff_path_and_copy_from_both_set_rejected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_manual_tariff_path_and_copy_from_both_set_rejected(self, tmp_path: Path) -> None:
         data = self._fixed_scenario_yaml()
-        data["scenarios"]["hp_rd_vs_default"]["subclass_config"]["subgroups"]["hp"][
-            "tariff_json_path"
-        ] = "tariffs/electric/bge_rd_default_calibrated.json"
-        data["scenarios"]["hp_rd_vs_default"]["subclass_config"]["subgroups"]["hp"][
-            "tariff_json_supply_path"
-        ] = "tariffs/electric/bge_rd_default_supply_calibrated.json"
+        data["scenarios"]["hp_rd_vs_default"]["subclass_config"]["subgroups"]["hp"]["tariff_json_path"] = (
+            "tariffs/electric/bge_rd_default_calibrated.json"
+        )
+        data["scenarios"]["hp_rd_vs_default"]["subclass_config"]["subgroups"]["hp"]["tariff_json_supply_path"] = (
+            "tariffs/electric/bge_rd_default_supply_calibrated.json"
+        )
         with pytest.raises(ValueError, match="sets both 'copy_from'"):
             load_pipeline_config(_write(tmp_path, data))
 
@@ -260,24 +240,18 @@ class TestMultiRateFixed:
             "values": ["true"],
             "structure": "base",
             "tariff_json_path": "tariffs/electric/bge_rd_default_calibrated.json",
-            "tariff_json_supply_path": (
-                "tariffs/electric/bge_rd_default_supply_calibrated.json"
-            ),
+            "tariff_json_supply_path": ("tariffs/electric/bge_rd_default_supply_calibrated.json"),
         }
         sc["subclass_config"]["subgroups"]["non-hp"] = {
             "values": ["false"],
             "structure": "base",
             "tariff_json_path": "tariffs/electric/bge_default_calibrated.json",
-            "tariff_json_supply_path": (
-                "tariffs/electric/bge_default_supply_calibrated.json"
-            ),
+            "tariff_json_supply_path": ("tariffs/electric/bge_default_supply_calibrated.json"),
         }
         config = load_pipeline_config(_write(tmp_path, data))
         assert config.scenario("hp_rd_vs_default").depends_on is None
 
-    def test_fully_manual_tariffs_but_derived_rr_still_needs_depends_on(
-        self, tmp_path: Path
-    ) -> None:
+    def test_fully_manual_tariffs_but_derived_rr_still_needs_depends_on(self, tmp_path: Path) -> None:
         """All tariffs manual but RR still derived: 'depends_on' is still needed
         (for candidate_tariff_scenario's precalc bills)."""
         data = self._fixed_scenario_yaml()
@@ -287,26 +261,20 @@ class TestMultiRateFixed:
             "values": ["true"],
             "structure": "base",
             "tariff_json_path": "tariffs/electric/bge_rd_default_calibrated.json",
-            "tariff_json_supply_path": (
-                "tariffs/electric/bge_rd_default_supply_calibrated.json"
-            ),
+            "tariff_json_supply_path": ("tariffs/electric/bge_rd_default_supply_calibrated.json"),
         }
         sc["subclass_config"]["subgroups"]["non-hp"] = {
             "values": ["false"],
             "structure": "base",
             "tariff_json_path": "tariffs/electric/bge_default_calibrated.json",
-            "tariff_json_supply_path": (
-                "tariffs/electric/bge_default_supply_calibrated.json"
-            ),
+            "tariff_json_supply_path": ("tariffs/electric/bge_default_supply_calibrated.json"),
         }
         with pytest.raises(ValueError, match="depends_on"):
             load_pipeline_config(_write(tmp_path, data))
 
     def test_copy_from_not_in_depends_on_rejected(self, tmp_path: Path) -> None:
         data = self._fixed_scenario_yaml()
-        data["scenarios"]["hp_rd_vs_default"]["subclass_config"]["subgroups"]["hp"][
-            "copy_from"
-        ] = "unknown"
+        data["scenarios"]["hp_rd_vs_default"]["subclass_config"]["subgroups"]["hp"]["copy_from"] = "unknown"
         with pytest.raises(ValueError, match="must be in 'depends_on'"):
             load_pipeline_config(_write(tmp_path, data))
 
@@ -324,22 +292,16 @@ class TestMultiRateFixed:
         """The BAT-allocation run is never inferred from 'depends_on' order."""
         data = self._fixed_scenario_yaml()
         del data["scenarios"]["hp_rd_vs_default"]["bat_allocation_scenario"]
-        with pytest.raises(
-            ValueError, match="requires an explicit 'bat_allocation_scenario'"
-        ):
+        with pytest.raises(ValueError, match="requires an explicit 'bat_allocation_scenario'"):
             load_pipeline_config(_write(tmp_path, data))
 
-    def test_bat_allocation_scenario_not_in_depends_on_rejected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_bat_allocation_scenario_not_in_depends_on_rejected(self, tmp_path: Path) -> None:
         data = self._fixed_scenario_yaml()
         data["scenarios"]["hp_rd_vs_default"]["bat_allocation_scenario"] = "other"
         with pytest.raises(ValueError, match="bat_allocation_scenario 'other'"):
             load_pipeline_config(_write(tmp_path, data))
 
-    def test_bat_allocation_scenario_on_non_fixed_quartet_rejected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_bat_allocation_scenario_on_non_fixed_quartet_rejected(self, tmp_path: Path) -> None:
         data = _minimal_pipeline_yaml()
         data["scenarios"]["default"]["bat_allocation_scenario"] = "default"
         with pytest.raises(ValueError, match="only applies to 'multi_rate_fixed'"):
@@ -382,9 +344,7 @@ class TestSingleRateUncalibrated:
 
     def _yaml(self) -> dict[str, Any]:
         data = _minimal_pipeline_yaml()
-        data["revenue_requirement"]["single_rate_uncalibrated"] = (
-            "rev_requirement/bge_uncalibrated_large.yaml"
-        )
+        data["revenue_requirement"]["single_rate_uncalibrated"] = "rev_requirement/bge_uncalibrated_large.yaml"
         data["scenarios"]["default_rd_uncalibrated"] = {
             "quartet": "single_rate_uncalibrated",
             "tariff_base": "rd_default",
@@ -417,9 +377,7 @@ class TestSingleRateUncalibrated:
         with pytest.raises(ValueError, match="must not declare a 'subclass_config'"):
             load_pipeline_config(_write(tmp_path, data))
 
-    def test_generated_runs_are_default_mode_with_posted_tariff_and_large_rr(
-        self, tmp_path: Path
-    ) -> None:
+    def test_generated_runs_are_default_mode_with_posted_tariff_and_large_rr(self, tmp_path: Path) -> None:
         """Verify every invariant of the uncalibrated quartet:
 
         1. Exactly 4 runs (2 stages × 2 variants).
@@ -433,9 +391,7 @@ class TestSingleRateUncalibrated:
         """
         config = load_pipeline_config(_write(tmp_path, self._yaml()))
         out = tmp_path / "scenarios.yaml"
-        generate_scenarios_yaml(
-            config, "batch_test", out, scenarios=["default_rd_uncalibrated"]
-        )
+        generate_scenarios_yaml(config, "batch_test", out, scenarios=["default_rd_uncalibrated"])
         doc = yaml.safe_load(out.read_text(encoding="utf-8"))
         runs = doc["runs"]
 
@@ -461,19 +417,13 @@ class TestSingleRateUncalibrated:
             # --- (4/5) posted tariff, delivery vs supply ---
             assert "calibrated" not in tariff_path, f"{name}: no *_calibrated"
             if "supply" in name:
-                assert tariff_path == "tariffs/electric/bge_rd_default_supply.json", (
-                    f"{name}: supply tariff"
-                )
+                assert tariff_path == "tariffs/electric/bge_rd_default_supply.json", f"{name}: supply tariff"
             else:
-                assert tariff_path == "tariffs/electric/bge_rd_default.json", (
-                    f"{name}: delivery tariff"
-                )
+                assert tariff_path == "tariffs/electric/bge_rd_default.json", f"{name}: delivery tariff"
 
             # --- (7) no subclasses ---
             assert run["run_includes_subclasses"] is False, f"{name}: subclasses"
-            assert list(run["path_tariffs_electric"].keys()) == ["all"], (
-                f"{name}: single tariff key"
-            )
+            assert list(run["path_tariffs_electric"].keys()) == ["all"], f"{name}: single tariff key"
 
         # --- (6) same tariff in precalc and calibrated (no promotion) ---
         precalc_d = runs["md_bge_default_rd_uncalibrated_precalc_delivery"]
@@ -491,9 +441,7 @@ class TestSingleRateUncalibrated:
         sc = config.scenario("default_rd_uncalibrated")
         assert sc.is_uncalibrated
 
-    def test_ordinary_single_rate_precalc_still_solves_to_class_rr(
-        self, tmp_path: Path
-    ) -> None:
+    def test_ordinary_single_rate_precalc_still_solves_to_class_rr(self, tmp_path: Path) -> None:
         config = load_pipeline_config(_write(tmp_path, self._yaml()))
         out = tmp_path / "scenarios.yaml"
         generate_scenarios_yaml(config, "batch_test", out, scenarios=["default"])
@@ -503,10 +451,7 @@ class TestSingleRateUncalibrated:
         assert precalc["run_type"] == "precalc"
         assert precalc["utility_revenue_requirement"] == "rev_requirement/bge.yaml"
         assert calibrated["run_type"] == "default"
-        assert (
-            calibrated["utility_revenue_requirement"]
-            == "rev_requirement/bge_large.yaml"
-        )
+        assert calibrated["utility_revenue_requirement"] == "rev_requirement/bge_large.yaml"
         assert calibrated["path_tariffs_electric"]["all"].endswith("_calibrated.json")
 
     def test_missing_uncalibrated_rr_key_rejected(self, tmp_path: Path) -> None:
@@ -515,9 +460,7 @@ class TestSingleRateUncalibrated:
             "quartet": "single_rate_uncalibrated",
             "tariff_base": "rd_default",
         }
-        with pytest.raises(
-            ValueError, match="revenue_requirement.single_rate_uncalibrated"
-        ):
+        with pytest.raises(ValueError, match=r"revenue_requirement.single_rate_uncalibrated"):
             load_pipeline_config(_write(tmp_path, data))
 
 
@@ -561,9 +504,7 @@ class TestMarginalCostKeys:
         }
         config = load_pipeline_config(_write(tmp_path, data))
         assert config.run_defaults.mc_dist_and_sub_tx == "s3://bucket/dist/data.parquet"
-        assert config.run_defaults.mc_expected_keys == {
-            "dist_and_sub_tx": "pop_x_100h_load2025_2025usd"
-        }
+        assert config.run_defaults.mc_expected_keys == {"dist_and_sub_tx": "pop_x_100h_load2025_2025usd"}
 
     def test_unknown_entry_rejected(self, tmp_path: Path) -> None:
         data = _minimal_pipeline_yaml()
@@ -606,15 +547,11 @@ class TestMarginalCostKeys:
         assert "zero.parquet" in errors[1]
 
         self._write_mc(mc / "energy" / "zero.parquet", "zero")
-        data["marginal_costs"]["dist_and_sub_tx"]["key"] = (
-            "pop_occ_100h_load2025_2025usd"
-        )
+        data["marginal_costs"]["dist_and_sub_tx"]["key"] = "pop_occ_100h_load2025_2025usd"
         config = load_pipeline_config(_write(tmp_path, data))
         assert validate_marginal_cost_manifests(config) == []
 
-    def test_generator_not_in_history_warns_but_passes(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_generator_not_in_history_warns_but_passes(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         from rate_design.hp_rates import pipeline_config
         from utils.data_prep.marginal_costs import mc_manifest
 
@@ -632,13 +569,9 @@ class TestMarginalCostKeys:
         ):
             errors = pipeline_config.validate_marginal_cost_manifests(config)
         assert errors == []
-        assert any(
-            "not in this checkout's history" in r.message for r in caplog.records
-        )
+        assert any("not in this checkout's history" in r.message for r in caplog.records)
 
-    def test_ancestry_warning_reports_commit_and_branch(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_ancestry_warning_reports_commit_and_branch(self, caplog: pytest.LogCaptureFixture) -> None:
         from rate_design.hp_rates import pipeline_config
         from utils.data_prep.marginal_costs import mc_manifest
 

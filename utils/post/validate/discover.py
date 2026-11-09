@@ -32,9 +32,7 @@ def _cairo_output_prefix(state: str, utility: str) -> str:
     return f"switchbox/cairo/outputs/hp_rates/{state.lower()}/{utility.lower()}/"
 
 
-def _list_batch_names(
-    s3_client: Any, bucket: str, utility_prefix: str, state: str
-) -> list[str]:
+def _list_batch_names(s3_client: Any, bucket: str, utility_prefix: str, state: str) -> list[str]:
     """List CAIRO batch name directories under a utility prefix, sorted ascending.
 
     Filters to entries matching the {state}_{YYYYMMDD}{letter}_r{run_range} pattern so stray objects
@@ -59,9 +57,7 @@ def _list_batch_names(
             # Strip the parent prefix and trailing slash to isolate the dir name.
             dir_name = entry["Prefix"][len(utility_prefix) :].rstrip("/")
             # Match batch name format and ensure it starts with the correct state
-            if _BATCH_NAME_RE.match(dir_name) and dir_name.startswith(
-                f"{state_lower}_"
-            ):
+            if _BATCH_NAME_RE.match(dir_name) and dir_name.startswith(f"{state_lower}_"):
                 batch_names.append(dir_name)
 
     return sorted(batch_names)
@@ -139,13 +135,9 @@ def find_latest_complete_batch(
 
     batch_names = _list_batch_names(s3_client, bucket, utility_prefix, state)
     if not batch_names:
-        raise FileNotFoundError(
-            f"No batch directories found under s3://{bucket}/{utility_prefix}"
-        )
+        raise FileNotFoundError(f"No batch directories found under s3://{bucket}/{utility_prefix}")
 
-    required_count = (
-        expected_run_count if expected_run_count is not None else len(run_names)
-    )
+    required_count = expected_run_count if expected_run_count is not None else len(run_names)
 
     # Search newest-first so we return the most recent complete batch.
     for batch_name in reversed(batch_names):
@@ -200,9 +192,7 @@ def resolve_batch(
             f"(e.g. 'ny_20260305a_r1-2'), got: {batch_name!r}"
         )
     if not batch_name.startswith(f"{state_lower}_"):
-        raise ValueError(
-            f"batch_name must start with state '{state_lower}_', got: {batch_name!r}"
-        )
+        raise ValueError(f"batch_name must start with state '{state_lower}_', got: {batch_name!r}")
 
     s3_client = boto3.client("s3")
     bucket = _CAIRO_OUTPUT_BUCKET
@@ -211,6 +201,5 @@ def resolve_batch(
     return {
         run_num: run_dir
         for run_num, run_name in run_names.items()
-        if (run_dir := _find_run_dir(s3_client, bucket, batch_prefix, run_name))
-        is not None
+        if (run_dir := _find_run_dir(s3_client, bucket, batch_prefix, run_name)) is not None
     }

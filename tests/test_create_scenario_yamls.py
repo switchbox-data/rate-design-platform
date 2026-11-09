@@ -96,9 +96,7 @@ def test_row_to_run_reads_residual_allocation() -> None:
 
 def test_row_to_run_includes_path_tou_supply_mc_when_populated() -> None:
     row = _base_row()
-    row["path_tou_supply_mc"] = (
-        "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet"
-    )
+    row["path_tou_supply_mc"] = "s3://data.sb/nrel/cambium/2024/scenario=MidCase/t=2025/gea=ISONE/r=p133/data.parquet"
     headers = list(row.keys())
 
     run = _row_to_run(row, headers)
@@ -118,9 +116,7 @@ def test_row_to_run_omits_path_tou_supply_mc_when_blank() -> None:
 
 def test_require_utility_for_data_row_accepts_valid_utility() -> None:
     row = {"state": "NY", "utility": "coned", "num": "1"}
-    _require_utility_for_data_row(
-        row, state_key="state", utility_key="utility", num_key="num"
-    )
+    _require_utility_for_data_row(row, state_key="state", utility_key="utility", num_key="num")
 
 
 def test_require_utility_for_data_row_raises_on_blank_utility() -> None:
@@ -128,9 +124,7 @@ def test_require_utility_for_data_row_raises_on_blank_utility() -> None:
 
     row = {"state": "NY", "utility": "", "num": "5"}
     with pytest.raises(ValueError, match="blank or invalid utility"):
-        _require_utility_for_data_row(
-            row, state_key="state", utility_key="utility", num_key="num"
-        )
+        _require_utility_for_data_row(row, state_key="state", utility_key="utility", num_key="num")
 
 
 def test_require_utility_for_data_row_raises_on_numeric_utility() -> None:
@@ -138,16 +132,12 @@ def test_require_utility_for_data_row_raises_on_numeric_utility() -> None:
 
     row = {"state": "RI", "utility": "123", "num": "2"}
     with pytest.raises(ValueError, match="blank or invalid utility"):
-        _require_utility_for_data_row(
-            row, state_key="state", utility_key="utility", num_key="num"
-        )
+        _require_utility_for_data_row(row, state_key="state", utility_key="utility", num_key="num")
 
 
 def test_require_utility_for_data_row_skips_rows_without_state() -> None:
     row = {"state": "", "utility": "", "num": "1"}
-    _require_utility_for_data_row(
-        row, state_key="state", utility_key="utility", num_key="num"
-    )
+    _require_utility_for_data_row(row, state_key="state", utility_key="utility", num_key="num")
 
 
 # ---------------------------------------------------------------------------
@@ -164,8 +154,7 @@ def test_parse_subclass_selectors_simple() -> None:
 def test_parse_subclass_selectors_multi_value() -> None:
     """Pipe-separated values are joined with commas."""
     result = _parse_subclass_selectors(
-        "electric_heating:heat_pump|electrical_resistance,"
-        "non_electric_heating:natgas|delivered_fuels|other"
+        "electric_heating:heat_pump|electrical_resistance,non_electric_heating:natgas|delivered_fuels|other"
     )
     assert result == {
         "electric_heating": "heat_pump,electrical_resistance",
@@ -213,8 +202,7 @@ def test_row_to_run_subclass_config_multi_value_selectors() -> None:
     row = _base_row()
     row["subclass_group_col"] = "heating_type_v2"
     row["subclass_selectors"] = (
-        "electric_heating:heat_pump|electrical_resistance,"
-        "non_electric_heating:natgas|delivered_fuels|other"
+        "electric_heating:heat_pump|electrical_resistance,non_electric_heating:natgas|delivered_fuels|other"
     )
     headers = list(row.keys())
     run = _row_to_run(row, headers)

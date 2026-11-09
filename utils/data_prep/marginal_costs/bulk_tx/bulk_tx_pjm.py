@@ -65,9 +65,7 @@ _VALIDATION_TOLERANCE_PCT: float = 0.01
 _DAYS_JUN_TO_DEC: int = 214
 
 PJM_HOURLY_DEMAND_S3_BASE = "s3://data.sb/pjm/hourly_demand/utilities"
-NITS_CSV_PATH = (
-    Path(__file__).resolve().parents[4] / "data/pjm/bulk_tx/nits/nits_rates.csv"
-)
+NITS_CSV_PATH = Path(__file__).resolve().parents[4] / "data/pjm/bulk_tx/nits/nits_rates.csv"
 
 # Utility → NITS zone mapping.
 # Re-uses PJM_UTILITY_ZONES from supply_utils (the canonical single source of
@@ -112,10 +110,7 @@ def compute_blended_nits_rate(nits_df: pl.DataFrame, zone: str, year: int) -> fl
 
     if year_rows.height == 0:
         available_years = sorted(nits_df["year"].unique().to_list())
-        raise ValueError(
-            f"No NITS data for zone={zone}, year={year}. "
-            f"Available years: {available_years}"
-        )
+        raise ValueError(f"No NITS data for zone={zone}, year={year}. Available years: {available_years}")
 
     jan_rows = year_rows.filter(pl.col("effective_date").str.contains("-01-01"))
     jun_rows = year_rows.filter(pl.col("effective_date").str.contains("-06-01"))
@@ -176,9 +171,7 @@ def load_hourly_demand(
     # Strip timezone if present (PCAF works on naive Eastern timestamps)
     ts_dtype = raw.schema["timestamp"]
     if isinstance(ts_dtype, pl.Datetime) and ts_dtype.time_zone is not None:
-        raw = raw.with_columns(
-            pl.col("timestamp").dt.replace_time_zone(None).alias("timestamp")
-        )
+        raw = raw.with_columns(pl.col("timestamp").dt.replace_time_zone(None).alias("timestamp"))
 
     # DST fall-back: average any duplicate timestamps
     deduped = raw.group_by("timestamp").agg(pl.col("load_mw").mean()).sort("timestamp")
@@ -223,8 +216,7 @@ def allocate_pcaf(
     """
     if load_df.height < k_peak_hours:
         raise ValueError(
-            f"Load data has only {load_df.height} hours, "
-            f"need at least {k_peak_hours} for PCAF allocation."
+            f"Load data has only {load_df.height} hours, need at least {k_peak_hours} for PCAF allocation."
         )
 
     # Select top-K hours by load across the full year
@@ -233,14 +225,10 @@ def allocate_pcaf(
     # Compute PCAF load-share weights
     total_peak_load = float(top_k["load_mw"].sum())
     if total_peak_load <= 0:
-        raise ValueError(
-            f"Total load across top-{k_peak_hours} hours is zero or negative."
-        )
+        raise ValueError(f"Total load across top-{k_peak_hours} hours is zero or negative.")
 
     result = top_k.with_columns(
-        (pl.col("load_mw") / total_peak_load * annual_cost_kw_year).alias(
-            "bulk_tx_cost_enduse"
-        )
+        (pl.col("load_mw") / total_peak_load * annual_cost_kw_year).alias("bulk_tx_cost_enduse")
     )
 
     return result.select("timestamp", "bulk_tx_cost_enduse").sort("timestamp")
@@ -276,9 +264,7 @@ def compute_pjm_bulk_tx_mc(
         8760-row DataFrame with columns: timestamp, bulk_tx_cost_enduse
     """
     if utility not in VALID_PJM_UTILITIES:
-        raise ValueError(
-            f"Invalid utility '{utility}'. Valid: {sorted(VALID_PJM_UTILITIES)}"
-        )
+        raise ValueError(f"Invalid utility '{utility}'. Valid: {sorted(VALID_PJM_UTILITIES)}")
 
     load_year = year if load_year is None else load_year
 
@@ -317,9 +303,7 @@ def compute_pjm_bulk_tx_mc(
     ref_8760 = build_cairo_8760_timestamps(year)
     output = (
         ref_8760.join(peak_hours_df, on="timestamp", how="left")
-        .with_columns(
-            pl.col("bulk_tx_cost_enduse").fill_null(0.0).alias("bulk_tx_cost_enduse")
-        )
+        .with_columns(pl.col("bulk_tx_cost_enduse").fill_null(0.0).alias("bulk_tx_cost_enduse"))
         .sort("timestamp")
     )
 
@@ -345,9 +329,7 @@ def compute_pjm_bulk_tx_mc(
             f"Expected ${blended_rate:.6f}/kW-yr, got ${actual_sum:.6f}/kW-yr."
         )
     if n_nonzero != k_peak_hours:
-        raise ValueError(
-            f"Expected exactly {k_peak_hours} non-zero hours, got {n_nonzero}"
-        )
+        raise ValueError(f"Expected exactly {k_peak_hours} non-zero hours, got {n_nonzero}")
 
     print("  ✓ Validation PASSED")
 
@@ -383,9 +365,7 @@ def save_output(
     storage_options: dict[str, str],
 ) -> None:
     """Write bulk TX MC parquet to S3 (hive-style utility/year partition)."""
-    output_path = (
-        f"{output_s3_base.rstrip('/')}/utility={utility}/year={year}/data.parquet"
-    )
+    output_path = f"{output_s3_base.rstrip('/')}/utility={utility}/year={year}/data.parquet"
     output_df.write_parquet(output_path, storage_options=storage_options)
     print(f"\n✓ Saved bulk TX MC to {output_path}")
     print(f"  Rows: {len(output_df):,}")

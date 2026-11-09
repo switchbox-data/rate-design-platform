@@ -35,9 +35,7 @@ def test_get_ami_territories_has_reference_fips() -> None:
     config = load_ny_eap_config()
     ami_cfg = config["ami_territories"]
     for utility, data in ami_cfg.items():
-        assert "reference_county_fips" in data, (
-            f"{utility} missing reference_county_fips"
-        )
+        assert "reference_county_fips" in data, f"{utility} missing reference_county_fips"
         fips = data["reference_county_fips"]
         assert len(fips) == 5, f"{utility} FIPS should be 5 digits: {fips}"
 
@@ -113,9 +111,7 @@ def test_smi_threshold_by_hh_size() -> None:
 
 
 def test_smi_threshold_100pct() -> None:
-    smi_row = pl.DataFrame(
-        {"l50_1": [25000.0], **{f"l50_{i}": [0.0] for i in range(2, 9)}}
-    )
+    smi_row = pl.DataFrame({"l50_1": [25000.0], **{f"l50_{i}": [0.0] for i in range(2, 9)}})
     result = smi_threshold_by_hh_size(smi_row, pct=100.0)
     assert result[1] == 25000.0 * 2.0
 

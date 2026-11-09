@@ -68,24 +68,19 @@ def _load_pgc_annual_avg(path_pgc: Path, pgc_col: str, year: int) -> float:
                 val = float(row[pgc_col])
             except (KeyError, ValueError) as exc:
                 raise ValueError(
-                    f"Column '{pgc_col}' not found or non-numeric in {path_pgc} "
-                    f"at row {month_str}"
+                    f"Column '{pgc_col}' not found or non-numeric in {path_pgc} at row {month_str}"
                 ) from exc
             monthly[int(row_month)] = val
 
     if not monthly:
-        raise ValueError(
-            f"No PGC data found for year {year} in {path_pgc}. "
-            f"Available months: check the CSV."
-        )
+        raise ValueError(f"No PGC data found for year {year} in {path_pgc}. Available months: check the CSV.")
 
     found = sorted(monthly.keys())
     missing = [m for m in range(1, 13) if m not in monthly]
     if missing:
         fill = sum(monthly.values()) / len(monthly)
         log.warning(
-            "%s: months %s not found for year %d — filling with mean of "
-            "available months (%.4f $/ccf)",
+            "%s: months %s not found for year %d — filling with mean of available months (%.4f $/ccf)",
             path_pgc.name,
             missing,
             year,
@@ -123,9 +118,7 @@ def add_pgc_to_urdb(path_urdb_dist: Path, commodity_per_kwh: float) -> dict:
         data = json.load(f)
 
     if "items" not in data:
-        raise ValueError(
-            f'{path_urdb_dist}: expected top-level {{"items": [...]}} envelope.'
-        )
+        raise ValueError(f'{path_urdb_dist}: expected top-level {{"items": [...]}} envelope.')
 
     item: dict = data["items"][0]
     energy_rates = item.get("energyratestructure")
@@ -192,9 +185,7 @@ def main() -> None:
 
     updated = add_pgc_to_urdb(args.path_urdb_dist, commodity_per_kwh)
 
-    dist_tiers = json.load(args.path_urdb_dist.open())["items"][0][
-        "energyratestructure"
-    ][0]
+    dist_tiers = json.load(args.path_urdb_dist.open())["items"][0]["energyratestructure"][0]
     new_tiers = updated["items"][0]["energyratestructure"][0]
     log.info("Period 1 tiers (dist): %s", [round(t["rate"], 6) for t in dist_tiers])
     log.info("Period 1 tiers (out):  %s", [round(t["rate"], 6) for t in new_tiers])

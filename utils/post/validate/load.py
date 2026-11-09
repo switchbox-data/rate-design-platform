@@ -49,9 +49,7 @@ def load_bills(s3_dir: str, bill_type: BillType = "elec") -> pl.LazyFrame:
     ``bill_type`` is one of ``"elec"`` (default), ``"gas"``, or ``"comb"``.
     """
     if bill_type not in _VALID_BILL_TYPES:
-        raise ValueError(
-            f"bill_type must be one of {sorted(_VALID_BILL_TYPES)!r}, got {bill_type!r}"
-        )
+        raise ValueError(f"bill_type must be one of {sorted(_VALID_BILL_TYPES)!r}, got {bill_type!r}")
     return pl.scan_csv(_s3_join(s3_dir, f"bills/{bill_type}_bills_year_target.csv"))
 
 
@@ -93,9 +91,7 @@ def load_input_tariff(state: str, utility: str, tariff_filename: str) -> dict[st
         / tariff_filename
     )
     if not path.exists():
-        raise FileNotFoundError(
-            f"Input tariff not found for state={state!r} utility={utility!r}: {path}"
-        )
+        raise FileNotFoundError(f"Input tariff not found for state={state!r} utility={utility!r}: {path}")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -110,19 +106,9 @@ def load_revenue_requirement(
     (e.g. ``"{utility}_hp_vs_nonhp.yaml"``).
     """
     filename = rr_filename if rr_filename is not None else f"{utility.lower()}.yaml"
-    path = (
-        get_project_root()
-        / "rate_design"
-        / "hp_rates"
-        / state.lower()
-        / "config"
-        / "rev_requirement"
-        / filename
-    )
+    path = get_project_root() / "rate_design" / "hp_rates" / state.lower() / "config" / "rev_requirement" / filename
     if not path.exists():
-        raise FileNotFoundError(
-            f"Revenue requirement YAML not found for state={state!r} utility={utility!r}: {path}"
-        )
+        raise FileNotFoundError(f"Revenue requirement YAML not found for state={state!r} utility={utility!r}: {path}")
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
@@ -182,14 +168,8 @@ def compute_weighted_loads_by_subclass_from_collected(
             loads_df.filter(pl.col(_BLDG).cast(pl.Int64).is_in(bldg_ids))
             .join(weights_df, on=_BLDG, how="inner")
             .select(
-                pl.col("timestamp")
-                .cast(pl.String, strict=False)
-                .str.to_datetime(strict=False)
-                .alias("_ts"),
-                (
-                    grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL)
-                    * pl.col(_WEIGHT)
-                ).alias("_wload"),
+                pl.col("timestamp").cast(pl.String, strict=False).str.to_datetime(strict=False).alias("_ts"),
+                (grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL) * pl.col(_WEIGHT)).alias("_wload"),
                 pl.col(_WEIGHT).cast(pl.Float64),
             )
             .group_by("_ts")
@@ -197,11 +177,7 @@ def compute_weighted_loads_by_subclass_from_collected(
                 pl.col("_wload").sum().alias("total_weighted_load_kwh"),
                 pl.col(_WEIGHT).sum().alias("_weight_sum"),
             )
-            .with_columns(
-                (pl.col("total_weighted_load_kwh") / pl.col("_weight_sum")).alias(
-                    "load_kwh"
-                )
-            )
+            .with_columns((pl.col("total_weighted_load_kwh") / pl.col("_weight_sum")).alias("load_kwh"))
             .sort("_ts")
             .with_row_index("hour")
             .select(["hour", "total_weighted_load_kwh", "load_kwh"])
@@ -244,16 +220,12 @@ def load_all_mc_components(run2_config: RunConfig) -> dict[str, pl.Series]:
     # Load supply energy MC (convert $/MWh → $/kWh)
     supply_energy_df = pl.read_parquet(run2_config.path_supply_energy_mc)
     supply_energy_df = supply_energy_df.sort("timestamp").with_row_index("hour")
-    supply_energy_series = (
-        supply_energy_df["energy_cost_enduse"].cast(pl.Float64) / 1000.0
-    )
+    supply_energy_series = supply_energy_df["energy_cost_enduse"].cast(pl.Float64) / 1000.0
 
     # Load supply capacity MC (convert $/MWh → $/kWh)
     supply_capacity_df = pl.read_parquet(run2_config.path_supply_capacity_mc)
     supply_capacity_df = supply_capacity_df.sort("timestamp").with_row_index("hour")
-    supply_capacity_series = (
-        supply_capacity_df["capacity_cost_enduse"].cast(pl.Float64) / 1000.0
-    )
+    supply_capacity_series = supply_capacity_df["capacity_cost_enduse"].cast(pl.Float64) / 1000.0
 
     return {
         "dist_sub_tx": dist_sub_tx_series,

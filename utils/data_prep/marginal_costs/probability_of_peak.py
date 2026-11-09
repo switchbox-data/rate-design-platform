@@ -97,9 +97,7 @@ def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
     if n > 0:
         first = date(year, month, 1)
         return first + timedelta(days=(weekday - first.weekday()) % 7 + 7 * (n - 1))
-    last = (
-        date(year, 12, 31) if month == 12 else date(year, month + 1, 1) - timedelta(1)
-    )
+    last = date(year, 12, 31) if month == 12 else date(year, month + 1, 1) - timedelta(1)
     return last - timedelta(days=(last.weekday() - weekday) % 7)
 
 
@@ -111,9 +109,7 @@ def _observe_holiday(day: date) -> date:
     return day
 
 
-def label_hour_types(
-    frame: pl.DataFrame, *, timestamp_col: str = "timestamp"
-) -> pl.DataFrame:
+def label_hour_types(frame: pl.DataFrame, *, timestamp_col: str = "timestamp") -> pl.DataFrame:
     """Add ``year``, ``month``, ``hour`` and ``daytype`` from a naive timestamp.
 
     ``daytype`` is ``"weekday"`` or ``"weekend_holiday"`` under the rule in
@@ -227,15 +223,11 @@ class ProbabilityOfPeak:
     @property
     def delimiter_share_of_peak(self) -> float:
         """Delimiter as a share of the mean over years of the normalized peak."""
-        normalized_peak = self.years.select(
-            (pl.col("peak_load") / pl.col("mean_load")).mean()
-        ).item()
+        normalized_peak = self.years.select((pl.col("peak_load") / pl.col("mean_load")).mean()).item()
         return self.delimiter / float(normalized_peak)
 
 
-def max_cell_mean_by_year(
-    labelled: pl.DataFrame, *, load_col: str = "load_norm"
-) -> pl.DataFrame:
+def max_cell_mean_by_year(labelled: pl.DataFrame, *, load_col: str = "load_norm") -> pl.DataFrame:
     """Each year's highest month x daytype x hour mean of ``load_col``.
 
     ``labelled`` must carry ``year``, ``month``, ``daytype`` and ``hour``, with
@@ -297,12 +289,9 @@ def probability_of_peak(
     short = years.filter(pl.col("n_hours") < MIN_HOURS_PER_YEAR)
     if short.height:
         raise ValueError(
-            "every calendar year must be complete (at least "
-            f"{MIN_HOURS_PER_YEAR} hours); short years: {short.rows()}"
+            f"every calendar year must be complete (at least {MIN_HOURS_PER_YEAR} hours); short years: {short.rows()}"
         )
-    labelled = labelled.with_columns(
-        (pl.col(load_col) / pl.col(load_col).mean().over("year")).alias("load_norm")
-    )
+    labelled = labelled.with_columns((pl.col(load_col) / pl.col(load_col).mean().over("year")).alias("load_norm"))
     max_cell_mean = max_cell_mean_by_year(labelled)
     delimiter = float(max_cell_mean.select(pl.col("max_cell_mean").mean()).item())
     years = years.join(max_cell_mean, on="year").with_columns(
@@ -352,9 +341,7 @@ def probability_of_peak(
     total = float(cells["p_exceed"].sum())
     if total <= 0.0:
         raise ValueError("no cell has any density above the delimiter")
-    cells = cells.with_columns(
-        (pl.col("p_exceed") / total).alias("probability_of_peak")
-    )
+    cells = cells.with_columns((pl.col("p_exceed") / total).alias("probability_of_peak"))
     return ProbabilityOfPeak(cells=cells, delimiter=delimiter, years=years)
 
 
@@ -374,13 +361,8 @@ def _check_pop_cells(cells: pl.DataFrame) -> pl.DataFrame:
         pl.col("hour").cast(pl.Int64),
         pl.col("probability_of_peak").cast(pl.Float64),
     )
-    if (
-        keyed.height != _N_CELLS
-        or keyed.select("month", "daytype", "hour").n_unique() != _N_CELLS
-    ):
-        raise ValueError(
-            f"PoP table must have {_N_CELLS} unique month x daytype x hour rows"
-        )
+    if keyed.height != _N_CELLS or keyed.select("month", "daytype", "hour").n_unique() != _N_CELLS:
+        raise ValueError(f"PoP table must have {_N_CELLS} unique month x daytype x hour rows")
     bad_daytype = set(keyed["daytype"].unique().to_list()) - set(DAY_TYPES)
     if bad_daytype:
         raise ValueError(f"unknown daytype values {sorted(bad_daytype)}")
@@ -413,11 +395,7 @@ def month_hour_costs_from_pop(
     if out["num_days"].null_count():
         raise ValueError(f"no days for some month x daytype in {calendar_year}")
     return out.with_columns(
-        (
-            pl.lit(float(annual_cost_kw_year))
-            * pl.col("probability_of_peak")
-            / pl.col("num_days")
-        ).alias(value_col)
+        (pl.lit(float(annual_cost_kw_year)) * pl.col("probability_of_peak") / pl.col("num_days")).alias(value_col)
     ).sort("month", "daytype", "hour")
 
 
@@ -441,13 +419,9 @@ def allocate_annual_cost_by_pop(
     Returns ``timestamp`` (naive, hour beginning, 8,760 rows) and ``value_col``.
     """
     calendar_year = year if calendar_year is None else calendar_year
-    costs = month_hour_costs_from_pop(
-        cells, annual_cost_kw_year, calendar_year, value_col="mc_total_per_kwh"
-    )
+    costs = month_hour_costs_from_pop(cells, annual_cost_kw_year, calendar_year, value_col="mc_total_per_kwh")
     tables = {
-        daytype: costs.filter(pl.col("daytype") == daytype).select(
-            "month", "hour", "mc_total_per_kwh"
-        )
+        daytype: costs.filter(pl.col("daytype") == daytype).select("month", "hour", "mc_total_per_kwh")
         for daytype in DAY_TYPES
     }
     expanded = expand_month_hour_mc_to_8760(
@@ -461,7 +435,6 @@ def allocate_annual_cost_by_pop(
     total = float(expanded[value_col].sum())
     if abs(total - annual_cost_kw_year) > 1e-6 * max(1.0, abs(annual_cost_kw_year)):
         raise ValueError(
-            f"8760 sums to {total}, expected {annual_cost_kw_year}: the day "
-            "counts and the calendar expansion disagree"
+            f"8760 sums to {total}, expected {annual_cost_kw_year}: the day counts and the calendar expansion disagree"
         )
     return expanded

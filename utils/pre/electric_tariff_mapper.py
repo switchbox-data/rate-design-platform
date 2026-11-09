@@ -7,7 +7,7 @@ import polars as pl
 from cloudpathlib import S3Path
 
 from utils import get_aws_region
-from utils.types import SBScenario, ElectricUtility
+from utils.types import ElectricUtility, SBScenario
 
 STORAGE_OPTIONS = {"aws_region": get_aws_region()}
 
@@ -40,9 +40,9 @@ def generate_electrical_tariff_mapping(
 ) -> pl.LazyFrame:
     electrical_tariff_mapping_df = lazy_metadata_has_hp.select(
         pl.col("bldg_id"),
-        define_electrical_tariff_key(
-            SB_scenario, electric_utility, pl.col("postprocess_group.has_hp")
-        ).alias("tariff_key"),
+        define_electrical_tariff_key(SB_scenario, electric_utility, pl.col("postprocess_group.has_hp")).alias(
+            "tariff_key"
+        ),
     )
 
     return electrical_tariff_mapping_df
@@ -54,22 +54,16 @@ def map_electric_tariff(
     SB_scenario: SBScenario,
     state: str,
 ) -> pl.LazyFrame:
-    utility_metadata_df = SB_metadata_df.filter(
-        pl.col("sb.electric_utility") == electric_utility
-    )
+    utility_metadata_df = SB_metadata_df.filter(pl.col("sb.electric_utility") == electric_utility)
 
-    metadata_has_hp = utility_metadata_df.select(
-        pl.col("bldg_id", "postprocess_group.has_hp")
-    )
+    metadata_has_hp = utility_metadata_df.select(pl.col("bldg_id", "postprocess_group.has_hp"))
 
     # Check if there are any rows in the filtered dataframe
     test_sample = metadata_has_hp.head(1).collect()
     if test_sample.is_empty():
         raise ValueError(f"No rows found for electric utility {electric_utility}")
 
-    electrical_tariff_mapping_df = generate_electrical_tariff_mapping(
-        metadata_has_hp, SB_scenario, electric_utility
-    )
+    electrical_tariff_mapping_df = generate_electrical_tariff_mapping(metadata_has_hp, SB_scenario, electric_utility)
 
     return electrical_tariff_mapping_df
 
@@ -124,8 +118,7 @@ def generate_tariff_map_from_scenario_keys(
 
     if subclass_config is None:
         raise ValueError(
-            "subclass_config is required when path_tariffs_electric has more than one "
-            f"key; got keys {sorted(keys)}"
+            f"subclass_config is required when path_tariffs_electric has more than one key; got keys {sorted(keys)}"
         )
 
     group_col: str = subclass_config["group_col"]
@@ -144,14 +137,10 @@ def generate_tariff_map_from_scenario_keys(
     ordered_keys = sorted(keys)
     first_key = ordered_keys[0]
     first_values = {v.strip() for v in selectors[first_key].split(",")}
-    expr = pl.when(pl.col(col_name).cast(pl.Utf8).is_in(first_values)).then(
-        pl.lit(stems[first_key])
-    )
+    expr = pl.when(pl.col(col_name).cast(pl.Utf8).is_in(first_values)).then(pl.lit(stems[first_key]))
     for key in ordered_keys[1:]:
         values = {v.strip() for v in selectors[key].split(",")}
-        expr = expr.when(pl.col(col_name).cast(pl.Utf8).is_in(values)).then(
-            pl.lit(stems[key])
-        )
+        expr = expr.when(pl.col(col_name).cast(pl.Utf8).is_in(values)).then(pl.lit(stems[key]))
     tariff_key_expr = expr.otherwise(pl.lit(None)).alias("tariff_key")
 
     result = bldg_data.select(pl.col("bldg_id"), tariff_key_expr)
@@ -168,9 +157,7 @@ def generate_tariff_map_from_scenario_keys(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Utility to help assign electricity tariffs to utility customers."
-    )
+    parser = argparse.ArgumentParser(description="Utility to help assign electricity tariffs to utility customers.")
     parser.add_argument(
         "--metadata_path",
         required=True,
@@ -186,14 +173,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--SB_scenario_type",
         required=True,
-        help=(
-            "SB scenario type "
-            "(e.g. default, seasonal, seasonal_discount, class_specific_seasonal)"
-        ),
+        help=("SB scenario type (e.g. default, seasonal, seasonal_discount, class_specific_seasonal)"),
     )
-    parser.add_argument(
-        "--SB_scenario_year", required=True, help="SB scenario year (e.g. 1 , 2, 3)"
-    )
+    parser.add_argument("--SB_scenario_year", required=True, help="SB scenario year (e.g. 1 , 2, 3)")
     parser.add_argument(
         "--output_dir",
         required=True,
@@ -212,12 +194,7 @@ if __name__ == "__main__":
     if "metadata_utility" in str(args.metadata_path):
         metadata_path = base_path / f"state={args.state}" / "utility_assignment.parquet"
     else:
-        metadata_path = (
-            base_path
-            / f"state={args.state}"
-            / f"upgrade={args.upgrade_id}"
-            / "metadata-sb.parquet"
-        )
+        metadata_path = base_path / f"state={args.state}" / f"upgrade={args.upgrade_id}" / "metadata-sb.parquet"
 
     if use_s3 and not metadata_path.exists():
         raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
@@ -263,9 +240,7 @@ if __name__ == "__main__":
         output_path = base_path / f"{args.electric_utility}_{sb_scenario}.csv"
         if not output_path.parent.exists():
             output_path.parent.mkdir(parents=True)
-        electrical_tariff_mapping_df.sink_csv(
-            str(output_path), storage_options=STORAGE_OPTIONS
-        )
+        electrical_tariff_mapping_df.sink_csv(str(output_path), storage_options=STORAGE_OPTIONS)
     except ValueError:
         base_path = Path(args.output_dir)
         output_path = base_path / f"{args.electric_utility}_{sb_scenario}.csv"

@@ -125,9 +125,7 @@ def _write_tariff(tmp_path: Path, tariff: dict) -> Path:
 
 
 def test_extract_from_flat_tariff(tmp_path: Path) -> None:
-    tariff = create_default_flat_tariff(
-        label="flat", volumetric_rate=0.12, fixed_charge=8.50
-    )
+    tariff = create_default_flat_tariff(label="flat", volumetric_rate=0.12, fixed_charge=8.50)
     path = _write_tariff(tmp_path, tariff)
     base_rate, fixed_charge = extract_base_rate_and_fixed_charge(path)
     assert base_rate == pytest.approx(0.12)
@@ -157,9 +155,7 @@ def test_extract_raises_on_missing_rate_structure(tmp_path: Path) -> None:
 
 
 def test_extract_raises_on_missing_fixed_charge(tmp_path: Path) -> None:
-    tariff = {
-        "items": [{"energyratestructure": [[{"rate": 0.1, "adj": 0.0, "unit": "kWh"}]]}]
-    }
+    tariff = {"items": [{"energyratestructure": [[{"rate": 0.1, "adj": 0.0, "unit": "kWh"}]]}]}
     path = _write_tariff(tmp_path, tariff)
     with pytest.raises(ValueError, match="fixedchargefirstmeter"):
         extract_base_rate_and_fixed_charge(path)

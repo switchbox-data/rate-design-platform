@@ -31,9 +31,7 @@ SERIES_MAP = {
 
 def _reject_just_placeholders(val: str) -> None:
     if "{{" in val or "}}" in val:
-        print(
-            f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr
-        )
+        print(f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -88,9 +86,7 @@ def _next_month(y: int, m: int) -> tuple[int, int]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Update ISO-NE LMP parquet to latest month."
-    )
+    parser = argparse.ArgumentParser(description="Update ISO-NE LMP parquet to latest month.")
     parser.add_argument(
         "--path-local-parquet",
         type=Path,
@@ -124,24 +120,18 @@ def main() -> None:
         latest_local = _latest_local_month(parquet_dir, series)
         latest_s3 = _latest_s3_month(s3_paths[series]) if s3_paths[series] else None
 
-        if latest_local and latest_s3:
-            latest = max(latest_local, latest_s3)
-        else:
-            latest = latest_local or latest_s3
+        latest = max(latest_local, latest_s3) if latest_local and latest_s3 else latest_local or latest_s3
 
         if latest is None:
             print(
-                f"  {series}: no existing data found. "
-                f"Use fetch with --start to bootstrap.",
+                f"  {series}: no existing data found. Use fetch with --start to bootstrap.",
                 file=sys.stderr,
             )
             continue
 
         start_y, start_m = _next_month(*latest)
         if (start_y, start_m) > (last_y, last_m):
-            print(
-                f"  {series}: already up to date (latest: {latest[0]}-{latest[1]:02d})."
-            )
+            print(f"  {series}: already up to date (latest: {latest[0]}-{latest[1]:02d}).")
             continue
 
         start_str = f"{start_y}-{start_m:02d}"

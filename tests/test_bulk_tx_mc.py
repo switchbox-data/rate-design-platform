@@ -14,9 +14,9 @@ from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_nyiso import (
     aggregate_paying_locality_hourly_signals_from_constraint_groups,
     allocate_bulk_tx_to_hours,
     build_nested_locality_load_profiles,
+    compute_nested_locality_scr_weights,
     compute_paying_locality_costs,
     compute_utility_bulk_tx_signal,
-    compute_nested_locality_scr_weights,
     identify_scr_hours,
     load_constraint_group_table,
     prepare_output,
@@ -36,9 +36,7 @@ def _make_hourly_load_profile(year: int = 2025) -> pl.DataFrame:
     summer = {4, 5, 6, 7, 8, 9}
     return df.with_columns(
         (
-            pl.when(pl.col("timestamp").dt.month().is_in(list(summer)))
-            .then(2000.0)
-            .otherwise(1200.0)
+            pl.when(pl.col("timestamp").dt.month().is_in(list(summer))).then(2000.0).otherwise(1200.0)
             + (pl.col("idx") % 24).cast(pl.Float64)
             + (pl.col("idx") * 0.0001)
         ).alias("load_mw")
@@ -85,9 +83,7 @@ def _make_hourly_load_profile_with_peak_hour(
         (
             (pl.col("timestamp").dt.ordinal_day() * 10.0)
             + pl.col("timestamp").dt.hour().cast(pl.Float64)
-            + pl.when(pl.col("timestamp").dt.hour() == peak_hour)
-            .then(10_000.0)
-            .otherwise(0.0)
+            + pl.when(pl.col("timestamp").dt.hour() == peak_hour).then(10_000.0).otherwise(0.0)
         ).alias("load_mw")
     )
 
@@ -182,9 +178,7 @@ class TestScrAllocation:
 class TestLocalityProfiles:
     def test_build_nested_locality_profiles(self) -> None:
         zone_loads = _make_zone_loads()
-        profiles = build_nested_locality_load_profiles(
-            zone_loads, ["NYCA", "LHV", "NYC", "LI"]
-        )
+        profiles = build_nested_locality_load_profiles(zone_loads, ["NYCA", "LHV", "NYC", "LI"])
         assert set(profiles) == {"NYCA", "LHV", "NYC", "LI"}
         assert profiles["NYCA"].height == 8760
         nyca_avg = cast(float, profiles["NYCA"]["load_mw"].mean())
@@ -195,27 +189,19 @@ class TestLocalityProfiles:
 class TestAggregationAndUtilityResolution:
     def test_aggregate_paying_locality_hourly_signals(self) -> None:
         hourly = _make_constraint_group_hourly()
-        locality_hourly = (
-            aggregate_paying_locality_hourly_signals_from_constraint_groups(hourly)
-        )
+        locality_hourly = aggregate_paying_locality_hourly_signals_from_constraint_groups(hourly)
 
         assert set(locality_hourly) == {"ROS", "LHV", "NYC", "LI"}
         # LHV receives cg1 and cg2 => mean at first hour = (1 + 5) / 2
-        lhv_first = float(
-            locality_hourly["LHV"].sort("timestamp")["bulk_tx_cost_enduse"][0]
-        )
+        lhv_first = float(locality_hourly["LHV"].sort("timestamp")["bulk_tx_cost_enduse"][0])
         assert abs(lhv_first - 3.0) < 1e-9
 
     def test_resolve_utility_paying_locality_signal(self) -> None:
         hourly = _make_constraint_group_hourly()
-        locality_hourly = (
-            aggregate_paying_locality_hourly_signals_from_constraint_groups(hourly)
-        )
+        locality_hourly = aggregate_paying_locality_hourly_signals_from_constraint_groups(hourly)
         mapping = _make_mapping()
 
-        utility_hourly = resolve_utility_paying_locality_signal(
-            mapping, "u1", locality_hourly
-        )
+        utility_hourly = resolve_utility_paying_locality_signal(mapping, "u1", locality_hourly)
         assert utility_hourly.height == 3
         # u1 = 0.6*ROS + 0.4*LHV; first hour: 0.6*1 + 0.4*3 = 1.8
         first = float(utility_hourly.sort("timestamp")["bulk_tx_cost_enduse"][0])
@@ -303,9 +289,7 @@ class TestTimestampRemap:
         with_scr = identify_scr_hours(load_df, n_hours_per_season=40)
         allocated = allocate_bulk_tx_to_hours(with_scr, v_constraint_group_kw_yr=30.0)
 
-        remapped = allocated.with_columns(
-            pl.col("timestamp").dt.offset_by(f"{2025 - 2018}y")
-        )
+        remapped = allocated.with_columns(pl.col("timestamp").dt.offset_by(f"{2025 - 2018}y"))
 
         years = remapped["timestamp"].dt.year().unique().to_list()
         assert years == [2025]
@@ -319,9 +303,7 @@ class TestTimestampRemap:
         )
 
         def ordinals(df: pl.DataFrame) -> list[tuple[int, int, int]]:
-            ts = df.filter(pl.col("bulk_tx_cost_enduse") > 0).sort("timestamp")[
-                "timestamp"
-            ]
+            ts = df.filter(pl.col("bulk_tx_cost_enduse") > 0).sort("timestamp")["timestamp"]
             return [(t.month, t.day, t.hour) for t in ts.to_list()]
 
         assert ordinals(allocated) == ordinals(remapped)

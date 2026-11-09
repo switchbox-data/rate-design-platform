@@ -61,9 +61,7 @@ def main() -> int:
     workers = args.workers
     failed = []
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        future_to_year = {
-            executor.submit(download_year, y, output_dir): y for y in years
-        }
+        future_to_year = {executor.submit(download_year, y, output_dir): y for y in years}
         with tqdm(total=len(years), desc="Downloading", unit="file") as pbar:
             for future in as_completed(future_to_year):
                 year = future_to_year[future]
@@ -79,9 +77,7 @@ def main() -> int:
 
 
 def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(
-        description="Download HUD Section 8 Income Limits Excel files by fiscal year"
-    )
+    p = argparse.ArgumentParser(description="Download HUD Section 8 Income Limits Excel files by fiscal year")
     p.add_argument(
         "--start-year",
         type=int,

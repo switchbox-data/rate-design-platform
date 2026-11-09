@@ -64,8 +64,7 @@ def build_county_utility_weights(
     """
     distrib = (
         utility_stats.filter(
-            (pl.col("entity_type").is_in(list(DISTRIBUTION_ENTITY_TYPES)))
-            | pl.col("entity_type").is_null()
+            (pl.col("entity_type").is_in(list(DISTRIBUTION_ENTITY_TYPES))) | pl.col("entity_type").is_null()
         )
         .filter(pl.col("residential_customers") > 0)
         .select(["utility_id_eia", "residential_customers"])
@@ -74,10 +73,7 @@ def build_county_utility_weights(
     merged = service_territory.join(distrib, on="utility_id_eia", how="inner")
 
     merged = merged.with_columns(
-        (
-            pl.col("residential_customers")
-            / pl.col("residential_customers").sum().over("county_id_fips")
-        ).alias("weight")
+        (pl.col("residential_customers") / pl.col("residential_customers").sum().over("county_id_fips")).alias("weight")
     )
 
     return merged.sort(["county_id_fips", "utility_id_eia"])

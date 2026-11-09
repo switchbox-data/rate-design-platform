@@ -40,18 +40,16 @@ When you set `low_income_bill_assistance_program="generic"`, CAIRO executes thre
 
   ```python
   # low_income_assistance.py, line ~700
-  bills_df.loc[bills_df["generic"], lookups.months] = bills_df.loc[
-      bills_df["generic"], lookups.months
-  ] * (1 - discount_generic)
+  bills_df.loc[bills_df["generic"], lookups.months] = bills_df.loc[bills_df["generic"], lookups.months] * (
+      1 - discount_generic
+  )
   ```
 
 - **Renter (fixed monthly credit):** Subtracts a flat $/month from each month:
 
   ```python
   # low_income_assistance.py, line ~739
-  bills_df.loc[bills_df["renter"], lookups.months] = (
-      bills_df.loc[bills_df["renter"], lookups.months] - discount_renter
-  )
+  bills_df.loc[bills_df["renter"], lookups.months] = bills_df.loc[bills_df["renter"], lookups.months] - discount_renter
   ```
 
 **Step C — Cost recovery rider.** Total program cost (sum of all discounts given) is divided by total non-participant kWh consumption to produce a volumetric rider ($/kWh). This rider is added to every non-participating customer's monthly bill, ensuring the utility still collects the same total revenue:

@@ -48,9 +48,7 @@ SCHEMA = {
 
 def _reject_just_placeholders(val: str) -> None:
     if "{{" in val or "}}" in val:
-        print(
-            f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr
-        )
+        print(f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -71,16 +69,12 @@ def _load_credentials() -> tuple[str, str]:
             password = line.split("=", 1)[1]
 
     if not username or not password:
-        print(
-            "ERROR: ISONE_USERNAME / ISONE_PASSWORD not found in .env", file=sys.stderr
-        )
+        print("ERROR: ISONE_USERNAME / ISONE_PASSWORD not found in .env", file=sys.stderr)
         sys.exit(1)
     return username, password
 
 
-def _api_get(
-    endpoint: str, username: str, password: str, max_retries: int = 5
-) -> dict[str, Any]:
+def _api_get(endpoint: str, username: str, password: str, max_retries: int = 5) -> dict[str, Any]:
     """Make an authenticated GET request to the ISO-NE API with retry on 429."""
     url = f"{ISONE_BASE_URL}{endpoint}"
     credentials = base64.b64encode(f"{username}:{password}".encode()).decode()
@@ -168,9 +162,7 @@ def _parse_sysload_response(data: dict[str, Any]) -> list[dict[str, Any]]:
     return records
 
 
-def _fetch_day(
-    day: date, username: str, password: str
-) -> tuple[date, list[dict[str, Any]], list[dict[str, Any]]]:
+def _fetch_day(day: date, username: str, password: str) -> tuple[date, list[dict[str, Any]], list[dict[str, Any]]]:
     """Fetch both RCP and system load for a single day. Rate-limited."""
     day_str = day.strftime("%Y%m%d")
 
@@ -232,9 +224,7 @@ def _build_sysload_df(records: list[dict[str, Any]]) -> pl.DataFrame:
         .dt.convert_time_zone("America/New_York")
         .alias("interval_start_et")
     )
-    return df.select(
-        "interval_start_et", "system_load_mw", "native_load_mw", "ard_demand_mw"
-    ).sort("interval_start_et")
+    return df.select("interval_start_et", "system_load_mw", "native_load_mw", "ard_demand_mw").sort("interval_start_et")
 
 
 def _parse_month(s: str) -> tuple[int, int]:

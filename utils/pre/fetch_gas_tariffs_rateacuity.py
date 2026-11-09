@@ -49,9 +49,7 @@ def _get_rateacuity_credentials() -> tuple[str, str]:
     username = os.environ.get("RATEACUITY_USERNAME")
     password = os.environ.get("RATEACUITY_PASSWORD")
     if not username or not password:
-        raise RuntimeError(
-            "Set RATEACUITY_USERNAME and RATEACUITY_PASSWORD in the environment"
-        )
+        raise RuntimeError("Set RATEACUITY_USERNAME and RATEACUITY_PASSWORD in the environment")
     return (username, password)
 
 
@@ -63,9 +61,7 @@ def _resolve_utility(state: str, utilities: list[str], std_name: str) -> str:
     lower_opt = {opt.lower(): opt for opt in utilities}
     if name.lower() in lower_opt:
         return lower_opt[name.lower()]
-    candidates = get_rate_acuity_utility_names(
-        state.upper(), name.lower().replace(" ", "_")
-    )
+    candidates = get_rate_acuity_utility_names(state.upper(), name.lower().replace(" ", "_"))
     for candidate in candidates:
         if candidate in utilities:
             return candidate
@@ -122,12 +118,8 @@ def load_config(yaml_path: Path) -> tuple[str, dict[str, dict[str, str]]]:
     state_upper = state.upper()
     utilities = {k: v for k, v in data.items() if k != "state" and isinstance(v, dict)}
     for u, tariffs in utilities.items():
-        if not all(
-            isinstance(tk, str) and isinstance(sn, str) for tk, sn in tariffs.items()
-        ):
-            raise ValueError(
-                f"{yaml_path}: under {u!r} expect tariff_key -> schedule name strings"
-            )
+        if not all(isinstance(tk, str) and isinstance(sn, str) for tk, sn in tariffs.items()):
+            raise ValueError(f"{yaml_path}: under {u!r} expect tariff_key -> schedule name strings")
     return state_upper, utilities
 
 
@@ -135,13 +127,7 @@ def list_utilities(state: str) -> list[str]:
     """Log in, select state, return utility names from the gas history dropdown."""
     username, password = _get_rateacuity_credentials()
     with create_context() as context:
-        scraping_state = (
-            LoginState(context)
-            .login(username, password)
-            .gas()
-            .history()
-            .select_state(state.upper())
-        )
+        scraping_state = LoginState(context).login(username, password).gas().history().select_state(state.upper())
         return [u for u in scraping_state.get_utilities() if u]
 
 
@@ -172,13 +158,7 @@ def fetch_gas_urdb(
     log.info("Logging in to Rate Acuity and opening gas history...")
 
     with create_context() as context:
-        scraping_state = (
-            LoginState(context)
-            .login(username, password)
-            .gas()
-            .history()
-            .select_state(state_upper)
-        )
+        scraping_state = LoginState(context).login(username, password).gas().history().select_state(state_upper)
         dropdown_utilities = [u for u in scraping_state.get_utilities() if u]
         log.info(
             "Selected state %s; found %d utilit(ies) in dropdown",
@@ -193,9 +173,7 @@ def fetch_gas_urdb(
                     f"Valid std_names: {valid_std}"
                 )
             log.info("Looking up utility %r -> Rate Acuity name...", utility_shortcode)
-            selected_utility = _resolve_utility(
-                state_upper, dropdown_utilities, utility_shortcode
-            )
+            selected_utility = _resolve_utility(state_upper, dropdown_utilities, utility_shortcode)
             log.info("Utility %r: selected %r", utility_shortcode, selected_utility)
             try:
                 scraping_state = scraping_state.select_utility(selected_utility)
@@ -263,7 +241,7 @@ def fetch_gas_urdb(
                             raise RuntimeError(
                                 f"Excel download failed after 3 attempts for '{schedule_name}' "
                                 f"(tariff_key={tariff_key}). RateAcuity may be unresponsive."
-                            )
+                            ) from None
                 csv_path = output_dir / f"{tariff_key}.csv"
                 if csv_path.exists():
                     log.info("Overwriting existing %s", csv_path)
@@ -290,9 +268,7 @@ def fetch_gas_urdb(
 
                 # After this schedule: if more schedules for this utility, return to schedule dropdown;
                 # if last schedule for this utility, return to state-only so next utility sees utility dropdown.
-                scraping_state = (
-                    report.back_to_selections().history().select_state(state_upper)
-                )
+                scraping_state = report.back_to_selections().history().select_state(state_upper)
                 if idx < len(tariff_map):
                     scraping_state = scraping_state.select_utility(selected_utility)
 

@@ -169,7 +169,6 @@ def derive_subgroup_tariff(structure: str, ctx: DeriveContext) -> Path:
     handler = STRUCTURE_HANDLERS.get(structure)
     if handler is None:
         raise ValueError(
-            f"No handler registered for structure {structure!r}. "
-            f"Known structures: {sorted(STRUCTURE_HANDLERS)}"
+            f"No handler registered for structure {structure!r}. Known structures: {sorted(STRUCTURE_HANDLERS)}"
         )
     return handler(ctx)

@@ -43,9 +43,7 @@ def posted(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return messages
 
 
-def test_post_slack_without_url_is_a_noop(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_post_slack_without_url_is_a_noop(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     monkeypatch.setattr(notify, "webhook_url", lambda: None)
 
     def _fail(*_a: Any, **_k: Any) -> None:
@@ -119,9 +117,7 @@ def test_failed_message_flags_preflight() -> None:
     assert "not supported for ZZ" in text
 
 
-def test_mark_crashed_runs_returns_runs_and_notify_dedupes(
-    tmp_path: Path, posted: list[str]
-) -> None:
+def test_mark_crashed_runs_returns_runs_and_notify_dedupes(tmp_path: Path, posted: list[str]) -> None:
     run = _run()
     record_step(run, "fetch")
     raw, sb = tmp_path / "raw", tmp_path / "sb"
@@ -129,9 +125,7 @@ def test_mark_crashed_runs_returns_runs_and_notify_dedupes(
         d.mkdir()
         upsert_run(d, run)
 
-    crashed = mark_crashed_runs(raw, exit_code=137) + mark_crashed_runs(
-        sb, exit_code=137
-    )
+    crashed = mark_crashed_runs(raw, exit_code=137) + mark_crashed_runs(sb, exit_code=137)
 
     assert len(crashed) == 2
     assert read_manifest(raw)["runs"][0]["status"] == "crashed"
@@ -145,9 +139,7 @@ def test_notify_crashed_respects_run_setting(posted: list[str]) -> None:
     assert posted == []
 
 
-def test_preflight_failure_posts_to_slack(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_preflight_failure_posts_to_slack(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     failed: list[dict[str, Any]] = []
     monkeypatch.setattr(pipeline_main, "notify_failed", failed.append)
 

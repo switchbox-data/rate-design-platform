@@ -78,9 +78,7 @@ PUMS_STATE_CODES: frozenset[str] = frozenset(
 )
 
 # Path segment pattern: survey / 4-digit year / record_type / state=XX
-_PARTITION_PATTERN = re.compile(
-    r"^(acs1|acs5)/(\d{4})/(person|housing)/state=([A-Za-z]{2})$"
-)
+_PARTITION_PATTERN = re.compile(r"^(acs1|acs5)/(\d{4})/(person|housing)/state=([A-Za-z]{2})$")
 
 
 def _data_dict_period(survey: str, end_year: int) -> str:
@@ -125,9 +123,7 @@ def _numeric_dtype_for_length(length: int) -> type[pl.DataType]:
     return pl.Int64
 
 
-def _build_schema_overrides(
-    var_schema: dict[str, tuple[str, int]], columns: list[str]
-) -> dict[str, pl.DataType]:
+def _build_schema_overrides(var_schema: dict[str, tuple[str, int]], columns: list[str]) -> dict[str, pl.DataType]:
     """Build Polars schema_overrides from var_schema.
 
     C->Utf8. N->Int16/Int32/Int64 by length (digit width).
@@ -138,10 +134,7 @@ def _build_schema_overrides(
         if key not in var_schema:
             raise ValueError(f"PUMS column {col!r} not in data dictionary")
         dtype, length = var_schema[key]
-        if dtype == "C":
-            polars_dtype = pl.Utf8
-        else:
-            polars_dtype = _numeric_dtype_for_length(length)
+        polars_dtype = pl.Utf8 if dtype == "C" else _numeric_dtype_for_length(length)
         overrides[col] = cast(pl.DataType, polars_dtype)
     return overrides
 
@@ -171,17 +164,11 @@ def parse_pums_partition_path(path: Path | str) -> tuple[str, int, str, str] | N
     return None
 
 
-def run_convert(
-    input_dir: Path, output_dir: Path, data_dict_cache_dir: Path | None = None
-) -> None:
+def run_convert(input_dir: Path, output_dir: Path, data_dict_cache_dir: Path | None = None) -> None:
     """Walk input_dir for canonical partition dirs; read CSVs with schema from data dict, write Parquet."""
     input_dir = input_dir.resolve()
     output_dir = output_dir.resolve()
-    cache_dir = (
-        data_dict_cache_dir.resolve()
-        if data_dict_cache_dir
-        else input_dir.parent / "data_dict_cache"
-    )
+    cache_dir = data_dict_cache_dir.resolve() if data_dict_cache_dir else input_dir.parent / "data_dict_cache"
     if not input_dir.is_dir():
         raise FileNotFoundError(f"Input directory not found: {input_dir}")
 
@@ -197,17 +184,14 @@ def run_convert(
             continue
         csv_glob = str(part_dir / "*.csv")
         period = _data_dict_period(survey, end_year)
-        csv_path = (
-            cache_dir / survey / str(end_year) / f"PUMS_Data_Dictionary_{period}.csv"
-        )
+        csv_path = cache_dir / survey / str(end_year) / f"PUMS_Data_Dictionary_{period}.csv"
         if csv_path.exists():
             first_schema = pl.scan_csv(csv_files[0], n_rows=0).collect_schema()
             columns = list(first_schema.names())
             var_schema = _parse_data_dict_csv(csv_path)
             schema_overrides = _build_schema_overrides(var_schema, columns)
             print(
-                f"data dict found, using it to define parquet schema "
-                f"({survey} {end_year} {record_type} state={state})"
+                f"data dict found, using it to define parquet schema ({survey} {end_year} {record_type} state={state})"
             )
             lf = pl.scan_csv(csv_glob, schema_overrides=schema_overrides)
         else:

@@ -30,12 +30,7 @@ def main() -> None:
     rows: list[dict[str, object]] = []
 
     for utility in UTILITIES:
-        csv_path = (
-            script_dir
-            / utility
-            / "outputs"
-            / f"{utility}_incremental_diluted_levelized.csv"
-        )
+        csv_path = script_dir / utility / "outputs" / f"{utility}_incremental_diluted_levelized.csv"
         df = pl.read_csv(csv_path)
         value = df.filter(pl.col("bucket") == BUCKET)[VALUE_COL].item()
         rows.append({"utility": utility, "sub_tx_and_dist_mc_kw_yr": round(value, 2)})

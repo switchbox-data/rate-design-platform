@@ -54,9 +54,7 @@ def get_utility_zone_mapping(mapping_df: pl.DataFrame) -> dict[str, list[str]]:
     same zones with different capacity weights).
     """
     result: dict[str, list[str]] = {}
-    for row in (
-        mapping_df.select("utility", "lbmp_zone_name").unique().iter_rows(named=True)
-    ):
+    for row in mapping_df.select("utility", "lbmp_zone_name").unique().iter_rows(named=True):
         utility = str(row["utility"])
         zone = str(row["lbmp_zone_name"])
         result.setdefault(utility, []).append(zone)
@@ -76,12 +74,7 @@ def load_zone_data(
     print("LOADING ZONE DATA")
     print("=" * 60)
 
-    collected = (
-        pl.scan_parquet(zone_base)
-        .filter(pl.col("zone").is_in(zones))
-        .filter(pl.col("year") == year)
-        .collect()
-    )
+    collected = pl.scan_parquet(zone_base).filter(pl.col("zone").is_in(zones)).filter(pl.col("year") == year).collect()
     if not isinstance(collected, pl.DataFrame):
         raise TypeError("Expected DataFrame from zone data collect()")
     df: pl.DataFrame = collected
@@ -111,17 +104,14 @@ def load_zone_data(
         for item in missing_data:
             print(f"  {item}")
         raise ValueError(
-            f"Incomplete data: {len(missing_data)} missing partition(s). "
-            f"All 12 months required for {year}."
+            f"Incomplete data: {len(missing_data)} missing partition(s). All 12 months required for {year}."
         )
 
     print(f"  Loaded zone data for year={year}, {len(zones)} zones")
     return df
 
 
-def aggregate_utility_load(
-    zone_df: pl.DataFrame, utility_name: str, zones: list[str]
-) -> pl.DataFrame:
+def aggregate_utility_load(zone_df: pl.DataFrame, utility_name: str, zones: list[str]) -> pl.DataFrame:
     """Sum zone loads for a single utility by timestamp."""
     utility_data = zone_df.filter(pl.col("zone").is_in(zones))
     if len(utility_data) == 0:
@@ -168,9 +158,7 @@ def expected_hours_for_year(year: int) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Aggregate NYISO zone loads to utility-level profiles."
-    )
+    parser = argparse.ArgumentParser(description="Aggregate NYISO zone loads to utility-level profiles.")
     parser.add_argument(
         "--year",
         type=int,
@@ -216,9 +204,7 @@ def main() -> None:
         valid = ", ".join(sorted(utility_zone_map.keys()))
         parser.error(f"Invalid --utility '{args.utility}'. Valid: all, {valid}")
 
-    utilities_to_process = (
-        sorted(utility_zone_map.keys()) if selected == "all" else [selected]
-    )
+    utilities_to_process = sorted(utility_zone_map.keys()) if selected == "all" else [selected]
 
     all_zones_needed = set()
     for u in utilities_to_process:

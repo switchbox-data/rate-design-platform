@@ -29,9 +29,7 @@ RUN2_SUPPLY_OFFSET = 50.0
 _FIXED_CHARGE = 2.0
 
 
-def _write_urdb_tariff(
-    path: Path, *, fixed_charge: float = _FIXED_CHARGE, rate: float = 0.21
-) -> Path:
+def _write_urdb_tariff(path: Path, *, fixed_charge: float = _FIXED_CHARGE, rate: float = 0.21) -> Path:
     """Write a minimal URDB v7 tariff JSON and return its path."""
     tariff = {
         "items": [
@@ -117,12 +115,7 @@ _LOADS_UPGRADE = "00"
 def _write_sample_resstock_loads_dir(tmp_path: Path) -> Path:
     """Write sample ResStock loads in hive-partition layout and return the base path."""
     resstock_base = tmp_path / "resstock"
-    partition_dir = (
-        resstock_base
-        / "load_curve_hourly"
-        / f"state={_LOADS_STATE}"
-        / f"upgrade={_LOADS_UPGRADE}"
-    )
+    partition_dir = resstock_base / "load_curve_hourly" / f"state={_LOADS_STATE}" / f"upgrade={_LOADS_UPGRADE}"
     partition_dir.mkdir(parents=True)
     # HP buildings (1, 3): winter kWh = 10 + 20 + 30 = 60
     pl.DataFrame(
@@ -186,9 +179,7 @@ def test_compute_subclass_rr_for_multiple_groupings(
     expected: dict[str, tuple[float, float, float]],
 ) -> None:
     run_dir = _write_sample_run_dir(tmp_path)
-    results = compute_subclass_rr(
-        run_dir, group_col=group_col, cross_subsidy_cols=cross_subsidy_col
-    )
+    results = compute_subclass_rr(run_dir, group_col=group_col, cross_subsidy_cols=cross_subsidy_col)
     breakdown = results[cross_subsidy_col]
 
     assert breakdown.height == len(expected)
@@ -202,9 +193,7 @@ def test_compute_subclass_rr_for_multiple_groupings(
 def test_compute_subclass_rr_multi_allocation(tmp_path: Path) -> None:
     """Compute both percustomer and EPMC in a single call."""
     run_dir = _write_sample_run_dir(tmp_path)
-    results = compute_subclass_rr(
-        run_dir, cross_subsidy_cols=("BAT_percustomer", "BAT_epmc")
-    )
+    results = compute_subclass_rr(run_dir, cross_subsidy_cols=("BAT_percustomer", "BAT_epmc"))
     assert "BAT_percustomer" in results
     assert "BAT_epmc" in results
 
@@ -229,9 +218,9 @@ def test_compute_subclass_rr_missing_annual_rows_raises(tmp_path: Path) -> None:
     pl.DataFrame({"bldg_id": [1], "BAT_percustomer": [10.0]}).write_csv(
         run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv"
     )
-    pl.DataFrame(
-        {"bldg_id": [1], "weight": [1.0], "postprocess_group.has_hp": [True]}
-    ).write_csv(run_dir / "customer_metadata.csv")
+    pl.DataFrame({"bldg_id": [1], "weight": [1.0], "postprocess_group.has_hp": [True]}).write_csv(
+        run_dir / "customer_metadata.csv"
+    )
 
     with pytest.raises(ValueError, match="Missing annual target bills"):
         compute_subclass_rr(run_dir, cross_subsidy_cols="BAT_percustomer")
@@ -239,9 +228,7 @@ def test_compute_subclass_rr_missing_annual_rows_raises(tmp_path: Path) -> None:
 
 def test_resolve_selector_group_values_expands_subclass_alias() -> None:
     mapping = parse_group_value_to_subclass(
-        "heat_pump=electric_heating,"
-        "electrical_resistance=electric_heating,"
-        "natgas=non_electric_heating"
+        "heat_pump=electric_heating,electrical_resistance=electric_heating,natgas=non_electric_heating"
     )
 
     assert _resolve_selector_group_values("electric_heating", mapping) == (
@@ -361,18 +348,14 @@ def test_write_revenue_requirement_yamls_two_runs(tmp_path: Path) -> None:
     """Verify the nested YAML: delivery from run 1, total from run 2, supply = diff."""
     run1_dir = _write_sample_run_dir(tmp_path)
     run2_dir = _write_sample_run2_dir(tmp_path)
-    delivery_breakdowns = compute_subclass_rr(
-        run1_dir, cross_subsidy_cols="BAT_percustomer"
-    )
-    total_breakdowns = compute_subclass_rr(
-        run2_dir, cross_subsidy_cols="BAT_percustomer"
-    )
+    delivery_breakdowns = compute_subclass_rr(run1_dir, cross_subsidy_cols="BAT_percustomer")
+    total_breakdowns = compute_subclass_rr(run2_dir, cross_subsidy_cols="BAT_percustomer")
     differentiated_yaml = tmp_path / "config/rev_requirement/rie_hp_vs_nonhp.yaml"
     default_yaml = tmp_path / "config/rev_requirement/rie.yaml"
 
     gv_map = {"true": "hp", "false": "non-hp"}
 
-    out_diff, out_default = _write_revenue_requirement_yamls(
+    out_diff, _out_default = _write_revenue_requirement_yamls(
         delivery_breakdowns,
         run_dir=run1_dir,
         group_col="has_hp",
@@ -394,9 +377,7 @@ def test_write_revenue_requirement_yamls_two_runs(tmp_path: Path) -> None:
     assert diff_data["group_col"] == "has_hp"
     assert diff_data["source_run_dir"] == str(run1_dir)
     assert diff_data["total_delivery_revenue_requirement"] == pytest.approx(933.0)
-    assert diff_data["total_delivery_and_supply_revenue_requirement"] == pytest.approx(
-        1133.0
-    )
+    assert diff_data["total_delivery_and_supply_revenue_requirement"] == pytest.approx(1133.0)
 
     sr = diff_data["subclass_revenue_requirements"]
     assert "delivery" in sr
@@ -415,24 +396,16 @@ def test_write_revenue_requirement_yamls_round_trip(tmp_path: Path) -> None:
     """Delivery sums match total_delivery_rr, total == delivery + supply per subclass."""
     run1_dir = _write_sample_run_dir(tmp_path)
     run2_dir = _write_sample_run2_dir(tmp_path)
-    delivery_breakdowns = compute_subclass_rr(
-        run1_dir, cross_subsidy_cols="BAT_percustomer"
-    )
-    total_breakdowns = compute_subclass_rr(
-        run2_dir, cross_subsidy_cols="BAT_percustomer"
-    )
+    delivery_breakdowns = compute_subclass_rr(run1_dir, cross_subsidy_cols="BAT_percustomer")
+    total_breakdowns = compute_subclass_rr(run2_dir, cross_subsidy_cols="BAT_percustomer")
     differentiated_yaml = tmp_path / "config/rev_requirement/test_hp_vs_nonhp.yaml"
     default_yaml = tmp_path / "config/rev_requirement/test.yaml"
 
     gv_map = {"true": "hp", "false": "non-hp"}
     delivery_breakdown = delivery_breakdowns["BAT_percustomer"]
     total_breakdown = total_breakdowns["BAT_percustomer"]
-    delivery_total = sum(
-        float(row["revenue_requirement"]) for row in delivery_breakdown.to_dicts()
-    )
-    total_total = sum(
-        float(row["revenue_requirement"]) for row in total_breakdown.to_dicts()
-    )
+    delivery_total = sum(float(row["revenue_requirement"]) for row in delivery_breakdown.to_dicts())
+    total_total = sum(float(row["revenue_requirement"]) for row in total_breakdown.to_dicts())
 
     _write_revenue_requirement_yamls(
         delivery_breakdowns,
@@ -459,21 +432,16 @@ def test_write_revenue_requirement_yamls_round_trip(tmp_path: Path) -> None:
         if method_key == "passthrough":
             continue
         sum_delivery = sum(method_block.values())
-        assert sum_delivery == pytest.approx(
-            data["total_delivery_revenue_requirement"]
-        ), f"Delivery method {method_key}: sum mismatch"
+        assert sum_delivery == pytest.approx(data["total_delivery_revenue_requirement"]), (
+            f"Delivery method {method_key}: sum mismatch"
+        )
 
     # All supply methods should sum to total supply bills
     # (passthrough = actual bills, percustomer/volumetric BAT sums to zero).
-    expected_supply = (
-        data["total_delivery_and_supply_revenue_requirement"]
-        - data["total_delivery_revenue_requirement"]
-    )
+    expected_supply = data["total_delivery_and_supply_revenue_requirement"] - data["total_delivery_revenue_requirement"]
     for method_key, method_block in sr["supply"].items():
         sum_supply = sum(method_block.values())
-        assert sum_supply == pytest.approx(expected_supply), (
-            f"Supply method {method_key}: sum mismatch"
-        )
+        assert sum_supply == pytest.approx(expected_supply), f"Supply method {method_key}: sum mismatch"
 
 
 # =============================================================================
@@ -489,9 +457,7 @@ def test_compute_candidate_tariff_subclass_rr(tmp_path: Path) -> None:
     """
     ct_run_dir = _write_sample_run_dir(tmp_path)
     # HP ids are 1 and 3 -> Annual bills 100.0 + 300.0 = 400.0 (weight=1 each).
-    result = compute_candidate_tariff_subclass_rr(
-        ct_run_dir, total_delivery_rr=1000.0, group_col="has_hp"
-    )
+    result = compute_candidate_tariff_subclass_rr(ct_run_dir, total_delivery_rr=1000.0, group_col="has_hp")
     assert isinstance(result, CandidateTariffRR)
     assert result.delivery == {
         "hp": pytest.approx(400.0),
@@ -522,9 +488,7 @@ def test_compute_candidate_tariff_subclass_rr_applies_weights(
     ).write_csv(run_dir / "customer_metadata.csv")
 
     # Weighted HP bill sum = 100 * 1 = 100.
-    result = compute_candidate_tariff_subclass_rr(
-        run_dir, total_delivery_rr=1000.0, group_col="has_hp"
-    )
+    result = compute_candidate_tariff_subclass_rr(run_dir, total_delivery_rr=1000.0, group_col="has_hp")
     assert result.delivery == {
         "hp": pytest.approx(100.0),
         "non-hp": pytest.approx(900.0),
@@ -537,17 +501,15 @@ def test_compute_candidate_tariff_subclass_rr_no_hp_customers_raises(
 ) -> None:
     run_dir = tmp_path / "run"
     (run_dir / "bills").mkdir(parents=True)
-    pl.DataFrame(
-        {"bldg_id": [1], "month": ["Annual"], "bill_level": [100.0]}
-    ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
-    pl.DataFrame(
-        {"bldg_id": [1], "weight": [1.0], "postprocess_group.has_hp": [False]}
-    ).write_csv(run_dir / "customer_metadata.csv")
+    pl.DataFrame({"bldg_id": [1], "month": ["Annual"], "bill_level": [100.0]}).write_csv(
+        run_dir / "bills" / "elec_bills_year_target.csv"
+    )
+    pl.DataFrame({"bldg_id": [1], "weight": [1.0], "postprocess_group.has_hp": [False]}).write_csv(
+        run_dir / "customer_metadata.csv"
+    )
 
     with pytest.raises(ValueError, match="No customers with has_hp='true'"):
-        compute_candidate_tariff_subclass_rr(
-            run_dir, total_delivery_rr=1000.0, group_col="has_hp"
-        )
+        compute_candidate_tariff_subclass_rr(run_dir, total_delivery_rr=1000.0, group_col="has_hp")
 
 
 def test_compute_candidate_tariff_subclass_rr_missing_bills_raises(
@@ -558,14 +520,12 @@ def test_compute_candidate_tariff_subclass_rr_missing_bills_raises(
     pl.DataFrame({"bldg_id": [1], "month": ["Jan"], "bill_level": [5.0]}).write_csv(
         run_dir / "bills" / "elec_bills_year_target.csv"
     )
-    pl.DataFrame(
-        {"bldg_id": [1], "weight": [1.0], "postprocess_group.has_hp": [True]}
-    ).write_csv(run_dir / "customer_metadata.csv")
+    pl.DataFrame({"bldg_id": [1], "weight": [1.0], "postprocess_group.has_hp": [True]}).write_csv(
+        run_dir / "customer_metadata.csv"
+    )
 
     with pytest.raises(ValueError, match="Missing annual target bills"):
-        compute_candidate_tariff_subclass_rr(
-            run_dir, total_delivery_rr=1000.0, group_col="has_hp"
-        )
+        compute_candidate_tariff_subclass_rr(run_dir, total_delivery_rr=1000.0, group_col="has_hp")
 
 
 def test_compute_candidate_tariff_subclass_rr_with_supply(tmp_path: Path) -> None:
@@ -576,13 +536,13 @@ def test_compute_candidate_tariff_subclass_rr_with_supply(tmp_path: Path) -> Non
     (supply_dir / "bills").mkdir(parents=True)
 
     # Delivery-only bills: HP(1)=100, non-HP(2)=200
-    pl.DataFrame(
-        {"bldg_id": [1, 2], "month": ["Annual", "Annual"], "bill_level": [100.0, 200.0]}
-    ).write_csv(delivery_dir / "bills" / "elec_bills_year_target.csv")
+    pl.DataFrame({"bldg_id": [1, 2], "month": ["Annual", "Annual"], "bill_level": [100.0, 200.0]}).write_csv(
+        delivery_dir / "bills" / "elec_bills_year_target.csv"
+    )
     # Delivery+supply bills: HP(1)=160, non-HP(2)=290
-    pl.DataFrame(
-        {"bldg_id": [1, 2], "month": ["Annual", "Annual"], "bill_level": [160.0, 290.0]}
-    ).write_csv(supply_dir / "bills" / "elec_bills_year_target.csv")
+    pl.DataFrame({"bldg_id": [1, 2], "month": ["Annual", "Annual"], "bill_level": [160.0, 290.0]}).write_csv(
+        supply_dir / "bills" / "elec_bills_year_target.csv"
+    )
     # Shared metadata (both dirs use same metadata, real CAIRO shares it)
     meta = pl.DataFrame(
         {
@@ -624,12 +584,12 @@ def test_compute_candidate_tariff_subclass_rr_with_supply_percustomer(
     supply_dir = tmp_path / "supply"
     (supply_dir / "bills").mkdir(parents=True)
 
-    pl.DataFrame(
-        {"bldg_id": [1, 2], "month": ["Annual", "Annual"], "bill_level": [100.0, 200.0]}
-    ).write_csv(delivery_dir / "bills" / "elec_bills_year_target.csv")
-    pl.DataFrame(
-        {"bldg_id": [1, 2], "month": ["Annual", "Annual"], "bill_level": [160.0, 290.0]}
-    ).write_csv(supply_dir / "bills" / "elec_bills_year_target.csv")
+    pl.DataFrame({"bldg_id": [1, 2], "month": ["Annual", "Annual"], "bill_level": [100.0, 200.0]}).write_csv(
+        delivery_dir / "bills" / "elec_bills_year_target.csv"
+    )
+    pl.DataFrame({"bldg_id": [1, 2], "month": ["Annual", "Annual"], "bill_level": [160.0, 290.0]}).write_csv(
+        supply_dir / "bills" / "elec_bills_year_target.csv"
+    )
 
     meta = pl.DataFrame(
         {
@@ -661,17 +621,15 @@ def test_compute_candidate_tariff_subclass_rr_with_supply_epmc(
     (delivery_dir / "bills").mkdir(parents=True)
     (delivery_dir / "cross_subsidization").mkdir(parents=True)
 
-    pl.DataFrame(
-        {"bldg_id": [1, 2], "month": ["Annual", "Annual"], "bill_level": [100.0, 200.0]}
-    ).write_csv(delivery_dir / "bills" / "elec_bills_year_target.csv")
+    pl.DataFrame({"bldg_id": [1, 2], "month": ["Annual", "Annual"], "bill_level": [100.0, 200.0]}).write_csv(
+        delivery_dir / "bills" / "elec_bills_year_target.csv"
+    )
     pl.DataFrame(
         {
             "bldg_id": [1, 2],
             "customer_level_economic_burden": [10.0, 30.0],
         }
-    ).write_csv(
-        delivery_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv"
-    )
+    ).write_csv(delivery_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv")
     pl.DataFrame(
         {
             "bldg_id": [1, 2],
@@ -697,12 +655,12 @@ def test_compute_candidate_tariff_subclass_rr_unsupported_supply_method_raises(
 ) -> None:
     delivery_dir = tmp_path / "delivery"
     (delivery_dir / "bills").mkdir(parents=True)
-    pl.DataFrame(
-        {"bldg_id": [1], "month": ["Annual"], "bill_level": [100.0]}
-    ).write_csv(delivery_dir / "bills" / "elec_bills_year_target.csv")
-    pl.DataFrame(
-        {"bldg_id": [1], "weight": [1.0], "postprocess_group.has_hp": [True]}
-    ).write_csv(delivery_dir / "customer_metadata.csv")
+    pl.DataFrame({"bldg_id": [1], "month": ["Annual"], "bill_level": [100.0]}).write_csv(
+        delivery_dir / "bills" / "elec_bills_year_target.csv"
+    )
+    pl.DataFrame({"bldg_id": [1], "weight": [1.0], "postprocess_group.has_hp": [True]}).write_csv(
+        delivery_dir / "customer_metadata.csv"
+    )
 
     with pytest.raises(ValueError, match="Unsupported supply_method"):
         compute_candidate_tariff_subclass_rr(
@@ -722,12 +680,12 @@ def test_compute_candidate_tariff_subclass_rr_supply_requires_total_rr(
     supply_dir = tmp_path / "supply"
     (supply_dir / "bills").mkdir(parents=True)
 
-    pl.DataFrame(
-        {"bldg_id": [1], "month": ["Annual"], "bill_level": [100.0]}
-    ).write_csv(delivery_dir / "bills" / "elec_bills_year_target.csv")
-    pl.DataFrame(
-        {"bldg_id": [1], "weight": [1.0], "postprocess_group.has_hp": [True]}
-    ).write_csv(delivery_dir / "customer_metadata.csv")
+    pl.DataFrame({"bldg_id": [1], "month": ["Annual"], "bill_level": [100.0]}).write_csv(
+        delivery_dir / "bills" / "elec_bills_year_target.csv"
+    )
+    pl.DataFrame({"bldg_id": [1], "weight": [1.0], "postprocess_group.has_hp": [True]}).write_csv(
+        delivery_dir / "customer_metadata.csv"
+    )
 
     with pytest.raises(ValueError, match="total_delivery_and_supply_rr is required"):
         compute_candidate_tariff_subclass_rr(
@@ -744,9 +702,7 @@ def test_write_revenue_requirement_yamls_includes_candidate_tariff_supply(
 ) -> None:
     """Both delivery and supply candidate_tariff blocks are written to YAML."""
     run1_dir = _write_sample_run_dir(tmp_path)
-    delivery_breakdowns = compute_subclass_rr(
-        run1_dir, cross_subsidy_cols="BAT_percustomer"
-    )
+    delivery_breakdowns = compute_subclass_rr(run1_dir, cross_subsidy_cols="BAT_percustomer")
     differentiated_yaml = tmp_path / "config/rev_requirement/bge_hp_vs_nonhp.yaml"
     default_yaml = tmp_path / "config/rev_requirement/bge.yaml"
     gv_map = {"true": "hp", "false": "non-hp"}
@@ -766,9 +722,7 @@ def test_write_revenue_requirement_yamls_includes_candidate_tariff_supply(
     )
 
     diff_data = yaml.safe_load(out_diff.read_text(encoding="utf-8"))
-    ct_delivery = diff_data["subclass_revenue_requirements"]["delivery"][
-        "candidate_tariff"
-    ]
+    ct_delivery = diff_data["subclass_revenue_requirements"]["delivery"]["candidate_tariff"]
     assert ct_delivery == {"hp": pytest.approx(400.0), "non-hp": pytest.approx(600.0)}
     ct_supply = diff_data["subclass_revenue_requirements"]["supply"]["candidate_tariff"]
     assert ct_supply == {"hp": pytest.approx(60.0), "non-hp": pytest.approx(140.0)}
@@ -779,16 +733,12 @@ def test_write_revenue_requirement_yamls_includes_candidate_tariff(
 ) -> None:
     """The 'candidate_tariff' method is written into the delivery block when provided."""
     run1_dir = _write_sample_run_dir(tmp_path)
-    delivery_breakdowns = compute_subclass_rr(
-        run1_dir, cross_subsidy_cols="BAT_percustomer"
-    )
+    delivery_breakdowns = compute_subclass_rr(run1_dir, cross_subsidy_cols="BAT_percustomer")
     differentiated_yaml = tmp_path / "config/rev_requirement/bge_hp_vs_nonhp.yaml"
     default_yaml = tmp_path / "config/rev_requirement/bge.yaml"
     gv_map = {"true": "hp", "false": "non-hp"}
 
-    ct_result = compute_candidate_tariff_subclass_rr(
-        run1_dir, total_delivery_rr=1000.0, group_col="has_hp"
-    )
+    ct_result = compute_candidate_tariff_subclass_rr(run1_dir, total_delivery_rr=1000.0, group_col="has_hp")
 
     out_diff, _ = _write_revenue_requirement_yamls(
         delivery_breakdowns,
@@ -804,9 +754,7 @@ def test_write_revenue_requirement_yamls_includes_candidate_tariff(
     )
 
     diff_data = yaml.safe_load(out_diff.read_text(encoding="utf-8"))
-    ct_block = diff_data["subclass_revenue_requirements"]["delivery"][
-        "candidate_tariff"
-    ]
+    ct_block = diff_data["subclass_revenue_requirements"]["delivery"]["candidate_tariff"]
     assert ct_block["hp"] == pytest.approx(400.0)
     assert ct_block["non-hp"] == pytest.approx(600.0)
     assert ct_block["hp"] + ct_block["non-hp"] == pytest.approx(1000.0)
@@ -835,12 +783,7 @@ def test_compute_subclass_seasonal_discount_inputs_full(tmp_path: Path) -> None:
     # Custom loads: bldg 1 (Jan=200, Jul=100), bldg 3 (Feb=200, Dec=100)
     # winter_kwh = 200+200+100 = 500, summer_kwh = 100, total = 600
     resstock_base = tmp_path / "resstock"
-    part = (
-        resstock_base
-        / "load_curve_hourly"
-        / f"state={_LOADS_STATE}"
-        / f"upgrade={_LOADS_UPGRADE}"
-    )
+    part = resstock_base / "load_curve_hourly" / f"state={_LOADS_STATE}" / f"upgrade={_LOADS_UPGRADE}"
     part.mkdir(parents=True)
     pl.DataFrame(
         {
@@ -929,12 +872,7 @@ def test_compute_subclass_seasonal_discount_inputs_applies_weights(
     tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
 
     resstock_base = tmp_path / "resstock"
-    partition_dir = (
-        resstock_base
-        / "load_curve_hourly"
-        / f"state={_LOADS_STATE}"
-        / f"upgrade={_LOADS_UPGRADE}"
-    )
+    partition_dir = resstock_base / "load_curve_hourly" / f"state={_LOADS_STATE}" / f"upgrade={_LOADS_UPGRADE}"
     partition_dir.mkdir(parents=True)
     pl.DataFrame(
         {
@@ -1020,17 +958,10 @@ def test_compute_subclass_seasonal_discount_inputs_flat_equivalence(
             ],
         }
     ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
-    tariff_path = _write_urdb_tariff(
-        tmp_path / "base_tariff.json", fixed_charge=fixed_charge, rate=flat_rate
-    )
+    tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json", fixed_charge=fixed_charge, rate=flat_rate)
 
     resstock_base = tmp_path / "resstock"
-    part = (
-        resstock_base
-        / "load_curve_hourly"
-        / f"state={_LOADS_STATE}"
-        / f"upgrade={_LOADS_UPGRADE}"
-    )
+    part = resstock_base / "load_curve_hourly" / f"state={_LOADS_STATE}" / f"upgrade={_LOADS_UPGRADE}"
     part.mkdir(parents=True)
     pl.DataFrame(
         {
@@ -1076,9 +1007,7 @@ def test_compute_subclass_seasonal_discount_inputs_flat_equivalence(
     assert out["equivalent_flat_rate"][0] == pytest.approx(flat_rate)
     assert out["winter_discount"][0] == pytest.approx(total_cs / total_winter_kwh)
     assert out["summer_rate"][0] == pytest.approx(flat_rate)
-    assert out["winter_rate"][0] == pytest.approx(
-        flat_rate - total_cs / total_winter_kwh
-    )
+    assert out["winter_rate"][0] == pytest.approx(flat_rate - total_cs / total_winter_kwh)
     assert out["annual_kwh"][0] == pytest.approx(total_kwh)
 
 
@@ -1116,16 +1045,8 @@ def test_compute_subclass_seasonal_discount_inputs_structured_tariff(
         run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv"
     )
     # Annual bill = 12*FC + winter_rate*winter_kwh + summer_rate*summer_kwh
-    annual_bill_1 = (
-        12 * fixed_charge
-        + winter_rate_filed * winter_kwh_1
-        + summer_rate_filed * summer_kwh_1
-    )
-    annual_bill_2 = (
-        12 * fixed_charge
-        + winter_rate_filed * winter_kwh_2
-        + summer_rate_filed * summer_kwh_2
-    )
+    annual_bill_1 = 12 * fixed_charge + winter_rate_filed * winter_kwh_1 + summer_rate_filed * summer_kwh_1
+    annual_bill_2 = 12 * fixed_charge + winter_rate_filed * winter_kwh_2 + summer_rate_filed * summer_kwh_2
     pl.DataFrame(
         {
             "bldg_id": [1, 1, 1, 2, 2, 2],
@@ -1140,17 +1061,10 @@ def test_compute_subclass_seasonal_discount_inputs_structured_tariff(
             ],
         }
     ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
-    tariff_path = _write_urdb_tariff(
-        tmp_path / "base_tariff.json", fixed_charge=fixed_charge, rate=summer_rate_filed
-    )
+    tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json", fixed_charge=fixed_charge, rate=summer_rate_filed)
 
     resstock_base = tmp_path / "resstock"
-    part = (
-        resstock_base
-        / "load_curve_hourly"
-        / f"state={_LOADS_STATE}"
-        / f"upgrade={_LOADS_UPGRADE}"
-    )
+    part = resstock_base / "load_curve_hourly" / f"state={_LOADS_STATE}" / f"upgrade={_LOADS_UPGRADE}"
     part.mkdir(parents=True)
     pl.DataFrame(
         {
@@ -1187,9 +1101,7 @@ def test_compute_subclass_seasonal_discount_inputs_structured_tariff(
     total_summer_kwh = summer_kwh_1 + summer_kwh_2
     total_kwh = total_winter_kwh + total_summer_kwh
     # Annual energy revenue = annual_bill - 12*FC per building
-    annual_energy_rev = (annual_bill_1 - 12 * fixed_charge) + (
-        annual_bill_2 - 12 * fixed_charge
-    )
+    annual_energy_rev = (annual_bill_1 - 12 * fixed_charge) + (annual_bill_2 - 12 * fixed_charge)
     expected_flat = annual_energy_rev / total_kwh
 
     # Blended flat rate is between the filed summer and winter rates, not equal to either.
@@ -1201,9 +1113,7 @@ def test_compute_subclass_seasonal_discount_inputs_structured_tariff(
     assert out["winter_discount"][0] == pytest.approx(total_cs / total_winter_kwh)
     # summer_rate is the blended rate, NOT the filed summer rate
     assert out["summer_rate"][0] == pytest.approx(expected_flat)
-    assert out["winter_rate"][0] == pytest.approx(
-        expected_flat - total_cs / total_winter_kwh
-    )
+    assert out["winter_rate"][0] == pytest.approx(expected_flat - total_cs / total_winter_kwh)
     # Revenue neutrality: CAIRO aggregate revenue at rate_unity=1 equals RR
     total_annual_bills = annual_bill_1 + annual_bill_2
     rr = total_annual_bills - total_cs
@@ -1223,7 +1133,7 @@ def test_compute_subclass_seasonal_discount_inputs_raises_when_non_positive_rate
     # High fixed charge makes energy revenue negative → winter_rate < 0.
     tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json", fixed_charge=20.0)
 
-    with pytest.raises(ValueError, match="winter_rate.*is negative"):
+    with pytest.raises(ValueError, match=r"winter_rate.*is negative"):
         compute_subclass_seasonal_discount_inputs(
             run_dir=run_dir,
             resstock_base=str(resstock_base),
@@ -1258,12 +1168,7 @@ def test_write_seasonal_inputs_csv_uses_output_dir_override(tmp_path: Path) -> N
     tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
     # Balanced loads so equivalent_flat_rate > winter_discount.
     resstock_base = tmp_path / "resstock"
-    part = (
-        resstock_base
-        / "load_curve_hourly"
-        / f"state={_LOADS_STATE}"
-        / f"upgrade={_LOADS_UPGRADE}"
-    )
+    part = resstock_base / "load_curve_hourly" / f"state={_LOADS_STATE}" / f"upgrade={_LOADS_UPGRADE}"
     part.mkdir(parents=True)
     pl.DataFrame(
         {
@@ -1360,12 +1265,7 @@ def test_compute_subclass_seasonal_discount_inputs_writes_named_file(
     run_dir = _write_sample_run_dir(tmp_path)
     tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
     resstock_base = tmp_path / "resstock"
-    part = (
-        resstock_base
-        / "load_curve_hourly"
-        / f"state={_LOADS_STATE}"
-        / f"upgrade={_LOADS_UPGRADE}"
-    )
+    part = resstock_base / "load_curve_hourly" / f"state={_LOADS_STATE}" / f"upgrade={_LOADS_UPGRADE}"
     part.mkdir(parents=True)
     pl.DataFrame(
         {
@@ -1417,12 +1317,7 @@ def test_compute_subclass_flat_discount_inputs(tmp_path: Path) -> None:
     tariff_path = _write_urdb_tariff(tmp_path / "base_tariff.json")
 
     resstock_base = tmp_path / "resstock"
-    part = (
-        resstock_base
-        / "load_curve_hourly"
-        / f"state={_LOADS_STATE}"
-        / f"upgrade={_LOADS_UPGRADE}"
-    )
+    part = resstock_base / "load_curve_hourly" / f"state={_LOADS_STATE}" / f"upgrade={_LOADS_UPGRADE}"
     part.mkdir(parents=True)
     pl.DataFrame(
         {
@@ -1504,12 +1399,7 @@ def test_compute_subclass_flat_discount_inputs_applies_weights(tmp_path: Path) -
     tariff_path = _write_urdb_tariff(tmp_path / "tariff.json", fixed_charge=5.0)
 
     resstock_base = tmp_path / "resstock"
-    part = (
-        resstock_base
-        / "load_curve_hourly"
-        / f"state={_LOADS_STATE}"
-        / f"upgrade={_LOADS_UPGRADE}"
-    )
+    part = resstock_base / "load_curve_hourly" / f"state={_LOADS_STATE}" / f"upgrade={_LOADS_UPGRADE}"
     part.mkdir(parents=True)
     pl.DataFrame(
         {
@@ -1581,12 +1471,7 @@ def test_compute_subclass_flat_discount_inputs_raises_when_negative_rate(
     tariff_path = _write_urdb_tariff(tmp_path / "tariff.json", fixed_charge=1.0)
 
     resstock_base = tmp_path / "resstock"
-    part = (
-        resstock_base
-        / "load_curve_hourly"
-        / f"state={_LOADS_STATE}"
-        / f"upgrade={_LOADS_UPGRADE}"
-    )
+    part = resstock_base / "load_curve_hourly" / f"state={_LOADS_STATE}" / f"upgrade={_LOADS_UPGRADE}"
     part.mkdir(parents=True)
     pl.DataFrame(
         {
@@ -1597,7 +1482,7 @@ def test_compute_subclass_flat_discount_inputs_raises_when_negative_rate(
         }
     ).write_parquet(part / "loads.parquet")
 
-    with pytest.raises(ValueError, match="flat_rate.*is negative"):
+    with pytest.raises(ValueError, match=r"flat_rate.*is negative"):
         compute_subclass_flat_discount_inputs(
             run_dir=run_dir,
             resstock_base=str(resstock_base),
@@ -1696,9 +1581,7 @@ def test_parse_unknown_delivery_allocation_raises(tmp_path: Path) -> None:
     from utils.scenario_config import _parse_utility_revenue_requirement
 
     rr_yaml, raw_tariffs = _write_rr_parse_fixture(tmp_path)
-    with pytest.raises(
-        ValueError, match="residual_allocation_delivery='epcm'.*Available"
-    ):
+    with pytest.raises(ValueError, match=r"residual_allocation_delivery='epcm'.*Available"):
         _parse_utility_revenue_requirement(
             str(rr_yaml),
             tmp_path,
@@ -1717,7 +1600,7 @@ def test_parse_missing_delivery_allocation_raises(tmp_path: Path) -> None:
     rr_yaml = tmp_path / "rr.yaml"
     rr_yaml.write_text(yaml.safe_dump({"total_delivery_revenue_requirement": 1000.0}))
 
-    with pytest.raises(ValueError, match="residual_allocation_delivery.*is not set"):
+    with pytest.raises(ValueError, match=r"residual_allocation_delivery.*is not set"):
         _parse_utility_revenue_requirement(
             str(rr_yaml),
             tmp_path,

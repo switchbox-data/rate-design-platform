@@ -112,9 +112,7 @@ def fetch(
 
     for s in series:
         if s not in SERIES_TO_MARKET:
-            raise ValueError(
-                f"series must be one of {list(SERIES_TO_MARKET)}, got {s!r}"
-            )
+            raise ValueError(f"series must be one of {list(SERIES_TO_MARKET)}, got {s!r}")
         subdir, suffix = SERIES_TO_MARKET[s]
         out_dir = path_local_zip / s
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -129,10 +127,7 @@ def fetch(
         return
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {
-            executor.submit(_fetch_one, url, out_file): (url, out_file)
-            for url, out_file in tasks
-        }
+        futures = {executor.submit(_fetch_one, url, out_file): (url, out_file) for url, out_file in tasks}
         for future in as_completed(futures):
             err = future.result()
             if err:
@@ -140,9 +135,7 @@ def fetch(
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Fetch NYISO zonal LBMP monthly ZIPs (day_ahead and/or real_time)."
-    )
+    parser = argparse.ArgumentParser(description="Fetch NYISO zonal LBMP monthly ZIPs (day_ahead and/or real_time).")
     parser.add_argument(
         "--start",
         type=str,

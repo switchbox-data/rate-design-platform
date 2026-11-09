@@ -40,14 +40,11 @@ def assign_utility_ri(input_metadata: pl.LazyFrame) -> pl.LazyFrame:
     schema_cols = input_metadata.collect_schema().names()
     if "has_natgas_connection" not in schema_cols:
         raise ValueError(
-            "Missing required column 'has_natgas_connection'. "
-            "Run identify_heating_type first to add this column."
+            "Missing required column 'has_natgas_connection'. Run identify_heating_type first to add this column."
         )
 
     # Drop existing utility columns if they exist (equivalent to ADD COLUMN IF NOT EXISTS)
-    input_metadata = input_metadata.drop(
-        ["sb.electric_utility", "sb.gas_utility"], strict=False
-    )
+    input_metadata = input_metadata.drop(["sb.electric_utility", "sb.gas_utility"], strict=False)
 
     return input_metadata.with_columns(
         pl.lit(_UTILITY).alias("sb.electric_utility"),
@@ -59,9 +56,7 @@ def assign_utility_ri(input_metadata: pl.LazyFrame) -> pl.LazyFrame:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description=f"Assign electric and gas utilities to ResStock buildings in {_STATE}"
-    )
+    parser = argparse.ArgumentParser(description=f"Assign electric and gas utilities to ResStock buildings in {_STATE}")
     parser.add_argument(
         "--input_metadata_dir",
         type=str,
@@ -91,9 +86,7 @@ if __name__ == "__main__":
 
     input_dir_s3 = S3Path(args.input_metadata_dir)
     input_path_s3 = S3Path(input_dir_s3 / args.input_metadata_filename)
-    input_metadata = pl.scan_parquet(
-        str(input_path_s3), storage_options=STORAGE_OPTIONS
-    )
+    input_metadata = pl.scan_parquet(str(input_path_s3), storage_options=STORAGE_OPTIONS)
 
     output_dir_s3 = S3Path(args.output_metadata_dir)
     output_path_s3 = S3Path(output_dir_s3 / args.output_utility_assignment_filename)
@@ -103,8 +96,6 @@ if __name__ == "__main__":
     )
 
     # Write only the assignment columns — full metadata lives in metadata-sb.parquet.
-    metadata_with_utility_assignment.select(
-        "bldg_id", "sb.electric_utility", "sb.gas_utility"
-    ).sink_parquet(
+    metadata_with_utility_assignment.select("bldg_id", "sb.electric_utility", "sb.gas_utility").sink_parquet(
         str(output_path_s3), compression="zstd", storage_options=STORAGE_OPTIONS
     )

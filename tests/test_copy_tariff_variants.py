@@ -10,20 +10,12 @@ from utils.pre.copy_tariff_variants import (
 
 
 def test_derive_variant_name_handles_default_nonhp_alias() -> None:
-    assert _derive_variant_name("cenhud_default", "default", "nonhp_default") == (
-        "cenhud_nonhp_default"
-    )
-    assert (
-        _derive_variant_name("cenhud_default_supply", "default", "nonhp_default")
-        == "cenhud_nonhp_default_supply"
-    )
+    assert _derive_variant_name("cenhud_default", "default", "nonhp_default") == ("cenhud_nonhp_default")
+    assert _derive_variant_name("cenhud_default_supply", "default", "nonhp_default") == "cenhud_nonhp_default_supply"
 
 
 def test_derive_variant_name_handles_non_electric_heating_alias() -> None:
-    assert (
-        _derive_variant_name("cenhud_default", "default", "non_electric_heating")
-        == "cenhud_non_electric_heating"
-    )
+    assert _derive_variant_name("cenhud_default", "default", "non_electric_heating") == "cenhud_non_electric_heating"
     assert (
         _derive_variant_name("cenhud_default_supply", "default", "non_electric_heating")
         == "cenhud_non_electric_heating_supply"
@@ -49,12 +41,8 @@ def test_copy_utility_tariffs_supports_custom_dest_pattern(tmp_path) -> None:
 
     _copy_utility_tariffs(tmp_path, "cenhud", "default", "non_electric_heating")
 
-    copied_delivery = json.loads(
-        (tmp_path / "cenhud_non_electric_heating.json").read_text()
-    )
-    copied_supply = json.loads(
-        (tmp_path / "cenhud_non_electric_heating_supply.json").read_text()
-    )
+    copied_delivery = json.loads((tmp_path / "cenhud_non_electric_heating.json").read_text())
+    copied_supply = json.loads((tmp_path / "cenhud_non_electric_heating_supply.json").read_text())
 
     assert copied_delivery["items"][0]["label"] == "cenhud_non_electric_heating"
     assert copied_delivery["items"][0]["name"] == "cenhud_non_electric_heating"

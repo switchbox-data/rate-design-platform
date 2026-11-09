@@ -93,9 +93,7 @@ def parse_markets_cli(markets: str) -> frozenset[str]:
 
 def _reject_just_placeholders(val: str) -> None:
     if "{{" in val or "}}" in val:
-        print(
-            f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr
-        )
+        print(f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -140,9 +138,7 @@ def _month_end_exclusive_ts(iso: NYISO, year: int, month: int) -> pd.Timestamp:
     )
 
 
-def _apply_handle_as_prices_intervals(
-    pdf: pd.DataFrame, *, rt_or_dam: str
-) -> pd.DataFrame:
+def _apply_handle_as_prices_intervals(pdf: pd.DataFrame, *, rt_or_dam: str) -> pd.DataFrame:
     """Mirror ``NYISO._handle_as_prices`` interval adjustments only."""
     df = pdf.copy()
     if rt_or_dam == "rt":
@@ -205,9 +201,7 @@ def _legacy_wide_prefixes(columns: list[str]) -> list[tuple[str, str]]:
     return out
 
 
-def _find_zone_metric_columns(
-    columns: list[str], zone_prefix: str
-) -> dict[str, str | None]:
+def _find_zone_metric_columns(columns: list[str], zone_prefix: str) -> dict[str, str | None]:
     """Map logical metric → raw column name for one legacy hub (East/West/SENY)."""
     spin = nonsync = oper = regcap = None
     for c in columns:
@@ -263,16 +257,13 @@ def _mis_header_to_extra_snake(col: str) -> str:
     return f"{slug}_usd_per_mwhr"
 
 
-def _legacy_east_west_to_canonical(
-    pdf: pd.DataFrame, *, market: str
-) -> tuple[pd.DataFrame, set[str]]:
+def _legacy_east_west_to_canonical(pdf: pd.DataFrame, *, market: str) -> tuple[pd.DataFrame, set[str]]:
     """Explode legacy hub-wide columns into one row per (interval, hub zone)."""
     cols = list(pdf.columns)
     zones = _legacy_wide_prefixes(cols)
     if not zones:
         raise ValueError(
-            "NYISO AS archive: expected East/West (or SENY) hub columns; "
-            f"got columns {cols!r}",
+            f"NYISO AS archive: expected East/West (or SENY) hub columns; got columns {cols!r}",
         )
 
     consumed: set[str] = set(_INTERVAL_CORE)
@@ -308,9 +299,7 @@ def _legacy_east_west_to_canonical(
         row = pdf.iloc[idx]
         ts = row["Time"]
         tz_val = row[tz_col] if tz_col else _infer_time_zone_abbrev(ts)
-        mov = (
-            row[movement_col] if market == "rt" and movement_col is not None else pd.NA
-        )
+        mov = row[movement_col] if market == "rt" and movement_col is not None else pd.NA
         for zpref, zlabel in zones:
             zm = zone_maps[zpref]
             if not _zone_metrics_non_null(zm):
@@ -321,9 +310,7 @@ def _legacy_east_west_to_canonical(
                 "Name": zlabel,
                 "PTID": pd.NA,
                 _CANON_SPIN: row[zm["spin"]] if zm["spin"] is not None else pd.NA,
-                _CANON_NONSYNC: row[zm["nonsync"]]
-                if zm["nonsync"] is not None
-                else pd.NA,
+                _CANON_NONSYNC: row[zm["nonsync"]] if zm["nonsync"] is not None else pd.NA,
                 _CANON_OPER: row[zm["oper"]] if zm["oper"] is not None else pd.NA,
                 _CANON_REGCAP: row[zm["regcap"]] if zm["regcap"] is not None else pd.NA,
                 _MIS_MOVEMENT: mov,
@@ -348,9 +335,7 @@ def _consume_modern_layout_noise(columns: list[str]) -> set[str]:
     return noise
 
 
-def _modern_to_canonical(
-    pdf: pd.DataFrame, *, market: str
-) -> tuple[pd.DataFrame, set[str]]:
+def _modern_to_canonical(pdf: pd.DataFrame, *, market: str) -> tuple[pd.DataFrame, set[str]]:
     """Subset modern MIS zonal layout to canonical column names (+ extras)."""
     cols = list(pdf.columns)
     need = [
@@ -424,9 +409,7 @@ def _normalize_nyiso_as_archive_pdf(pdf: pd.DataFrame, *, market: str) -> pd.Dat
     return out.sort_values(["Interval Start", "Name"], kind="mergesort")
 
 
-def _raw_archive_pdf_to_polars(
-    pdf: pd.DataFrame, *, market: str, year: int, month: int
-) -> pl.DataFrame:
+def _raw_archive_pdf_to_polars(pdf: pd.DataFrame, *, market: str, year: int, month: int) -> pl.DataFrame:
     """Wide rows: one row per (interval, zone) with all MIS-derived measures."""
     pdf = _normalize_nyiso_as_archive_pdf(pdf, market=market)
 
@@ -446,32 +429,22 @@ def _raw_archive_pdf_to_polars(
     if missing:
         raise ValueError(f"missing expected MIS columns after normalize: {missing}")
 
-    pdf = _apply_handle_as_prices_intervals(
-        pdf, rt_or_dam="rt" if market == "rt" else "dam"
-    )
+    pdf = _apply_handle_as_prices_intervals(pdf, rt_or_dam="rt" if market == "rt" else "dam")
     if _MIS_MOVEMENT not in pdf.columns:
         pdf[_MIS_MOVEMENT] = pd.NA
 
     core_exprs = [
         pl.col("Time").cast(pl.Datetime("us", "America/New_York")).alias("time_et"),
-        pl.col("Interval Start")
-        .cast(pl.Datetime("us", "America/New_York"))
-        .alias("interval_start_et"),
-        pl.col("Interval End")
-        .cast(pl.Datetime("us", "America/New_York"))
-        .alias("interval_end_et"),
+        pl.col("Interval Start").cast(pl.Datetime("us", "America/New_York")).alias("interval_start_et"),
+        pl.col("Interval End").cast(pl.Datetime("us", "America/New_York")).alias("interval_end_et"),
         pl.col("Time Zone").cast(pl.String).alias("time_zone"),
         pl.col("Name").cast(pl.String).alias("zone"),
         pl.col("PTID").cast(pl.Int64).alias("ptid"),
         pl.col(_CANON_SPIN).cast(pl.Float64).alias("spin_10min_usd_per_mwhr"),
         pl.col(_CANON_NONSYNC).cast(pl.Float64).alias("non_sync_10min_usd_per_mwhr"),
         pl.col(_CANON_OPER).cast(pl.Float64).alias("operating_30min_usd_per_mwhr"),
-        pl.col(_CANON_REGCAP)
-        .cast(pl.Float64)
-        .alias("nyca_regulation_capacity_usd_per_mwhr"),
-        pl.col(_MIS_MOVEMENT)
-        .cast(pl.Float64)
-        .alias("nyca_regulation_movement_usd_per_mw"),
+        pl.col(_CANON_REGCAP).cast(pl.Float64).alias("nyca_regulation_capacity_usd_per_mwhr"),
+        pl.col(_MIS_MOVEMENT).cast(pl.Float64).alias("nyca_regulation_movement_usd_per_mw"),
     ]
 
     plf = pl.from_pandas(pdf, nan_to_null=True)
@@ -540,9 +513,7 @@ def fetch_as_month(
             print(f"    dam: error {e!s}")
             pdf = pd.DataFrame()
         if pdf is not None and len(pdf) > 0:
-            frames.append(
-                _raw_archive_pdf_to_polars(pdf, market="dam", year=year, month=month)
-            )
+            frames.append(_raw_archive_pdf_to_polars(pdf, market="dam", year=year, month=month))
 
     if "rt" in markets:
         try:
@@ -556,9 +527,7 @@ def fetch_as_month(
             print(f"    rt: error {e!s}")
             pdf = pd.DataFrame()
         if pdf is not None and len(pdf) > 0:
-            frames.append(
-                _raw_archive_pdf_to_polars(pdf, market="rt", year=year, month=month)
-            )
+            frames.append(_raw_archive_pdf_to_polars(pdf, market="rt", year=year, month=month))
 
     if not frames:
         return None
@@ -629,10 +598,7 @@ def main() -> int:
         end_m = _parse_month(args.end)
     else:
         today = datetime.now()
-        if today.month == 1:
-            end_m = (today.year - 1, 12)
-        else:
-            end_m = (today.year, today.month - 1)
+        end_m = (today.year - 1, 12) if today.month == 1 else (today.year, today.month - 1)
 
     months = _month_range(start_m, end_m)
     if not months:
@@ -659,7 +625,7 @@ def main() -> int:
         label = f"{y}-{m:02d}"
         part_file = output_dir / f"year={y}" / f"month={m:02d}" / "data.parquet"
         if i > 0 and args.sleep_seconds > 0:
-            print("  (cooling down {:.0f}s...)".format(args.sleep_seconds), flush=True)
+            print(f"  (cooling down {args.sleep_seconds:.0f}s...)", flush=True)
             time.sleep(args.sleep_seconds)
 
         print(f"  {label}: fetching...", end=" ", flush=True)
@@ -670,16 +636,14 @@ def main() -> int:
             continue
 
         n_outside = df.filter(
-            (pl.col("interval_start_et").dt.year() != y)
-            | (pl.col("interval_start_et").dt.month() != m)
+            (pl.col("interval_start_et").dt.year() != y) | (pl.col("interval_start_et").dt.month() != m)
         ).height
         _write_month_partition(df, output_dir)
         written += 1
         print(f"{len(df)} rows")
         if n_outside:
             print(
-                f"  {label}: WARN {n_outside} rows with interval_start_et outside "
-                f"{y}-{m:02d} (ET)",
+                f"  {label}: WARN {n_outside} rows with interval_start_et outside {y}-{m:02d} (ET)",
                 file=sys.stderr,
             )
 

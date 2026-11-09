@@ -77,8 +77,7 @@ def _write_run_dir(
     ).write_csv(run_dir / "cross_subsidization" / "cross_subsidization_BAT_values.csv")
 
     annual_bills = [
-        12.0 * _FIXED_CHARGE + _BASE_RATE * (winter_kwh + summer_kwh)
-        for winter_kwh, summer_kwh, _ in _LOADS.values()
+        12.0 * _FIXED_CHARGE + _BASE_RATE * (winter_kwh + summer_kwh) for winter_kwh, summer_kwh, _ in _LOADS.values()
     ]
     pl.DataFrame(
         {
@@ -94,9 +93,7 @@ def _write_run_dir(
 def _write_monthly_loads(tmp_path: Path) -> Path:
     """Write load_curve_monthly parquets matching _LOADS."""
     resstock_base = tmp_path / "resstock"
-    partition_dir = (
-        resstock_base / "load_curve_monthly" / f"state={_STATE}" / f"upgrade={_UPGRADE}"
-    )
+    partition_dir = resstock_base / "load_curve_monthly" / f"state={_STATE}" / f"upgrade={_UPGRADE}"
     partition_dir.mkdir(parents=True)
 
     # 6 winter months (Jan=1, Feb=2, Mar=3, Oct=10, Nov=11, Dec=12)
@@ -111,8 +108,7 @@ def _write_monthly_loads(tmp_path: Path) -> Path:
                 {
                     "bldg_id": bldg_id,
                     "month": m,
-                    "out.electricity.total.energy_consumption": winter_kwh
-                    / len(winter_months),
+                    "out.electricity.total.energy_consumption": winter_kwh / len(winter_months),
                     "out.electricity.pv.energy_consumption": 0.0,
                 }
             )
@@ -121,15 +117,12 @@ def _write_monthly_loads(tmp_path: Path) -> Path:
                 {
                     "bldg_id": bldg_id,
                     "month": m,
-                    "out.electricity.total.energy_consumption": summer_kwh
-                    / len(summer_months),
+                    "out.electricity.total.energy_consumption": summer_kwh / len(summer_months),
                     "out.electricity.pv.energy_consumption": 0.0,
                 }
             )
 
-    pl.DataFrame(rows).with_columns(pl.col("month").cast(pl.Int8)).write_parquet(
-        partition_dir / "loads.parquet"
-    )
+    pl.DataFrame(rows).with_columns(pl.col("month").cast(pl.Int8)).write_parquet(partition_dir / "loads.parquet")
     return resstock_base
 
 
@@ -204,9 +197,7 @@ def test_compute_revenue_sufficient_line_sweeps_winter_rate(
     )
     assert class_bill_at_floor == pytest.approx(data.inputs.class_totals.current_bill)
     assert data.subclass_cross_subsidy_at(winter_floor_rate) == pytest.approx(50.0)
-    assert data.subclass_cross_subsidy_at(winter_floor_rate) < (
-        data.subclass_cross_subsidy_at(baseline_winter_rate)
-    )
+    assert data.subclass_cross_subsidy_at(winter_floor_rate) < (data.subclass_cross_subsidy_at(baseline_winter_rate))
 
 
 def test_compute_feasible_line_affine_evaluates_at_base_fixed_charge(
@@ -231,12 +222,8 @@ def test_compute_feasible_line_affine_evaluates_at_base_fixed_charge(
     strategy_b = next(sp for sp in data.strategies if sp.label == "B")
     assert strategy_b.winter_rate is not None
     assert strategy_b.summer_rate is not None
-    assert data.r_win.at(strategy_b.fixed_charge) == pytest.approx(
-        strategy_b.winter_rate, rel=1e-6
-    )
-    assert data.r_sum.at(strategy_b.fixed_charge) == pytest.approx(
-        strategy_b.summer_rate, rel=1e-6
-    )
+    assert data.r_win.at(strategy_b.fixed_charge) == pytest.approx(strategy_b.winter_rate, rel=1e-6)
+    assert data.r_sum.at(strategy_b.fixed_charge) == pytest.approx(strategy_b.summer_rate, rel=1e-6)
 
 
 def test_compute_feasible_line_intercepts_match_feasibility(tmp_path: Path) -> None:
@@ -301,18 +288,10 @@ def test_compute_feasible_line_intercepts_match_feasibility(tmp_path: Path) -> N
     )
     feas = fixed_charge_feasibility(inputs)
 
-    assert data.r_win.intercept == pytest.approx(
-        feas.winter_rate_at_zero_fixed_charge, rel=1e-6
-    )
-    assert data.r_win.slope == pytest.approx(
-        feas.winter_rate_per_fixed_charge_dollar, rel=1e-6
-    )
-    assert data.r_sum.intercept == pytest.approx(
-        feas.summer_rate_at_zero_fixed_charge, rel=1e-6
-    )
-    assert data.r_sum.slope == pytest.approx(
-        feas.summer_rate_per_fixed_charge_dollar, rel=1e-6
-    )
+    assert data.r_win.intercept == pytest.approx(feas.winter_rate_at_zero_fixed_charge, rel=1e-6)
+    assert data.r_win.slope == pytest.approx(feas.winter_rate_per_fixed_charge_dollar, rel=1e-6)
+    assert data.r_sum.intercept == pytest.approx(feas.summer_rate_at_zero_fixed_charge, rel=1e-6)
+    assert data.r_sum.slope == pytest.approx(feas.summer_rate_per_fixed_charge_dollar, rel=1e-6)
 
 
 def test_compute_feasible_line_strategy_c_skipped_without_mc_ratio(

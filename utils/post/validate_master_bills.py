@@ -17,22 +17,22 @@ from typing import cast
 
 import polars as pl
 
+from utils.post.build_master_bills import (
+    VALID_RUN_PAIRS,
+    _build_output_path_suffix,
+    _find_run_dir,
+    _parse_batch_overrides,
+)
 from utils.post.delivered_fuel_bills import (
     add_delivered_fuel_bills,
     load_monthly_fuel_prices,
 )
 from utils.post.io import (
     ANNUAL_MONTH,
-    BLDG_ID,
     BILL_LEVEL,
+    BLDG_ID,
     scan,
     scan_load_curves_for_utility,
-)
-from utils.post.build_master_bills import (
-    VALID_RUN_PAIRS,
-    _build_output_path_suffix,
-    _find_run_dir,
-    _parse_batch_overrides,
 )
 from utils.post.plot_bill_change_histogram import _apply_population_filter
 from utils.post.plot_bill_components_stacked_bar import (
@@ -79,9 +79,7 @@ def _compare_dfs(
         max_diff = cast(float, diff.max()) if diff.len() > 0 else 0.0
         n_bad = (diff > FLOAT_TOL).sum()
         if n_bad > 0:
-            _log(
-                f"  FAIL [{label}]: Column '{col}' has {n_bad} rows exceeding tolerance, max_diff={max_diff:.8f}"
-            )
+            _log(f"  FAIL [{label}]: Column '{col}' has {n_bad} rows exceeding tolerance, max_diff={max_diff:.8f}")
             all_pass = False
         else:
             _log(f"  PASS [{label}]: Column '{col}' matches (max_diff={max_diff:.8f})")
@@ -106,23 +104,14 @@ def _validate_stacked_bar(
     _log("\n=== Stacked bar comparison (electric decomposition) ===")
 
     master_df = pl.scan_parquet(master_parquet_path, hive_partitioning=True).collect()
-    s3_base = (
-        f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/{utility}/{util_batch}"
-    )
+    s3_base = f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/{utility}/{util_batch}"
     _log(f"  Using batch {util_batch} for {utility}")
     dir_delivery = _find_run_dir(s3_base, run_delivery)
     dir_supply = _find_run_dir(s3_base, run_supply)
 
     repo_root = __import__("pathlib").Path(__file__).resolve().parents[2]
     tariff_path = str(
-        repo_root
-        / "rate_design"
-        / "hp_rates"
-        / state
-        / "config"
-        / "tariffs"
-        / "electric"
-        / f"{utility}_flat.json"
+        repo_root / "rate_design" / "hp_rates" / state / "config" / "tariffs" / "electric" / f"{utility}_flat.json"
     )
     annual_fixed = _read_fixed_charge_from_tariff(tariff_path) * 12
 
@@ -185,9 +174,7 @@ def _validate_histogram(
     """Compare energy bill delta: old path vs master tables."""
     _log(f"\n=== Histogram comparison (energy bill delta, filter={filter_name}) ===")
 
-    s3_base = (
-        f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/{utility}/{util_batch}"
-    )
+    s3_base = f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/{utility}/{util_batch}"
     _log(f"  Using batch {util_batch} for {utility}")
     dir_supply_before = _find_run_dir(s3_base, run_supply_before)
     dir_supply_after = _find_run_dir(s3_base, run_supply_after)
@@ -197,19 +184,11 @@ def _validate_histogram(
     comb_before = scan(f"{dir_supply_before}/{COMB_BILLS_CSV}")
     comb_after = scan(f"{dir_supply_after}/{COMB_BILLS_CSV}")
 
-    load_monthly_u00 = scan_load_curves_for_utility(
-        path_load_curves_local, state.upper(), "00", utility, "monthly"
-    )
-    load_monthly_u02 = scan_load_curves_for_utility(
-        path_load_curves_local, state.upper(), "02", utility, "monthly"
-    )
+    load_monthly_u00 = scan_load_curves_for_utility(path_load_curves_local, state.upper(), "00", utility, "monthly")
+    load_monthly_u02 = scan_load_curves_for_utility(path_load_curves_local, state.upper(), "02", utility, "monthly")
 
-    topped_before = add_delivered_fuel_bills(
-        comb_before, load_monthly_u00, monthly_prices
-    )
-    topped_after = add_delivered_fuel_bills(
-        comb_after, load_monthly_u02, monthly_prices
-    )
+    topped_before = add_delivered_fuel_bills(comb_before, load_monthly_u00, monthly_prices)
+    topped_after = add_delivered_fuel_bills(comb_after, load_monthly_u02, monthly_prices)
 
     annual_before = (
         topped_before.filter(pl.col("month") == ANNUAL_MONTH)
@@ -237,12 +216,12 @@ def _validate_histogram(
     m12 = pl.scan_parquet(master_before_path, hive_partitioning=True).collect()
     m34 = pl.scan_parquet(master_after_path, hive_partitioning=True).collect()
 
-    new_before = m12.filter(
-        (pl.col("sb.electric_utility") == utility) & (pl.col("month") == ANNUAL_MONTH)
-    ).select(BLDG_ID, "weight", pl.col("energy_total_bill").alias("bill_before"))
-    new_after = m34.filter(
-        (pl.col("sb.electric_utility") == utility) & (pl.col("month") == ANNUAL_MONTH)
-    ).select(BLDG_ID, pl.col("energy_total_bill").alias("bill_after"))
+    new_before = m12.filter((pl.col("sb.electric_utility") == utility) & (pl.col("month") == ANNUAL_MONTH)).select(
+        BLDG_ID, "weight", pl.col("energy_total_bill").alias("bill_before")
+    )
+    new_after = m34.filter((pl.col("sb.electric_utility") == utility) & (pl.col("month") == ANNUAL_MONTH)).select(
+        BLDG_ID, pl.col("energy_total_bill").alias("bill_after")
+    )
 
     new_delta = new_before.join(new_after, on=BLDG_ID, how="inner").with_columns(
         (pl.col("bill_after") - pl.col("bill_before")).alias("delta")
@@ -265,9 +244,7 @@ def _parse_args() -> argparse.Namespace:
         description="Validate master bills by comparing against old per-utility code path.",
     )
     parser.add_argument("--state", required=True, help="State code (e.g. ny)")
-    parser.add_argument(
-        "--utility", required=True, help="Utility to validate (e.g. coned)"
-    )
+    parser.add_argument("--utility", required=True, help="Utility to validate (e.g. coned)")
     parser.add_argument(
         "--batch",
         required=True,
@@ -284,13 +261,9 @@ def _parse_args() -> argparse.Namespace:
         default="s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb",
     )
     parser.add_argument("--path-load-curves-local", required=True)
-    parser.add_argument(
-        "--path-heating-fuel-prices", default="s3://data.sb/eia/heating_fuel_prices/"
-    )
+    parser.add_argument("--path-heating-fuel-prices", default="s3://data.sb/eia/heating_fuel_prices/")
     parser.add_argument("--price-year", type=int, default=2024)
-    parser.add_argument(
-        "--filter", default="non_hp", help="Population filter for histogram comparison."
-    )
+    parser.add_argument("--filter", default="non_hp", help="Population filter for histogram comparison.")
     parser.add_argument(
         "--run-delivery-before",
         type=int,
@@ -322,9 +295,7 @@ def _validate_run_pair(run_delivery: int, run_supply: int, label: str) -> None:
     """Require a valid delivery+supply pair (1+2, 3+4, ..., 11+12)."""
     if (run_delivery, run_supply) not in VALID_RUN_PAIRS:
         expected = ", ".join(f"{d}+{s}" for d, s in sorted(VALID_RUN_PAIRS))
-        raise ValueError(
-            f"Invalid {label} run pair {run_delivery}+{run_supply}. Expected one of: {expected}"
-        )
+        raise ValueError(f"Invalid {label} run pair {run_delivery}+{run_supply}. Expected one of: {expected}")
 
 
 def main() -> None:
@@ -350,16 +321,14 @@ def main() -> None:
     master_before_path = f"{s3_all_utils}/run_{before_pair}/comb_bills_year_target/"
     master_after_path = f"{s3_all_utils}/run_{after_pair}/comb_bills_year_target/"
 
-    _log(
-        f"Validating master bills for {args.utility} (state={state}, batch={util_batch})"
-    )
+    _log(f"Validating master bills for {args.utility} (state={state}, batch={util_batch})")
     _log(f"  Master before ({before_pair}): {master_before_path}")
     _log(f"  Master after ({after_pair}): {master_after_path}")
 
-    monthly_prices = load_monthly_fuel_prices(
-        args.path_heating_fuel_prices, state.upper(), args.price_year
+    monthly_prices = load_monthly_fuel_prices(args.path_heating_fuel_prices, state.upper(), args.price_year)
+    meta_path = (
+        f"{args.path_resstock_release.rstrip('/')}/metadata_utility/state={state.upper()}/utility_assignment.parquet"
     )
-    meta_path = f"{args.path_resstock_release.rstrip('/')}/metadata_utility/state={state.upper()}/utility_assignment.parquet"
     metadata = pl.scan_parquet(meta_path).collect()
 
     results: list[tuple[str, bool]] = []

@@ -57,11 +57,7 @@ class RunConfig:
         run_name = str(run_dict.get("run_name", f"run_{run_num}"))
         run_type = str(run_dict.get("run_type", "precalc"))
         upgrade = str(run_dict.get("upgrade", "0"))
-        cost_scope = (
-            "delivery+supply"
-            if run_dict.get("run_includes_supply", False)
-            else "delivery"
-        )
+        cost_scope = "delivery+supply" if run_dict.get("run_includes_supply", False) else "delivery"
         has_subclasses = bool(run_dict.get("run_includes_subclasses", False))
         raw_elasticity = run_dict.get("elasticity", 0.0)
         if isinstance(raw_elasticity, dict):
@@ -91,11 +87,7 @@ class RunConfig:
         # Parse path fields from YAML (all keys exist in every run entry)
         path_resstock_loads = str(run_dict.get("path_resstock_loads", ""))
         path_dist_and_sub_tx_mc = str(run_dict.get("path_dist_and_sub_tx_mc", ""))
-        path_bulk_tx_mc = (
-            str(run_dict["path_bulk_tx_mc"])
-            if run_dict.get("path_bulk_tx_mc")
-            else None
-        )
+        path_bulk_tx_mc = str(run_dict["path_bulk_tx_mc"]) if run_dict.get("path_bulk_tx_mc") else None
         path_supply_energy_mc = str(run_dict.get("path_supply_energy_mc", ""))
         path_supply_capacity_mc = str(run_dict.get("path_supply_capacity_mc", ""))
         rr_path = str(run_dict.get("utility_revenue_requirement", "")).strip()
@@ -119,8 +111,7 @@ class RunConfig:
         tariff_keys_by_alias: dict[str, str] = {}
         if isinstance(raw_path_tariffs, dict):
             tariff_keys_by_alias = {
-                str(alias): Path(str(path_str)).stem
-                for alias, path_str in raw_path_tariffs.items()
+                str(alias): Path(str(path_str)).stem for alias, path_str in raw_path_tariffs.items()
             }
 
         return cls(
@@ -209,18 +200,13 @@ def load_run_configs_from_yaml(
     )
 
     if not scenario_path.exists():
-        raise FileNotFoundError(
-            f"Scenario YAML not found for state={state!r} utility={utility!r}: "
-            f"{scenario_path}"
-        )
+        raise FileNotFoundError(f"Scenario YAML not found for state={state!r} utility={utility!r}: {scenario_path}")
 
     with scenario_path.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     if not isinstance(data, dict) or "runs" not in data:
-        raise ValueError(
-            f"Malformed scenario YAML (expected top-level 'runs' key): {scenario_path}"
-        )
+        raise ValueError(f"Malformed scenario YAML (expected top-level 'runs' key): {scenario_path}")
 
     yaml_runs: dict[int | str, Any] = data["runs"]
     scenario_subclass_config = data.get("subclass_config")
@@ -232,14 +218,10 @@ def load_run_configs_from_yaml(
         run_dict = yaml_runs.get(num) or yaml_runs.get(str(num))
         if run_dict is None:
             raise ValueError(
-                f"Run {num} not found in {scenario_path}. "
-                f"Available run numbers: {sorted(yaml_runs.keys())}"
+                f"Run {num} not found in {scenario_path}. Available run numbers: {sorted(yaml_runs.keys())}"
             )
         if not isinstance(run_dict, dict):
-            raise ValueError(
-                f"Run {num} in {scenario_path} must be a YAML mapping, "
-                f"got {type(run_dict).__name__}"
-            )
+            raise ValueError(f"Run {num} in {scenario_path} must be a YAML mapping, got {type(run_dict).__name__}")
         configs[int(num)] = RunConfig.from_yaml_run(
             int(num),
             run_dict,
@@ -330,14 +312,10 @@ def define_run_blocks(configs: dict[int, RunConfig]) -> list[RunBlock]:
                     )
                 else:
                     desc = (
-                        f"Precalc {rate_desc} rates: delivery (run {r_delivery}) "
-                        f"and delivery+supply (run {r_supply})"
+                        f"Precalc {rate_desc} rates: delivery (run {r_delivery}) and delivery+supply (run {r_supply})"
                     )
             else:
-                desc = (
-                    f"Default {rate_desc} rates on upgrade {int(upgrade):02d} "
-                    f"(runs {r_delivery}-{r_supply})"
-                )
+                desc = f"Default {rate_desc} rates on upgrade {int(upgrade):02d} (runs {r_delivery}-{r_supply})"
 
             blocks.append(
                 RunBlock(

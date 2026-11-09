@@ -51,11 +51,7 @@ ZONE_NAME_NORMALIZE: dict[str, str] = {
 def normalize_header(raw: list[str]) -> list[str]:
     """Strip whitespace, \\r, trailing quote; fix typo $/MWH\" -> $/MWHr."""
     out = [c.strip().rstrip("\r").strip('"') for c in raw]
-    if (
-        out
-        and "Marginal Cost Congestion ($/MWH" in out[-1]
-        and not out[-1].endswith("r")
-    ):
+    if out and "Marginal Cost Congestion ($/MWH" in out[-1] and not out[-1].endswith("r"):
         out[-1] = "Marginal Cost Congestion ($/MWHr)"
     return out
 
@@ -102,9 +98,7 @@ def parse_timestamp_and_types(df: pl.DataFrame) -> pl.DataFrame:
             strict=False,
             ambiguous="earliest",
         )
-        df = df.with_columns(
-            pl.coalesce(with_sec, without_sec).alias("interval_start_est")
-        )
+        df = df.with_columns(pl.coalesce(with_sec, without_sec).alias("interval_start_est"))
     if "ptid" in df.columns:
         df = df.with_columns(pl.col("ptid").cast(pl.Int32))
     for c in (
@@ -149,9 +143,7 @@ def convert_one_zip(zip_path: Path, series: str) -> pl.DataFrame | None:
     # Normalize zone names: fix misspellings (CENTRL -> CENTRAL), then spaces -> _ for partition paths
     if "zone" in out.columns:
         if ZONE_NAME_NORMALIZE:
-            out = out.with_columns(
-                pl.col("zone").replace(ZONE_NAME_NORMALIZE).alias("zone")
-            )
+            out = out.with_columns(pl.col("zone").replace(ZONE_NAME_NORMALIZE).alias("zone"))
         out = out.with_columns(pl.col("zone").str.replace_all(" ", "_").alias("zone"))
     return out
 
@@ -165,9 +157,7 @@ def convert_month(
     """Convert one (series, month) and write zone-partitioned parquet."""
     yyyy, mm = yyyy_mm[:4], yyyy_mm[4:6]
     zip_dir = path_local_zip / series
-    suffix = (
-        "damlbmp_zone_csv.zip" if series == "day_ahead" else "realtime_zone_csv.zip"
-    )
+    suffix = "damlbmp_zone_csv.zip" if series == "day_ahead" else "realtime_zone_csv.zip"
     # Match fetch naming: YYYYMM01_suffix (e.g. 20000101_damlbmp_zone_csv.zip)
     zip_name = f"{yyyy}{mm}01_{suffix}"
     zip_path = zip_dir / zip_name
@@ -182,13 +172,7 @@ def convert_month(
         if not zone_str:
             continue
         sub = df.filter(pl.col("zone") == zone_name)
-        out_dir = (
-            path_local_parquet
-            / series
-            / f"zone={zone_str}"
-            / f"year={yyyy}"
-            / f"month={mm}"
-        )
+        out_dir = path_local_parquet / series / f"zone={zone_str}" / f"year={yyyy}" / f"month={mm}"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / "data.parquet"
         sub.write_parquet(out_path)
@@ -200,9 +184,7 @@ def list_months_in_zips(path_local_zip: Path, series: str) -> list[str]:
     zip_dir = path_local_zip / series
     if not zip_dir.is_dir():
         return months
-    suffix = (
-        "damlbmp_zone_csv.zip" if series == "day_ahead" else "realtime_zone_csv.zip"
-    )
+    suffix = "damlbmp_zone_csv.zip" if series == "day_ahead" else "realtime_zone_csv.zip"
     for p in zip_dir.glob(f"*{suffix}"):
         key = month_key_from_zip_path(p)
         if key:
@@ -210,9 +192,7 @@ def list_months_in_zips(path_local_zip: Path, series: str) -> list[str]:
     return sorted(set(months))
 
 
-def filter_months(
-    months: list[str], start_yyyy_mm: str | None, end_yyyy_mm: str | None
-) -> list[str]:
+def filter_months(months: list[str], start_yyyy_mm: str | None, end_yyyy_mm: str | None) -> list[str]:
     """Restrict to [start, end] inclusive (YYYYMM format)."""
     if start_yyyy_mm:
         start = start_yyyy_mm.replace("-", "")  # 2024-07 -> 202407
@@ -225,9 +205,7 @@ def filter_months(
 
 def _reject_just_placeholders(val: str) -> None:
     if "{{" in val or "}}" in val:
-        raise ValueError(
-            f"Path looks like uninterpolated Just: {val!r}. Pass a resolved path."
-        )
+        raise ValueError(f"Path looks like uninterpolated Just: {val!r}. Pass a resolved path.")
 
 
 def convert(

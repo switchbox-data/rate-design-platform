@@ -14,9 +14,7 @@ import polars as pl
 
 def get_aws_storage_options() -> dict[str, str]:
     """Return Polars-compatible AWS storage options for S3 access."""
-    aws_region = (
-        os.getenv("AWS_DEFAULT_REGION") or os.getenv("AWS_REGION") or "us-west-2"
-    )
+    aws_region = os.getenv("AWS_DEFAULT_REGION") or os.getenv("AWS_REGION") or "us-west-2"
     return {
         "region": aws_region,
         "default_region": aws_region,
@@ -150,15 +148,11 @@ def write_hive_partitioned_parquet_to_s3(
         if drop_partition_cols:
             partition = partition.drop(partition_cols)
 
-        hive_path = "/".join(
-            f"{col}={val}" for col, val in zip(partition_cols, combo, strict=True)
-        )
+        hive_path = "/".join(f"{col}={val}" for col, val in zip(partition_cols, combo, strict=True))
         key = f"{prefix}/{hive_path}/{filename}"
 
         if dry_run:
-            print(
-                f"  [dry-run] would write {partition.height:,} rows → s3://{bucket}/{key}"
-            )
+            print(f"  [dry-run] would write {partition.height:,} rows → s3://{bucket}/{key}")
             continue
 
         buf = io.BytesIO()

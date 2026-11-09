@@ -134,9 +134,7 @@ def compute_isone_bulk_tx_signal(
             print(f"  Peak hour:               {peak_ts}")
             print(f"  Allocation load at peak: {peak_mw:,.1f} MW")
             print(f"  {utility_label} load at peak:   {util_peak_mw:,.1f} MW")
-            print(
-                f"  Load share:              {load_share:.4f} ({load_share * 100:.2f}%)"
-            )
+            print(f"  Load share:              {load_share:.4f} ({load_share * 100:.2f}%)")
 
     # Allocate AESC PTF value to top-N peak hours
     print("\n── Bulk TX Exceedance Allocation ──")
@@ -239,9 +237,7 @@ def print_pop_summary(pop: ProbabilityOfPeak) -> None:
         .sort("month")
         .filter(pl.col("pop") > 0)
     )
-    weekend = pop.cells.filter(pl.col("daytype") == WEEKEND_HOLIDAY)[
-        "probability_of_peak"
-    ].sum()
+    weekend = pop.cells.filter(pl.col("daytype") == WEEKEND_HOLIDAY)["probability_of_peak"].sum()
     nonzero = pop.cells.filter(pl.col("probability_of_peak") > 0).height
     print(f"  Weekend-and-holiday share: {float(weekend):.4f}")
     print(f"  Nonzero cells: {nonzero} of {pop.cells.height}")
@@ -269,9 +265,7 @@ def prepare_output(allocated_df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     output = (
         ref_8760.join(allocated_df, on="timestamp", how="left")
-        .with_columns(
-            pl.col("bulk_tx_cost_enduse").fill_null(0.0).alias("bulk_tx_cost_enduse")
-        )
+        .with_columns(pl.col("bulk_tx_cost_enduse").fill_null(0.0).alias("bulk_tx_cost_enduse"))
         .sort("timestamp")
     )
 

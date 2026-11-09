@@ -147,7 +147,7 @@ def _fill_monthly(values: list[float | None]) -> list[float]:
 class RateRow:
     """One row from the RateAcuity CSV."""
 
-    __slots__ = ("rate_name", "location", "rate_determinant", "monthly")
+    __slots__ = ("location", "monthly", "rate_determinant", "rate_name")
 
     def __init__(
         self,
@@ -187,12 +187,8 @@ def _read_csv(path: Path) -> list[RateRow]:
             rate_name = raw[0].strip().lower()
             if not rate_name:
                 continue
-            rate_det_idx = (
-                header.index("rate_determinant") if "rate_determinant" in header else 7
-            )
-            rate_det = (
-                raw[rate_det_idx].strip().lower() if len(raw) > rate_det_idx else ""
-            )
+            rate_det_idx = header.index("rate_determinant") if "rate_determinant" in header else 7
+            rate_det = raw[rate_det_idx].strip().lower() if len(raw) > rate_det_idx else ""
             if not rate_det:
                 continue
             loc_idx = header.index("location") if "location" in header else 6
@@ -222,9 +218,7 @@ def _get_nfec_for_location(rows: list[RateRow], location: str) -> float:
         if row.rate_name == NFEC_RATE_NAME and row.location == location:
             value = next((v for v in row.monthly if v is not None), None)
             if value is None:
-                msg = (
-                    f"No non-None value in {NFEC_RATE_NAME!r} for location {location!r}"
-                )
+                msg = f"No non-None value in {NFEC_RATE_NAME!r} for location {location!r}"
                 raise ValueError(msg)
             return value
     msg = f"No {NFEC_RATE_NAME!r} found for location {location!r}"
@@ -329,9 +323,7 @@ def _extract_rates_for_group(
         msg = f"No per-therm charges found for group {group_key!r}"
         raise ValueError(msg)
 
-    monthly_totals = [
-        sum(comp[m] for comp in per_therm_components) for m in range(NUM_MONTHS)
-    ]
+    monthly_totals = [sum(comp[m] for comp in per_therm_components) for m in range(NUM_MONTHS)]
     return monthly_totals, fixed_charge
 
 
@@ -355,9 +347,7 @@ def _build_urdb(
     Rates are converted from $/therm to $/kWh to match the convention used by
     the tariff_fetch library for all other gas URDB JSONs.
     """
-    rate_structure = [
-        [{"rate": round(r * THERMS_PER_KWH, 6), "unit": "kWh"}] for r in monthly_rates
-    ]
+    rate_structure = [[{"rate": round(r * THERMS_PER_KWH, 6), "unit": "kWh"}] for r in monthly_rates]
 
     schedule = [[m] * 24 for m in range(NUM_MONTHS)]
 
@@ -422,24 +412,16 @@ def split_chesapeake_tariffs(
             county_label = cast(str, group_def["label"])
 
             nfec_override = cecil_nfec if group_key == "cecil" else None
-            monthly_rates, fixed_charge = _extract_rates_for_group(
-                rows, group_key, nfec_override=nfec_override
-            )
+            monthly_rates, fixed_charge = _extract_rates_for_group(rows, group_key, nfec_override=nfec_override)
 
             avg_rate = sum(monthly_rates) / len(monthly_rates)
             log.info(
-                "  %s | %s: fixed=$%.2f, avg volumetric=$%.5f/therm "
-                "(%d per-therm components%s)",
+                "  %s | %s: fixed=$%.2f, avg volumetric=$%.5f/therm (%d per-therm components%s)",
                 RATE_CLASS_LABELS[rate_class],
                 county_label,
                 fixed_charge,
                 avg_rate,
-                sum(
-                    1
-                    for r in rows
-                    if r.rate_name in PER_THERM_RATE_NAMES
-                    and _row_applies_to_group(r, group_key)
-                ),
+                sum(1 for r in rows if r.rate_name in PER_THERM_RATE_NAMES and _row_applies_to_group(r, group_key)),
                 ", NFEC=levelized" if nfec_override is not None else "",
             )
 
@@ -494,17 +476,13 @@ def main() -> None:
     for p in (args.path_res1_csv, args.path_res2_csv):
         if not p.is_file():
             raise SystemExit(f"CSV not found: {p}")
-    phase2_csvs = [
-        p for p in (args.path_res1_phase2_csv, args.path_res2_phase2_csv) if p
-    ]
+    phase2_csvs = [p for p in (args.path_res1_phase2_csv, args.path_res2_phase2_csv) if p]
     if phase2_csvs:
         for p in phase2_csvs:
             if not p.is_file():
                 raise SystemExit(f"Phase 2 CSV not found: {p}")
         if len(phase2_csvs) != 2:
-            raise SystemExit(
-                "Either provide both --path-res1-phase2-csv and --path-res2-phase2-csv, or neither."
-            )
+            raise SystemExit("Either provide both --path-res1-phase2-csv and --path-res2-phase2-csv, or neither.")
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     written = split_chesapeake_tariffs(

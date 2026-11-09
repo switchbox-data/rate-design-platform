@@ -86,18 +86,14 @@ def _validate_fair_default_dir(fair_default_dir: Path, *, strict: bool) -> list[
                 continue
             if not isinstance(fd_block, dict):
                 issues.append(
-                    f"{yaml_path.name} run {run_num}: "
-                    f"'fair_default' must be a mapping, got {type(fd_block).__name__}"
+                    f"{yaml_path.name} run {run_num}: 'fair_default' must be a mapping, got {type(fd_block).__name__}"
                 )
                 continue
 
             # Check required keys
             missing = _FAIR_DEFAULT_REQUIRED_KEYS - fd_block.keys()
             if missing:
-                issues.append(
-                    f"{yaml_path.name} run {run_num}: "
-                    f"fair_default missing required keys: {sorted(missing)}"
-                )
+                issues.append(f"{yaml_path.name} run {run_num}: fair_default missing required keys: {sorted(missing)}")
 
             # Validate strategy enum
             strategy = fd_block.get("strategy")
@@ -112,8 +108,7 @@ def _validate_fair_default_dir(fair_default_dir: Path, *, strict: bool) -> list[
             base_run = fd_block.get("base_run")
             if base_run is not None and not isinstance(base_run, int):
                 issues.append(
-                    f"{yaml_path.name} run {run_num}: "
-                    f"fair_default.base_run must be an integer, got {base_run!r}"
+                    f"{yaml_path.name} run {run_num}: fair_default.base_run must be an integer, got {base_run!r}"
                 )
 
     return issues
@@ -240,14 +235,10 @@ def main() -> None:
                 file=sys.stderr,
             )
         else:
-            fd_issues = _validate_fair_default_dir(
-                args.fair_default_dir, strict=args.strict
-            )
+            fd_issues = _validate_fair_default_dir(args.fair_default_dir, strict=args.strict)
             if fd_issues:
                 banner = "\U0001f6a8" * 3  # 🚨🚨🚨
-                print(
-                    f"\n{banner}  FAIR-DEFAULT CONFIG ERRORS  {banner}", file=sys.stderr
-                )
+                print(f"\n{banner}  FAIR-DEFAULT CONFIG ERRORS  {banner}", file=sys.stderr)
                 for issue in fd_issues:
                     print(f"  {issue}", file=sys.stderr)
                 print(file=sys.stderr)

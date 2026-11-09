@@ -147,12 +147,8 @@ def _read_excel_from_path_or_s3(source: str) -> pl.DataFrame:
     """Read an Excel file from a local path or S3 URL."""
     if source.startswith("s3://"):
         with fsspec.open(source, "rb") as f:
-            return pl.read_excel(
-                f.read(), sheet_id=1, raise_if_empty=False, infer_schema_length=0
-            )
-    return pl.read_excel(
-        source, sheet_id=1, raise_if_empty=False, infer_schema_length=0
-    )
+            return pl.read_excel(f.read(), sheet_id=1, raise_if_empty=False, infer_schema_length=0)
+    return pl.read_excel(source, sheet_id=1, raise_if_empty=False, infer_schema_length=0)
 
 
 def parse_mcos_workbook(xlsx_path: str) -> list[McosProject]:
@@ -220,9 +216,7 @@ def load_classifications(csv_path: Path) -> dict[str, str]:
     return result
 
 
-def apply_classifications(
-    projects: list[McosProject], classifications: dict[str, str]
-) -> None:
+def apply_classifications(projects: list[McosProject], classifications: dict[str, str]) -> None:
     """Assign classification to each project from the CSV lookup."""
     for p in projects:
         cls = classifications.get(p.reference)
@@ -267,21 +261,14 @@ def compute_bucket_mc(
     rows: list[MCRow] = []
     for yr in YEARS:
         if cumulative:
-            scope = [
-                p
-                for p in projects
-                if p.in_service_year is not None and p.in_service_year <= yr
-            ]
+            scope = [p for p in projects if p.in_service_year is not None and p.in_service_year <= yr]
         else:
             scope = [p for p in projects if p.in_service_year == yr]
 
         cost_real_k = sum(p.f26 * p.capacity_mw for p in scope)
         cost_nominal_k = sum(p.f_by_year.get(yr, 0.0) * p.capacity_mw for p in scope)
 
-        if diluted:
-            denom = system_peak_mw
-        else:
-            denom = sum(p.capacity_mw for p in scope)
+        denom = system_peak_mw if diluted else sum(p.capacity_mw for p in scope)
 
         real_mc = cost_real_k / denom if denom > 0 else 0.0
         nominal_mc = cost_nominal_k / denom if denom > 0 else 0.0
@@ -343,9 +330,7 @@ def export_annualized_csv(mc_data: dict[str, list[MCRow]], path: Path) -> None:
     for yi, fy in enumerate(YEARS):
         row: dict[str, object] = {"year": fy}
         for export_key, internal_key, _label in EXPORT_BUCKETS:
-            row[f"{export_key}_nominal"] = round(
-                mc_data[internal_key][yi].nominal_mc, 2
-            )
+            row[f"{export_key}_nominal"] = round(mc_data[internal_key][yi].nominal_mc, 2)
             row[f"{export_key}_real"] = round(mc_data[internal_key][yi].real_mc, 2)
         rows.append(row)
     pl.DataFrame(rows).write_csv(path)
@@ -376,9 +361,7 @@ def print_report(
     inc_undil = variants["incremental_undiluted"]
 
     print(f"\n── Levelized MC ($/kW-yr, real FY2026) {'─' * (W - 40)}")
-    print(
-        f"  {'Bucket':<28} {'Cum.Dil':>8} {'Inc.Dil':>8} {'Cum.Und':>8} {'Inc.Und':>8}"
-    )
+    print(f"  {'Bucket':<28} {'Cum.Dil':>8} {'Inc.Dil':>8} {'Cum.Und':>8} {'Inc.Und':>8}")
     print(f"  {'─' * (W - 4)}")
     for key in BUCKET_KEYS:
         label = BUCKET_LABELS[key]
@@ -391,10 +374,7 @@ def print_report(
         parts = "  ".join(f"${v:>6.2f}" for v in vals)
         print(f"  {label:<28} {parts}")
 
-    print(
-        f"\n── Year-by-year sub_tx_plus_dist diluted ($/kW-yr, nominal) "
-        f"{'─' * max(1, W - 61)}"
-    )
+    print(f"\n── Year-by-year sub_tx_plus_dist diluted ($/kW-yr, nominal) {'─' * max(1, W - 61)}")
     print(f"  {'Year':>4}  {'Cumulative':>12}  {'Incremental':>12}  {'Match?':>8}")
     print(f"  {'─' * 42}")
     for yi, yr in enumerate(YEARS):
@@ -405,10 +385,7 @@ def print_report(
 
     total_cap = bucket_info["total"]["capacity_mw"]
     ratio = total_cap / system_peak_mw if system_peak_mw else 0
-    print(
-        f"\n  Capacity added / system peak:  {ratio:.2f}x "
-        f"{'(> 1.0)' if ratio > 1 else ''}"
-    )
+    print(f"\n  Capacity added / system peak:  {ratio:.2f}x {'(> 1.0)' if ratio > 1 else ''}")
     print()
 
 
@@ -431,9 +408,7 @@ def _bucket_info(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Compute MC variants from NiMo MCOS workbook"
-    )
+    parser = argparse.ArgumentParser(description="Compute MC variants from NiMo MCOS workbook")
     parser.add_argument(
         "--path-xlsx",
         type=str,
@@ -495,9 +470,7 @@ def main() -> None:
         cumulative = "cumulative" in variant_name
         diluted = "undiluted" not in variant_name
         variants[variant_name] = {
-            key: compute_bucket_mc(
-                buckets[key], system_peak_mw, cumulative=cumulative, diluted=diluted
-            )
+            key: compute_bucket_mc(buckets[key], system_peak_mw, cumulative=cumulative, diluted=diluted)
             for key in BUCKET_KEYS
         }
 
@@ -506,12 +479,8 @@ def main() -> None:
     print("\nExporting CSVs:")
     for variant_name in VARIANT_NAMES:
         prefix = f"nimo_{variant_name}"
-        export_levelized_csv(
-            variants[variant_name], info, path_output_dir / f"{prefix}_levelized.csv"
-        )
-        export_annualized_csv(
-            variants[variant_name], path_output_dir / f"{prefix}_annualized.csv"
-        )
+        export_levelized_csv(variants[variant_name], info, path_output_dir / f"{prefix}_levelized.csv")
+        export_annualized_csv(variants[variant_name], path_output_dir / f"{prefix}_annualized.csv")
 
     # 6. Terminal report
     print()

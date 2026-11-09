@@ -791,9 +791,7 @@ def convert_csv_to_parquet(csv_file, schema, output_base_dir):
             pl.lit(metadata.get("Project", "Cambium24")).alias("project"),
             pl.lit(metadata.get("Scenario", "MidCase")).alias("scenario"),
             pl.lit(metadata.get("Dollar_year", "2023$")).alias("dollar_year"),
-            pl.lit(int(metadata.get("Weather_year", 2012)))
-            .cast(pl.Int16)
-            .alias("weather_year"),
+            pl.lit(int(metadata.get("Weather_year", 2012))).cast(pl.Int16).alias("weather_year"),
             pl.lit(metadata.get("Start_day", "Sunday")).alias("start_day"),
             pl.lit(metadata.get("r", "")).alias("r"),
             pl.lit(metadata.get("state", "")).alias("state"),
@@ -863,9 +861,7 @@ def convert_csv_to_parquet(csv_file, schema, output_base_dir):
     gea = metadata.get("gea", "unknown")
     r = metadata.get("r", "unknown")
 
-    partition_path = (
-        output_base_dir / f"scenario={scenario}" / f"t={year}" / f"gea={gea}" / f"r={r}"
-    )
+    partition_path = output_base_dir / f"scenario={scenario}" / f"t={year}" / f"gea={gea}" / f"r={r}"
     partition_path.mkdir(parents=True, exist_ok=True)
 
     output_file = partition_path / "data.parquet"
@@ -889,9 +885,7 @@ def main():
 
     if not csv_dir.exists():
         print(f"Error: CSV directory not found: {csv_dir}")
-        print(
-            "Expected structure: <input_dir>/*.csv (e.g. csv/2024/hourly_balancingArea)"
-        )
+        print("Expected structure: <input_dir>/*.csv (e.g. csv/2024/hourly_balancingArea)")
         sys.exit(1)
 
     csv_files = sorted(csv_dir.glob("*.csv"))
@@ -958,9 +952,7 @@ def main():
 def _parse_args():
     import argparse
 
-    p = argparse.ArgumentParser(
-        description="Convert Cambium Hourly Balancing Area CSVs to partitioned Parquet"
-    )
+    p = argparse.ArgumentParser(description="Convert Cambium Hourly Balancing Area CSVs to partitioned Parquet")
     p.add_argument(
         "--input",
         "-i",

@@ -6,7 +6,6 @@ Loading functions for PUDL tables and our own S3-hosted stats.  Imported by
 
 from __future__ import annotations
 
-
 import polars as pl
 
 from data.eia.constants import (
@@ -33,10 +32,7 @@ def load_pudl_service_territory(state: str, year: int) -> pl.DataFrame:
     """
     return (
         pl.scan_parquet(PUDL_SERVICE_TERRITORY_URL)
-        .filter(
-            (pl.col("state") == state.upper())
-            & (pl.col("report_date").dt.year() == year)
-        )
+        .filter((pl.col("state") == state.upper()) & (pl.col("report_date").dt.year() == year))
         .select(["county_id_fips", "county", "utility_id_eia", "utility_name_eia"])
         .collect()
     )
@@ -99,9 +95,7 @@ def load_eia176_residential_by_operator(
         .filter((pl.col("operating_state") == state) & (pl.col("report_year") == year))
         .select(
             "operator_id_eia",
-            pl.col("delivered_gas_heat_content_mmbtu_per_mcf")
-            .cast(pl.Float64)
-            .alias("heat_content_mmbtu_per_mcf"),
+            pl.col("delivered_gas_heat_content_mmbtu_per_mcf").cast(pl.Float64).alias("heat_content_mmbtu_per_mcf"),
         )
     )
     joined = deliveries.join(heat, on="operator_id_eia", how="left").collect()
@@ -109,17 +103,13 @@ def load_eia176_residential_by_operator(
         raise ValueError(f"EIA-176 has no residential deliveries for {state} {year}.")
     heat_col = pl.col("heat_content_mmbtu_per_mcf")
     if joined["heat_content_mmbtu_per_mcf"].drop_nulls().len() == 0:
-        raise ValueError(
-            f"EIA-176 has no delivered-gas heat content for {state} {year}."
-        )
+        raise ValueError(f"EIA-176 has no delivered-gas heat content for {state} {year}.")
     return (
         joined.with_columns(
             heat_col.is_null().alias("heat_content_imputed"),
             heat_col.fill_null(heat_col.median()),
         )
-        .with_columns(
-            (pl.col("volume_mcf") * heat_col * KWH_PER_MMBTU).alias("eia_kwh")
-        )
+        .with_columns((pl.col("volume_mcf") * heat_col * KWH_PER_MMBTU).alias("eia_kwh"))
         .select(
             "operator_id_eia",
             "volume_mcf",

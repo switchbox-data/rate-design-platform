@@ -43,7 +43,7 @@ import polars as pl
 
 from utils import get_aws_region
 from utils.cairo import (
-    _load_supply_marginal_costs,  # noqa: PLC2701
+    _load_supply_marginal_costs,
     load_bulk_tx_marginal_costs,
     load_dist_and_sub_tx_marginal_costs,
 )
@@ -166,14 +166,10 @@ def load_tou_inputs(
 
     raw_weight_sum = float(ua_df["weight"].sum())
     if raw_weight_sum > 0:
-        ua_df = ua_df.with_columns(
-            (pl.col("weight") / raw_weight_sum * customer_count).alias("weight")
-        )
+        ua_df = ua_df.with_columns((pl.col("weight") / raw_weight_sum * customer_count).alias("weight"))
 
     if has_hp_filter is not None:
-        ua_df = ua_df.filter(
-            pl.col("postprocess_group.has_hp").is_in(list(has_hp_filter))
-        )
+        ua_df = ua_df.filter(pl.col("postprocess_group.has_hp").is_in(list(has_hp_filter)))
         log.info("Filtered to has_hp in %s: %d buildings", has_hp_filter, len(ua_df))
 
     if run_dir:
@@ -182,21 +178,15 @@ def load_tou_inputs(
         log.info("Reading building IDs from %s", cm_path)
         if cm_path.startswith("s3://"):
             try:
-                run_bldg_ids = pl.read_csv(cm_path, columns=["bldg_id"])[
-                    "bldg_id"
-                ].to_list()
+                run_bldg_ids = pl.read_csv(cm_path, columns=["bldg_id"])["bldg_id"].to_list()
             except TypeError:
                 run_bldg_ids = pl.read_csv(
                     cm_path,
                     columns=["bldg_id"],
-                    storage_options={
-                        "client_kwargs": {"region_name": get_aws_region()}
-                    },
+                    storage_options={"client_kwargs": {"region_name": get_aws_region()}},
                 )["bldg_id"].to_list()
         else:
-            run_bldg_ids = pl.read_csv(cm_path, columns=["bldg_id"])[
-                "bldg_id"
-            ].to_list()
+            run_bldg_ids = pl.read_csv(cm_path, columns=["bldg_id"])["bldg_id"].to_list()
         ua_df = ua_df.filter(pl.col("bldg_id").is_in(run_bldg_ids))
         log.info("Restricted to %d buildings from run output", len(run_bldg_ids))
 
@@ -441,10 +431,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--summer-months",
         default=None,
-        help=(
-            "Deprecated: comma-separated summer months. "
-            "If both are provided, --winter-months takes precedence."
-        ),
+        help=("Deprecated: comma-separated summer months. If both are provided, --winter-months takes precedence."),
     )
     p.add_argument(
         "--tou-window-hours",
@@ -502,19 +489,14 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--has-hp",
         default="true",
-        help=(
-            "Filter buildings by HP status: 'true' (HP only, default), "
-            "'false' (non-HP only), or 'all' (no filter)."
-        ),
+        help=("Filter buildings by HP status: 'true' (HP only, default), 'false' (non-HP only), or 'all' (no filter)."),
     )
 
     return p.parse_args()
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO, format="%(name)s %(levelname)s: %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
     args = _parse_args()
 
     project_root = Path(__file__).resolve().parents[2]
@@ -542,9 +524,7 @@ def main() -> None:
 
     if args.summer_months:
         summer_months = parse_months_arg(args.summer_months)
-        fallback_winter = [
-            month for month in range(1, 13) if month not in summer_months
-        ]
+        fallback_winter = [month for month in range(1, 13) if month not in summer_months]
     else:
         fallback_winter = default_winter_months
 
@@ -552,11 +532,7 @@ def main() -> None:
         parse_months_arg(args.winter_months) if args.winter_months else None,
         default_winter_months=fallback_winter,
     )
-    tou_window_hours = (
-        args.tou_window_hours
-        if args.tou_window_hours is not None
-        else default_tou_window_hours
-    )
+    tou_window_hours = args.tou_window_hours if args.tou_window_hours is not None else default_tou_window_hours
     output_dir = Path(args.output_dir)
 
     # -- Parse has_hp filter ---------------------------------------------------
@@ -568,30 +544,22 @@ def main() -> None:
     elif has_hp_raw == "false":
         has_hp_filter = {False}
     else:
-        raise SystemExit(
-            f"--has-hp must be 'true', 'false', or 'all', got '{args.has_hp}'"
-        )
+        raise SystemExit(f"--has-hp must be 'true', 'false', or 'all', got '{args.has_hp}'")
 
     # -- Resolve fixed charge ----------------------------------
     ref_fixed_charge: float | None = None
     if args.reference_tariff is not None:
-        _, ref_fixed_charge = extract_base_rate_and_fixed_charge(
-            Path(args.reference_tariff)
-        )
+        _, ref_fixed_charge = extract_base_rate_and_fixed_charge(Path(args.reference_tariff))
         log.info(
             "Reference tariff %s: fixed_charge=%.2f (base rate ignored; MC-derived)",
             args.reference_tariff,
             ref_fixed_charge,
         )
 
-    tou_fixed_charge = (
-        args.tou_fixed_charge if args.tou_fixed_charge is not None else ref_fixed_charge
-    )
+    tou_fixed_charge = args.tou_fixed_charge if args.tou_fixed_charge is not None else ref_fixed_charge
 
     if tou_fixed_charge is None:
-        raise SystemExit(
-            "Either --reference-tariff or --tou-fixed-charge must be provided."
-        )
+        raise SystemExit("Either --reference-tariff or --tou-fixed-charge must be provided.")
 
     # -- 1. Load data --------------------------------------------------------
     bulk_mc, dist_mc, bulk_tx_mc, hourly_load = load_tou_inputs(
@@ -635,9 +603,7 @@ def main() -> None:
     write_tariff_json(tou_tariff, tariff_path)
     log.info("Wrote TOU tariff JSON: %s", tariff_path)
 
-    derivation_path = (
-        output_dir / "tou_derivation" / f"{args.tou_tariff_key}_derivation.json"
-    )
+    derivation_path = output_dir / "tou_derivation" / f"{args.tou_tariff_key}_derivation.json"
     save_season_specs(season_specs, derivation_path)
     log.info("Wrote derivation spec JSON: %s", derivation_path)
 

@@ -10,13 +10,13 @@ Usage:
 
 from __future__ import annotations
 
-from utils.numeric import as_float
-
 import sys
 from datetime import date
 from pathlib import Path
 
 import polars as pl
+
+from utils.numeric import as_float
 
 EXPECTED_COLUMNS = [
     "fca_number",
@@ -110,9 +110,7 @@ def check_no_duplicates(df: pl.DataFrame, result: ValidationResult) -> None:
     n_total = df.height
     n_unique = df.select(keys).unique().height
     if n_unique != n_total:
-        result.error(
-            "Uniqueness", f"{n_total - n_unique} duplicate (fca, zone, status) rows"
-        )
+        result.error("Uniqueness", f"{n_total - n_unique} duplicate (fca, zone, status) rows")
     else:
         result.passed(
             "Uniqueness",
@@ -153,28 +151,20 @@ def check_existing_new_pairs(df: pl.DataFrame, result: ValidationResult) -> None
     for (fca, zone), group in admin.group_by("fca_number", "capacity_zone_id"):
         statuses = set(group["resource_status"].to_list())
         if statuses != {"existing", "new"}:
-            errors.append(
-                f"FCA {fca} zone {zone}: has {statuses}, expected both existing and new"
-            )
+            errors.append(f"FCA {fca} zone {zone}: has {statuses}, expected both existing and new")
 
     has_all_overlap = df.filter(pl.col("resource_status") == "all")
     for (fca, zone), _ in admin.group_by("fca_number", "capacity_zone_id"):
-        overlap = has_all_overlap.filter(
-            (pl.col("fca_number") == fca) & (pl.col("capacity_zone_id") == zone)
-        )
+        overlap = has_all_overlap.filter((pl.col("fca_number") == fca) & (pl.col("capacity_zone_id") == zone))
         if overlap.height > 0:
-            errors.append(
-                f"FCA {fca} zone {zone}: has both 'all' and existing/new rows"
-            )
+            errors.append(f"FCA {fca} zone {zone}: has both 'all' and existing/new rows")
 
     if errors:
         for e in errors:
             result.error("Existing/new pairs", e)
     else:
         pairs = admin.select("fca_number", "capacity_zone_id").unique().height
-        result.passed(
-            "Existing/new pairs", f"{pairs} admin-priced (fca, zone) pairs, all valid"
-        )
+        result.passed("Existing/new pairs", f"{pairs} admin-priced (fca, zone) pairs, all valid")
 
 
 def check_price_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
@@ -186,13 +176,9 @@ def check_price_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
     if pmin < PRICE_FLOOR:
         result.error("Price range", f"min ${pmin:.3f} is negative")
     elif pmax > PRICE_CEILING:
-        result.warn(
-            "Price range", f"max ${pmax:.3f} exceeds ${PRICE_CEILING:.0f}/kW-mo ceiling"
-        )
+        result.warn("Price range", f"max ${pmax:.3f} exceeds ${PRICE_CEILING:.0f}/kW-mo ceiling")
     else:
-        result.passed(
-            "Price range", f"${pmin:.3f}–${pmax:.3f}/kW-mo (mean ${pmean:.3f})"
-        )
+        result.passed("Price range", f"${pmin:.3f}–${pmax:.3f}/kW-mo (mean ${pmean:.3f})")
 
     summary = (
         df.group_by("capacity_zone_name")
@@ -205,9 +191,7 @@ def check_price_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
     )
     lines = []
     for row in summary.iter_rows(named=True):
-        lines.append(
-            f"{row['capacity_zone_name']}: ${row['min']:.3f}–${row['max']:.3f} (mean ${row['mean']:.3f})"
-        )
+        lines.append(f"{row['capacity_zone_name']}: ${row['min']:.3f}–${row['max']:.3f} (mean ${row['mean']:.3f})")
     result.passed("Price summary by zone", "; ".join(lines))
 
 
@@ -224,18 +208,14 @@ def check_cross_check_values(df: pl.DataFrame, result: ValidationResult) -> None
     errors: list[str] = []
     for (fca, zone, status), expected_price in CROSS_CHECK_VALUES.items():
         row = df.filter(
-            (pl.col("fca_number") == fca)
-            & (pl.col("capacity_zone_id") == zone)
-            & (pl.col("resource_status") == status)
+            (pl.col("fca_number") == fca) & (pl.col("capacity_zone_id") == zone) & (pl.col("resource_status") == status)
         )
         if row.height == 0:
             errors.append(f"FCA {fca} zone {zone} status={status}: row not found")
             continue
         actual = float(row["clearing_price_per_kw_month"][0])
         if abs(actual - expected_price) > 0.001:
-            errors.append(
-                f"FCA {fca} zone {zone}: expected ${expected_price:.3f}, got ${actual:.3f}"
-            )
+            errors.append(f"FCA {fca} zone {zone}: expected ${expected_price:.3f}, got ${actual:.3f}")
     if errors:
         for e in errors:
             result.error("Cross-check", e)
@@ -291,9 +271,7 @@ def print_report(result: ValidationResult) -> None:
 def main() -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Validate ISO-NE FCA clearing price CSV."
-    )
+    parser = argparse.ArgumentParser(description="Validate ISO-NE FCA clearing price CSV.")
     parser.add_argument(
         "--path-csv",
         type=Path,

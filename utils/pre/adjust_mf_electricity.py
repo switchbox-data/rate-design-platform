@@ -29,9 +29,7 @@ def _storage_options_for_path(path: Path | S3Path) -> dict[str, str]:
 BLDG_ID_COL = "bldg_id"
 ANNUAL_ELECTRICITY_COL = "out.electricity.total.energy_consumption.kwh"
 HOURLY_TOTAL_ELECTRICITY_CONSUMPTION_COL = "out.electricity.total.energy_consumption"
-HOURLY_TOTAL_ELECTRICITY_INTENSITY_COL = (
-    "out.electricity.total.energy_consumption_intensity"
-)
+HOURLY_TOTAL_ELECTRICITY_INTENSITY_COL = "out.electricity.total.energy_consumption_intensity"
 MF_NON_HVAC_ELECTRICITY_ADJUSTED_COL = "mf_non_hvac_electricity_adjusted"
 BUILDING_TYPE_RECS_COL = "in.geometry_building_type_recs"
 FLOOR_AREA_COL = "in.geometry_floor_area"
@@ -67,9 +65,7 @@ def annual_to_hourly_cols(annual_col: str) -> list[str]:
     if not annual_col.endswith(".energy_consumption.kwh"):
         return []
     consumption = annual_col.replace(".energy_consumption.kwh", ".energy_consumption")
-    intensity = annual_col.replace(
-        ".energy_consumption.kwh", ".energy_consumption_intensity"
-    )
+    intensity = annual_col.replace(".energy_consumption.kwh", ".energy_consumption_intensity")
     return [consumption, intensity]
 
 
@@ -114,12 +110,8 @@ def _get_non_hvac_mf_to_sf_ratios(
             .alias("floor_area_sqft")
         )
         .with_columns(
-            pl.col(BUILDING_TYPE_RECS_COL)
-            .str.contains("Single-Family", literal=True)
-            .alias("_is_sf"),
-            pl.col(BUILDING_TYPE_RECS_COL)
-            .str.contains("Multi-Family", literal=True)
-            .alias("_is_mf"),
+            pl.col(BUILDING_TYPE_RECS_COL).str.contains("Single-Family", literal=True).alias("_is_sf"),
+            pl.col(BUILDING_TYPE_RECS_COL).str.contains("Multi-Family", literal=True).alias("_is_mf"),
         )
         .select(
             pl.col(BLDG_ID_COL),
@@ -129,15 +121,11 @@ def _get_non_hvac_mf_to_sf_ratios(
         )
     )
     annual_schema = load_curve_annual.collect_schema().names()
-    non_hvac_present = [
-        c for c in NON_HVAC_RELATED_ELECTRICITY_COLS if c in annual_schema
-    ]
+    non_hvac_present = [c for c in NON_HVAC_RELATED_ELECTRICITY_COLS if c in annual_schema]
     if not non_hvac_present:
         return ratios
     merged = (
-        load_curve_annual.select(
-            [pl.col(BLDG_ID_COL)] + [pl.col(c) for c in non_hvac_present]
-        )
+        load_curve_annual.select([pl.col(BLDG_ID_COL)] + [pl.col(c) for c in non_hvac_present])
         .join(meta, on=BLDG_ID_COL, how="inner")
         .filter(pl.col("floor_area_sqft").is_finite() & (pl.col("floor_area_sqft") > 0))
         .collect()
@@ -174,13 +162,9 @@ def _adjust_mf_electricity_hourly_one_bldg(
     """Adjust multifamily electricity in hourly load curve: scale non-HVAC consumption and intensity by dividing by MF/SF ratio. Returns adjusted LazyFrame."""
     load_curve_hourly_schema = load_curve_hourly.collect_schema().names()
     if HOURLY_TOTAL_ELECTRICITY_CONSUMPTION_COL not in load_curve_hourly_schema:
-        raise ValueError(
-            f"Hourly load curve missing required column {HOURLY_TOTAL_ELECTRICITY_CONSUMPTION_COL!r}"
-        )
+        raise ValueError(f"Hourly load curve missing required column {HOURLY_TOTAL_ELECTRICITY_CONSUMPTION_COL!r}")
     if HOURLY_TOTAL_ELECTRICITY_INTENSITY_COL not in load_curve_hourly_schema:
-        raise ValueError(
-            f"Hourly load curve missing required column {HOURLY_TOTAL_ELECTRICITY_INTENSITY_COL!r}"
-        )
+        raise ValueError(f"Hourly load curve missing required column {HOURLY_TOTAL_ELECTRICITY_INTENSITY_COL!r}")
 
     # Non-HVAC: scale both consumption and consumption_intensity using annual_to_hourly_cols
     sum_parts: list[pl.Expr] = []
@@ -191,17 +175,10 @@ def _adjust_mf_electricity_hourly_one_bldg(
     for annual_col in NON_HVAC_RELATED_ELECTRICITY_COLS:
         hourly_cols = annual_to_hourly_cols(annual_col)
         if not hourly_cols:
-            raise ValueError(
-                f"Annual column {annual_col} does not have corresponding hourly columns"
-            )
+            raise ValueError(f"Annual column {annual_col} does not have corresponding hourly columns")
         consumption_col, intensity_col = hourly_cols[0], hourly_cols[1]
-        if (
-            consumption_col not in load_curve_hourly_schema
-            or intensity_col not in load_curve_hourly_schema
-        ):
-            raise ValueError(
-                f"Load curve hourly schema missing columns {consumption_col} or {intensity_col}"
-            )
+        if consumption_col not in load_curve_hourly_schema or intensity_col not in load_curve_hourly_schema:
+            raise ValueError(f"Load curve hourly schema missing columns {consumption_col} or {intensity_col}")
         non_hvac_consumption_cols.append(consumption_col)
         non_hvac_intensity_cols.append(intensity_col)
         ratio = ratios.get(annual_col, 1.0)
@@ -215,27 +192,15 @@ def _adjust_mf_electricity_hourly_one_bldg(
 
     old_non_hvac = pl.sum_horizontal([pl.col(c) for c in non_hvac_consumption_cols])
     adjusted_non_hvac = pl.sum_horizontal(sum_parts)
-    new_total_consumption = (
-        pl.col(HOURLY_TOTAL_ELECTRICITY_CONSUMPTION_COL)
-        - old_non_hvac
-        + adjusted_non_hvac
-    )
-    update_exprs.append(
-        new_total_consumption.alias(HOURLY_TOTAL_ELECTRICITY_CONSUMPTION_COL)
-    )
+    new_total_consumption = pl.col(HOURLY_TOTAL_ELECTRICITY_CONSUMPTION_COL) - old_non_hvac + adjusted_non_hvac
+    update_exprs.append(new_total_consumption.alias(HOURLY_TOTAL_ELECTRICITY_CONSUMPTION_COL))
 
-    old_non_hvac_intensity = pl.sum_horizontal(
-        [pl.col(c) for c in non_hvac_intensity_cols]
-    )
+    old_non_hvac_intensity = pl.sum_horizontal([pl.col(c) for c in non_hvac_intensity_cols])
     adjusted_non_hvac_intensity = pl.sum_horizontal(sum_parts_intensity)
     new_total_intensity = (
-        pl.col(HOURLY_TOTAL_ELECTRICITY_INTENSITY_COL)
-        - old_non_hvac_intensity
-        + adjusted_non_hvac_intensity
+        pl.col(HOURLY_TOTAL_ELECTRICITY_INTENSITY_COL) - old_non_hvac_intensity + adjusted_non_hvac_intensity
     )
-    update_exprs.append(
-        new_total_intensity.alias(HOURLY_TOTAL_ELECTRICITY_INTENSITY_COL)
-    )
+    update_exprs.append(new_total_intensity.alias(HOURLY_TOTAL_ELECTRICITY_INTENSITY_COL))
 
     adjusted_hourly = load_curve_hourly.with_columns(update_exprs)
     return adjusted_hourly
@@ -254,19 +219,13 @@ def adjust_mf_electricity_parquet(
     path_metadata and load_curve_hourly_dir may be Path (local) or S3Path (s3://).
     storage_options are set automatically from path type (S3 vs local); pass explicitly to override.
     """
-    opts = (
-        storage_options
-        if storage_options is not None
-        else _storage_options_for_path(load_curve_hourly_dir)
-    )
+    opts = storage_options if storage_options is not None else _storage_options_for_path(load_curve_hourly_dir)
 
     meta_schema = metadata.collect_schema().names()
     if BLDG_ID_COL not in meta_schema:
         raise ValueError(f"Metadata LazyFrame missing column {BLDG_ID_COL!r}")
     if MF_NON_HVAC_ELECTRICITY_ADJUSTED_COL not in meta_schema:
-        metadata = metadata.with_columns(
-            pl.lit(False).alias(MF_NON_HVAC_ELECTRICITY_ADJUSTED_COL)
-        )
+        metadata = metadata.with_columns(pl.lit(False).alias(MF_NON_HVAC_ELECTRICITY_ADJUSTED_COL))
 
     schema = input_load_curve_annual.collect_schema().names()
     if (
@@ -279,12 +238,8 @@ def adjust_mf_electricity_parquet(
         )
     non_hvac_present = [c for c in NON_HVAC_RELATED_ELECTRICITY_COLS if c in schema]
     if not non_hvac_present:
-        raise ValueError(
-            "Load curve annual LazyFrame has no non-HVAC electricity columns"
-        )
-    annual_for_ratio = input_load_curve_annual.select(
-        [pl.col(BLDG_ID_COL)] + [pl.col(c) for c in non_hvac_present]
-    )
+        raise ValueError("Load curve annual LazyFrame has no non-HVAC electricity columns")
+    annual_for_ratio = input_load_curve_annual.select([pl.col(BLDG_ID_COL)] + [pl.col(c) for c in non_hvac_present])
     bldg_ids_in_annual = annual_for_ratio.collect().get_column(BLDG_ID_COL).to_list()
     meta_subset = metadata.filter(pl.col(BLDG_ID_COL).is_in(bldg_ids_in_annual))
     meta_collected = meta_subset.collect()
@@ -296,9 +251,7 @@ def adjust_mf_electricity_parquet(
     unadjusted_multifamily_bldg_ids = (
         (
             meta_subset.filter(
-                pl.col(BUILDING_TYPE_RECS_COL).str.contains(
-                    "Multi-Family", literal=True
-                )
+                pl.col(BUILDING_TYPE_RECS_COL).str.contains("Multi-Family", literal=True)
                 & ~pl.col(MF_NON_HVAC_ELECTRICITY_ADJUSTED_COL)
             )
             .select(pl.col(BLDG_ID_COL))
@@ -314,9 +267,7 @@ def adjust_mf_electricity_parquet(
         adjusted = _adjust_mf_electricity_hourly_one_bldg(lf, ratios)
         # Collect before writing: source and sink are the same file, and
         # sink_parquet on an overlapping path triggers a Polars panic.
-        adjusted.collect().write_parquet(
-            str(path_hourly), storage_options=opts if opts else None
-        )
+        adjusted.collect().write_parquet(str(path_hourly), storage_options=opts if opts else None)
         return bldg_id
 
     n_bldgs = len(unadjusted_multifamily_bldg_ids)
@@ -357,9 +308,7 @@ if __name__ == "__main__":
         required=True,
         help="S3 base path for ResStock data (e.g. s3://data.sb/nrel/resstock)",
     )
-    parser.add_argument(
-        "--state", type=str, required=True, help="State abbreviation (e.g. NY)"
-    )
+    parser.add_argument("--state", type=str, required=True, help="State abbreviation (e.g. NY)")
     parser.add_argument(
         "--input_release",
         type=str,
@@ -391,9 +340,7 @@ if __name__ == "__main__":
             / f"upgrade={upgrade_id}"
             / f"{args.state}_upgrade{upgrade_id}_metadata_and_annual_results.parquet"
         )
-        input_load_curve_annual = pl.scan_parquet(
-            str(input_load_curve_annual_path), storage_options=STORAGE_OPTIONS
-        )
+        input_load_curve_annual = pl.scan_parquet(str(input_load_curve_annual_path), storage_options=STORAGE_OPTIONS)
 
         metadata_path = (
             path_s3
@@ -405,11 +352,7 @@ if __name__ == "__main__":
         )
         metadata = pl.scan_parquet(str(metadata_path), storage_options=STORAGE_OPTIONS)
         load_curve_hourly_dir = (
-            path_s3
-            / args.output_release
-            / "load_curve_hourly"
-            / f"state={args.state}"
-            / f"upgrade={upgrade_id}"
+            path_s3 / args.output_release / "load_curve_hourly" / f"state={args.state}" / f"upgrade={upgrade_id}"
         )
 
         adjust_mf_electricity_parquet(

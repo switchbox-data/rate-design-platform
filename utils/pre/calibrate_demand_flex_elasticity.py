@@ -37,8 +37,6 @@ import pandas as pd
 import polars as pl
 import yaml
 
-from utils.file_io import get_aws_storage_options
-from utils.numeric import as_float
 from utils.cairo import (
     _build_period_consumption,
     _build_period_shift_targets,
@@ -46,6 +44,8 @@ from utils.cairo import (
     assign_hourly_periods,
     extract_tou_period_rates,
 )
+from utils.file_io import get_aws_storage_options
+from utils.numeric import as_float
 from utils.pre.compute_tou import SeasonTouSpec, load_season_specs
 from utils.scenario_config import get_residential_customer_count_from_utility_stats
 
@@ -77,26 +77,15 @@ STATE_CONFIGS: dict[str, dict] = {
     "ny": {
         "utilities": ("cenhud", "coned", "nimo", "nyseg", "or", "psegli", "rge"),
         "path_metadata": Path(
-            "/ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/"
-            "upgrade=00/metadata-sb.parquet"
+            "/ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata/state=NY/upgrade=00/metadata-sb.parquet"
         ),
         "path_utility_assignment": Path(
-            "/ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/"
-            "state=NY/utility_assignment.parquet"
+            "/ebs/data/nrel/resstock/res_2024_amy2018_2_sb/metadata_utility/state=NY/utility_assignment.parquet"
         ),
-        "path_loads_dir": Path(
-            "/ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/"
-            "state=NY/upgrade=00"
-        ),
-        "path_tou_derivation_dir": Path(
-            "rate_design/hp_rates/ny/config/tou_derivation"
-        ),
-        "path_tariffs_electric_dir": Path(
-            "rate_design/hp_rates/ny/config/tariffs/electric"
-        ),
-        "path_rev_requirement_dir": Path(
-            "rate_design/hp_rates/ny/config/rev_requirement"
-        ),
+        "path_loads_dir": Path("/ebs/data/nrel/resstock/res_2024_amy2018_2_sb/load_curve_hourly/state=NY/upgrade=00"),
+        "path_tou_derivation_dir": Path("rate_design/hp_rates/ny/config/tou_derivation"),
+        "path_tariffs_electric_dir": Path("rate_design/hp_rates/ny/config/tariffs/electric"),
+        "path_rev_requirement_dir": Path("rate_design/hp_rates/ny/config/rev_requirement"),
         "mc_base": "s3://data.sb/switchbox/marginal_costs/ny",
         "mc_year": 2025,
         "path_electric_utility_stats": "s3://data.sb/eia/861/electric_utility_stats/year=2024/state=NY/data.parquet",
@@ -173,9 +162,7 @@ class UtilityResult:
     recommended_elasticity: float = 0.0
     recommended_annual_savings: float = 0.0
     seasonal_recommendations: list[SeasonRecommendation] = field(default_factory=list)
-    seasonal_recommendations_with_tech: list[SeasonRecommendation] = field(
-        default_factory=list
-    )
+    seasonal_recommendations_with_tech: list[SeasonRecommendation] = field(default_factory=list)
     delivery_rr: float = 0.0
     rr_decrease_by_elasticity: dict[float, float] = field(default_factory=dict)
 
@@ -190,9 +177,7 @@ def arcturus_peak_reduction(price_ratio: float) -> float:
     """
     if price_ratio <= 1.0:
         return 0.0
-    return abs(
-        ARCTURUS_NO_TECH_INTERCEPT + ARCTURUS_NO_TECH_SLOPE * math.log(price_ratio)
-    )
+    return abs(ARCTURUS_NO_TECH_INTERCEPT + ARCTURUS_NO_TECH_SLOPE * math.log(price_ratio))
 
 
 def arcturus_peak_reduction_with_tech(price_ratio: float) -> float:
@@ -203,9 +188,7 @@ def arcturus_peak_reduction_with_tech(price_ratio: float) -> float:
     """
     if price_ratio <= 1.0:
         return 0.0
-    return abs(
-        ARCTURUS_WITH_TECH_INTERCEPT + ARCTURUS_WITH_TECH_SLOPE * math.log(price_ratio)
-    )
+    return abs(ARCTURUS_WITH_TECH_INTERCEPT + ARCTURUS_WITH_TECH_SLOPE * math.log(price_ratio))
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
@@ -216,12 +199,8 @@ def load_hp_metadata(
     path_utility_assignment: Path,
 ) -> pl.DataFrame:
     """Load metadata and return HP buildings with utility assignment and weight."""
-    meta = pl.read_parquet(path_metadata).select(
-        "bldg_id", "postprocess_group.has_hp", "weight"
-    )
-    util = pl.read_parquet(path_utility_assignment).select(
-        "bldg_id", "sb.electric_utility"
-    )
+    meta = pl.read_parquet(path_metadata).select("bldg_id", "postprocess_group.has_hp", "weight")
+    util = pl.read_parquet(path_utility_assignment).select("bldg_id", "sb.electric_utility")
     joined = meta.join(util, on="bldg_id", how="inner")
     hp = joined.filter(pl.col("postprocess_group.has_hp") == True)  # noqa: E712
     log.info(
@@ -269,9 +248,7 @@ def load_building_loads(
     if missing:
         log.warning("Missing load files for %d of %d buildings", missing, len(bldg_ids))
     if not frames:
-        raise FileNotFoundError(
-            f"No load files found in {loads_dir} for {len(bldg_ids)} buildings"
-        )
+        raise FileNotFoundError(f"No load files found in {loads_dir} for {len(bldg_ids)} buildings")
 
     combined = pd.concat(frames, ignore_index=True)
     combined = combined.set_index(["bldg_id", "time"]).sort_index()
@@ -303,13 +280,9 @@ def load_tou_context(
     specs = load_season_specs(deriv_path)
 
     if use_calibrated:
-        tariff_path = (
-            tariffs_electric_dir / f"{utility}_hp_seasonalTOU_flex_calibrated.json"
-        )
+        tariff_path = tariffs_electric_dir / f"{utility}_hp_seasonalTOU_flex_calibrated.json"
         if not tariff_path.exists():
-            tariff_path = (
-                tariffs_electric_dir / f"{utility}_hp_seasonalTOU_calibrated.json"
-            )
+            tariff_path = tariffs_electric_dir / f"{utility}_hp_seasonalTOU_calibrated.json"
         if not tariff_path.exists():
             raise FileNotFoundError(
                 f"No calibrated tariff found for {utility}. "
@@ -338,18 +311,14 @@ def load_delivery_mc(
 
     Returns DataFrame with columns ['timestamp', 'mc_kwh'] in $/kWh.
     """
-    dist_path = (
-        f"{mc_base}/dist_and_sub_tx/utility={utility}/year={mc_year}/data.parquet"
-    )
+    dist_path = f"{mc_base}/dist_and_sub_tx/utility={utility}/year={mc_year}/data.parquet"
     bulk_path = f"{mc_base}/bulk_tx/utility={utility}/year={mc_year}/data.parquet"
 
     dist = pl.read_parquet(dist_path, storage_options=storage_options)
     if "timestamp" in dist.columns:
         ts_dtype = dist.schema["timestamp"]
         if isinstance(ts_dtype, pl.Datetime) and ts_dtype.time_zone is not None:
-            dist = dist.with_columns(
-                pl.col("timestamp").dt.replace_time_zone(None).alias("timestamp")
-            )
+            dist = dist.with_columns(pl.col("timestamp").dt.replace_time_zone(None).alias("timestamp"))
     dist = dist.select(
         "timestamp",
         pl.col("mc_total_per_kwh").alias("mc_dist"),
@@ -359,20 +328,14 @@ def load_delivery_mc(
     if "timestamp" in bulk.columns:
         ts_dtype = bulk.schema["timestamp"]
         if isinstance(ts_dtype, pl.Datetime) and ts_dtype.time_zone is not None:
-            bulk = bulk.with_columns(
-                pl.col("timestamp").dt.replace_time_zone(None).alias("timestamp")
-            )
+            bulk = bulk.with_columns(pl.col("timestamp").dt.replace_time_zone(None).alias("timestamp"))
     bulk = bulk.select(
         "timestamp",
         pl.col("bulk_tx_cost_enduse").alias("mc_bulk"),
     )
 
     mc = dist.join(bulk, on="timestamp", how="full", coalesce=True).sort("timestamp")
-    mc = mc.with_columns(
-        (pl.col("mc_dist").fill_null(0.0) + pl.col("mc_bulk").fill_null(0.0)).alias(
-            "mc_kwh"
-        )
-    )
+    mc = mc.with_columns((pl.col("mc_dist").fill_null(0.0) + pl.col("mc_bulk").fill_null(0.0)).alias("mc_kwh"))
     return mc.select("timestamp", "mc_kwh").to_pandas()
 
 
@@ -406,9 +369,7 @@ def diagnose_season(
     period_consumption = _build_period_consumption(season_df)
     p_flat = _compute_equivalent_flat_tariff(period_consumption, period_rate)
 
-    targets = _build_period_shift_targets(
-        period_consumption, period_rate, elasticity, p_flat, receiver_period=None
-    )
+    targets = _build_period_shift_targets(period_consumption, period_rate, elasticity, p_flat, receiver_period=None)
 
     peak_periods = set()
     offpeak_periods = set()
@@ -420,23 +381,15 @@ def diagnose_season(
         else:
             offpeak_periods.add(ep)
 
-    peak_orig = float(
-        targets.loc[targets["energy_period"].isin(peak_periods), "Q_orig"].sum()
-    )
-    peak_shifted = float(
-        targets.loc[targets["energy_period"].isin(peak_periods), "Q_target"].sum()
-    )
+    peak_orig = float(targets.loc[targets["energy_period"].isin(peak_periods), "Q_orig"].sum())
+    peak_shifted = float(targets.loc[targets["energy_period"].isin(peak_periods), "Q_target"].sum())
     peak_reduction_kwh = peak_orig - peak_shifted
     peak_reduction_pct = (peak_reduction_kwh / peak_orig * 100) if peak_orig > 0 else 0
 
     total_shift = float(targets.loc[targets["load_shift"] < 0, "load_shift"].sum())
 
-    peak_rates = targets.loc[
-        targets["energy_period"].isin(peak_periods), "rate"
-    ].unique()
-    offpeak_rates = targets.loc[
-        targets["energy_period"].isin(offpeak_periods), "rate"
-    ].unique()
+    peak_rates = targets.loc[targets["energy_period"].isin(peak_periods), "rate"].unique()
+    offpeak_rates = targets.loc[targets["energy_period"].isin(offpeak_periods), "rate"].unique()
     peak_rate = float(peak_rates.mean()) if len(peak_rates) > 0 else 0.0
     offpeak_rate = float(offpeak_rates.mean()) if len(offpeak_rates) > 0 else 0.0
     rate_spread = peak_rate - offpeak_rate
@@ -449,9 +402,7 @@ def diagnose_season(
     delta_vs_arcturus = peak_reduction_pct - arcturus_pct
 
     system_peak_pct = (
-        peak_reduction_pct * (hp_weighted_customers / total_weighted_customers)
-        if total_weighted_customers > 0
-        else 0
+        peak_reduction_pct * (hp_weighted_customers / total_weighted_customers) if total_weighted_customers > 0 else 0
     )
 
     delivery_mc_savings = 0.0
@@ -471,9 +422,7 @@ def diagnose_season(
             on=["bldg_id", "energy_period"],
             how="left",
         )
-        period_sums = hourly_shift.groupby(["bldg_id", "energy_period"])[
-            "electricity_net"
-        ].transform("sum")
+        period_sums = hourly_shift.groupby(["bldg_id", "energy_period"])["electricity_net"].transform("sum")
         hour_share = np.where(
             period_sums != 0,
             hourly_shift["electricity_net"] / period_sums,
@@ -482,13 +431,9 @@ def diagnose_season(
         hourly_shift["hourly_shift_kwh"] = hourly_shift["load_shift"] * hour_share
 
         weights_series = hourly_shift["bldg_id"].map(hp_weights).fillna(1.0)
-        hourly_shift["weighted_shift"] = (
-            hourly_shift["hourly_shift_kwh"] * weights_series
-        )
+        hourly_shift["weighted_shift"] = hourly_shift["hourly_shift_kwh"] * weights_series
 
-        system_hourly = (
-            hourly_shift.groupby("time")["weighted_shift"].sum().reset_index()
-        )
+        system_hourly = hourly_shift.groupby("time")["weighted_shift"].sum().reset_index()
         system_hourly.columns = ["timestamp", "sys_shift_kwh"]
         system_hourly["timestamp"] = pd.to_datetime(system_hourly["timestamp"])
 
@@ -498,16 +443,12 @@ def diagnose_season(
         mc_year = int(mc_season["timestamp"].dt.year.iloc[0])
         shift_year = int(system_hourly["timestamp"].dt.year.iloc[0])
         if mc_year != shift_year:
-            year_offset = pd.Timestamp(f"{mc_year}-01-01") - pd.Timestamp(
-                f"{shift_year}-01-01"
-            )
+            year_offset = pd.Timestamp(f"{mc_year}-01-01") - pd.Timestamp(f"{shift_year}-01-01")
             system_hourly["timestamp"] = system_hourly["timestamp"] + year_offset
 
         mc_merge = mc_season.merge(system_hourly, on="timestamp", how="left")
         mc_merge["sys_shift_kwh"] = mc_merge["sys_shift_kwh"].fillna(0.0)
-        delivery_mc_savings = -float(
-            (mc_merge["mc_kwh"] * mc_merge["sys_shift_kwh"]).sum()
-        )
+        delivery_mc_savings = -float((mc_merge["mc_kwh"] * mc_merge["sys_shift_kwh"]).sum())
 
     return SeasonResult(
         utility=utility,
@@ -518,9 +459,7 @@ def diagnose_season(
         peak_hours=list(season_spec.peak_hours),
         n_peak_hours_per_day=len(season_spec.peak_hours),
         hp_bldg_count=len(targets["bldg_id"].unique()),
-        hp_weighted_share=hp_weighted_customers / total_weighted_customers * 100
-        if total_weighted_customers > 0
-        else 0,
+        hp_weighted_share=hp_weighted_customers / total_weighted_customers * 100 if total_weighted_customers > 0 else 0,
         hp_peak_kwh_orig=peak_orig,
         hp_peak_kwh_shifted=peak_shifted,
         peak_reduction_pct=peak_reduction_pct,
@@ -548,9 +487,7 @@ def diagnose_utility(
 
     rate_df = extract_tou_period_rates(ctx.tou_tariff)
     period_rate = cast(pd.Series, rate_df.groupby("energy_period")["rate"].first())
-    time_idx = pd.DatetimeIndex(
-        loads_df.index.get_level_values("time").unique().sort_values()
-    )
+    time_idx = pd.DatetimeIndex(loads_df.index.get_level_values("time").unique().sort_values())
     period_map = assign_hourly_periods(time_idx, ctx.tou_tariff)
 
     for eps in elasticities:
@@ -572,11 +509,7 @@ def diagnose_utility(
     # RR decrease by elasticity: sum delivery MC savings across seasons
     if ctx.delivery_rr > 0:
         for eps in elasticities:
-            total_mc_savings = sum(
-                sr.delivery_mc_savings_total
-                for sr in result.season_results
-                if sr.elasticity == eps
-            )
+            total_mc_savings = sum(sr.delivery_mc_savings_total for sr in result.season_results if sr.elasticity == eps)
             result.rr_decrease_by_elasticity[eps] = total_mc_savings / ctx.delivery_rr
 
     winter_specs = [s for s in ctx.season_specs if s.season.name == "winter"]
@@ -596,19 +529,13 @@ def diagnose_utility(
         if total_kwh > 0:
             w_ratio = winter_specs[0].peak_offpeak_ratio
             s_ratio = summer_specs[0].peak_offpeak_ratio
-            result.annual_weighted_ratio = (
-                w_ratio * winter_kwh + s_ratio * summer_kwh
-            ) / total_kwh
+            result.annual_weighted_ratio = (w_ratio * winter_kwh + s_ratio * summer_kwh) / total_kwh
         else:
-            result.annual_weighted_ratio = (
-                winter_specs[0].peak_offpeak_ratio + summer_specs[0].peak_offpeak_ratio
-            ) / 2
+            result.annual_weighted_ratio = (winter_specs[0].peak_offpeak_ratio + summer_specs[0].peak_offpeak_ratio) / 2
     elif ctx.season_specs:
         result.annual_weighted_ratio = ctx.season_specs[0].peak_offpeak_ratio
 
-    result.annual_arcturus_pct = (
-        arcturus_peak_reduction(result.annual_weighted_ratio) * 100
-    )
+    result.annual_arcturus_pct = arcturus_peak_reduction(result.annual_weighted_ratio) * 100
 
     # Per-season recommendations: each season has its own TOU ratio and
     # therefore its own Arcturus target. Find the elasticity that best matches
@@ -633,9 +560,7 @@ def diagnose_utility(
                 best_season_delta = delta
                 best_season_eps = eps
 
-        best_sr = next(
-            (sr for sr in season_srs if sr.elasticity == best_season_eps), None
-        )
+        best_sr = next((sr for sr in season_srs if sr.elasticity == best_season_eps), None)
         result.seasonal_recommendations.append(
             SeasonRecommendation(
                 season=sn,
@@ -643,9 +568,7 @@ def diagnose_utility(
                 arcturus_target_pct=season_arcturus,
                 peak_reduction_pct=best_sr.peak_reduction_pct if best_sr else 0.0,
                 price_ratio=season_ratio,
-                savings_per_hp=best_sr.rate_arbitrage_savings_per_hp
-                if best_sr
-                else 0.0,
+                savings_per_hp=best_sr.rate_arbitrage_savings_per_hp if best_sr else 0.0,
             )
         )
 
@@ -668,9 +591,7 @@ def diagnose_utility(
                 best_wt_delta = delta
                 best_wt_eps = eps
 
-        best_wt_sr = next(
-            (sr for sr in season_srs if sr.elasticity == best_wt_eps), None
-        )
+        best_wt_sr = next((sr for sr in season_srs if sr.elasticity == best_wt_eps), None)
         result.seasonal_recommendations_with_tech.append(
             SeasonRecommendation(
                 season=sn,
@@ -678,9 +599,7 @@ def diagnose_utility(
                 arcturus_target_pct=season_arcturus_wt,
                 peak_reduction_pct=best_wt_sr.peak_reduction_pct if best_wt_sr else 0.0,
                 price_ratio=season_ratio,
-                savings_per_hp=best_wt_sr.rate_arbitrage_savings_per_hp
-                if best_wt_sr
-                else 0.0,
+                savings_per_hp=best_wt_sr.rate_arbitrage_savings_per_hp if best_wt_sr else 0.0,
             )
         )
 
@@ -688,13 +607,7 @@ def diagnose_utility(
     best_eps = elasticities[0]
     best_delta = float("inf")
     for eps in elasticities:
-        annual_peak_red = np.mean(
-            [
-                sr.peak_reduction_pct
-                for sr in result.season_results
-                if sr.elasticity == eps
-            ]
-        )
+        annual_peak_red = np.mean([sr.peak_reduction_pct for sr in result.season_results if sr.elasticity == eps])
         delta = abs(annual_peak_red - result.annual_arcturus_pct)
         if delta < best_delta:
             best_delta = delta
@@ -702,9 +615,7 @@ def diagnose_utility(
 
     result.recommended_elasticity = best_eps
     result.recommended_annual_savings = sum(
-        sr.rate_arbitrage_savings_per_hp
-        for sr in result.season_results
-        if sr.elasticity == best_eps
+        sr.rate_arbitrage_savings_per_hp for sr in result.season_results if sr.elasticity == best_eps
     )
     return result
 
@@ -734,34 +645,20 @@ def results_to_dataframe(results: list[UtilityResult]) -> pl.DataFrame:
                     "kwh_shifted": round(sr.kwh_shifted, 1),
                     "system_peak_reduction_pct": round(sr.system_peak_reduction_pct, 4),
                     "p_flat": round(sr.p_flat, 6),
-                    "arcturus_peak_reduction_pct": round(
-                        sr.arcturus_peak_reduction_pct, 3
-                    ),
+                    "arcturus_peak_reduction_pct": round(sr.arcturus_peak_reduction_pct, 3),
                     "delta_vs_arcturus_pct": round(sr.delta_vs_arcturus_pct, 3),
-                    "rate_arbitrage_savings_per_hp": round(
-                        sr.rate_arbitrage_savings_per_hp, 2
-                    ),
+                    "rate_arbitrage_savings_per_hp": round(sr.rate_arbitrage_savings_per_hp, 2),
                     "delivery_mc_savings_total": round(sr.delivery_mc_savings_total, 2),
-                    "delivery_mc_savings_per_hp": round(
-                        sr.delivery_mc_savings_per_hp, 2
-                    ),
+                    "delivery_mc_savings_per_hp": round(sr.delivery_mc_savings_per_hp, 2),
                     "delivery_mc_nonzero_hours": sr.delivery_mc_nonzero_hours,
                     "delivery_mc_peak_overlap_hours": sr.delivery_mc_peak_overlap_hours,
                     "annual_weighted_ratio": round(ur.annual_weighted_ratio, 4),
                     "annual_arcturus_pct": round(ur.annual_arcturus_pct, 3),
                     "recommended_elasticity": ur.recommended_elasticity,
-                    "recommended_annual_savings": round(
-                        ur.recommended_annual_savings, 2
-                    ),
-                    "seasonal_recommended_elasticity": _seasonal_rec_field(
-                        ur, sr.season, "recommended_elasticity"
-                    ),
-                    "seasonal_arcturus_target_pct": _seasonal_rec_field(
-                        ur, sr.season, "arcturus_target_pct"
-                    ),
-                    "seasonal_recommended_savings": _seasonal_rec_field(
-                        ur, sr.season, "savings_per_hp"
-                    ),
+                    "recommended_annual_savings": round(ur.recommended_annual_savings, 2),
+                    "seasonal_recommended_elasticity": _seasonal_rec_field(ur, sr.season, "recommended_elasticity"),
+                    "seasonal_arcturus_target_pct": _seasonal_rec_field(ur, sr.season, "arcturus_target_pct"),
+                    "seasonal_recommended_savings": _seasonal_rec_field(ur, sr.season, "savings_per_hp"),
                     "seasonal_recommended_elasticity_with_tech": _seasonal_rec_field(
                         ur, sr.season, "recommended_elasticity", with_tech=True
                     ),
@@ -776,15 +673,9 @@ def results_to_dataframe(results: list[UtilityResult]) -> pl.DataFrame:
     return pl.DataFrame(rows)
 
 
-def _seasonal_rec_field(
-    ur: UtilityResult, season: str, field_name: str, *, with_tech: bool = False
-) -> float:
+def _seasonal_rec_field(ur: UtilityResult, season: str, field_name: str, *, with_tech: bool = False) -> float:
     """Look up a seasonal recommendation field for the output DataFrame."""
-    recs = (
-        ur.seasonal_recommendations_with_tech
-        if with_tech
-        else ur.seasonal_recommendations
-    )
+    recs = ur.seasonal_recommendations_with_tech if with_tech else ur.seasonal_recommendations
     for rec in recs:
         if rec.season == season:
             return round(getattr(rec, field_name), 4)
@@ -884,9 +775,7 @@ def compare_batch_bills(
                 dirname = parts[-1].rstrip("/")
                 run_dirs[dirname] = f"{batch_prefix}{dirname}"
 
-        hp_bldg_ids = hp_meta.filter(pl.col("sb.electric_utility") == utility)[
-            "bldg_id"
-        ].to_list()
+        hp_bldg_ids = hp_meta.filter(pl.col("sb.electric_utility") == utility)["bldg_id"].to_list()
 
         pairs: list[PairResult] = []
         for label, base_frag, flex_frag, desc in COMPARISON_PAIRS:
@@ -946,11 +835,7 @@ def compare_batch_bills(
             )
 
         if pairs:
-            recs = (
-                ur.seasonal_recommendations_with_tech
-                if with_tech
-                else ur.seasonal_recommendations
-            )
+            recs = ur.seasonal_recommendations_with_tech if with_tech else ur.seasonal_recommendations
             seasonal_savings = sum(sr.savings_per_hp for sr in recs)
             comparisons.append(
                 UtilityBillComparison(
@@ -964,9 +849,7 @@ def compare_batch_bills(
     return comparisons
 
 
-def print_batch_comparison(
-    batch: str, comparisons: list[UtilityBillComparison]
-) -> None:
+def print_batch_comparison(batch: str, comparisons: list[UtilityBillComparison]) -> None:
     """Print analytical vs CAIRO bill comparison across all run pairs."""
     print("\n" + "=" * 80)
     print(f"CAIRO BILL COMPARISON (batch: {batch})")
@@ -984,10 +867,7 @@ def print_batch_comparison(
             f"  {'Comparison':26s}  {'Runs':>10s}  {'Mean sav':>9s}"
             f"  {'Med sav':>8s}  {'Δ(mean)':>8s}  {'N':>5s}  Description"
         )
-        print(
-            f"  {'─' * 26}  {'─' * 10}  {'─' * 9}"
-            f"  {'─' * 8}  {'─' * 8}  {'─' * 5}  {'─' * 28}"
-        )
+        print(f"  {'─' * 26}  {'─' * 10}  {'─' * 9}  {'─' * 8}  {'─' * 8}  {'─' * 5}  {'─' * 28}")
         for p in uc.pairs:
             delta = p.mean_savings - ref
             print(
@@ -1000,25 +880,16 @@ def print_batch_comparison(
     print()
 
 
-def _print_seasonal_table(
-    title: str, results: list[UtilityResult], variant: str
-) -> None:
+def _print_seasonal_table(title: str, results: list[UtilityResult], variant: str) -> None:
     """Print a seasonal recommendation table (no_tech or with_tech)."""
     print(f"  {title}\n")
     print(
         f"  {'Utility':8s}  {'Season':8s}  {'ε':>6s}  {'Savings/HP':>11s}"
         f"  {'Ratio':>7s}  {'Peak red':>8s}  {'Arcturus':>8s}"
     )
-    print(
-        f"  {'─' * 8}  {'─' * 8}  {'─' * 6}  {'─' * 11}"
-        f"  {'─' * 7}  {'─' * 8}  {'─' * 8}"
-    )
+    print(f"  {'─' * 8}  {'─' * 8}  {'─' * 6}  {'─' * 11}  {'─' * 7}  {'─' * 8}  {'─' * 8}")
     for ur in results:
-        recs = (
-            ur.seasonal_recommendations
-            if variant == "no_tech"
-            else ur.seasonal_recommendations_with_tech
-        )
+        recs = ur.seasonal_recommendations if variant == "no_tech" else ur.seasonal_recommendations_with_tech
         for rec in recs:
             print(
                 f"  {ur.utility:8s}  {rec.season:8s}  {rec.recommended_elasticity:>6.2f}"
@@ -1038,10 +909,7 @@ def print_summary(results: list[UtilityResult], *, verbose: bool = False) -> Non
 
     # ── Annual recommendation table ───────────────────────────────────────
     print("\n  RECOMMENDED ELASTICITIES (annual)\n")
-    print(
-        f"  {'Utility':8s}  {'ε':>6s}  {'Savings/HP':>11s}"
-        f"  {'Peak win':>8s}  {'Wt ratio':>8s}  {'Arcturus':>8s}"
-    )
+    print(f"  {'Utility':8s}  {'ε':>6s}  {'Savings/HP':>11s}  {'Peak win':>8s}  {'Wt ratio':>8s}  {'Arcturus':>8s}")
     print(f"  {'─' * 8}  {'─' * 6}  {'─' * 11}  {'─' * 8}  {'─' * 8}  {'─' * 8}")
     for ur in results:
         n_peak = 0
@@ -1098,11 +966,7 @@ def print_summary(results: list[UtilityResult], *, verbose: bool = False) -> Non
             if not ur.rr_decrease_by_elasticity:
                 continue
             rec_eps = ur.recommended_elasticity
-            total_mc = sum(
-                sr.delivery_mc_savings_total
-                for sr in ur.season_results
-                if sr.elasticity == rec_eps
-            )
+            total_mc = sum(sr.delivery_mc_savings_total for sr in ur.season_results if sr.elasticity == rec_eps)
             print(
                 f"  {ur.utility:8s}  {rec_eps:>6.2f}"
                 f"  ${total_mc:>13,.0f}"
@@ -1226,9 +1090,7 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     cfg = STATE_CONFIGS[args.state]
-    elasticities = _build_epsilon_range(
-        args.epsilon_start, args.epsilon_end, args.epsilon_step
-    )
+    elasticities = _build_epsilon_range(args.epsilon_start, args.epsilon_end, args.epsilon_step)
     utilities = tuple(args.utilities.split(",")) if args.utilities else cfg["utilities"]
     storage_options = get_aws_storage_options()
 
@@ -1237,9 +1099,7 @@ def main(argv: list[str] | None = None) -> None:
     log.info("Loading HP metadata...")
     hp_meta = load_hp_metadata(cfg["path_metadata"], cfg["path_utility_assignment"])
 
-    all_meta = pl.read_parquet(cfg["path_utility_assignment"]).select(
-        "bldg_id", "weight", "sb.electric_utility"
-    )
+    all_meta = pl.read_parquet(cfg["path_utility_assignment"]).select("bldg_id", "weight", "sb.electric_utility")
 
     results: list[UtilityResult] = []
     for utility in utilities:
@@ -1266,8 +1126,7 @@ def main(argv: list[str] | None = None) -> None:
         )
 
         hp_weights = {
-            bid: w * scale
-            for bid, w in zip(util_hp["bldg_id"].to_list(), util_hp["weight"].to_list())
+            bid: w * scale for bid, w in zip(util_hp["bldg_id"].to_list(), util_hp["weight"].to_list(), strict=False)
         }
         hp_weighted = float(util_hp["weight"].sum()) * scale
         total_weighted = raw_weight_sum * scale  # == eia_customer_count
@@ -1286,24 +1145,18 @@ def main(argv: list[str] | None = None) -> None:
 
         tou_deriv_dir = project_root / cfg["path_tou_derivation_dir"]
         tariffs_dir = project_root / cfg["path_tariffs_electric_dir"]
-        specs, tou_tariff = load_tou_context(
-            utility, tou_deriv_dir, tariffs_dir, use_calibrated=args.calibrated
-        )
+        specs, tou_tariff = load_tou_context(utility, tou_deriv_dir, tariffs_dir, use_calibrated=args.calibrated)
         log.info(
             "  TOU specs: %s",
             [(s.season.name, f"ratio={s.peak_offpeak_ratio:.2f}") for s in specs],
         )
 
         log.info("  Loading HP building loads...")
-        loads_df = load_building_loads(
-            hp_bldg_ids, cfg["path_loads_dir"], sample_size=args.sample_size
-        )
+        loads_df = load_building_loads(hp_bldg_ids, cfg["path_loads_dir"], sample_size=args.sample_size)
 
         log.info("  Loading delivery MC data...")
         try:
-            mc_df = load_delivery_mc(
-                utility, cfg["mc_base"], cfg["mc_year"], storage_options
-            )
+            mc_df = load_delivery_mc(utility, cfg["mc_base"], cfg["mc_year"], storage_options)
             log.info("  MC data loaded: %d rows", len(mc_df))
         except Exception as e:
             log.warning("  Failed to load MC data for %s: %s", utility, e)
@@ -1351,14 +1204,10 @@ def main(argv: list[str] | None = None) -> None:
                     periods_data = yaml.safe_load(f) or {}
             else:
                 periods_data = {}
-            periods_data["elasticity"] = {
-                sr.season: sr.recommended_elasticity
-                for sr in ur.seasonal_recommendations
-            }
+            periods_data["elasticity"] = {sr.season: sr.recommended_elasticity for sr in ur.seasonal_recommendations}
             if ur.seasonal_recommendations_with_tech:
                 periods_data["elasticity_with_tech"] = {
-                    sr.season: sr.recommended_elasticity
-                    for sr in ur.seasonal_recommendations_with_tech
+                    sr.season: sr.recommended_elasticity for sr in ur.seasonal_recommendations_with_tech
                 }
             with open(periods_path, "w") as f:
                 yaml.dump(periods_data, f, default_flow_style=False, sort_keys=False)

@@ -26,9 +26,7 @@ class TestGenerateDefaultPrecalcMapping:
             "items": [
                 {
                     "label": "flat_test",
-                    "energyratestructure": [
-                        [{"rate": 0.10, "adj": 0.0, "unit": "kWh"}]
-                    ],
+                    "energyratestructure": [[{"rate": 0.10, "adj": 0.0, "unit": "kWh"}]],
                 }
             ]
         }
@@ -202,9 +200,7 @@ class TestGenerateDefaultPrecalcMapping:
             "items": [
                 {
                     "label": "columns_test",
-                    "energyratestructure": [
-                        [{"rate": 0.10, "adj": 0.0, "unit": "kWh"}]
-                    ],
+                    "energyratestructure": [[{"rate": 0.10, "adj": 0.0, "unit": "kWh"}]],
                 }
             ]
         }

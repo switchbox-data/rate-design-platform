@@ -135,10 +135,7 @@ def build_zone_mapping() -> pl.DataFrame:
         pnode_id,
     ) in _MAPPING_ROWS:
         if dataminer_zone not in VALID_DATAMINER_ZONES:
-            raise ValueError(
-                f"dataminer_zone '{dataminer_zone}' not in "
-                f"{sorted(VALID_DATAMINER_ZONES)}"
-            )
+            raise ValueError(f"dataminer_zone '{dataminer_zone}' not in {sorted(VALID_DATAMINER_ZONES)}")
         rows.append(
             {
                 "utility": utility,
@@ -166,17 +163,12 @@ def build_zone_mapping() -> pl.DataFrame:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Generate PJM utility zone mapping CSV."
-    )
+    parser = argparse.ArgumentParser(description="Generate PJM utility zone mapping CSV.")
     parser.add_argument(
         "--path-output-csv",
         type=str,
         required=True,
-        help=(
-            "Local path to write the output CSV "
-            "(e.g. data/pjm/zone_mapping/csv/pjm_utility_zone_mapping.csv)."
-        ),
+        help=("Local path to write the output CSV (e.g. data/pjm/zone_mapping/csv/pjm_utility_zone_mapping.csv)."),
     )
     return parser.parse_args()
 
@@ -187,9 +179,7 @@ def main() -> None:
 
     # Safeguard: reject uninterpolated Just variables
     if "{{" in str(path_output) or "}}" in str(path_output):
-        raise ValueError(
-            f"Output path looks like an uninterpolated Just variable: {path_output}"
-        )
+        raise ValueError(f"Output path looks like an uninterpolated Just variable: {path_output}")
 
     path_output.parent.mkdir(parents=True, exist_ok=True)
 

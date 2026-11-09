@@ -62,10 +62,7 @@ def _parse_args() -> argparse.Namespace:
         "--ancillary-s3-base",
         type=str,
         default="",
-        help=(
-            "S3 base for ancillary parquet (default: ISO-NE or NYISO canonical path "
-            "matching --iso)."
-        ),
+        help=("S3 base for ancillary parquet (default: ISO-NE or NYISO canonical path matching --iso)."),
     )
     parser.add_argument(
         "--output-s3-base",
@@ -87,15 +84,13 @@ def main() -> None:
 
     if iso == "isone" and args.utility not in VALID_ISONE_UTILITIES:
         print(
-            f"ERROR: --utility must be one of {sorted(VALID_ISONE_UTILITIES)} "
-            "for --iso isone",
+            f"ERROR: --utility must be one of {sorted(VALID_ISONE_UTILITIES)} for --iso isone",
             file=sys.stderr,
         )
         sys.exit(1)
     if iso == "nyiso" and args.utility not in VALID_NYISO_UTILITIES:
         print(
-            f"ERROR: --utility must be one of {sorted(VALID_NYISO_UTILITIES)} "
-            "for --iso nyiso",
+            f"ERROR: --utility must be one of {sorted(VALID_NYISO_UTILITIES)} for --iso nyiso",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -103,20 +98,12 @@ def main() -> None:
     ancillary_s3_base = (
         args.ancillary_s3_base
         if args.ancillary_s3_base
-        else (
-            DEFAULT_ISONE_ANCILLARY_S3_BASE
-            if iso == "isone"
-            else DEFAULT_NYISO_ANCILLARY_S3_BASE
-        )
+        else (DEFAULT_ISONE_ANCILLARY_S3_BASE if iso == "isone" else DEFAULT_NYISO_ANCILLARY_S3_BASE)
     )
     output_s3_base = (
         args.output_s3_base
         if args.output_s3_base
-        else (
-            DEFAULT_ISONE_OUTPUT_S3_BASE
-            if iso == "isone"
-            else DEFAULT_NYISO_OUTPUT_S3_BASE
-        )
+        else (DEFAULT_ISONE_OUTPUT_S3_BASE if iso == "isone" else DEFAULT_NYISO_OUTPUT_S3_BASE)
     )
 
     load_dotenv()

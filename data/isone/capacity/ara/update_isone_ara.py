@@ -97,9 +97,7 @@ def main() -> int:
     end_year = now.year + LOOKAHEAD_YEARS
 
     print(f"Latest existing CP: {latest_cp}")
-    print(
-        f"Scanning CPs from {latest_cp} through {end_year}-{(end_year + 1) % 100:02d}"
-    )
+    print(f"Scanning CPs from {latest_cp} through {end_year}-{(end_year + 1) % 100:02d}")
 
     tasks: list[tuple[str, int]] = []
     for y in range(latest_year, end_year + 1):

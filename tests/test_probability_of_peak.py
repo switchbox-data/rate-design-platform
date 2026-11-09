@@ -22,7 +22,6 @@ from utils.data_prep.marginal_costs.probability_of_peak import (
     us_federal_holidays,
 )
 
-
 # ---------------------------------------------------------------------------
 # Calendar
 # ---------------------------------------------------------------------------
@@ -114,9 +113,7 @@ def test_tail_share_matches_truncnorm_and_untruncated_normal() -> None:
     assert truncated_kde_tail_share(x, thr) == pytest.approx(expected_truncated)
 
     expected_plain = float(norm.sf(thr, loc=x, scale=bw).mean())
-    assert truncated_kde_tail_share(
-        x, thr, truncation_sigmas=float("inf")
-    ) == pytest.approx(expected_plain)
+    assert truncated_kde_tail_share(x, thr, truncation_sigmas=float("inf")) == pytest.approx(expected_plain)
 
     # Tighter truncation gives a thinner tail at a threshold above the data.
     assert truncated_kde_tail_share(x, 1.6, truncation_sigmas=2.0) < (
@@ -132,15 +129,11 @@ def test_tail_share_limits_and_degenerate_inputs() -> None:
     bw = scott_bandwidth(x)
     assert truncated_kde_tail_share(x, 1.2 + 3.01 * bw) == 0.0
     # A single kernel is symmetric about its centre.
-    assert truncated_kde_tail_share(np.array([2.0]), 2.0, bandwidth=0.3) == (
-        pytest.approx(0.5)
-    )
+    assert truncated_kde_tail_share(np.array([2.0]), 2.0, bandwidth=0.3) == (pytest.approx(0.5))
     # Zero bandwidth (constant data, or passed explicitly) falls back to the
     # empirical share above the threshold.
     assert truncated_kde_tail_share(np.array([1.0, 1.0, 1.0]), 0.5) == 1.0
-    assert truncated_kde_tail_share(
-        np.array([1.0, 1.0, 2.0]), 1.5, bandwidth=0.0
-    ) == pytest.approx(1 / 3)
+    assert truncated_kde_tail_share(np.array([1.0, 1.0, 2.0]), 1.5, bandwidth=0.0) == pytest.approx(1 / 3)
     with pytest.raises(ValueError, match="zero observations"):
         truncated_kde_tail_share(np.array([]), 1.0)
     with pytest.raises(ValueError, match="truncation_sigmas"):
@@ -194,9 +187,7 @@ def test_probability_of_peak_shape_and_normalization() -> None:
 
     # The delimiter is the mean over years of each year's top cell mean.
     assert result.years["year"].to_list() == [2022, 2023]
-    assert result.delimiter == pytest.approx(
-        result.years.select(pl.col("max_cell_mean").mean()).item()
-    )
+    assert result.delimiter == pytest.approx(result.years.select(pl.col("max_cell_mean").mean()).item())
     assert result.years["delimiter_load"].to_list() == pytest.approx(
         (result.delimiter * result.years["mean_load"]).to_list()
     )
@@ -211,9 +202,7 @@ def test_probability_of_peak_is_invariant_to_load_units() -> None:
         load_col="load_kw",
     )
     assert scaled.delimiter == pytest.approx(base.delimiter)
-    assert scaled.cells["probability_of_peak"].to_list() == pytest.approx(
-        base.cells["probability_of_peak"].to_list()
-    )
+    assert scaled.cells["probability_of_peak"].to_list() == pytest.approx(base.cells["probability_of_peak"].to_list())
 
 
 def test_probability_of_peak_sensitivity_knobs_and_input_checks() -> None:
@@ -223,9 +212,7 @@ def test_probability_of_peak_sensitivity_knobs_and_input_checks() -> None:
     assert untruncated.delimiter == base.delimiter
     assert untruncated.cells["p_exceed"].sum() >= base.cells["p_exceed"].sum()
     wider = probability_of_peak(history, bandwidth_multiplier=2.0)
-    assert wider.cells["bandwidth"].to_list() == pytest.approx(
-        (base.cells["bandwidth"] * 2.0).to_list()
-    )
+    assert wider.cells["bandwidth"].to_list() == pytest.approx((base.cells["bandwidth"] * 2.0).to_list())
 
     with pytest.raises(ValueError, match="complete"):
         probability_of_peak(history.head(5000))
@@ -234,10 +221,7 @@ def test_probability_of_peak_sensitivity_knobs_and_input_checks() -> None:
     with pytest.raises(ValueError, match="nulls"):
         probability_of_peak(
             history.with_columns(
-                pl.when(pl.arange(0, history.height) == 0)
-                .then(None)
-                .otherwise(pl.col("load_mw"))
-                .alias("load_mw")
+                pl.when(pl.arange(0, history.height) == 0).then(None).otherwise(pl.col("load_mw")).alias("load_mw")
             )
         )
     with pytest.raises(TypeError, match="Datetime"):
@@ -261,17 +245,9 @@ def _two_cell_pop() -> pl.DataFrame:
     ]
     frame = pl.DataFrame(rows)
     return frame.with_columns(
-        pl.when(
-            (pl.col("month") == 7)
-            & (pl.col("daytype") == WEEKDAY)
-            & (pl.col("hour") == 17)
-        )
+        pl.when((pl.col("month") == 7) & (pl.col("daytype") == WEEKDAY) & (pl.col("hour") == 17))
         .then(0.75)
-        .when(
-            (pl.col("month") == 7)
-            & (pl.col("daytype") == WEEKEND_HOLIDAY)
-            & (pl.col("hour") == 16)
-        )
+        .when((pl.col("month") == 7) & (pl.col("daytype") == WEEKEND_HOLIDAY) & (pl.col("hour") == 16))
         .then(0.25)
         .otherwise(0.0)
         .alias("probability_of_peak")
@@ -283,14 +259,8 @@ def test_month_hour_costs_divide_by_the_calendar_day_count() -> None:
     assert costs.height == 576
     # July 2026: 23 weekdays less July 3 (observed Independence Day) = 22,
     # and 8 weekend days plus the observed holiday = 9.
-    weekday = costs.filter(
-        (pl.col("month") == 7) & (pl.col("daytype") == WEEKDAY) & (pl.col("hour") == 17)
-    )
-    weekend = costs.filter(
-        (pl.col("month") == 7)
-        & (pl.col("daytype") == WEEKEND_HOLIDAY)
-        & (pl.col("hour") == 16)
-    )
+    weekday = costs.filter((pl.col("month") == 7) & (pl.col("daytype") == WEEKDAY) & (pl.col("hour") == 17))
+    weekend = costs.filter((pl.col("month") == 7) & (pl.col("daytype") == WEEKEND_HOLIDAY) & (pl.col("hour") == 16))
     assert weekday["num_days"].item() == 22
     assert weekend["num_days"].item() == 9
     assert weekday["mc_total_per_kwh"].item() == pytest.approx(69.0 * 0.75 / 22)
@@ -308,9 +278,7 @@ def test_allocation_recovers_the_annual_cost_on_the_8760() -> None:
     assert nonzero.height == 22 + 9
 
     def value_at(stamp: str) -> float:
-        return hourly.filter(pl.col("timestamp") == datetime.fromisoformat(stamp))[
-            "mc_total_per_kwh"
-        ].item()
+        return hourly.filter(pl.col("timestamp") == datetime.fromisoformat(stamp))["mc_total_per_kwh"].item()
 
     assert value_at("2026-07-01 17:00:00") == pytest.approx(69.0 * 0.75 / 22)
     # Friday July 3, 2026 is the observed holiday: weekend table, 16h.
@@ -320,9 +288,7 @@ def test_allocation_recovers_the_annual_cost_on_the_8760() -> None:
 
 
 def test_allocation_uses_calendar_year_day_types_and_stamps_year() -> None:
-    hourly = allocate_annual_cost_by_pop(
-        _two_cell_pop(), 10.0, 2026, calendar_year=2025, value_col="bulk_tx"
-    )
+    hourly = allocate_annual_cost_by_pop(_two_cell_pop(), 10.0, 2026, calendar_year=2025, value_col="bulk_tx")
     assert hourly.columns == ["timestamp", "bulk_tx"]
     assert hourly["timestamp"].dt.year().unique().to_list() == [2026]
     assert float(hourly["bulk_tx"].sum()) == pytest.approx(10.0)
@@ -337,14 +303,10 @@ def test_allocation_uses_calendar_year_day_types_and_stamps_year() -> None:
 def test_allocation_rejects_malformed_pop_tables() -> None:
     cells = _two_cell_pop()
     with pytest.raises(ValueError, match="sums to"):
-        allocate_annual_cost_by_pop(
-            cells.with_columns(pl.col("probability_of_peak") * 2), 1.0, 2026
-        )
+        allocate_annual_cost_by_pop(cells.with_columns(pl.col("probability_of_peak") * 2), 1.0, 2026)
     with pytest.raises(ValueError, match="576"):
         allocate_annual_cost_by_pop(cells.head(100), 1.0, 2026)
     with pytest.raises(ValueError, match="missing columns"):
         allocate_annual_cost_by_pop(cells.drop("hour"), 1.0, 2026)
     with pytest.raises(ValueError, match="daytype"):
-        allocate_annual_cost_by_pop(
-            cells.with_columns(pl.lit("saturday").alias("daytype")), 1.0, 2026
-        )
+        allocate_annual_cost_by_pop(cells.with_columns(pl.lit("saturday").alias("daytype")), 1.0, 2026)

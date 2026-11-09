@@ -55,14 +55,10 @@ def _survey_to_subdir(survey: str) -> str:
 def _validate_year(survey: str, end_year: int) -> None:
     if survey == "acs1":
         if not ACS1_YEAR_MIN <= end_year <= ACS1_YEAR_MAX:
-            raise ValueError(
-                f"acs1 end-year must be {ACS1_YEAR_MIN}-{ACS1_YEAR_MAX}, got {end_year}"
-            )
+            raise ValueError(f"acs1 end-year must be {ACS1_YEAR_MIN}-{ACS1_YEAR_MAX}, got {end_year}")
     else:
         if not ACS5_YEAR_MIN <= end_year <= ACS5_YEAR_MAX:
-            raise ValueError(
-                f"acs5 end-year must be {ACS5_YEAR_MIN}-{ACS5_YEAR_MAX}, got {end_year}"
-            )
+            raise ValueError(f"acs5 end-year must be {ACS5_YEAR_MIN}-{ACS5_YEAR_MAX}, got {end_year}")
 
 
 def _url_for(survey: str, end_year: int, record_type: str, state_lower: str) -> str:
@@ -81,9 +77,7 @@ def _data_dict_period(survey: str, end_year: int) -> str:
     raise ValueError(f"survey must be acs1 or acs5, got {survey!r}")
 
 
-def _update_context_readme_docs_entry(
-    readme_path: Path, filename: str, description: str
-) -> None:
+def _update_context_readme_docs_entry(readme_path: Path, filename: str, description: str) -> None:
     """Add filename to docs/ table in context/README.md if not already present."""
     text = readme_path.read_text()
     docs_header = "## docs/"
@@ -144,10 +138,7 @@ def _fetch_data_dict(
     if resp_csv.status_code == 200:
         csv_path.write_bytes(resp_csv.content)
     else:
-        print(
-            f"  Data dict CSV not available for {survey} {end_year} ({period}): "
-            f"HTTP {resp_csv.status_code}"
-        )
+        print(f"  Data dict CSV not available for {survey} {end_year} ({period}): HTTP {resp_csv.status_code}")
 
     print(f"Downloading data dict TXT: {txt_url}")
     resp_txt = requests.get(txt_url, headers=headers, timeout=60)
@@ -158,10 +149,7 @@ def _fetch_data_dict(
         description = f"ACS {year_label} PUMS variable definitions ({period})"
         _update_context_readme_docs_entry(readme_path, txt_filename, description)
     else:
-        print(
-            f"  Data dict TXT not available for {survey} {end_year} ({period}): "
-            f"HTTP {resp_txt.status_code}"
-        )
+        print(f"  Data dict TXT not available for {survey} {end_year} ({period}): HTTP {resp_txt.status_code}")
 
 
 def _download_one(url: str, path: Path, print_lock: threading.Lock) -> None:
@@ -205,10 +193,7 @@ def fetch_pums_zips(
 
     print_lock = threading.Lock()
     with ThreadPoolExecutor(max_workers=MAX_DOWNLOAD_WORKERS) as executor:
-        futures = {
-            executor.submit(_download_one, url, path, print_lock): path
-            for url, path in tasks
-        }
+        futures = {executor.submit(_download_one, url, path, print_lock): path for url, path in tasks}
         for future in as_completed(futures):
             future.result()
 
@@ -258,9 +243,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if args.state and not (
-        len(args.state) == 1 and args.state[0].strip().lower() == "all"
-    ):
+    if args.state and not (len(args.state) == 1 and args.state[0].strip().lower() == "all"):
         states = [s.strip().upper() for s in args.state]
         for s in states:
             if s.lower() not in PUMS_STATE_CODES:
@@ -268,9 +251,7 @@ def main() -> int:
     else:
         states = [s.upper() for s in sorted(PUMS_STATE_CODES)]
 
-    record_types = (
-        ["person", "housing"] if args.record_type == "both" else [args.record_type]
-    )
+    record_types = ["person", "housing"] if args.record_type == "both" else [args.record_type]
 
     try:
         fetch_pums_zips(

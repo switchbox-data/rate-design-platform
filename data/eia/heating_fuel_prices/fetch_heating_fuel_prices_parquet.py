@@ -66,8 +66,7 @@ def find_project_root() -> Path:
         if (parent / ".git").exists() or (parent / "pyproject.toml").exists():
             return parent
     raise RuntimeError(
-        f"Could not locate project root from '{current}'. "
-        "No '.git' directory or 'pyproject.toml' found."
+        f"Could not locate project root from '{current}'. No '.git' directory or 'pyproject.toml' found."
     )
 
 
@@ -127,9 +126,7 @@ def fetch_weekly_prices(
         state_rows = [
             r
             for r in rows
-            if r["duoarea"].startswith("S")
-            and r["product"] in PRODUCT_MAP
-            and r["process"] in PROCESS_MAP
+            if r["duoarea"].startswith("S") and r["product"] in PRODUCT_MAP and r["process"] in PROCESS_MAP
         ]
         all_rows.extend(state_rows)
 
@@ -163,9 +160,7 @@ def to_monthly_parquet(rows: list[dict]) -> pl.DataFrame:
 
     df = df.filter(pl.col("price_per_gallon").is_not_null())
 
-    monthly = df.group_by(["year_month", "state", "product", "price_type"]).agg(
-        pl.col("price_per_gallon").mean()
-    )
+    monthly = df.group_by(["year_month", "state", "product", "price_type"]).agg(pl.col("price_per_gallon").mean())
 
     monthly = monthly.with_columns(
         pl.col("year_month").str.slice(0, 4).cast(pl.Int32).alias("year"),
@@ -184,11 +179,7 @@ def write_partitioned_parquet(df: pl.DataFrame, path_local_parquet: str) -> None
     for consistency with other pipelines in this repo.
     """
     out = Path(path_local_parquet)
-    partitions = (
-        df.select(["product", "year", "month"])
-        .unique()
-        .sort(["product", "year", "month"])
-    )
+    partitions = df.select(["product", "year", "month"]).unique().sort(["product", "year", "month"])
     n_partitions = len(partitions)
     print(f"\nWriting {n_partitions:,} partitions ({len(df):,} rows) to {out}")
 
@@ -200,9 +191,7 @@ def write_partitioned_parquet(df: pl.DataFrame, path_local_parquet: str) -> None
         part_dir.mkdir(parents=True, exist_ok=True)
 
         part_df = df.filter(
-            (pl.col("product") == product)
-            & (pl.col("year") == year)
-            & (pl.col("month") == month)
+            (pl.col("product") == product) & (pl.col("year") == year) & (pl.col("month") == month)
         ).select(data_cols)
 
         part_df.write_parquet(part_dir / "data.parquet", compression="zstd")
@@ -211,9 +200,7 @@ def write_partitioned_parquet(df: pl.DataFrame, path_local_parquet: str) -> None
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Fetch EIA-877 heating fuel prices and write monthly parquet"
-    )
+    parser = argparse.ArgumentParser(description="Fetch EIA-877 heating fuel prices and write monthly parquet")
     parser.add_argument(
         "--path-local-parquet",
         required=True,
@@ -238,9 +225,7 @@ def main() -> None:
 
     path_local = args.path_local_parquet
     if "{{" in path_local or "}}" in path_local:
-        raise ValueError(
-            f"Output path looks like an uninterpolated Just variable: {path_local}"
-        )
+        raise ValueError(f"Output path looks like an uninterpolated Just variable: {path_local}")
 
     api_key = load_api_key(args.eia_api_key)
 
@@ -265,10 +250,7 @@ def main() -> None:
     print("DATA SUMMARY")
     print(f"{'=' * 60}")
     print(f"Total monthly observations: {len(df):,}")
-    print(
-        f"Date range: {df['year'].min()}-{df['month'].min():02d} to "
-        f"{df['year'].max()}-{df['month'].max():02d}"
-    )
+    print(f"Date range: {df['year'].min()}-{df['month'].min():02d} to {df['year'].max()}-{df['month'].max():02d}")
     print(f"States: {df['state'].n_unique()}")
     print(f"Products: {df['product'].unique().sort().to_list()}")
     print(f"Price types: {df['price_type'].unique().sort().to_list()}")

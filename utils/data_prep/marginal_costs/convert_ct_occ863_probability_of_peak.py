@@ -51,17 +51,13 @@ def month_hour_probability_of_peak(
     rows = raw.rows()
     weekday = _melt_probability_matrix(rows, _WEEKDAY_TITLE)
     weekend = _melt_probability_matrix(rows, _WEEKEND_TITLE)
-    total = float(weekday["probability_of_peak"].sum()) + float(
-        weekend["probability_of_peak"].sum()
-    )
+    total = float(weekday["probability_of_peak"].sum()) + float(weekend["probability_of_peak"].sum())
     if abs(total - 1.0) > _SUM_TOLERANCE:
         raise ValueError(f"probabilities of peak sum to {total}, expected 1")
     return weekday, weekend
 
 
-def _melt_probability_matrix(
-    rows: list[tuple[object, ...]], title: str
-) -> pl.DataFrame:
+def _melt_probability_matrix(rows: list[tuple[object, ...]], title: str) -> pl.DataFrame:
     title_idx = _find_cell(rows, 0, title)[0]
     month_idx, label_col = _find_cell(rows, title_idx, "Month >")
     hour_idx, hour_col = _find_cell(rows, month_idx, "Hour")
@@ -77,18 +73,12 @@ def _melt_probability_matrix(
         for col, month in month_cols:
             pop = _as_number(row[col] if col < len(row) else None)
             if pop is None:
-                raise ValueError(
-                    f"missing {title!r} value at month {month} hour {hour}"
-                )
+                raise ValueError(f"missing {title!r} value at month {month} hour {hour}")
             if not 0 <= pop <= 1:
-                raise ValueError(
-                    f"{title!r} value {pop} at month {month} hour {hour} is outside 0–1"
-                )
+                raise ValueError(f"{title!r} value {pop} at month {month} hour {hour} is outside 0–1")
             records.append({"month": month, "hour": hour, "probability_of_peak": pop})
 
-    frame = pl.DataFrame(records).cast(
-        {"month": pl.Int64, "hour": pl.Int64, "probability_of_peak": pl.Float64}
-    )
+    frame = pl.DataFrame(records).cast({"month": pl.Int64, "hour": pl.Int64, "probability_of_peak": pl.Float64})
     if frame.height != _N_MONTHS * _N_HOURS:
         raise ValueError(f"{title!r} has {frame.height} rows, expected 288")
     if frame.select("month", "hour").n_unique() != frame.height:
@@ -96,9 +86,7 @@ def _melt_probability_matrix(
     return frame.sort("month", "hour")
 
 
-def _find_cell(
-    rows: list[tuple[object, ...]], start: int, text: str
-) -> tuple[int, int]:
+def _find_cell(rows: list[tuple[object, ...]], start: int, text: str) -> tuple[int, int]:
     for idx in range(start, len(rows)):
         for col, cell in enumerate(rows[idx]):
             if _cell_text(cell) == text:
@@ -106,9 +94,7 @@ def _find_cell(
     raise ValueError(f"Attachment 2 page 3 has no {text!r} cell after row {start}")
 
 
-def _month_columns_after(
-    row: tuple[object, ...], label_col: int
-) -> list[tuple[int, int]]:
+def _month_columns_after(row: tuple[object, ...], label_col: int) -> list[tuple[int, int]]:
     """Month header cells to the right of "Month >".
 
     Columns A–G hold the long PoP table, whose numbers would otherwise be read
@@ -128,9 +114,7 @@ def _month_columns_after(
     return found
 
 
-def attach_day_counts(
-    probability: pl.DataFrame, marginal_cost: pl.DataFrame, label: str
-) -> pl.DataFrame:
+def attach_day_counts(probability: pl.DataFrame, marginal_cost: pl.DataFrame, label: str) -> pl.DataFrame:
     """Join ``num_days`` from a page 1 or 2 matrix onto a page 3 matrix.
 
     Also checks that ``mc_total_per_kwh * num_days / probability_of_peak`` is
@@ -144,13 +128,9 @@ def attach_day_counts(
         validate="1:1",
     )
     if joined.height != probability.height:
-        raise ValueError(
-            f"{label}: page 3 and the cost page cover different month-hours"
-        )
+        raise ValueError(f"{label}: page 3 and the cost page cover different month-hours")
 
-    zero_pop_cost = joined.filter(
-        (pl.col("probability_of_peak") == 0) & (pl.col("mc_total_per_kwh") != 0)
-    )
+    zero_pop_cost = joined.filter((pl.col("probability_of_peak") == 0) & (pl.col("mc_total_per_kwh") != 0))
     if zero_pop_cost.height:
         raise ValueError(
             f"{label}: nonzero cost where the probability of peak is zero: "
@@ -173,23 +153,15 @@ def _filename(kind: str) -> str:
     return f"month_hour_probability_of_peak_{kind}.parquet"
 
 
-def write_probability_of_peak_parquets(
-    path_xlsx: Path, path_output_dir: Path
-) -> tuple[pl.DataFrame, pl.DataFrame]:
+def write_probability_of_peak_parquets(path_xlsx: Path, path_output_dir: Path) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Read pages 1–3 and write the weekday and weekend-and-holiday parquets."""
     if "{{" in str(path_xlsx) or "{{" in str(path_output_dir):
-        raise ValueError(
-            f"path looks like an uninterpolated Just variable: {path_xlsx} {path_output_dir}"
-        )
-    pop_weekday, pop_weekend = month_hour_probability_of_peak(
-        read_sheet(path_xlsx, _PROBABILITY_SHEET)
-    )
+        raise ValueError(f"path looks like an uninterpolated Just variable: {path_xlsx} {path_output_dir}")
+    pop_weekday, pop_weekend = month_hour_probability_of_peak(read_sheet(path_xlsx, _PROBABILITY_SHEET))
 
     outputs: dict[Voltage, tuple[pl.DataFrame, pl.DataFrame]] = {}
     for voltage, sheet in _MARGINAL_COST_SHEETS.items():
-        _, mc_weekday, mc_weekend = month_hour_marginal_costs(
-            read_sheet(path_xlsx, sheet), voltage
-        )
+        _, mc_weekday, mc_weekend = month_hour_marginal_costs(read_sheet(path_xlsx, sheet), voltage)
         outputs[voltage] = (
             attach_day_counts(pop_weekday, mc_weekday, f"{voltage} weekday"),
             attach_day_counts(pop_weekend, mc_weekend, f"{voltage} weekend"),
@@ -208,9 +180,7 @@ def write_probability_of_peak_parquets(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--path-xlsx", type=Path, required=True, help="OCC-863 Attachment 2 workbook"
-    )
+    parser.add_argument("--path-xlsx", type=Path, required=True, help="OCC-863 Attachment 2 workbook")
     parser.add_argument(
         "--path-output-dir",
         type=Path,
@@ -218,9 +188,7 @@ def main() -> None:
         help="Directory for the two month_hour_probability_of_peak_* parquets",
     )
     args = parser.parse_args()
-    weekday, weekend = write_probability_of_peak_parquets(
-        args.path_xlsx, args.path_output_dir
-    )
+    weekday, weekend = write_probability_of_peak_parquets(args.path_xlsx, args.path_output_dir)
     for kind, frame in (("weekday", weekday), ("weekend_holidays", weekend)):
         print(
             f"Wrote {frame.height} rows to {args.path_output_dir / _filename(kind)} "

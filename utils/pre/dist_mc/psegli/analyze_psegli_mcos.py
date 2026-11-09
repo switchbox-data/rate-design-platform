@@ -39,7 +39,6 @@ from pathlib import Path
 
 import polars as pl
 
-
 # ── Study parameters ─────────────────────────────────────────────────────────
 
 YEARS = list(range(2025, 2033))
@@ -146,20 +145,12 @@ def group_capacity_by_year(df: pl.DataFrame) -> dict[str, dict[int, float]]:
     Pre-2025 ISDs are clamped to 2025 (the first study year).
     """
     df = df.with_columns(
-        pl.col("classification")
-        .replace_strict(CLASSIFICATION_TO_COST_CENTER)
-        .alias("cost_center"),
-        pl.col("in_service_date")
-        .str.to_date("%m/%d/%Y")
-        .dt.year()
-        .clip(lower_bound=BASE_YEAR)
-        .alias("isd_year"),
+        pl.col("classification").replace_strict(CLASSIFICATION_TO_COST_CENTER).alias("cost_center"),
+        pl.col("in_service_date").str.to_date("%m/%d/%Y").dt.year().clip(lower_bound=BASE_YEAR).alias("isd_year"),
     )
 
     grouped = (
-        df.group_by("cost_center", "isd_year")
-        .agg(pl.col("load_capacity_mva").sum())
-        .sort("cost_center", "isd_year")
+        df.group_by("cost_center", "isd_year").agg(pl.col("load_capacity_mva").sum()).sort("cost_center", "isd_year")
     )
 
     result: dict[str, dict[int, float]] = {cc: {} for cc in COST_CENTERS}
@@ -204,19 +195,13 @@ def compute_component_mc(
         entering_mw = cap_by_year.get(year, 0.0)
         cumulative_cap_mw += entering_mw
 
-        if cumulative:
-            cap_in_scope_mw = cumulative_cap_mw
-        else:
-            cap_in_scope_mw = entering_mw
+        cap_in_scope_mw = cumulative_cap_mw if cumulative else entering_mw
 
         cap_in_scope_kw = cap_in_scope_mw * 1000
         annual_cost_real_k = mc_real * cap_in_scope_mw
         annual_cost_nominal_k = annual_cost_real_k * esc
 
-        if diluted:
-            denom_kw = system_peak_kw
-        else:
-            denom_kw = cap_in_scope_kw
+        denom_kw = system_peak_kw if diluted else cap_in_scope_kw
 
         real_mc_val = annual_cost_real_k * 1000 / denom_kw if denom_kw > 0 else 0.0
         nominal_mc_val = real_mc_val * esc
@@ -251,10 +236,7 @@ def compute_total_mc(
         cost_real_k = sum(component_mc[cc][yi].cost_real_k for cc in COST_CENTERS)
         cost_nominal_k = sum(component_mc[cc][yi].cost_nominal_k for cc in COST_CENTERS)
 
-        if diluted:
-            denom_mw = system_peak_mw
-        else:
-            denom_mw = sum(component_mc[cc][yi].denominator_mw for cc in COST_CENTERS)
+        denom_mw = system_peak_mw if diluted else sum(component_mc[cc][yi].denominator_mw for cc in COST_CENTERS)
 
         denom_kw = denom_mw * 1000
         real_mc_val = cost_real_k * 1000 / denom_kw if denom_kw > 0 else 0.0
@@ -350,9 +332,7 @@ def print_report(
     print(f"\n── System {'─' * (W - 11)}")
     print(f"  System peak (2024 actual):  {system_peak_mw:,.0f} MW")
     print(f"  Study period:               {YEARS[0]}–{YEARS[-1]} ({N_YEARS} years)")
-    print(
-        f"  Applied escalation:         {GDP_DEFLATOR_RATE * 100:.1f}%/yr GDP deflator (base {BASE_YEAR})"
-    )
+    print(f"  Applied escalation:         {GDP_DEFLATOR_RATE * 100:.1f}%/yr GDP deflator (base {BASE_YEAR})")
     print(f"  Total projects:             {total_proj}")
     print(f"  Total capacity:             {total_cap:,.1f} MW")
     for cc in COST_CENTERS:
@@ -365,16 +345,12 @@ def print_report(
     print("  BAT input = Sub-TX + Distribution = Total")
 
     print(f"\n── Capacity entry by year {'─' * max(1, W - 27)}")
-    header = (
-        f"  {'Year':>4}  {'Sub-TX (MW)':>12}  {'Dist (MW)':>10}  {'Total (MW)':>10}"
-    )
+    header = f"  {'Year':>4}  {'Sub-TX (MW)':>12}  {'Dist (MW)':>10}  {'Total (MW)':>10}"
     print(header)
     for year in YEARS:
         tx_cap = cap_by_year["sub_tx"].get(year, 0.0)
         dist_cap = cap_by_year["distribution"].get(year, 0.0)
-        print(
-            f"  {year:>4}  {tx_cap:>12.1f}  {dist_cap:>10.1f}  {tx_cap + dist_cap:>10.1f}"
-        )
+        print(f"  {year:>4}  {tx_cap:>12.1f}  {dist_cap:>10.1f}  {tx_cap + dist_cap:>10.1f}")
 
     print(f"\n── Filing inputs (Exhibit 1) {'─' * max(1, W - 30)}")
     for cc, params in COMPONENT_PARAMS.items():
@@ -396,10 +372,7 @@ def print_report(
             print(f"    {INTERNAL_BUCKET_LABELS[key]:40s}  ${lev:7.2f}/kW-yr")
 
     inc_dil = variants["incremental_diluted"]
-    print(
-        f"\n── Year-by-year incremental diluted (nominal $/kW-yr) "
-        f"{'─' * max(1, W - 52)}"
-    )
+    print(f"\n── Year-by-year incremental diluted (nominal $/kW-yr) {'─' * max(1, W - 52)}")
     header = f"  {'Year':>4}"
     for k in INTERNAL_BUCKET_KEYS:
         header += f" {k:>14}"
@@ -439,9 +412,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     system_peak_mw = args.system_peak_mw
 
-    print(
-        f"PSEG-LI MCOS — reading classified projects from {args.path_classifications}"
-    )
+    print(f"PSEG-LI MCOS — reading classified projects from {args.path_classifications}")
     df = read_classified_projects(args.path_classifications)
     print(f"  {len(df)} projects loaded")
 
@@ -464,21 +435,15 @@ def main() -> None:
     for cc in COST_CENTERS:
         mapping = {"sub_tx": "sub_tx", "distribution": "distribution"}
         cls_values = [c for c, m in mapping.items() if m == cc]
-        n_projects_by_cc[cc] = len(
-            df.filter(pl.col("classification").is_in(cls_values))
-        )
+        n_projects_by_cc[cc] = len(df.filter(pl.col("classification").is_in(cls_values)))
 
-    print(
-        f"  Sub-TX capacity:   {component_totals['sub_tx']:,.1f} MW ({n_projects_by_cc['sub_tx']} projects)"
-    )
+    print(f"  Sub-TX capacity:   {component_totals['sub_tx']:,.1f} MW ({n_projects_by_cc['sub_tx']} projects)")
     print(
         f"  Dist capacity:     {component_totals['distribution']:,.1f} MW ({n_projects_by_cc['distribution']} projects)"
     )
     print(f"  System peak:       {system_peak_mw:,.0f} MW")
 
-    assert abs(component_totals["sub_tx"] - 1027.1) < 0.2, (
-        f"Sub-TX capacity mismatch: {component_totals['sub_tx']}"
-    )
+    assert abs(component_totals["sub_tx"] - 1027.1) < 0.2, f"Sub-TX capacity mismatch: {component_totals['sub_tx']}"
     assert abs(component_totals["distribution"] - 183.0) < 0.2, (
         f"Dist capacity mismatch: {component_totals['distribution']}"
     )
@@ -510,9 +475,7 @@ def main() -> None:
         export_annualized_csv(variants[vname], out_dir / f"{prefix}_annualized.csv")
 
     print()
-    print_report(
-        variants, system_peak_mw, cap_by_year, component_totals, n_projects_by_cc
-    )
+    print_report(variants, system_peak_mw, cap_by_year, component_totals, n_projects_by_cc)
 
 
 if __name__ == "__main__":

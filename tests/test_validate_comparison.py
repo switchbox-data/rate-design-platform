@@ -28,19 +28,12 @@ def _config(run_num: int) -> RunConfig:
     )
 
 
-def test_resolve_ny_hp_only_vs_electrified_pairs_matches_flat_and_seasonal_runs() -> (
-    None
-):
-    configs = {
-        run_num: _config(run_num) for run_num in list(range(5, 9)) + list(range(29, 37))
-    }
+def test_resolve_ny_hp_only_vs_electrified_pairs_matches_flat_and_seasonal_runs() -> None:
+    configs = {run_num: _config(run_num) for run_num in list(range(5, 9)) + list(range(29, 37))}
 
     families = resolve_ny_hp_only_vs_electrified_pairs(configs)
 
-    assert [
-        (family.name, family.hp_only_runs, family.electrified_runs)
-        for family in families
-    ] == [
+    assert [(family.name, family.hp_only_runs, family.electrified_runs) for family in families] == [
         ("flat_percustomer", (5, 6, 7, 8), (29, 30, 31, 32)),
         ("seasonal_percustomer", (5, 6, 7, 8), (33, 34, 35, 36)),
     ]

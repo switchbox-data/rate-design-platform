@@ -6,7 +6,6 @@ import argparse
 
 from dotenv import load_dotenv
 
-from utils.file_io import get_aws_storage_options
 from utils.data_prep.marginal_costs.mc_manifest import require_published_code
 from utils.data_prep.marginal_costs.supply.supply_capacity_nyiso import (
     N_PEAK_HOURS_PER_MONTH,
@@ -35,14 +34,12 @@ from utils.data_prep.marginal_costs.supply_utils import (
     save_component_output,
     save_zero_capacity_mc,
 )
+from utils.file_io import get_aws_storage_options
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Generate utility-level supply capacity marginal costs from "
-            "NYISO ICAP, ISO-NE FCA, or PJM RPM."
-        )
+        description=("Generate utility-level supply capacity marginal costs from NYISO ICAP, ISO-NE FCA, or PJM RPM.")
     )
     parser.add_argument(
         "--iso",
@@ -73,10 +70,7 @@ def _parse_args() -> argparse.Namespace:
         "--capacity-load-year",
         type=int,
         default=None,
-        help=(
-            "[NYISO only] Year of zone load profile for ICAP peak identification. "
-            "Defaults to --year."
-        ),
+        help=("[NYISO only] Year of zone load profile for ICAP peak identification. Defaults to --year."),
     )
     parser.add_argument(
         "--zone-mapping-path",
@@ -141,10 +135,7 @@ def _parse_args() -> argparse.Namespace:
         "--price-zone",
         type=str,
         default=None,
-        help=(
-            "[PJM only] RPM price zone (e.g. 'BGE'). "
-            "Defaults to PJM_UTILITY_ZONES[utility]."
-        ),
+        help=("[PJM only] RPM price zone (e.g. 'BGE'). Defaults to PJM_UTILITY_ZONES[utility]."),
     )
     # Shared args
     parser.add_argument(
@@ -181,22 +172,19 @@ def main() -> None:
     if iso == "nyiso":
         if utility not in VALID_UTILITIES:
             raise SystemExit(
-                f"Error: utility {utility!r} is not valid for NYISO. "
-                f"Valid choices: {sorted(VALID_UTILITIES)}"
+                f"Error: utility {utility!r} is not valid for NYISO. Valid choices: {sorted(VALID_UTILITIES)}"
             )
         output_s3_base = args.output_s3_base or DEFAULT_OUTPUT_S3_BASE
     elif iso == "isone":
         if utility not in VALID_ISONE_UTILITIES:
             raise SystemExit(
-                f"Error: utility {utility!r} is not valid for ISO-NE. "
-                f"Valid choices: {sorted(VALID_ISONE_UTILITIES)}"
+                f"Error: utility {utility!r} is not valid for ISO-NE. Valid choices: {sorted(VALID_ISONE_UTILITIES)}"
             )
         output_s3_base = args.output_s3_base or DEFAULT_ISONE_OUTPUT_S3_BASE
     else:  # pjm
         if utility not in VALID_PJM_UTILITIES:
             raise SystemExit(
-                f"Error: utility {utility!r} is not valid for PJM. "
-                f"Valid choices: {sorted(VALID_PJM_UTILITIES)}"
+                f"Error: utility {utility!r} is not valid for PJM. Valid choices: {sorted(VALID_PJM_UTILITIES)}"
             )
         output_s3_base = args.output_s3_base or DEFAULT_PJM_OUTPUT_S3_BASE
 
@@ -228,14 +216,10 @@ def main() -> None:
             price_year=price_year,
             storage_options=storage_options,
             peak_hours=args.peak_hours,
-            capacity_load_year=(
-                capacity_load_year if capacity_load_year != price_year else None
-            ),
+            capacity_load_year=(capacity_load_year if capacity_load_year != price_year else None),
         )
     elif iso == "isone":
-        capacity_zone_id = args.capacity_zone_id or ISONE_UTILITY_CAPACITY_ZONES.get(
-            utility
-        )
+        capacity_zone_id = args.capacity_zone_id or ISONE_UTILITY_CAPACITY_ZONES.get(utility)
         if capacity_zone_id is None:
             raise SystemExit(
                 f"Error: no capacity_zone_id mapping found for utility {utility!r}. "
@@ -261,8 +245,7 @@ def main() -> None:
         price_zone = args.price_zone or PJM_UTILITY_ZONES.get(utility)
         if price_zone is None:
             raise SystemExit(
-                f"Error: no price_zone mapping found for utility {utility!r}. "
-                "Provide --price-zone explicitly."
+                f"Error: no price_zone mapping found for utility {utility!r}. Provide --price-zone explicitly."
             )
         print(f"  Price zone:           {price_zone}")
         print("=" * 60)

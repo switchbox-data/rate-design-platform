@@ -81,26 +81,14 @@ def _build_ri_raw_tiers(
     meta = pl.scan_parquet(meta_path, storage_options=opts)
     util = pl.scan_parquet(util_path, storage_options=opts)
     meta = meta.join(
-        util.filter(pl.col("sb.electric_utility") == utility).select(
-            BLDG_ID_COL, "sb.gas_utility"
-        ),
+        util.filter(pl.col("sb.electric_utility") == utility).select(BLDG_ID_COL, "sb.gas_utility"),
         on=BLDG_ID_COL,
         how="inner",
     )
     meta = meta.with_columns(parse_occupants_expr("in.occupants").alias(occupants_num))
-    meta = meta.with_columns(
-        fpl_threshold_expr(occupants_num, fpl["base"], fpl["increment"]).alias(
-            fpl_threshold
-        )
-    )
-    meta = meta.with_columns(
-        inflate_income_expr("in.representative_income", cpi_ratio).alias(
-            income_inflated
-        )
-    )
-    meta = meta.with_columns(
-        fpl_pct_expr(income_inflated, pl.col(fpl_threshold)).alias(fpl_pct)
-    )
+    meta = meta.with_columns(fpl_threshold_expr(occupants_num, fpl["base"], fpl["increment"]).alias(fpl_threshold))
+    meta = meta.with_columns(inflate_income_expr("in.representative_income", cpi_ratio).alias(income_inflated))
+    meta = meta.with_columns(fpl_pct_expr(income_inflated, pl.col(fpl_threshold)).alias(fpl_pct))
     meta = meta.with_columns(
         assign_ri_tier_expr(fpl_pct).alias(tier_col),
         assign_ri_gas_tier_expr(fpl_pct).alias(gas_tier_col),
@@ -161,9 +149,7 @@ def _sample_ri_participation(
         result = raw_tiers.with_columns(eligible.alias("participates"))
     elif participation_mode == "uniform":
         result = raw_tiers.with_columns(
-            participation_uniform_expr(
-                BLDG_ID_COL, participation_rate, seed, eligible
-            ).alias("participates")
+            participation_uniform_expr(BLDG_ID_COL, participation_rate, seed, eligible).alias("participates")
         )
     else:
         eligible_df = (
@@ -171,9 +157,7 @@ def _sample_ri_participation(
             .with_columns((1.0 / pl.col(fpl_pct).clip(lower_bound=1.0)).alias("weight"))
             .select(BLDG_ID_COL, fpl_pct, tier_col, "weight")
         )
-        part_df = select_participants_weighted(
-            eligible_df, participation_rate, seed, "weight", BLDG_ID_COL
-        )
+        part_df = select_participants_weighted(eligible_df, participation_rate, seed, "weight", BLDG_ID_COL)
         result = raw_tiers.join(part_df, on=BLDG_ID_COL, how="left")
         result = result.with_columns(
             pl.when(eligible)
@@ -183,14 +167,8 @@ def _sample_ri_participation(
         )
 
     result = result.with_columns(
-        pl.when(pl.col("participates"))
-        .then(pl.col(tier_col))
-        .otherwise(pl.lit(0))
-        .alias("elec_lmi_tier"),
-        pl.when(pl.col("participates"))
-        .then(pl.col(gas_tier_col))
-        .otherwise(pl.lit(0))
-        .alias("gas_lmi_tier"),
+        pl.when(pl.col("participates")).then(pl.col(tier_col)).otherwise(pl.lit(0)).alias("elec_lmi_tier"),
+        pl.when(pl.col("participates")).then(pl.col(gas_tier_col)).otherwise(pl.lit(0)).alias("gas_lmi_tier"),
     )
     return result.select(
         BLDG_ID_COL,
@@ -228,9 +206,7 @@ def _build_tier_consumption(
         cpi_ratio=cpi_ratio,
         opts=opts,
     )
-    return _sample_ri_participation(
-        raw, participation_rate, participation_mode, seed
-    ).lazy()
+    return _sample_ri_participation(raw, participation_rate, participation_mode, seed).lazy()
 
 
 def _apply_discounts_to_bills(
@@ -242,12 +218,8 @@ def _apply_discounts_to_bills(
     percentage discounts, drop helper columns. Returns (elec_bills, gas_bills).
     """
     storage = opts if isinstance(run_dir, S3Path) else None
-    elec_bills = pl.scan_csv(
-        _run_dir_bills(run_dir, "elec_bills_year_run.csv"), storage_options=storage
-    )
-    gas_bills = pl.scan_csv(
-        _run_dir_bills(run_dir, "gas_bills_year_run.csv"), storage_options=storage
-    )
+    elec_bills = pl.scan_csv(_run_dir_bills(run_dir, "elec_bills_year_run.csv"), storage_options=storage)
+    gas_bills = pl.scan_csv(_run_dir_bills(run_dir, "gas_bills_year_run.csv"), storage_options=storage)
 
     tc = tier_info
     elec_bills = elec_bills.join(
@@ -273,12 +245,8 @@ def _apply_discounts_to_bills(
     mult_gas = mult_gas.when(pl.col("gas_lmi_tier") == 1).then(1.0 - gas_disc[1])
     mult_gas = mult_gas.otherwise(1.0)
 
-    elec_bills = elec_bills.with_columns(
-        (pl.col("bill_level") * mult_elec).alias("bill_level")
-    )
-    gas_bills = gas_bills.with_columns(
-        (pl.col("bill_level") * mult_gas).alias("bill_level")
-    )
+    elec_bills = elec_bills.with_columns((pl.col("bill_level") * mult_elec).alias("bill_level"))
+    gas_bills = gas_bills.with_columns((pl.col("bill_level") * mult_gas).alias("bill_level"))
 
     elec_bills = elec_bills.drop("participates")
     gas_bills = gas_bills.drop("participates")
@@ -321,12 +289,8 @@ def apply_ri_lmi_to_master(
     The cost-recovery rider is not applied in the master-bills workflow.
     """
     s3_base = f"{path_resstock_release.rstrip('/')}"
-    meta_path = (
-        f"{s3_base}/metadata/state={state_upper}/upgrade={upgrade}/metadata-sb.parquet"
-    )
-    util_path = (
-        f"{s3_base}/metadata_utility/state={state_upper}/utility_assignment.parquet"
-    )
+    meta_path = f"{s3_base}/metadata/state={state_upper}/upgrade={upgrade}/metadata-sb.parquet"
+    util_path = f"{s3_base}/metadata_utility/state={state_upper}/utility_assignment.parquet"
 
     print(f"[RI LMI] Loading CPI ratio (fpl_year={lmi_fpl_year})...")
     cpi_ratio = load_cpi_ratio(lmi_cpi_s3_path, lmi_fpl_year, opts)
@@ -349,7 +313,7 @@ def apply_ri_lmi_to_master(
     disc_elec, disc_gas = discount_fractions_for_ri()
 
     for rate in participation_rates:
-        pct_label = int(round(rate * 100))
+        pct_label = round(rate * 100)
         print(f"[RI LMI] Applying discounts (p{pct_label})...")
         tier_info = _sample_ri_participation(raw_tiers, rate, participation_mode, seed)
 
@@ -470,14 +434,8 @@ def _upload_discounted_bills(
         gas_for_comb,
         on=[BLDG_ID_COL, "weight", "month", "dollar_year"],
         how="left",
-    ).with_columns(
-        (pl.col("bill_level_elec") + pl.col("bill_level_gas").fill_null(0)).alias(
-            "bill_level"
-        )
-    )
-    comb = comb.select(
-        BLDG_ID_COL, "weight", "month", "bill_level", "dollar_year", "elec_lmi_tier"
-    )
+    ).with_columns((pl.col("bill_level_elec") + pl.col("bill_level_gas").fill_null(0)).alias("bill_level"))
+    comb = comb.select(BLDG_ID_COL, "weight", "month", "bill_level", "dollar_year", "elec_lmi_tier")
     comb.sink_csv(out_comb, storage_options=storage)
     print(f"Wrote {out_elec}, {out_gas}, {out_comb}")
 
@@ -491,7 +449,7 @@ def _write_or_print_outputs(
     opts: dict[str, str],
 ) -> None:
     """Write discounted elec/gas/comb CSVs to run_dir/bills or print paths."""
-    pct_label = int(round(participation_rate * 100))
+    pct_label = round(participation_rate * 100)
     suffix = f"p{pct_label}"
     out_elec = _run_dir_bills(run_dir, f"elec_bills_year_run_with_lmi_{suffix}.csv")
     out_gas = _run_dir_bills(run_dir, f"gas_bills_year_run_with_lmi_{suffix}.csv")
@@ -505,16 +463,10 @@ def _write_or_print_outputs(
 
 def main() -> None:
     load_dotenv()
-    parser = argparse.ArgumentParser(
-        description="Apply RI LIDR+ discounts to CAIRO electric and gas bills."
-    )
-    parser.add_argument(
-        "--run-dir", required=True, help="S3 path to CAIRO run directory"
-    )
+    parser = argparse.ArgumentParser(description="Apply RI LIDR+ discounts to CAIRO electric and gas bills.")
+    parser.add_argument("--run-dir", required=True, help="S3 path to CAIRO run directory")
     parser.add_argument("--state", required=True, help="State abbreviation (e.g. RI)")
-    parser.add_argument(
-        "--utility", required=True, help="Electric utility code (e.g. rie)"
-    )
+    parser.add_argument("--utility", required=True, help="Electric utility code (e.g. rie)")
     parser.add_argument(
         "--resstock-release",
         default="res_2024_amy2018_2_sb",
@@ -546,9 +498,7 @@ def main() -> None:
         default="uniform",
         help="Participation sampling: uniform or weighted by need",
     )
-    parser.add_argument(
-        "--seed", type=int, default=42, help="RNG seed for participation"
-    )
+    parser.add_argument("--seed", type=int, default=42, help="RNG seed for participation")
     parser.add_argument(
         "--upload",
         action="store_true",
@@ -556,14 +506,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    run_dir = (
-        S3Path(args.run_dir) if args.run_dir.startswith("s3://") else Path(args.run_dir)
-    )
+    run_dir = S3Path(args.run_dir) if args.run_dir.startswith("s3://") else Path(args.run_dir)
     s3_base = f"s3://data.sb/nrel/resstock/{args.resstock_release}"
     meta_path = f"{s3_base}/metadata/state={args.state}/upgrade={args.upgrade}/metadata-sb.parquet"
-    util_path = (
-        f"{s3_base}/metadata_utility/state={args.state}/utility_assignment.parquet"
-    )
+    util_path = f"{s3_base}/metadata_utility/state={args.state}/utility_assignment.parquet"
     opts = _storage_opts()
 
     # 1. Load CPI and build eligibility tiers once (shared across all rates)
@@ -579,13 +525,9 @@ def main() -> None:
 
     # 2. For each participation rate: sample, apply discounts, write outputs
     for rate in args.participation_rates:
-        tier_consumption = _sample_ri_participation(
-            raw_tiers, rate, args.participation_mode, args.seed
-        ).lazy()
+        tier_consumption = _sample_ri_participation(raw_tiers, rate, args.participation_mode, args.seed).lazy()
 
-        elec_bills, gas_bills = _apply_discounts_to_bills(
-            run_dir, tier_consumption, opts
-        )
+        elec_bills, gas_bills = _apply_discounts_to_bills(run_dir, tier_consumption, opts)
 
         _write_or_print_outputs(
             elec_bills,

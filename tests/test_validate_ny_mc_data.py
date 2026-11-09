@@ -20,18 +20,12 @@ def test_load_mc_reads_canonical_data_when_zero_file_exists(tmp_path: Path) -> N
     year = 2025
     utility = "rie"
     base = tmp_path / "marginal_costs"
-    partition = (
-        base / "ri" / "supply" / "energy" / f"utility={utility}" / f"year={year}"
-    )
+    partition = base / "ri" / "supply" / "energy" / f"utility={utility}" / f"year={year}"
     partition.mkdir(parents=True, exist_ok=True)
 
     ts = _timestamps_8760(year)
-    pl.DataFrame(
-        {"timestamp": ts, "energy_cost_enduse": [1000.0] * 8760}
-    ).write_parquet(partition / "data.parquet")
-    pl.DataFrame({"timestamp": ts, "energy_cost_enduse": [0.0] * 8760}).write_parquet(
-        partition / "zero.parquet"
-    )
+    pl.DataFrame({"timestamp": ts, "energy_cost_enduse": [1000.0] * 8760}).write_parquet(partition / "data.parquet")
+    pl.DataFrame({"timestamp": ts, "energy_cost_enduse": [0.0] * 8760}).write_parquet(partition / "zero.parquet")
 
     df = load_mc(
         mc_key="supply_energy",
@@ -57,12 +51,8 @@ def test_load_mc_ignores_legacy_partition_file_for_dist_sub_tx(tmp_path: Path) -
     partition.mkdir(parents=True, exist_ok=True)
 
     ts = _timestamps_8760(year)
-    pl.DataFrame({"timestamp": ts, "mc_total_per_kwh": [2.0] * 8760}).write_parquet(
-        partition / "data.parquet"
-    )
-    pl.DataFrame({"timestamp": ts, "mc_total_per_kwh": [3.0] * 8760}).write_parquet(
-        partition / "00000000.parquet"
-    )
+    pl.DataFrame({"timestamp": ts, "mc_total_per_kwh": [2.0] * 8760}).write_parquet(partition / "data.parquet")
+    pl.DataFrame({"timestamp": ts, "mc_total_per_kwh": [3.0] * 8760}).write_parquet(partition / "00000000.parquet")
 
     df = load_mc(
         mc_key="dist_sub_tx",
@@ -91,7 +81,5 @@ def test_bulk_tx_expected_nonzero_is_state_aware_for_ri() -> None:
     ri_result = check_mc(df, mc_key="bulk_tx", utility="rie", year=year, state="ri")
     ny_result = check_mc(df, mc_key="bulk_tx", utility="coned", year=year, state="ny")
 
-    assert not any(
-        "expected 100 nonzero hours" in issue for issue in ri_result["issues"]
-    )
+    assert not any("expected 100 nonzero hours" in issue for issue in ri_result["issues"])
     assert any("expected 80 nonzero hours" in issue for issue in ny_result["issues"])

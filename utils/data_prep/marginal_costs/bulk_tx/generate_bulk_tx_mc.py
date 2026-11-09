@@ -82,13 +82,6 @@ from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_isone import (
     DEFAULT_N_PEAK_HOURS,
     DEFAULT_POP_KDE_HISTORY_YEARS,
 )
-from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
-    _parse_bool,
-    expand_month_hour_mc_to_8760,
-    inflate_annual_mc,
-    month_hour_costs_from_probability,
-    scale_8760_to_annual,
-)
 from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_nyiso import (
     DEFAULT_NYISO_BULK_TX_CONSTRAINT_GROUP_TABLE_PATH,
     DEFAULT_SCR_WINTER_MONTHS,
@@ -106,6 +99,13 @@ from utils.data_prep.marginal_costs.mc_manifest import (
     partition_file_path,
     record_mc_write,
     require_published_code,
+)
+from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
+    _parse_bool,
+    expand_month_hour_mc_to_8760,
+    inflate_annual_mc,
+    month_hour_costs_from_probability,
+    scale_8760_to_annual,
 )
 from utils.data_prep.marginal_costs.supply_utils import (
     DEFAULT_ISONE_ZONE_LOADS_S3_BASE,
@@ -132,8 +132,7 @@ from utils.pre.season_config import (
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Generate utility-level bulk transmission marginal costs. "
-            "Supports PJM (MD), NYISO (NY), and ISO-NE (RI)."
+            "Generate utility-level bulk transmission marginal costs. Supports PJM (MD), NYISO (NY), and ISO-NE (RI)."
         )
     )
     parser.add_argument(
@@ -187,10 +186,7 @@ def _parse_args() -> argparse.Namespace:
         "--zone-mapping-path",
         type=str,
         default=DEFAULT_NYISO_ZONE_MAPPING_PATH,
-        help=(
-            "[NYISO only] Path to zone mapping CSV "
-            f"(default: {DEFAULT_NYISO_ZONE_MAPPING_PATH})."
-        ),
+        help=(f"[NYISO only] Path to zone mapping CSV (default: {DEFAULT_NYISO_ZONE_MAPPING_PATH})."),
     )
     parser.add_argument(
         "--zone-loads-s3-base",
@@ -221,10 +217,7 @@ def _parse_args() -> argparse.Namespace:
         "--winter-months",
         type=str,
         default=None,
-        help=(
-            "[NYISO only] Comma-separated winter months (e.g. 10,11,12,1,2,3). "
-            "Overrides --periods-yaml."
-        ),
+        help=("[NYISO only] Comma-separated winter months (e.g. 10,11,12,1,2,3). Overrides --periods-yaml."),
     )
     # PJM-only args
     parser.add_argument(
@@ -278,10 +271,7 @@ def _parse_args() -> argparse.Namespace:
         "--path-weekday-pop",
         type=str,
         default=None,
-        help=(
-            "[ISO-NE month_hour] Weekday probability-of-peak parquet "
-            "(month, hour, num_days, probability_of_peak)."
-        ),
+        help=("[ISO-NE month_hour] Weekday probability-of-peak parquet (month, hour, num_days, probability_of_peak)."),
     )
     parser.add_argument(
         "--path-weekend-pop",
@@ -294,10 +284,7 @@ def _parse_args() -> argparse.Namespace:
         type=_parse_bool,
         default=True,
         metavar="{true,false}",
-        help=(
-            "[ISO-NE month_hour] true: federal holidays take the weekend table. "
-            "false: only Saturday and Sunday do."
-        ),
+        help=("[ISO-NE month_hour] true: federal holidays take the weekend table. false: only Saturday and Sunday do."),
     )
     parser.add_argument(
         "--calendar-year",
@@ -339,8 +326,7 @@ def _parse_args() -> argparse.Namespace:
         type=str,
         default="s3://data.sb/fred/cpi/",
         help=(
-            "[ISO-NE month_hour, pop_kde] Base S3 path for CPIAUCSL annual "
-            "parquets (default: s3://data.sb/fred/cpi/)."
+            "[ISO-NE month_hour, pop_kde] Base S3 path for CPIAUCSL annual parquets (default: s3://data.sb/fred/cpi/)."
         ),
     )
     parser.add_argument(
@@ -387,10 +373,7 @@ def _parse_args() -> argparse.Namespace:
         "--source",
         type=str,
         default=None,
-        help=(
-            "Citation recorded in the manifest. Default: a per-ISO description "
-            "of the $/kW-yr source."
-        ),
+        help=("Citation recorded in the manifest. Default: a per-ISO description of the $/kW-yr source."),
     )
     parser.add_argument(
         "--upload",
@@ -400,14 +383,9 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _zone_partition_inputs(
-    zone_loads_s3_base: str, zones: list[str], load_year: int
-) -> list[dict]:
+def _zone_partition_inputs(zone_loads_s3_base: str, zones: list[str], load_year: int) -> list[dict]:
     base = zone_loads_s3_base.rstrip("/")
-    return [
-        input_partition(f"load_zone_{zone}", f"{base}/zone={zone}/year={load_year}")
-        for zone in sorted(zones)
-    ]
+    return [input_partition(f"load_zone_{zone}", f"{base}/zone={zone}/year={load_year}") for zone in sorted(zones)]
 
 
 def _save_with_manifest(
@@ -438,30 +416,24 @@ def main() -> None:
     if iso == "pjm":
         if utility not in VALID_PJM_UTILITIES:
             raise SystemExit(
-                f"Error: utility {utility!r} is not valid for PJM. "
-                f"Valid choices: {sorted(VALID_PJM_UTILITIES)}"
+                f"Error: utility {utility!r} is not valid for PJM. Valid choices: {sorted(VALID_PJM_UTILITIES)}"
             )
         output_s3_base = args.output_s3_base or DEFAULT_PJM_BULK_TX_OUTPUT_S3_BASE
         zone_loads_s3_base = args.zone_loads_s3_base or PJM_HOURLY_DEMAND_S3_BASE
     elif iso == "nyiso":
         if utility not in VALID_NYISO_UTILITIES:
             raise SystemExit(
-                f"Error: utility {utility!r} is not valid for NYISO. "
-                f"Valid choices: {sorted(VALID_NYISO_UTILITIES)}"
+                f"Error: utility {utility!r} is not valid for NYISO. Valid choices: {sorted(VALID_NYISO_UTILITIES)}"
             )
         output_s3_base = args.output_s3_base or DEFAULT_NYISO_BULK_TX_OUTPUT_S3_BASE
         zone_loads_s3_base = args.zone_loads_s3_base or DEFAULT_NYISO_ZONE_LOADS_S3_BASE
     else:  # isone
         if utility not in VALID_ISONE_UTILITIES:
             raise SystemExit(
-                f"Error: utility {utility!r} is not valid for ISO-NE. "
-                f"Valid choices: {sorted(VALID_ISONE_UTILITIES)}"
+                f"Error: utility {utility!r} is not valid for ISO-NE. Valid choices: {sorted(VALID_ISONE_UTILITIES)}"
             )
         state = ISONE_UTILITY_ZONES[utility].lower()
-        output_s3_base = (
-            args.output_s3_base
-            or f"s3://data.sb/switchbox/marginal_costs/{state}/bulk_tx/"
-        )
+        output_s3_base = args.output_s3_base or f"s3://data.sb/switchbox/marginal_costs/{state}/bulk_tx/"
         zone_loads_s3_base = args.zone_loads_s3_base or DEFAULT_ISONE_ZONE_LOADS_S3_BASE
 
     if args.method != "isone_aesc_ptf" and iso != "isone":
@@ -469,8 +441,7 @@ def main() -> None:
     if args.method == "month_hour":
         if args.load_year is not None and args.load_year != year:
             raise SystemExit(
-                "--method month_hour does not use a load year; "
-                f"--load-year {args.load_year} differs from --year {year}"
+                f"--method month_hour does not use a load year; --load-year {args.load_year} differs from --year {year}"
             )
     else:
         output_s3_base = output_base_for_load_year(output_s3_base, year, load_year)
@@ -571,9 +542,7 @@ def _run_pjm(
                 ),
             ],
         )
-        _save_with_manifest(
-            save_output, output_df, spec, output_s3_base, storage_options
-        )
+        _save_with_manifest(save_output, output_df, spec, output_s3_base, storage_options)
         print("\n✓ PJM bulk transmission MC generation completed and uploaded")
     else:
         print("\n✓ PJM bulk transmission MC generation completed (inspect only)")
@@ -646,22 +615,13 @@ def _run_nyiso(
     )
     if utility_icap_rows.is_empty():
         available = sorted(mapping_df["utility"].unique().to_list())
-        raise ValueError(
-            f"Utility '{utility}' not found in zone mapping. Available: {available}"
-        )
+        raise ValueError(f"Utility '{utility}' not found in zone mapping. Available: {available}")
 
     nested_localities = sorted(
-        {
-            ICAP_RAW_TO_NESTED_LOCALITY[str(locality)]
-            for locality in utility_icap_rows["icap_locality"].to_list()
-        }
+        {ICAP_RAW_TO_NESTED_LOCALITY[str(locality)] for locality in utility_icap_rows["icap_locality"].to_list()}
     )
     zone_names_needed = sorted(
-        {
-            zone
-            for locality in nested_localities
-            for zone in NESTED_LOCALITY_ZONES[str(locality)]
-        }
+        {zone for locality in nested_localities for zone in NESTED_LOCALITY_ZONES[str(locality)]}
     )
 
     print(f"\n── Locality Load Profiles (year={load_year}) ──")
@@ -692,9 +652,7 @@ def _run_nyiso(
 
     if load_year != year:
         print(f"\n  Remapping timestamps: {load_year} → {year}")
-        utility_hourly = utility_hourly.with_columns(
-            utility_hourly["timestamp"].dt.offset_by(f"{year - load_year}y")
-        )
+        utility_hourly = utility_hourly.with_columns(utility_hourly["timestamp"].dt.offset_by(f"{year - load_year}y"))
 
     output_df = prepare_output(utility_hourly, year)
     print_summary(output_df)
@@ -716,14 +674,10 @@ def _run_nyiso(
             inputs=[
                 input_file("constraint_groups", args.constraint_group_table_path),
                 input_file("zone_mapping", args.zone_mapping_path),
-                *_zone_partition_inputs(
-                    zone_loads_s3_base, zone_names_needed, load_year
-                ),
+                *_zone_partition_inputs(zone_loads_s3_base, zone_names_needed, load_year),
             ],
         )
-        _save_with_manifest(
-            save_output, output_df, spec, output_s3_base, storage_options
-        )
+        _save_with_manifest(save_output, output_df, spec, output_s3_base, storage_options)
         print("\n✓ Bulk transmission MC generation completed and uploaded")
     else:
         print("\n✓ Bulk transmission MC generation completed (inspect only)")
@@ -750,9 +704,7 @@ def _run_isone_month_hour(
     )
 
     if not (args.path_weekday_pop and args.path_weekend_pop):
-        raise ValueError(
-            "--method month_hour needs --path-weekday-pop and --path-weekend-pop"
-        )
+        raise ValueError("--method month_hour needs --path-weekday-pop and --path-weekend-pop")
     as_filed = args.aesc_ptf_kw_year
     source_dollar_year = args.ptf_dollar_year
     target_dollar_year = args.target_dollar_year or year
@@ -765,10 +717,7 @@ def _run_isone_month_hour(
     )
     calendar_year = args.calendar_year or year
     print("  Method:               month_hour")
-    print(
-        f"  AESC avoided PTF:     ${as_filed:.2f}/kW-yr "
-        f"({source_dollar_year}$, as filed)"
-    )
+    print(f"  AESC avoided PTF:     ${as_filed:.2f}/kW-yr ({source_dollar_year}$, as filed)")
     print(f"  Target dollar year:   {target_dollar_year}")
     print(f"  CPI factor:           {resolved.cpi_factor:.6f}")
     print(f"  Allocated annual:     ${resolved.allocated:.4f}/kW-yr")
@@ -780,12 +729,8 @@ def _run_isone_month_hour(
 
     weekday_pop = _read_parquet_any(args.path_weekday_pop, storage_options)
     weekend_pop = _read_parquet_any(args.path_weekend_pop, storage_options)
-    weekday = month_hour_costs_from_probability(
-        weekday_pop, resolved.allocated, label="weekday"
-    )
-    weekend = month_hour_costs_from_probability(
-        weekend_pop, resolved.allocated, label="weekend"
-    )
+    weekday = month_hour_costs_from_probability(weekday_pop, resolved.allocated, label="weekday")
+    weekend = month_hour_costs_from_probability(weekend_pop, resolved.allocated, label="weekend")
     expanded = expand_month_hour_mc_to_8760(
         weekday,
         weekend,
@@ -796,9 +741,7 @@ def _run_isone_month_hour(
     )
     annual = float(expanded["mc_total_per_kwh"].sum())
     expanded, scale = scale_8760_to_annual(expanded, resolved.allocated)
-    output_df = expanded.select(
-        "timestamp", pl.col("mc_total_per_kwh").alias("bulk_tx_cost_enduse")
-    )
+    output_df = expanded.select("timestamp", pl.col("mc_total_per_kwh").alias("bulk_tx_cost_enduse"))
     print(f"\n  Sum before scale (flat 1 kW, $/kW-yr): ${annual:.4f}")
     print(f"  Uniform scale: {scale:.6f}")
     validate_allocation(output_df, resolved.allocated)
@@ -840,16 +783,10 @@ def _run_isone_month_hour(
             inputs=[
                 input_file("weekday_pop", args.path_weekday_pop),
                 input_file("weekend_holiday_pop", args.path_weekend_pop),
-                *(
-                    [input_partition("cpi", args.cpi_s3_base)]
-                    if resolved.cpi_factor != 1.0
-                    else []
-                ),
+                *([input_partition("cpi", args.cpi_s3_base)] if resolved.cpi_factor != 1.0 else []),
             ],
         )
-        _save_with_manifest(
-            save_output, output_df, spec, output_s3_base, storage_options
-        )
+        _save_with_manifest(save_output, output_df, spec, output_s3_base, storage_options)
         print("\n✓ ISO-NE month-hour bulk TX MC completed and uploaded")
     else:
         print("\n✓ ISO-NE month-hour bulk TX MC completed (inspect only)")
@@ -882,9 +819,7 @@ def _run_isone(
     # Resolve utility-specific zone (e.g. "RI" for rie, "CT" for ct_eversource/ct_ui)
     utility_zone = ISONE_UTILITY_ZONES[utility]
     # Zones used for allocation load
-    allocation_zones = (
-        ISONE_ALL_LOAD_ZONES if allocation_load == "ne_system" else [utility_zone]
-    )
+    allocation_zones = ISONE_ALL_LOAD_ZONES if allocation_load == "ne_system" else [utility_zone]
 
     if args.method == "pop_kde":
         _run_isone_pop_kde(
@@ -900,9 +835,7 @@ def _run_isone(
 
     print(f"  AESC avoided PTF:     ${aesc_ptf:.2f}/kW-yr")
     print(f"  Peak hours:           {n_peak}")
-    print(
-        f"  Allocation load:      {allocation_load} ({', '.join(sorted(allocation_zones))})"
-    )
+    print(f"  Allocation load:      {allocation_load} ({', '.join(sorted(allocation_zones))})")
     print("=" * 60)
 
     # Load the allocation load (NE system or utility zone)
@@ -929,9 +862,7 @@ def _run_isone(
     # Remap timestamps if load year differs from target year
     alloc_load_df = remap_year_if_needed(alloc_load_df, "timestamp", load_year, year)
     if utility_zone_load_df is not None:
-        utility_zone_load_df = remap_year_if_needed(
-            utility_zone_load_df, "timestamp", load_year, year
-        )
+        utility_zone_load_df = remap_year_if_needed(utility_zone_load_df, "timestamp", load_year, year)
 
     # Compute ISO-NE bulk TX signal
     bulk_tx_hourly = compute_isone_bulk_tx_signal(
@@ -967,13 +898,9 @@ def _run_isone(
                 if aesc_ptf == AESC_2024_AVOIDED_PTF_KW_YEAR
                 else "AESC avoided PTF cost, overridden via --aesc-ptf-kw-year"
             ),
-            inputs=_zone_partition_inputs(
-                zone_loads_s3_base, allocation_zones, load_year
-            ),
+            inputs=_zone_partition_inputs(zone_loads_s3_base, allocation_zones, load_year),
         )
-        _save_with_manifest(
-            save_output, output_df, spec, output_s3_base, storage_options
-        )
+        _save_with_manifest(save_output, output_df, spec, output_s3_base, storage_options)
         print("\n✓ ISO-NE bulk transmission MC generation completed and uploaded")
     else:
         print("\n✓ ISO-NE bulk transmission MC generation completed (inspect only)")
@@ -1018,20 +945,14 @@ def _run_isone_pop_kde(
     print(f"  Target dollar year:   {target_dollar_year}")
     print(f"  History years:        {', '.join(str(y) for y in history_years)}")
     print(f"  Calendar year:        {calendar_year}")
-    print(
-        f"  Allocation load:      {allocation_load} ({', '.join(sorted(allocation_zones))})"
-    )
+    print(f"  Allocation load:      {allocation_load} ({', '.join(sorted(allocation_zones))})")
     print("=" * 60)
 
     cpi_factor = 1.0
     if aesc_dollar_year != target_dollar_year:
-        cpi_factor = load_cpi_inflation_factor(
-            args.cpi_s3_base, aesc_dollar_year, target_dollar_year, storage_options
-        )
+        cpi_factor = load_cpi_inflation_factor(args.cpi_s3_base, aesc_dollar_year, target_dollar_year, storage_options)
     ptf_allocated = aesc_ptf * cpi_factor
-    print(
-        f"\n  PTF to allocate: ${aesc_ptf:.4f} x {cpi_factor:.6f} = ${ptf_allocated:.4f}/kW-yr"
-    )
+    print(f"\n  PTF to allocate: ${aesc_ptf:.4f} x {cpi_factor:.6f} = ${ptf_allocated:.4f}/kW-yr")
 
     load_history = load_isone_zone_load_history(
         zone_loads_s3_base=zone_loads_s3_base,
@@ -1053,9 +974,7 @@ def _run_isone_pop_kde(
         inputs = [
             partition
             for load_year in history_years
-            for partition in _zone_partition_inputs(
-                zone_loads_s3_base, allocation_zones, load_year
-            )
+            for partition in _zone_partition_inputs(zone_loads_s3_base, allocation_zones, load_year)
         ]
         if cpi_factor != 1.0:
             inputs.append(input_partition("cpi", args.cpi_s3_base))
@@ -1086,14 +1005,11 @@ def _run_isone_pop_kde(
             or (
                 "AESC 2024 avoided PTF cost, CPI-adjusted to the analysis year"
                 if aesc_ptf == AESC_2024_AVOIDED_PTF_KW_YEAR
-                else "AESC avoided PTF cost, overridden via --aesc-ptf-kw-year, "
-                "CPI-adjusted to the analysis year"
+                else "AESC avoided PTF cost, overridden via --aesc-ptf-kw-year, CPI-adjusted to the analysis year"
             ),
             inputs=inputs,
         )
-        _save_with_manifest(
-            save_output, output_df, spec, output_s3_base, storage_options
-        )
+        _save_with_manifest(save_output, output_df, spec, output_s3_base, storage_options)
         print("\n✓ ISO-NE bulk transmission MC (pop_kde) completed and uploaded")
     else:
         print("\n✓ ISO-NE bulk transmission MC (pop_kde) completed (inspect only)")

@@ -180,9 +180,7 @@ class TestAllocatePcaf:
         for k in [5, 50, 200]:
             result = allocate_pcaf(load_df, annual_cost_kw_year=50.0, k_peak_hours=k)
             assert result.height == k
-            assert float(result["bulk_tx_cost_enduse"].sum()) == pytest.approx(
-                50.0, rel=1e-6
-            )
+            assert float(result["bulk_tx_cost_enduse"].sum()) == pytest.approx(50.0, rel=1e-6)
 
     def test_peak_hours_are_highest_load_hours(self) -> None:
         """The K allocated hours must be the K highest-load hours in the year."""
@@ -190,18 +188,16 @@ class TestAllocatePcaf:
         k = 150
         result = allocate_pcaf(load_df, annual_cost_kw_year=50.0, k_peak_hours=k)
 
-        top_k_ts = set(
-            load_df.sort("load_mw", descending=True).head(k)["timestamp"].to_list()
-        )
+        top_k_ts = set(load_df.sort("load_mw", descending=True).head(k)["timestamp"].to_list())
         allocated_ts = set(result["timestamp"].to_list())
         assert allocated_ts == top_k_ts
 
     def test_proportional_to_load(self) -> None:
         """Higher-load hours receive proportionally larger allocations."""
         load_df = _make_load_df()
-        result = allocate_pcaf(
-            load_df, annual_cost_kw_year=50.0, k_peak_hours=150
-        ).sort("bulk_tx_cost_enduse", descending=True)
+        result = allocate_pcaf(load_df, annual_cost_kw_year=50.0, k_peak_hours=150).sort(
+            "bulk_tx_cost_enduse", descending=True
+        )
 
         # The highest-cost hour should correspond to the highest-load hour among
         # the top-K.  Since load is monotonically increasing in our fixture, the
@@ -237,9 +233,7 @@ class TestAllocatePcaf:
             interval="1h",
             eager=True,
         )
-        small_df = pl.DataFrame(
-            {"timestamp": timestamps, "load_mw": [1000.0] * len(timestamps)}
-        )
+        small_df = pl.DataFrame({"timestamp": timestamps, "load_mw": [1000.0] * len(timestamps)})
         with pytest.raises(ValueError, match="need at least"):
             allocate_pcaf(small_df, annual_cost_kw_year=50.0, k_peak_hours=150)
 
@@ -258,9 +252,7 @@ class TestAllocatePcaf:
 
 
 class TestComputePjmBulkTxLoadYear:
-    def test_load_year_selects_demand_and_remaps_to_output_year(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_load_year_selects_demand_and_remaps_to_output_year(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """NITS comes from --year; PCAF peaks come from --load-year."""
         from datetime import datetime as dt
 
@@ -314,9 +306,7 @@ class TestComputePjmBulkTxLoadYear:
         assert out.height == 8760
         assert out["timestamp"].dt.year().unique().to_list() == [2025]
         expected_rate = (151 * 40.0 + 214 * 50.0) / 365
-        assert float(out["bulk_tx_cost_enduse"].sum()) == pytest.approx(
-            expected_rate, rel=1e-9
-        )
+        assert float(out["bulk_tx_cost_enduse"].sum()) == pytest.approx(expected_rate, rel=1e-9)
 
         remapped_peak = remap_year_if_needed(
             pl.DataFrame({"timestamp": [peak_2018]}),
@@ -366,7 +356,7 @@ class TestUtilityZoneMapping:
 
     def test_valid_pjm_utilities_matches_mapping_keys(self) -> None:
         """VALID_PJM_UTILITIES must be exactly the keys of UTILITY_TO_NITS_ZONE."""
-        assert VALID_PJM_UTILITIES == frozenset(UTILITY_TO_NITS_ZONE.keys())
+        assert frozenset(UTILITY_TO_NITS_ZONE.keys()) == VALID_PJM_UTILITIES
 
     def test_all_zones_are_known_pjm_zones(self) -> None:
         known = {"BGE", "DPL", "PEPCO", "APS"}

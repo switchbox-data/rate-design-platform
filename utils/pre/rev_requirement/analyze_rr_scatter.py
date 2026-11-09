@@ -53,9 +53,7 @@ def _load_utility_yamls(path_rev_req: Path) -> list[UtilityData]:
     return yamls
 
 
-def _load_all_utilities(
-    path_ny_rev_req: Path, path_ri_rev_req: Path
-) -> list[tuple[UtilityData, str]]:
+def _load_all_utilities(path_ny_rev_req: Path, path_ri_rev_req: Path) -> list[tuple[UtilityData, str]]:
     """Load all NY and RI utilities, returning (data, state) tuples."""
     utilities = []
     for data in _load_utility_yamls(path_ny_rev_req):
@@ -92,18 +90,14 @@ def _get_customer_counts(
     return customer_counts
 
 
-def _analyze_coned_divergence(
-    utilities: list[tuple[UtilityData, str]], output_path: Path
-) -> None:
+def _analyze_coned_divergence(utilities: list[tuple[UtilityData, str]], output_path: Path) -> None:
     """Analyze why ConEd diverges from expected patterns and write analysis."""
     rows = []
     for data, state in utilities:
         utility = str(data["utility"])
         total_kwh = float(data["total_residential_kwh"])
         delivery_rr = float(data["total_delivery_revenue_requirement"])
-        delivery_and_supply_rr = float(
-            data["total_delivery_and_supply_revenue_requirement"]
-        )
+        delivery_and_supply_rr = float(data["total_delivery_and_supply_revenue_requirement"])
 
         # Calculate rates per kWh
         delivery_rate_per_kwh = delivery_rr / total_kwh if total_kwh > 0 else 0
@@ -186,9 +180,7 @@ ConEd (Consolidated Edison) shows significant divergence from other utilities in
 """
 
         if similar_kwh.height > 0:
-            analysis += (
-                "\n| Utility | State | kWh | Delivery RR | Delivery Rate/kWh |\n"
-            )
+            analysis += "\n| Utility | State | kWh | Delivery RR | Delivery Rate/kWh |\n"
             analysis += "|---------|-------|-----|-------------|-------------------|\n"
             for row in similar_kwh.iter_rows(named=True):
                 analysis += f"| {row['utility']} | {row['state']} | {row['total_residential_kwh']:,.0f} | ${row['delivery_rr']:,.2f} | ${row['delivery_rate_per_kwh']:.6f} |\n"
@@ -203,9 +195,7 @@ ConEd (Consolidated Edison) shows significant divergence from other utilities in
 |---------|-------|-----|-------------|-------------------|----------------|
 """
 
-        for row in df.sort("total_residential_kwh", descending=True).iter_rows(
-            named=True
-        ):
+        for row in df.sort("total_residential_kwh", descending=True).iter_rows(named=True):
             analysis += f"| {row['utility']} | {row['state']} | {row['total_residential_kwh']:,.0f} | ${row['delivery_rr']:,.2f} | ${row['delivery_rate_per_kwh']:.6f} | ${row['total_rate_per_kwh']:.6f} |\n"
 
         output_path.write_text(analysis)
@@ -227,9 +217,7 @@ def _plot_rie_components(
     total_kwh = float(rie_data["total_residential_kwh"])
 
     # Extract the three revenue requirement values
-    delivery_from_rate_case = float(
-        rie_data["delivery_revenue_requirement_from_rate_case"]
-    )
+    delivery_from_rate_case = float(rie_data["delivery_revenue_requirement_from_rate_case"])
     delivery_topups = float(rie_data["delivery_revenue_requirement_topups"])
     supply_topups = float(rie_data["supply_revenue_requirement_topups"])
 
@@ -333,36 +321,26 @@ def main() -> None:
     args = _parse_args()
 
     if not args.path_ny_rev_req.is_dir():
-        raise ValueError(
-            f"NY rev_requirement directory not found: {args.path_ny_rev_req}"
-        )
+        raise ValueError(f"NY rev_requirement directory not found: {args.path_ny_rev_req}")
     if not args.path_ri_rev_req.is_dir():
-        raise ValueError(
-            f"RI rev_requirement directory not found: {args.path_ri_rev_req}"
-        )
+        raise ValueError(f"RI rev_requirement directory not found: {args.path_ri_rev_req}")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     utilities = _load_all_utilities(args.path_ny_rev_req, args.path_ri_rev_req)
 
     if not utilities:
-        raise ValueError(
-            f"No standard utility YAML files found in {args.path_ny_rev_req} or {args.path_ri_rev_req}"
-        )
+        raise ValueError(f"No standard utility YAML files found in {args.path_ny_rev_req} or {args.path_ri_rev_req}")
 
     # Analyze ConEd divergence
-    _analyze_coned_divergence(
-        utilities, args.output_dir / "coned_divergence_analysis.md"
-    )
+    _analyze_coned_divergence(utilities, args.output_dir / "coned_divergence_analysis.md")
 
     # Get customer counts
-    customer_counts = _get_customer_counts(
-        utilities, args.path_ny_stats, args.path_ri_stats
-    )
+    customer_counts = _get_customer_counts(utilities, args.path_ny_stats, args.path_ri_stats)
 
     # Find RIE data
     rie_data = None
-    for data, state in utilities:
+    for data, _state in utilities:
         if str(data["utility"]) == "rie":
             rie_data = data
             break
@@ -373,9 +351,7 @@ def main() -> None:
         rie_customer_count = customer_counts.get("rie", 0)
         if rie_customer_count == 0:
             print("Warning: Could not get RIE customer count, using 0")
-        _plot_rie_components(
-            rie_data, rie_customer_count, args.output_dir / "rie_components_scatter.png"
-        )
+        _plot_rie_components(rie_data, rie_customer_count, args.output_dir / "rie_components_scatter.png")
 
 
 if __name__ == "__main__":

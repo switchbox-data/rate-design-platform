@@ -28,6 +28,7 @@ from plotnine import (
     theme,
     theme_minimal,
 )
+
 from utils.post.validate.subclasses import SUBCLASS_COL, display_subclass
 
 # ---------------------------------------------------------------------------
@@ -63,16 +64,9 @@ def _label_subclass(df: pl.DataFrame) -> pl.DataFrame:
     """Return a DataFrame with a human-readable ``subclass`` column."""
     if SUBCLASS_COL in df.columns:
         return df.with_columns(
-            pl.col(SUBCLASS_COL)
-            .map_elements(display_subclass, return_dtype=pl.String)
-            .alias(SUBCLASS_COL)
+            pl.col(SUBCLASS_COL).map_elements(display_subclass, return_dtype=pl.String).alias(SUBCLASS_COL)
         )
-    return df.with_columns(
-        pl.when(pl.col(_HP_COL))
-        .then(pl.lit("HP"))
-        .otherwise(pl.lit("Non-HP"))
-        .alias(SUBCLASS_COL)
-    )
+    return df.with_columns(pl.when(pl.col(_HP_COL)).then(pl.lit("HP")).otherwise(pl.lit("Non-HP")).alias(SUBCLASS_COL))
 
 
 def _fill_scale_for(df: pl.DataFrame):
@@ -215,9 +209,7 @@ def plot_bat_heatmap(
         )
         .with_columns(
             pl.col("bat_col").replace(_BAT_LABELS).alias("benchmark"),
-            pl.col("wavg_usd")
-            .map_elements(lambda v: f"${v:+,.0f}", return_dtype=pl.String)
-            .alias("label"),
+            pl.col("wavg_usd").map_elements(lambda v: f"${v:+,.0f}", return_dtype=pl.String).alias("label"),
         )
         .to_pandas()
     )
@@ -260,10 +252,7 @@ def plot_revenue_vs_rr(
         .with_columns(pl.lit("Actual").alias("source"))
     )
     target = pl.DataFrame(
-        [
-            {SUBCLASS_COL: display_subclass(k), "revenue": v, "source": "Target RR"}
-            for k, v in rr_values.items()
-        ]
+        [{SUBCLASS_COL: display_subclass(k), "revenue": v, "source": "Target RR"} for k, v in rr_values.items()]
     )
     df = pl.concat([actual, target]).to_pandas()
     return (
@@ -294,12 +283,7 @@ def plot_subclass_rr_stacked(
     Returns:
         ggplot stacked bar with a dashed total RR reference line.
     """
-    df = pl.DataFrame(
-        [
-            {"subclass": k, "rr": v, "group": "Subclasses"}
-            for k, v in subclass_rr.items()
-        ]
-    ).to_pandas()
+    df = pl.DataFrame([{"subclass": k, "rr": v, "group": "Subclasses"} for k, v in subclass_rr.items()]).to_pandas()
     colors = {k: _HP_COLORS.get(k, "#999999") for k in subclass_rr}
     return (
         ggplot(df, aes("group", "rr", fill="subclass"))
@@ -336,18 +320,12 @@ def plot_tariff_comparison(
     def _labeled(df: pl.DataFrame, source: str) -> pl.DataFrame:
         return df.with_columns(
             (
-                pl.col("tariff_key")
-                + " P"
-                + pl.col("period").cast(pl.String)
-                + "T"
-                + pl.col("tier").cast(pl.String)
+                pl.col("tariff_key") + " P" + pl.col("period").cast(pl.String) + "T" + pl.col("tier").cast(pl.String)
             ).alias("component"),
             pl.lit(source).alias("source"),
         ).select(["component", "rate_per_kwh", "source"])
 
-    df = pl.concat(
-        [_labeled(input_rates, "Input"), _labeled(output_rates, "Output")]
-    ).to_pandas()
+    df = pl.concat([_labeled(input_rates, "Input"), _labeled(output_rates, "Output")]).to_pandas()
     return (
         ggplot(df, aes("component", "rate_per_kwh", fill="source"))
         + geom_col(position=position_dodge(width=0.8), width=0.7)
@@ -385,11 +363,7 @@ def plot_tariff_stability(
         .with_columns(
             (pl.col("rate_b") - pl.col("rate_a")).alias("rate_diff"),
             (
-                pl.col("tariff_key")
-                + " P"
-                + pl.col("period").cast(pl.String)
-                + "T"
-                + pl.col("tier").cast(pl.String)
+                pl.col("tariff_key") + " P" + pl.col("period").cast(pl.String) + "T" + pl.col("tier").cast(pl.String)
             ).alias("component"),
         )
         .to_pandas()

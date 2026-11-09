@@ -65,9 +65,7 @@ _SPIKE_UP_FACTOR = 4.0
 
 def _reject_just_placeholders(val: str) -> None:
     if "{{" in val or "}}" in val:
-        raise ValueError(
-            f"Path looks like uninterpolated Just: {val!r}. Pass a resolved path."
-        )
+        raise ValueError(f"Path looks like uninterpolated Just: {val!r}. Pass a resolved path.")
 
 
 def md_zone_codes() -> list[str]:
@@ -92,9 +90,7 @@ def fetch_zone_loads(
     faithful mirror of PJM; interpolation happens when building utilities.
     """
 
-    def build_params(
-        chunk_start: date, chunk_end: date, is_archive: bool
-    ) -> dict[str, str | int]:
+    def build_params(chunk_start: date, chunk_end: date, is_archive: bool) -> dict[str, str | int]:
         # The load feed has no `type`/`pnode_id`; filter to zones client-side so
         # the same params work for both archive and standard chunks.
         return {
@@ -119,9 +115,7 @@ def fetch_zone_loads(
     required = {"datetime_beginning_utc", "zone", "load_area", "mw"}
     missing = required - set(df.columns)
     if missing:
-        raise ValueError(
-            f"{_FEED} response missing expected columns: {sorted(missing)}"
-        )
+        raise ValueError(f"{_FEED} response missing expected columns: {sorted(missing)}")
 
     df = df.filter(pl.col("zone").is_in(zones))
     if df.is_empty():
@@ -135,10 +129,7 @@ def fetch_zone_loads(
     # filter below operate on Eastern wall-clock time.
     df = parse_ts_column(df, "datetime_beginning_utc")
     df = df.with_columns(
-        pl.col("datetime_beginning_utc")
-        .dt.replace_time_zone("UTC")
-        .dt.convert_time_zone(_TIMEZONE)
-        .alias("timestamp"),
+        pl.col("datetime_beginning_utc").dt.replace_time_zone("UTC").dt.convert_time_zone(_TIMEZONE).alias("timestamp"),
         pl.col("mw").cast(pl.Float64),
     )
 
@@ -170,14 +161,8 @@ def sum_load_areas_to_zone(df: pl.DataFrame, year: int) -> pl.DataFrame:
             pl.col("_prev").is_not_null()
             & pl.col("_next").is_not_null()
             & (
-                (
-                    pl.col("mw")
-                    < _SPIKE_DOWN_FRACTION * pl.min_horizontal("_prev", "_next")
-                )
-                | (
-                    pl.col("mw")
-                    > _SPIKE_UP_FACTOR * pl.max_horizontal("_prev", "_next")
-                )
+                (pl.col("mw") < _SPIKE_DOWN_FRACTION * pl.min_horizontal("_prev", "_next"))
+                | (pl.col("mw") > _SPIKE_UP_FACTOR * pl.max_horizontal("_prev", "_next"))
             )
         ).alias("_area_bad")
     )
@@ -231,12 +216,8 @@ def write_zone_data_local(df: pl.DataFrame, local_base: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Fetch PJM zonal hourly metered load from Data Miner 2."
-    )
-    parser.add_argument(
-        "--year", type=int, required=True, help="Calendar year to fetch (Eastern)."
-    )
+    parser = argparse.ArgumentParser(description="Fetch PJM zonal hourly metered load from Data Miner 2.")
+    parser.add_argument("--year", type=int, required=True, help="Calendar year to fetch (Eastern).")
     parser.add_argument(
         "--path-local-zones",
         dest="path_local_zones",
@@ -268,9 +249,7 @@ def main() -> None:
     args = parser.parse_args()
     _reject_just_placeholders(args.path_local_zones)
     year = args.year
-    zones = (
-        [z.strip() for z in args.zones.split(",")] if args.zones else md_zone_codes()
-    )
+    zones = [z.strip() for z in args.zones.split(",")] if args.zones else md_zone_codes()
 
     print("=" * 60)
     print("PJM Zonal Metered Load Fetch (Data Miner 2)")

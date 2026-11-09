@@ -82,17 +82,12 @@ def build_zone_mapping() -> pl.DataFrame:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Generate ISO-NE utility zone mapping CSV."
-    )
+    parser = argparse.ArgumentParser(description="Generate ISO-NE utility zone mapping CSV.")
     parser.add_argument(
         "--path-output-csv",
         type=str,
         required=True,
-        help=(
-            "Local path to write the output CSV "
-            "(e.g. data/isone/zone_mapping/csv/isone_utility_zone_mapping.csv)."
-        ),
+        help=("Local path to write the output CSV (e.g. data/isone/zone_mapping/csv/isone_utility_zone_mapping.csv)."),
     )
     return parser.parse_args()
 
@@ -102,9 +97,7 @@ def main() -> None:
     path_output = Path(args.path_output_csv)
 
     if "{{" in str(path_output) or "}}" in str(path_output):
-        raise ValueError(
-            f"Output path looks like an uninterpolated Just variable: {path_output}"
-        )
+        raise ValueError(f"Output path looks like an uninterpolated Just variable: {path_output}")
 
     path_output.parent.mkdir(parents=True, exist_ok=True)
     df = build_zone_mapping()

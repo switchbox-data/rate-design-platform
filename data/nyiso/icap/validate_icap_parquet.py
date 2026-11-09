@@ -11,12 +11,12 @@ Usage:
 
 from __future__ import annotations
 
-from utils.numeric import as_float
-
 import sys
 from pathlib import Path
 
 import polars as pl
+
+from utils.numeric import as_float
 
 EXPECTED_LOCALITIES = {"NYCA", "GHIJ", "NYC", "LI"}
 EXPECTED_AUCTION_TYPES = {"Spot", "Monthly", "Strip"}
@@ -164,18 +164,14 @@ def check_price_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
         result.passed("Price integrity", "no NaN or Inf values")
 
     if pmin < PRICE_FLOOR:
-        result.error(
-            "Price range", f"min ${pmin:.2f} is negative (ICAP prices should be >= 0)"
-        )
+        result.error("Price range", f"min ${pmin:.2f} is negative (ICAP prices should be >= 0)")
     elif pmax > PRICE_CEILING:
         result.warn(
             "Price range",
             f"max ${pmax:.2f} exceeds ${PRICE_CEILING:.0f}/kW-mo ceiling — verify",
         )
     else:
-        result.passed(
-            "Price range", f"${pmin:.2f}–${pmax:.2f}/kW-mo (mean ${pmean:.2f})"
-        )
+        result.passed("Price range", f"${pmin:.2f}–${pmax:.2f}/kW-mo (mean ${pmean:.2f})")
 
     # Per-locality price summary
     summary = (
@@ -189,9 +185,7 @@ def check_price_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
     )
     lines = []
     for row in summary.iter_rows(named=True):
-        lines.append(
-            f"{row['locality']}: ${row['min']:.2f}–${row['max']:.2f} (mean ${row['mean']:.2f})"
-        )
+        lines.append(f"{row['locality']}: ${row['min']:.2f}–${row['max']:.2f} (mean ${row['mean']:.2f})")
     result.passed("Price summary by locality", "; ".join(lines))
 
 
@@ -203,10 +197,7 @@ def check_locality_ordering(df: pl.DataFrame, result: ValidationResult) -> None:
     n_months = 0
 
     for (_, _), group in spot.group_by("year", "month", maintain_order=True):
-        prices = {
-            row["locality"]: row["price_per_kw_month"]
-            for row in group.iter_rows(named=True)
-        }
+        prices = {row["locality"]: row["price_per_kw_month"] for row in group.iter_rows(named=True)}
         if not {"NYC", "GHIJ", "NYCA"}.issubset(prices):
             continue
         n_months += 1
@@ -242,9 +233,7 @@ def check_locality_ordering(df: pl.DataFrame, result: ValidationResult) -> None:
 
 def check_seasonal_pattern(df: pl.DataFrame, result: ValidationResult) -> None:
     """Summer Strip prices should generally exceed winter Strip for NYC."""
-    nyc_strip = df.filter(
-        (pl.col("locality") == "NYC") & (pl.col("auction_type") == "Strip")
-    )
+    nyc_strip = df.filter((pl.col("locality") == "NYC") & (pl.col("auction_type") == "Strip"))
     if nyc_strip.height == 0:
         return
 
@@ -263,9 +252,7 @@ def check_seasonal_pattern(df: pl.DataFrame, result: ValidationResult) -> None:
         summer_mean = as_float(summer_mean_raw)
         winter_mean = as_float(winter_mean_raw)
         if summer_mean < winter_mean:
-            anomalies.append(
-                f"{y}: summer ${summer_mean:.2f} < winter ${winter_mean:.2f}"
-            )
+            anomalies.append(f"{y}: summer ${summer_mean:.2f} < winter ${winter_mean:.2f}")
         else:
             normal.append(f"{y}: summer ${summer_mean:.2f} > winter ${winter_mean:.2f}")
 
@@ -298,18 +285,14 @@ def check_cross_year_continuity(df: pl.DataFrame, result: ValidationResult) -> N
                 continue
             ratio = prices[i] / prices[i - 1]
             if ratio > 5.0 or ratio < 0.2:
-                jumps.append(
-                    f"{loc}: {years[i - 1]}→{years[i]} = {ratio:.1f}x "
-                    f"(${prices[i - 1]:.2f}→${prices[i]:.2f})"
-                )
+                jumps.append(f"{loc}: {years[i - 1]}→{years[i]} = {ratio:.1f}x (${prices[i - 1]:.2f}→${prices[i]:.2f})")
 
     if jumps:
         for j in jumps:
             result.warn("Year-over-year continuity", j)
     else:
         n_transitions = sum(
-            annual.filter(pl.col("locality") == loc).height - 1
-            for loc in annual["locality"].unique().to_list()
+            annual.filter(pl.col("locality") == loc).height - 1 for loc in annual["locality"].unique().to_list()
         )
         result.passed(
             "Year-over-year continuity",

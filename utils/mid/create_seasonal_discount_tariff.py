@@ -44,9 +44,7 @@ def _write_json(path: S3Path | Path, payload: dict[str, Any]) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Create a seasonal-discount tariff JSON from seasonal input metrics."
-    )
+    parser = argparse.ArgumentParser(description="Create a seasonal-discount tariff JSON from seasonal input metrics.")
     parser.add_argument(
         "--base-tariff-json",
         required=True,
@@ -55,10 +53,7 @@ def main() -> None:
     parser.add_argument(
         "--seasonal-inputs-csv",
         required=True,
-        help=(
-            "Path to seasonal_discount_rate_inputs.csv "
-            "(typically from compute_subclass_rr --resstock-loads-path)."
-        ),
+        help=("Path to seasonal_discount_rate_inputs.csv (typically from compute_subclass_rr --resstock-loads-path)."),
     )
     parser.add_argument(
         "--label",
@@ -73,18 +68,12 @@ def main() -> None:
     parser.add_argument(
         "--winter-months",
         default=None,
-        help=(
-            "Comma-separated 1-indexed winter months. "
-            "When omitted, defaults to the tariff constructor fallback."
-        ),
+        help=("Comma-separated 1-indexed winter months. When omitted, defaults to the tariff constructor fallback."),
     )
     parser.add_argument(
         "--periods-yaml",
         default=None,
-        help=(
-            "Optional periods YAML containing `winter_months`. "
-            "Used when --winter-months is omitted."
-        ),
+        help=("Optional periods YAML containing `winter_months`. Used when --winter-months is omitted."),
     )
     args = parser.parse_args()
 
@@ -104,10 +93,7 @@ def main() -> None:
     elif "winter_rate_hp" in row:
         winter_rate = float(row["winter_rate_hp"])
     else:
-        raise KeyError(
-            "Seasonal inputs CSV must contain 'winter_rate' "
-            "(or legacy column 'winter_rate_hp')."
-        )
+        raise KeyError("Seasonal inputs CSV must contain 'winter_rate' (or legacy column 'winter_rate_hp').")
     winter_months = parse_months_arg(args.winter_months) if args.winter_months else None
     periods_winter: list[int] | None = None
     if winter_months is None and args.periods_yaml:

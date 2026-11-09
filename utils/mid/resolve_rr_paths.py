@@ -43,9 +43,7 @@ def resolve_rr_paths(
     if subclass_run_num is not None:
         subclass_run = _get_run(runs, subclass_run_num)
         if not subclass_run.get("run_includes_subclasses"):
-            raise ValueError(
-                f"run {subclass_run_num} is not a subclass run in {scenario_config}"
-            )
+            raise ValueError(f"run {subclass_run_num} is not a subclass run in {scenario_config}")
         diff = config_dir / str(subclass_run["utility_revenue_requirement"])
         return base, diff
 
@@ -64,10 +62,7 @@ def main() -> None:
     parser.add_argument(
         "--subclass-run-num",
         type=int,
-        help=(
-            "Optional explicit subclass run number to resolve the differentiated "
-            "RR path from."
-        ),
+        help=("Optional explicit subclass run number to resolve the differentiated RR path from."),
     )
     args = parser.parse_args()
 

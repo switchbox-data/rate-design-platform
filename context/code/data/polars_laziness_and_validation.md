@@ -40,8 +40,8 @@ source files twice.
 ```python
 lf = pl.scan_csv("sales.csv").filter(pl.col("year") == 2025)
 
-df1 = lf.collect()         # reads sales.csv, filters, returns DataFrame
-df2 = lf.collect()         # reads sales.csv AGAIN, filters again
+df1 = lf.collect()  # reads sales.csv, filters, returns DataFrame
+df2 = lf.collect()  # reads sales.csv AGAIN, filters again
 ```
 
 This is fine if you do it once. It becomes a problem when you scatter
@@ -137,12 +137,7 @@ once at a strategic point, then run all asserts on the materialized DataFrame
 and pass it downstream as a DataFrame.
 
 ```python
-pipeline = (
-    pl.scan_parquet(...)
-    .join(...)
-    .filter(...)
-    .with_columns(...)
-)
+pipeline = pl.scan_parquet(...).join(...).filter(...).with_columns(...)
 
 df = pipeline.collect()  # single collect — one read of each source file
 
@@ -170,9 +165,13 @@ pipeline = (
 )
 pipeline.sink_parquet("output.parquet")  # streams — never holds full dataset
 
-checks = pl.scan_parquet("output.parquet").select(
-    pl.col("_weight_diff").max().alias("max_weight_diff"),
-).collect()  # reads only the one column, returns one row
+checks = (
+    pl.scan_parquet("output.parquet")
+    .select(
+        pl.col("_weight_diff").max().alias("max_weight_diff"),
+    )
+    .collect()
+)  # reads only the one column, returns one row
 
 if checks["max_weight_diff"].item() > 1e-9:
     Path("output.parquet").unlink()
@@ -192,12 +191,11 @@ hour, group by building, and write the result. The joined intermediate would
 be ~100 GB — it won't fit in memory.
 
 ```python
-loads = pl.scan_parquet("s3://bucket/loads/")         # 50 GB, hive-partitioned
-costs = pl.scan_parquet("s3://bucket/marginal_costs/") # 2 GB
+loads = pl.scan_parquet("s3://bucket/loads/")  # 50 GB, hive-partitioned
+costs = pl.scan_parquet("s3://bucket/marginal_costs/")  # 2 GB
 
 allocated = (
-    loads
-    .join(costs, on=["hour", "region"], how="inner")
+    loads.join(costs, on=["hour", "region"], how="inner")
     .with_columns(
         (pl.col("kwh") * pl.col("marginal_cost")).alias("cost_allocated"),
         # Embed a validation signal: flag rows where the join brought nulls
@@ -214,9 +212,13 @@ allocated = (
 allocated.sink_parquet("output.parquet")
 
 # Post-hoc validation: read just the check column
-checks = pl.scan_parquet("output.parquet").select(
-    pl.col("_n_mc_null").sum(),
-).collect()
+checks = (
+    pl.scan_parquet("output.parquet")
+    .select(
+        pl.col("_n_mc_null").sum(),
+    )
+    .collect()
+)
 
 if checks["_n_mc_null"].item() > 0:
     Path("output.parquet").unlink()
@@ -253,8 +255,8 @@ def join_and_validate(delivery_lf, supply_lf, fixed):
     joined = delivery_lf.join(supply_renamed, on=keys, how="inner")
 
     # Assert 1: check join preserved all keys (3 collects!)
-    left_keys = delivery_lf.select(keys).unique().collect()   # reads delivery CSV
-    right_keys = supply_renamed.select(keys).unique().collect() # reads supply CSV
+    left_keys = delivery_lf.select(keys).unique().collect()  # reads delivery CSV
+    right_keys = supply_renamed.select(keys).unique().collect()  # reads supply CSV
     joined_check = joined.select(keys[0]).collect()  # reads BOTH CSVs (re-executes join)
     assert left_keys.height == right_keys.height == joined_check.height
 

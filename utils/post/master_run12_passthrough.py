@@ -9,11 +9,9 @@ validation and subclass RR generation.
 
 from __future__ import annotations
 
-
 import polars as pl
 
 from utils.post.io import ANNUAL_MONTH, BLDG_ID
-
 
 REFERENCE_COMB_RUN_PAIR = "1+2"
 
@@ -35,9 +33,7 @@ def load_passthrough_reference_monthly(
 ) -> pl.DataFrame:
     """Per ``(bldg_id, month)``: baseline passthrough columns for one electric utility."""
     util_col = "sb.electric_utility"
-    root = comb_bills_passthrough_ref_root(
-        state_lower=state_lower, output_batch=output_batch
-    )
+    root = comb_bills_passthrough_ref_root(state_lower=state_lower, output_batch=output_batch)
     lf = pl.scan_parquet(
         root,
         hive_partitioning=True,
@@ -49,9 +45,7 @@ def load_passthrough_reference_monthly(
     ).select(
         pl.col(BLDG_ID),
         pl.col("month"),
-        (pl.col("elec_fixed_charge") + pl.col("elec_delivery_bill")).alias(
-            "passthrough_delivery"
-        ),
+        (pl.col("elec_fixed_charge") + pl.col("elec_delivery_bill")).alias("passthrough_delivery"),
         pl.col("elec_supply_bill").alias("passthrough_supply"),
     )
     return q.collect()

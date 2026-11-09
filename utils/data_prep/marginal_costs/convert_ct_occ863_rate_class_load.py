@@ -42,10 +42,7 @@ def rate_class_loads(raw: pl.DataFrame) -> dict[int, pl.DataFrame]:
     block, and the footer are not part of the returned frames.
     """
     label_col = raw.columns[0]
-    labels = [
-        None if value is None else str(value)
-        for value in raw.get_column(label_col).to_list()
-    ]
+    labels = [None if value is None else str(value) for value in raw.get_column(label_col).to_list()]
     rate_idx = _label_index(labels, "Rate")
     peak_idx = _label_index(labels, "Peak Demand")
     usage_idx = _label_index(labels, "Total Usage")
@@ -118,30 +115,21 @@ def est_hour_beginning_to_local(load: pl.DataFrame) -> pl.DataFrame:
         .cast(pl.Datetime("us"))
         .alias("timestamp")
     )
-    local = (
-        local.group_by("timestamp")
-        .agg(pl.col("load_kw").mean(), pl.col("load_mw").mean())
-        .sort("timestamp")
-    )
+    local = local.group_by("timestamp").agg(pl.col("load_kw").mean(), pl.col("load_mw").mean()).sort("timestamp")
     year = local["timestamp"][0].year
     expected_n = 8784 if year % 4 == 0 else 8760
     if local.height != expected_n - 1:
-        raise ValueError(
-            f"expected {expected_n - 1} local hours before the spring-forward "
-            f"fill, got {local.height}"
-        )
+        raise ValueError(f"expected {expected_n - 1} local hours before the spring-forward fill, got {local.height}")
 
     start = pl.select(pl.lit(f"{year}-01-01 00:00:00").str.to_datetime()).item()
     end = pl.select(pl.lit(f"{year}-12-31 23:00:00").str.to_datetime()).item()
-    expected = pl.DataFrame(
-        {"timestamp": pl.datetime_range(start, end, interval="1h", eager=True)}
-    ).with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
+    expected = pl.DataFrame({"timestamp": pl.datetime_range(start, end, interval="1h", eager=True)}).with_columns(
+        pl.col("timestamp").cast(pl.Datetime("us"))
+    )
     joined = expected.join(local, on="timestamp", how="left").sort("timestamp")
     missing = joined.filter(pl.col("load_kw").is_null())
     if missing.height != 1:
-        raise ValueError(
-            f"expected one missing local hour (spring-forward 02:00), got {missing.height}"
-        )
+        raise ValueError(f"expected one missing local hour (spring-forward 02:00), got {missing.height}")
     gap = missing["timestamp"][0]
     if (gap.month, gap.hour) != (3, 2):
         raise ValueError(f"unexpected gap in local rate-class load: {gap}")
@@ -163,16 +151,12 @@ def _validate_local_clock(load: pl.DataFrame) -> None:
     year = start.year
     expected = 8784 if year % 4 == 0 else 8760
     if load.height != expected:
-        raise ValueError(
-            f"expected {expected} local hours in {year}, got {load.height}"
-        )
+        raise ValueError(f"expected {expected} local hours in {year}, got {load.height}")
     if (start.month, start.day, start.hour) != (1, 1, 0):
         raise ValueError(f"local series does not start at Jan 1 hour 0: {start}")
     if (end.year, end.month, end.day, end.hour) != (year, 12, 31, 23):
         raise ValueError(f"local series does not end at Dec 31 hour 23: {end}")
-    steps = load.select(
-        pl.col("timestamp").diff().dt.total_hours().alias("dh")
-    ).drop_nulls()
+    steps = load.select(pl.col("timestamp").diff().dt.total_hours().alias("dh")).drop_nulls()
     if steps.filter(pl.col("dh") != 1).height:
         raise ValueError("local rate-class timestamps are not one hour apart")
 
@@ -193,26 +177,18 @@ def _validate_rate_load(load: pl.DataFrame, peak_kw: float, usage_kwh: float) ->
         raise ValueError(f"series does not start at Jan 1 hour 0: {start}")
     if (end.year, end.month, end.day, end.hour) != (year, 12, 31, 23):
         raise ValueError(f"series does not end at Dec 31 hour 23: {end}")
-    steps = load.select(
-        pl.col("timestamp").diff().dt.total_hours().alias("dh")
-    ).drop_nulls()
+    steps = load.select(pl.col("timestamp").diff().dt.total_hours().alias("dh")).drop_nulls()
     if steps.filter(pl.col("dh") != 1).height:
         raise ValueError("rate-class timestamps are not one hour apart")
 
     hourly_peak = load.select(pl.col("load_kw").max()).item()
     hourly_sum = load.select(pl.col("load_kw").sum()).item()
-    if not isinstance(hourly_peak, (int, float)) or not isinstance(
-        hourly_sum, (int, float)
-    ):
+    if not isinstance(hourly_peak, (int, float)) or not isinstance(hourly_sum, (int, float)):
         raise TypeError("rate-class load did not aggregate to a number")
     if abs(hourly_peak - peak_kw) > 0.05:
-        raise ValueError(
-            f"hourly peak {hourly_peak} does not match Peak Demand {peak_kw}"
-        )
+        raise ValueError(f"hourly peak {hourly_peak} does not match Peak Demand {peak_kw}")
     if abs(hourly_sum - usage_kwh) > 1.0:
-        raise ValueError(
-            f"hourly sum {hourly_sum} does not match Total Usage {usage_kwh}"
-        )
+        raise ValueError(f"hourly sum {hourly_sum} does not match Total Usage {usage_kwh}")
 
 
 def _label_index(labels: list[str | None], label: str) -> int:
@@ -222,14 +198,10 @@ def _label_index(labels: list[str | None], label: str) -> int:
         raise ValueError(f"Attachment 4 has no {label!r} row") from exc
 
 
-def write_rate_class_loads(
-    path_xlsx: Path, path_output_dir: Path
-) -> dict[int, pl.DataFrame]:
+def write_rate_class_loads(path_xlsx: Path, path_output_dir: Path) -> dict[int, pl.DataFrame]:
     """Read Attachment 4 and write one parquet per rate under ``path_output_dir``."""
     if "{{" in str(path_xlsx) or "{{" in str(path_output_dir):
-        raise ValueError(
-            f"path looks like an uninterpolated Just variable: {path_xlsx} {path_output_dir}"
-        )
+        raise ValueError(f"path looks like an uninterpolated Just variable: {path_xlsx} {path_output_dir}")
     raw = pl.read_excel(
         path_xlsx,
         sheet_name=_SHEET,
@@ -248,9 +220,7 @@ def write_rate_class_loads(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--path-xlsx", type=Path, required=True, help="OCC-863 Attachment 4 workbook"
-    )
+    parser.add_argument("--path-xlsx", type=Path, required=True, help="OCC-863 Attachment 4 workbook")
     parser.add_argument(
         "--path-output-dir",
         type=Path,

@@ -116,10 +116,7 @@ def test_define_run_blocks_discovers_extended_pairs() -> None:
     assert blocks[0].revenue_neutral is True
     assert blocks[1].tariff_should_be_unchanged is True
     assert blocks[2].bat_relevant is True
-    assert (
-        blocks[3].description
-        == "Default seasonal TOU flex rates on upgrade 02 (runs 15-16)"
-    )
+    assert blocks[3].description == "Default seasonal TOU flex rates on upgrade 02 (runs 15-16)"
 
 
 def test_define_run_blocks_rejects_unpaired_runs() -> None:
@@ -207,6 +204,4 @@ def test_run_config_reads_explicit_subclass_metadata_from_yaml() -> None:
         "electric_heating",
         "non_electric_heating",
     )
-    assert (
-        config.revenue_requirement_filename == "coned_elec_heat_vs_non_elec_heat.yaml"
-    )
+    assert config.revenue_requirement_filename == "coned_elec_heat_vs_non_elec_heat.yaml"

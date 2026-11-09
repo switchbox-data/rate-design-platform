@@ -69,7 +69,7 @@ def find_project_root() -> Path:
     # Start from current file and search upwards
     current = Path(__file__).resolve()
 
-    for parent in [current] + list(current.parents):
+    for parent in [current, *list(current.parents)]:
         # Check for .git directory or pyproject.toml
         if (parent / ".git").exists() or (parent / "pyproject.toml").exists():
             return parent
@@ -196,12 +196,8 @@ def fetch_all_zones_from_eia(
     # - End: Through the full UTC day containing our ET end (Feb 2 23:00 UTC)
 
     local_tz = ZoneInfo(config.timezone)
-    start_dt_local = datetime.strptime(start_date, "%Y-%m-%d").replace(
-        hour=0, minute=0, second=0, tzinfo=local_tz
-    )
-    end_dt_local = datetime.strptime(end_date, "%Y-%m-%d").replace(
-        hour=23, minute=0, second=0, tzinfo=local_tz
-    )
+    start_dt_local = datetime.strptime(start_date, "%Y-%m-%d").replace(hour=0, minute=0, second=0, tzinfo=local_tz)
+    end_dt_local = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=0, second=0, tzinfo=local_tz)
 
     # Convert to UTC
     start_dt_utc = start_dt_local.astimezone(ZoneInfo("UTC"))
@@ -247,15 +243,13 @@ def fetch_all_zones_from_eia(
         except requests.exceptions.HTTPError as e:
             status = e.response.status_code if e.response is not None else None
             if status == 401:
-                raise ValueError(
-                    "Invalid EIA API key. Register at https://www.eia.gov/opendata/"
-                )
+                raise ValueError("Invalid EIA API key. Register at https://www.eia.gov/opendata/") from e
             elif status == 429:
-                raise ValueError("EIA API rate limit exceeded. Wait and retry.")
+                raise ValueError("EIA API rate limit exceeded. Wait and retry.") from e
             else:
                 raise
         except requests.exceptions.Timeout:
-            raise ValueError(f"Request timeout for {config.label} zones")
+            raise ValueError(f"Request timeout for {config.label} zones") from None
 
         data = response.json()
 
@@ -271,9 +265,7 @@ def fetch_all_zones_from_eia(
         if offset == 0 and len(rows) > 0:
             print("  First 3 raw API rows:")
             for row in rows[:3]:
-                print(
-                    f"    period={row.get('period')}, subba={row.get('subba')}, value={row.get('value')}"
-                )
+                print(f"    period={row.get('period')}, subba={row.get('subba')}, value={row.get('value')}")
 
         all_data.extend(rows)
 
@@ -345,9 +337,7 @@ def transform_eia_data(
             .dt.convert_time_zone(timezone)
             .alias("timestamp"),
             pl.col("value").cast(pl.Float64).alias("load_mw"),
-            pl.lit(None)
-            .cast(pl.Float64)
-            .alias("forecast_mw"),  # EIA doesn't provide forecast
+            pl.lit(None).cast(pl.Float64).alias("forecast_mw"),  # EIA doesn't provide forecast
         ]
     )
 
@@ -375,9 +365,7 @@ def fetch_zone_data(
     Returns:
         DataFrame with columns: timestamp, zone, load_mw, forecast_mw
     """
-    print(
-        f"Fetching {config.label} zonal load data from EIA API ({start_date} to {end_date})..."
-    )
+    print(f"Fetching {config.label} zonal load data from EIA API ({start_date} to {end_date})...")
     print("  Fetching configured zones in a single query...")
 
     try:
@@ -410,9 +398,7 @@ def generate_expected_hourly_timestamps(
     timezone: str,
 ) -> list[datetime]:
     """Generate expected hourly timestamps in local timezone (skip non-existent DST hours)."""
-    start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(
-        tzinfo=ZoneInfo(timezone)
-    )
+    start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=ZoneInfo(timezone))
     end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=ZoneInfo(timezone))
 
     all_timestamps = []
@@ -498,38 +484,25 @@ def fill_missing_hours(
                 f"Cannot safely interpolate gaps > 2 hours."
             )
 
-        print(
-            f"  ⚠️  Zone {zone}: {len(missing)} missing hour(s), max consecutive: {max_gap}"
-        )
+        print(f"  ⚠️  Zone {zone}: {len(missing)} missing hour(s), max consecutive: {max_gap}")
         # Sort missing timestamps chronologically for display
         missing_sorted = sorted(missing)
-        print(
-            f"      Missing: {[ts.strftime('%Y-%m-%d %H:%M %Z') for ts in missing_sorted]}"
-        )
+        print(f"      Missing: {[ts.strftime('%Y-%m-%d %H:%M %Z') for ts in missing_sorted]}")
 
         # Fill missing hours with interpolation
         # Create complete time series with nulls for missing hours
-        complete_df = pl.DataFrame(
-            {"timestamp": all_timestamps, "zone": [zone] * len(all_timestamps)}
-        )
+        complete_df = pl.DataFrame({"timestamp": all_timestamps, "zone": [zone] * len(all_timestamps)})
 
         # Left join to get existing data (brings 'filled' column along)
         filled_df = complete_df.join(zone_df, on=["timestamp", "zone"], how="left")
 
         # Mark rows that need interpolation (where load_mw is null) before interpolating
         filled_df = filled_df.with_columns(
-            [
-                pl.when(pl.col("load_mw").is_null())
-                .then(pl.lit(True))
-                .otherwise(pl.col("filled"))
-                .alias("filled")
-            ]
+            [pl.when(pl.col("load_mw").is_null()).then(pl.lit(True)).otherwise(pl.col("filled")).alias("filled")]
         )
 
         # Interpolate load_mw (linear interpolation between neighbors)
-        filled_df = filled_df.with_columns(
-            [pl.col("load_mw").interpolate(method="linear").alias("load_mw")]
-        )
+        filled_df = filled_df.with_columns([pl.col("load_mw").interpolate(method="linear").alias("load_mw")])
 
         all_zones_data.append(filled_df)
         print("      ✓ Filled via linear interpolation")
@@ -557,9 +530,7 @@ def validate_zone_data(
         start_date: Start date (YYYY-MM-DD)
         end_date: End date (YYYY-MM-DD)
     """
-    expected_hours = len(
-        generate_expected_hourly_timestamps(start_date, end_date, timezone)
-    )
+    expected_hours = len(generate_expected_hourly_timestamps(start_date, end_date, timezone))
 
     print(f"\nValidating fetched data ({timezone} with DST handling)...")
 
@@ -589,9 +560,7 @@ def validate_zone_data(
         # Check for unreasonably high loads (> 50,000 MW)
         high_count = (zone_data["load_mw"] > 50000).sum()
         if high_count > 0:
-            print(
-                f"  ⚠️  Zone {zone}: {high_count} suspiciously high load values (> 50,000 MW)"
-            )
+            print(f"  ⚠️  Zone {zone}: {high_count} suspiciously high load values (> 50,000 MW)")
 
 
 def write_zone_data_local(
@@ -612,9 +581,7 @@ def write_zone_data_local(
         ]
     )
     partition_count = df.select(["region", "zone", "year", "month"]).n_unique()
-    print(
-        f"\nWriting {partition_count:,} partitions ({len(df):,} rows) to {local_base}"
-    )
+    print(f"\nWriting {partition_count:,} partitions ({len(df):,} rows) to {local_base}")
     Path(local_base).mkdir(parents=True, exist_ok=True)
     df.write_parquet(
         str(local_base),
@@ -645,7 +612,7 @@ def parse_month_to_date_range(start_month: str, end_month: str) -> tuple[str, st
         start_year, start_mon = map(int, start_month.split("-"))
         start_date = f"{start_year:04d}-{start_mon:02d}-01"
     except (ValueError, AttributeError):
-        raise ValueError(f"Invalid start month format: {start_month}. Use YYYY-MM.")
+        raise ValueError(f"Invalid start month format: {start_month}. Use YYYY-MM.") from None
 
     # Parse end month and get last day
     try:
@@ -653,12 +620,10 @@ def parse_month_to_date_range(start_month: str, end_month: str) -> tuple[str, st
         last_day = calendar.monthrange(end_year, end_mon)[1]
         end_date = f"{end_year:04d}-{end_mon:02d}-{last_day:02d}"
     except (ValueError, AttributeError):
-        raise ValueError(f"Invalid end month format: {end_month}. Use YYYY-MM.")
+        raise ValueError(f"Invalid end month format: {end_month}. Use YYYY-MM.") from None
 
     # Validate order
-    if datetime.strptime(start_date, "%Y-%m-%d") > datetime.strptime(
-        end_date, "%Y-%m-%d"
-    ):
+    if datetime.strptime(start_date, "%Y-%m-%d") > datetime.strptime(end_date, "%Y-%m-%d"):
         raise ValueError("Start month must be before or equal to end month")
 
     return start_date, end_date
@@ -666,9 +631,7 @@ def parse_month_to_date_range(start_month: str, end_month: str) -> tuple[str, st
 
 def main():
     """Main entry point for the script."""
-    parser = argparse.ArgumentParser(
-        description="Fetch state-specific zonal load data from EIA API and upload to S3"
-    )
+    parser = argparse.ArgumentParser(description="Fetch state-specific zonal load data from EIA API and upload to S3")
     parser.add_argument(
         "--state",
         type=str,
@@ -707,9 +670,7 @@ def main():
 
     # Parse month ranges to dates
     try:
-        start_date, end_date = parse_month_to_date_range(
-            args.start_month, args.end_month
-        )
+        start_date, end_date = parse_month_to_date_range(args.start_month, args.end_month)
     except ValueError as e:
         parser.error(str(e))
 
@@ -742,14 +703,9 @@ def main():
         hour=23, minute=59, second=59, tzinfo=ZoneInfo(config.timezone)
     )
 
-    df = df.filter(
-        (pl.col("timestamp") >= start_dt_local) & (pl.col("timestamp") <= end_dt_local)
-    )
+    df = df.filter((pl.col("timestamp") >= start_dt_local) & (pl.col("timestamp") <= end_dt_local))
 
-    print(
-        f"\nFiltered to exact date range: {start_date} 00:00 to {end_date} 23:00 "
-        f"({config.timezone})"
-    )
+    print(f"\nFiltered to exact date range: {start_date} 00:00 to {end_date} 23:00 ({config.timezone})")
     print(f"Total rows after filtering: {len(df):,}")
 
     # Fill missing hours with interpolation (raises error if gaps > 2 consecutive hours)
@@ -767,9 +723,7 @@ def main():
         print(f"  Last:  {debug_zone['timestamp'].max()}")
         print(f"  Count: {len(debug_zone)}")
 
-        expected_timestamps = generate_expected_hourly_timestamps(
-            start_date, end_date, config.timezone
-        )
+        expected_timestamps = generate_expected_hourly_timestamps(start_date, end_date, config.timezone)
 
         print(f"  Expected: {len(expected_timestamps)} hours (accounting for DST)")
 
@@ -824,9 +778,7 @@ def main():
     print("=" * 60)
     write_zone_data_local(df, path_local, config.iso_region)
     print("\n" + "=" * 60)
-    print(
-        f"✓ {config.label} zonal load data fetch completed (run upload recipe to sync to S3)"
-    )
+    print(f"✓ {config.label} zonal load data fetch completed (run upload recipe to sync to S3)")
     print("=" * 60)
 
 

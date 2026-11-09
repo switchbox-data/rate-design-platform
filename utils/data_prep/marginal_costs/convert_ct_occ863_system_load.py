@@ -103,8 +103,7 @@ def assert_monthly_peaks_match_hourly(load: pl.DataFrame, peaks: pl.DataFrame) -
     )
     compared = peaks.join(from_hourly, on=["year", "month"], how="left")
     mismatched = compared.filter(
-        pl.col("hourly_max").is_null()
-        | ((pl.col("peak_mw") - pl.col("hourly_max")).abs() > 1e-6)
+        pl.col("hourly_max").is_null() | ((pl.col("peak_mw") - pl.col("hourly_max")).abs() > 1e-6)
     )
     if mismatched.height:
         sample = mismatched.select("year", "month", "peak_mw", "hourly_max").head(4)
@@ -135,21 +134,15 @@ def _validate_monthly_peaks(peaks: pl.DataFrame) -> None:
     expected = {(year, month) for year in _EXPECTED_HOURS for month in range(1, 13)}
     found = set(peaks.select("year", "month").iter_rows())
     if found != expected:
-        raise ValueError(
-            f"expected monthly peaks {sorted(expected)}, got {sorted(found)}"
-        )
+        raise ValueError(f"expected monthly peaks {sorted(expected)}, got {sorted(found)}")
     if peaks.filter(pl.col("peak_mw") <= 0).height:
         raise ValueError("monthly peak has a non-positive MW value")
 
 
-def write_occ863_load_parquets(
-    path_xlsx: Path, path_output_dir: Path
-) -> tuple[pl.DataFrame, pl.DataFrame]:
+def write_occ863_load_parquets(path_xlsx: Path, path_output_dir: Path) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Read Attachment 3 and write both parquets under ``path_output_dir``."""
     if "{{" in str(path_xlsx) or "{{" in str(path_output_dir):
-        raise ValueError(
-            f"path looks like an uninterpolated Just variable: {path_xlsx} {path_output_dir}"
-        )
+        raise ValueError(f"path looks like an uninterpolated Just variable: {path_xlsx} {path_output_dir}")
     raw_hourly = pl.read_excel(
         path_xlsx,
         sheet_name=_HOURLY_SHEET,
@@ -168,9 +161,7 @@ def write_occ863_load_parquets(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--path-xlsx", type=Path, required=True, help="OCC-863 Attachment 3 workbook"
-    )
+    parser.add_argument("--path-xlsx", type=Path, required=True, help="OCC-863 Attachment 3 workbook")
     parser.add_argument(
         "--path-output-dir",
         type=Path,
@@ -181,9 +172,7 @@ def main() -> None:
     load, peaks = write_occ863_load_parquets(args.path_xlsx, args.path_output_dir)
     print(f"Wrote {load.height:,} hours to {args.path_output_dir / _HOURLY_FILENAME}")
     print(f"  load_mw min={load['load_mw'].min():.1f} max={load['load_mw'].max():.1f}")
-    print(
-        f"Wrote {peaks.height} monthly peaks to {args.path_output_dir / _MONTHLY_FILENAME}"
-    )
+    print(f"Wrote {peaks.height} monthly peaks to {args.path_output_dir / _MONTHLY_FILENAME}")
 
 
 if __name__ == "__main__":

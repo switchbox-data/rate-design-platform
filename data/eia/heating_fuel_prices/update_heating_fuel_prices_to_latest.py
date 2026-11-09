@@ -21,7 +21,6 @@ from datetime import datetime
 from pathlib import Path
 
 import polars as pl
-
 from fetch_heating_fuel_prices_parquet import (
     fetch_weekly_prices,
     load_api_key,
@@ -65,19 +64,14 @@ def next_month(year: int, month: int) -> tuple[int, int]:
     return (year, month + 1)
 
 
-def write_update_partitions(
-    df: pl.DataFrame, path_local_parquet: str, start_ym: tuple[int, int]
-) -> int:
+def write_update_partitions(df: pl.DataFrame, path_local_parquet: str, start_ym: tuple[int, int]) -> int:
     """Write only partitions at or after start_ym. Returns count of partitions written."""
     out = Path(path_local_parquet)
     data_cols = ["state", "price_type", "price_per_gallon"]
     written = 0
 
     partitions = (
-        df.filter(
-            (pl.col("year") > start_ym[0])
-            | ((pl.col("year") == start_ym[0]) & (pl.col("month") >= start_ym[1]))
-        )
+        df.filter((pl.col("year") > start_ym[0]) | ((pl.col("year") == start_ym[0]) & (pl.col("month") >= start_ym[1])))
         .select(["product", "year", "month"])
         .unique()
         .sort(["product", "year", "month"])
@@ -89,9 +83,7 @@ def write_update_partitions(
         part_dir.mkdir(parents=True, exist_ok=True)
 
         part_df = df.filter(
-            (pl.col("product") == product)
-            & (pl.col("year") == year)
-            & (pl.col("month") == month)
+            (pl.col("product") == product) & (pl.col("year") == year) & (pl.col("month") == month)
         ).select(data_cols)
 
         part_df.write_parquet(part_dir / "data.parquet", compression="zstd")
@@ -130,9 +122,7 @@ def main() -> int:
     print("Discovering latest partition on S3...")
     partitions = list_s3_partitions(args.path_s3_parquet)
     if not partitions:
-        print(
-            "No partitions on S3. Use `just fetch` for initial load.", file=sys.stderr
-        )
+        print("No partitions on S3. Use `just fetch` for initial load.", file=sys.stderr)
         return 1
 
     latest = latest_year_month(partitions)

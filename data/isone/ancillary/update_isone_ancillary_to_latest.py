@@ -65,9 +65,7 @@ def _last_complete_month() -> tuple[int, int]:
     return (today.year, today.month - 1)
 
 
-def _months_in_range(
-    start: tuple[int, int], end: tuple[int, int]
-) -> list[tuple[int, int]]:
+def _months_in_range(start: tuple[int, int], end: tuple[int, int]) -> list[tuple[int, int]]:
     months: list[tuple[int, int]] = []
     current = start
     while current <= end:
@@ -133,9 +131,7 @@ def main() -> int:
         print(f"  {label}: fetching...", end=" ", flush=True)
         ok = fetch_month(year, month, username, password, output_dir, workers=4)
         if ok:
-            part_file = (
-                output_dir / f"year={year}" / f"month={month:02d}" / "data.parquet"
-            )
+            part_file = output_dir / f"year={year}" / f"month={month:02d}" / "data.parquet"
             n_rows = pl.read_parquet(part_file).height
             print(f"{n_rows} rows")
             fetched.append((year, month))

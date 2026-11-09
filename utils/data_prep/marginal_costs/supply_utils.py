@@ -20,18 +20,12 @@ from utils.numeric import as_float
 DEFAULT_NYISO_LBMP_S3_BASE = "s3://data.sb/nyiso/lbmp/real_time/zones/"
 DEFAULT_NYISO_ICAP_S3_BASE = "s3://data.sb/nyiso/icap/"
 DEFAULT_NYISO_ZONE_LOADS_S3_BASE = "s3://data.sb/nyiso/hourly_demand/zones/"
-DEFAULT_NYISO_ZONE_MAPPING_PATH = (
-    "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
-)
+DEFAULT_NYISO_ZONE_MAPPING_PATH = "s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv"
 DEFAULT_NYISO_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/ny/supply/"
-DEFAULT_NYISO_BULK_TX_OUTPUT_S3_BASE = (
-    "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/"
-)
+DEFAULT_NYISO_BULK_TX_OUTPUT_S3_BASE = "s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/"
 DEFAULT_NYISO_ANCILLARY_S3_BASE = "s3://data.sb/nyiso/ancillary/"
 
-VALID_NYISO_UTILITIES = frozenset(
-    {"cenhud", "coned", "nimo", "nyseg", "or", "rge", "psegli"}
-)
+VALID_NYISO_UTILITIES = frozenset({"cenhud", "coned", "nimo", "nyseg", "or", "rge", "psegli"})
 
 # Backward-compatible aliases (used by generate scripts and other importers)
 DEFAULT_LBMP_S3_BASE = DEFAULT_NYISO_LBMP_S3_BASE
@@ -69,9 +63,7 @@ ISONE_CAPACITY_ZONE_FALLBACK: int = 8500  # System / Rest-of-Pool
 
 # Maps each ISO-NE utility to its load zones for aggregate peak identification.
 # For SENE (Southeast New England), aggregate RI + SEMA zones.
-ISONE_CAPACITY_ZONE_LOAD_ZONES: dict[str, list[str]] = {
-    "rie": ["RI", "SEMA"]
-}  # SENE aggregate
+ISONE_CAPACITY_ZONE_LOAD_ZONES: dict[str, list[str]] = {"rie": ["RI", "SEMA"]}  # SENE aggregate
 
 # All eight ISO-NE load zones, used for New England system-wide peak identification
 # (e.g. RNS / bulk TX allocation is driven by NE coincident peak).
@@ -141,8 +133,7 @@ def build_mc_partition_path(
     component_relpath = MC_COMPONENT_RELATIVE_PATHS.get(component)
     if component_relpath is None:
         raise ValueError(
-            f"Unsupported marginal cost component '{component}'. "
-            f"Expected one of {sorted(MC_COMPONENT_RELATIVE_PATHS)}."
+            f"Unsupported marginal cost component '{component}'. Expected one of {sorted(MC_COMPONENT_RELATIVE_PATHS)}."
         )
     base = mc_base_path.rstrip("/")
     return f"{base}/{state.lower()}/{component_relpath}/utility={utility}/year={year}"
@@ -157,10 +148,7 @@ def build_mc_partition_parquet_path(
     mc_base_path: str = "s3://data.sb/switchbox/marginal_costs",
 ) -> str:
     """Build canonical MC parquet object path for one partition."""
-    return (
-        f"{build_mc_partition_path(state, component, utility, year, mc_base_path)}/"
-        f"{filename}"
-    )
+    return f"{build_mc_partition_path(state, component, utility, year, mc_base_path)}/{filename}"
 
 
 def list_partition_parquet_paths(path_partition: str) -> list[str]:
@@ -199,7 +187,7 @@ def warn_if_multiple_partition_parquets(
     if len(parquet_paths) <= 1:
         return
 
-    filenames = set(Path(path).name for path in parquet_paths)
+    filenames = {Path(path).name for path in parquet_paths}
     permitted = (allowed_filenames or set()) | {expected_filename}
     unexpected = filenames - permitted
     if not unexpected:
@@ -252,8 +240,7 @@ def allocate_annual_exceedance_to_hours(
     """
     if load_df.height < n_peak_hours:
         raise ValueError(
-            f"Load profile has only {load_df.height} hours, "
-            f"need at least {n_peak_hours} for exceedance allocation"
+            f"Load profile has only {load_df.height} hours, need at least {n_peak_hours} for exceedance allocation"
         )
 
     sorted_load = load_df.sort("load_mw", descending=True)
@@ -273,9 +260,7 @@ def allocate_annual_exceedance_to_hours(
             f"max load={float(sorted_load['load_mw'][0]):.2f} MW"
         )
 
-    result = result.with_columns(
-        (pl.col("exceedance") / total_exceedance * annual_cost_kw_year).alias(cost_col)
-    )
+    result = result.with_columns((pl.col("exceedance") / total_exceedance * annual_cost_kw_year).alias(cost_col))
 
     weight_sum = float((result["exceedance"] / total_exceedance).sum())
     if abs(weight_sum - 1.0) > 1e-6:
@@ -320,9 +305,7 @@ def get_utility_mapping(mapping_df: pl.DataFrame, utility: str) -> pl.DataFrame:
     rows = mapping_df.filter(pl.col("utility") == utility)
     if rows.is_empty():
         available = sorted(mapping_df["utility"].unique().to_list())
-        raise ValueError(
-            f"Utility '{utility}' not found in zone mapping. Available: {available}"
-        )
+        raise ValueError(f"Utility '{utility}' not found in zone mapping. Available: {available}")
     return rows
 
 
@@ -366,28 +349,20 @@ def load_zone_loads(
     if not isinstance(collected, pl.DataFrame):
         raise TypeError("Expected DataFrame from zone loads collect()")
     if collected.is_empty():
-        raise FileNotFoundError(
-            f"No zone load data found for zones={zone_names}, year={year} under {base}"
-        )
+        raise FileNotFoundError(f"No zone load data found for zones={zone_names}, year={year} under {base}")
 
     collected = strip_tz_if_needed(collected, "timestamp")
     zones_found = sorted(collected["zone"].unique().to_list())
-    print(
-        f"Loaded zone loads: {len(collected):,} rows for zones {zones_found}, year {year}"
-    )
+    print(f"Loaded zone loads: {len(collected):,} rows for zones {zones_found}, year {year}")
     return collected
 
 
-def remap_year_if_needed(
-    df: pl.DataFrame, timestamp_col: str, from_year: int, to_year: int
-) -> pl.DataFrame:
+def remap_year_if_needed(df: pl.DataFrame, timestamp_col: str, from_year: int, to_year: int) -> pl.DataFrame:
     """Offset timestamps by integer years when years differ."""
     if from_year == to_year:
         return df
     offset = f"{to_year - from_year}y"
-    return df.with_columns(
-        pl.col(timestamp_col).dt.offset_by(offset).alias(timestamp_col)
-    )
+    return df.with_columns(pl.col(timestamp_col).dt.offset_by(offset).alias(timestamp_col))
 
 
 def output_base_for_load_year(
@@ -435,9 +410,7 @@ def build_cairo_8760_timestamps(year: int) -> pl.DataFrame:
         timestamps = [t for t in timestamps if not (t.month == 12 and t.day == 31)]
 
     if len(timestamps) != 8760:
-        raise ValueError(
-            f"Expected 8760 timestamps, got {len(timestamps)} for year {year}"
-        )
+        raise ValueError(f"Expected 8760 timestamps, got {len(timestamps)} for year {year}")
     return pl.DataFrame({"timestamp": timestamps})
 
 
@@ -483,9 +456,7 @@ def prepare_component_output(
         )
 
     # Step 3: Join with reference 8760 timestamps (Cairo-compatible, handles leap years)
-    output = ref_8760.join(hourly, on="timestamp", how="left").select(
-        "timestamp", input_col
-    )
+    output = ref_8760.join(hourly, on="timestamp", how="left").select("timestamp", input_col)
 
     # Step 4: Validate data completeness - check for missing months (allow DST transitions)
     missing_hours = output.filter(pl.col(input_col).is_null())
@@ -518,9 +489,7 @@ def prepare_component_output(
                 pl.col("timestamp").dt.month().alias("month"),
                 pl.col("timestamp").dt.hour().alias("hour"),
             )
-            dst_spring_forward = missing_hours_with_month.filter(
-                (pl.col("month") == 3) & (pl.col("hour") == 2)
-            )
+            dst_spring_forward = missing_hours_with_month.filter((pl.col("month") == 3) & (pl.col("hour") == 2))
             n_dst = dst_spring_forward.height
             n_other = missing_hours.height - n_dst
 
@@ -549,8 +518,7 @@ def prepare_component_output(
 
     if output.height != 8760:
         raise ValueError(
-            f"{output_col} output has {output.height} rows, expected 8760. "
-            f"Check DST handling and timestamp alignment."
+            f"{output_col} output has {output.height} rows, expected 8760. Check DST handling and timestamp alignment."
         )
     n_unique = output.select(pl.col("timestamp").n_unique()).item()
     if n_unique != 8760:
@@ -577,9 +545,7 @@ def assemble_output(
         .sort("timestamp")
     )
     capacity_hourly = (
-        capacity_df.with_columns(
-            pl.col("timestamp").dt.truncate("1h").alias("timestamp")
-        )
+        capacity_df.with_columns(pl.col("timestamp").dt.truncate("1h").alias("timestamp"))
         .group_by("timestamp")
         .agg(pl.col("capacity_cost_per_kw").mean())
         .sort("timestamp")
@@ -590,9 +556,7 @@ def assemble_output(
         .join(capacity_hourly, on="timestamp", how="left")
         .with_columns(
             pl.col("energy_cost_enduse").fill_null(0.0).alias("energy_cost_enduse"),
-            (pl.col("capacity_cost_per_kw").fill_null(0.0) * 1000.0).alias(
-                "capacity_cost_enduse"
-            ),
+            (pl.col("capacity_cost_per_kw").fill_null(0.0) * 1000.0).alias("capacity_cost_enduse"),
         )
         .select("timestamp", "energy_cost_enduse", "capacity_cost_enduse")
     )
@@ -603,9 +567,7 @@ def assemble_output(
     energy_nulls = output.filter(pl.col("energy_cost_enduse").is_null()).height
     capacity_nulls = output.filter(pl.col("capacity_cost_enduse").is_null()).height
     if energy_nulls > 0 or capacity_nulls > 0:
-        raise ValueError(
-            f"Output has nulls: energy={energy_nulls}, capacity={capacity_nulls}"
-        )
+        raise ValueError(f"Output has nulls: energy={energy_nulls}, capacity={capacity_nulls}")
 
     avg_energy = output["energy_cost_enduse"].mean()
     avg_capacity = output["capacity_cost_enduse"].mean()

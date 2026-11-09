@@ -119,9 +119,7 @@ def _convert_tou_matrix_to_urdb(
             "adj": adj,
             "unit": CAIRO_TO_URDB_UNIT[units],
         }
-        if not math.isclose(
-            max_usage, CAIRO_MAX_USAGE_SENTINEL, rel_tol=0.0, abs_tol=1e-6
-        ):
+        if not math.isclose(max_usage, CAIRO_MAX_USAGE_SENTINEL, rel_tol=0.0, abs_tol=1e-6):
             entry["max"] = max_usage
         if not math.isclose(sell, 0.0, rel_tol=0.0, abs_tol=1e-9):
             entry["sell"] = sell
@@ -136,10 +134,7 @@ def _convert_tou_matrix_to_urdb(
         period_tiers: list[dict[str, Any]] = []
         for tier_idx in range(max_tier + 1):
             if tier_idx not in tiers:
-                raise ValueError(
-                    f"Missing tier {tier_idx + 1} for period {period_idx + 1} "
-                    "in ur_ec_tou_mat"
-                )
+                raise ValueError(f"Missing tier {tier_idx + 1} for period {period_idx + 1} in ur_ec_tou_mat")
             period_tiers.append(tiers[tier_idx])
         urdb_rate_structure.append(period_tiers)
     return urdb_rate_structure
@@ -181,9 +176,7 @@ def _to_urdb_tariff(
         )
         item["fixedchargeunits"] = "$/month"
     if "ur_monthly_min_charge" in cairo_tariff:
-        item["mincharge"] = _to_float(
-            cairo_tariff["ur_monthly_min_charge"], "mincharge"
-        )
+        item["mincharge"] = _to_float(cairo_tariff["ur_monthly_min_charge"], "mincharge")
         item["minchargeunits"] = "$/month"
     elif "ur_annual_min_charge" in cairo_tariff:
         item["mincharge"] = _to_float(cairo_tariff["ur_annual_min_charge"], "mincharge")
@@ -202,9 +195,7 @@ def _extract_cairo_tariff(payload: dict[str, Any], tariff_key: str) -> dict[str,
         only_value = next(iter(payload.values()))
         if isinstance(only_value, dict):
             return only_value
-    raise ValueError(
-        "Could not locate CAIRO tariff payload by tariff_key in tariff_final_config.json"
-    )
+    raise ValueError("Could not locate CAIRO tariff payload by tariff_key in tariff_final_config.json")
 
 
 def _tariff_keys_and_payloads(
@@ -222,9 +213,7 @@ def _tariff_keys_and_payloads(
     if "items" in payload:
         items = payload["items"]
         if not isinstance(items, list) or not items:
-            raise ValueError(
-                "tariff_final_config.json has 'items' but it is not a non-empty list"
-            )
+            raise ValueError("tariff_final_config.json has 'items' but it is not a non-empty list")
         first = items[0]
         if isinstance(first, dict) and "label" in first:
             return [(str(first["label"]), payload)]
@@ -260,15 +249,7 @@ def _convert_cairo_payload_to_urdb(
 def _default_destination_dir(state: str) -> Path:
     """Return the default local config destination for calibrated electric tariffs."""
     state_code = state.lower()
-    return (
-        get_project_root()
-        / "rate_design"
-        / "hp_rates"
-        / state_code
-        / "config"
-        / "tariffs"
-        / "electric"
-    )
+    return get_project_root() / "rate_design" / "hp_rates" / state_code / "config" / "tariffs" / "electric"
 
 
 def copy_calibrated_tariff_from_run_dir(
@@ -284,16 +265,10 @@ def copy_calibrated_tariff_from_run_dir(
     """
     tariff_final_config_path = run_dir / "tariff_final_config.json"
     payload = _read_json(tariff_final_config_path)
-    target_dir = (
-        destination_dir
-        if destination_dir is not None
-        else _default_destination_dir(state)
-    )
+    target_dir = destination_dir if destination_dir is not None else _default_destination_dir(state)
     written: list[Path] = []
     for tariff_key, sub_payload in _tariff_keys_and_payloads(payload):
-        urdb_payload = _convert_cairo_payload_to_urdb(
-            sub_payload, tariff_key=tariff_key
-        )
+        urdb_payload = _convert_cairo_payload_to_urdb(sub_payload, tariff_key=tariff_key)
         output_path = target_dir / f"{tariff_key}_calibrated.json"
         written.append(_write_json(output_path, urdb_payload))
     return written

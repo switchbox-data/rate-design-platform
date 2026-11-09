@@ -29,15 +29,11 @@ def validate_local_files(
                 d = base_path / ft / f"state={s}" / f"upgrade={upgrade_id_padded}"
                 files = list(d.glob("*.parquet")) if d.is_dir() else []
                 if not files:
-                    errors.append(
-                        f"  {ft}/state={s}/upgrade={upgrade_id_padded}:"
-                        f" no .parquet files found in {d}"
-                    )
+                    errors.append(f"  {ft}/state={s}/upgrade={upgrade_id_padded}: no .parquet files found in {d}")
     if errors:
         raise RuntimeError(f"Validation failed after {label}.\n" + "\n".join(errors))
     print(
-        "  Validation passed: found .parquet files for all"
-        " (file_type, state, upgrade) combinations.",
+        "  Validation passed: found .parquet files for all (file_type, state, upgrade) combinations.",
         flush=True,
     )
 
@@ -61,12 +57,8 @@ def validate_s3_objects(
         for s in state:
             for uid in upgrade_ids:
                 upgrade_id_padded = uid.zfill(2)
-                local_dir = (
-                    local_base / ft / f"state={s}" / f"upgrade={upgrade_id_padded}"
-                )
-                local_files = (
-                    sorted(local_dir.glob("*.parquet")) if local_dir.is_dir() else []
-                )
+                local_dir = local_base / ft / f"state={s}" / f"upgrade={upgrade_id_padded}"
+                local_files = sorted(local_dir.glob("*.parquet")) if local_dir.is_dir() else []
                 files_to_check = local_files[:spot_check_max]
                 if not files_to_check:
                     errors.append(
@@ -74,9 +66,7 @@ def validate_s3_objects(
                         f" no local .parquet files to spot-check under {local_dir}"
                     )
                     continue
-                s3_prefix = (
-                    f"{s3_base.rstrip('/')}/{ft}/state={s}/upgrade={upgrade_id_padded}"
-                )
+                s3_prefix = f"{s3_base.rstrip('/')}/{ft}/state={s}/upgrade={upgrade_id_padded}"
                 for local_file in files_to_check:
                     s3_path = f"{s3_prefix}/{local_file.name}"
                     result = subprocess.run(
@@ -86,10 +76,7 @@ def validate_s3_objects(
                         check=False,
                     )
                     if result.returncode != 0 or not result.stdout.strip():
-                        errors.append(
-                            f"  {ft}/state={s}/upgrade={upgrade_id_padded}:"
-                            f" object not found at {s3_path}"
-                        )
+                        errors.append(f"  {ft}/state={s}/upgrade={upgrade_id_padded}: object not found at {s3_path}")
     if errors:
         raise RuntimeError(f"Validation failed after {label}.\n" + "\n".join(errors))
     print(
@@ -107,8 +94,7 @@ def validate_metadata_readable(
     """Raise if the metadata LazyFrame schema is empty (file unreadable or corrupt)."""
     if not input_metadata.collect_schema():
         raise RuntimeError(
-            f"Validation failed reading metadata ({loc}).\n"
-            f"  File appears empty or unreadable: {input_path}"
+            f"Validation failed reading metadata ({loc}).\n  File appears empty or unreadable: {input_path}"
         )
 
 
@@ -136,8 +122,7 @@ def validate_metadata_output(
     """Raise if the output metadata file is missing or empty after sink_parquet."""
     if not output_path.exists() or output_path.stat().st_size == 0:
         raise RuntimeError(
-            f"Validation failed after metadata modification ({loc}).\n"
-            f"  Output file missing or empty: {output_path}"
+            f"Validation failed after metadata modification ({loc}).\n  Output file missing or empty: {output_path}"
         )
 
 
@@ -256,9 +241,7 @@ def validate_no_stale_aggregate_loads(
         for uid in upgrade_ids:
             upgrade_id_padded = uid.zfill(2)
             for file_type in checks:
-                out_dir = (
-                    path_sb / file_type / f"state={s}" / f"upgrade={upgrade_id_padded}"
-                )
+                out_dir = path_sb / file_type / f"state={s}" / f"upgrade={upgrade_id_padded}"
                 if out_dir.is_dir():
                     existing = list(out_dir.glob("*.parquet"))
                     if existing:
