@@ -40,8 +40,7 @@ def _derive_variant_name(
         if source_name.endswith(source_suffix):
             return source_name.removesuffix(source_suffix) + dest_suffix
     raise ValueError(
-        f"Unexpected tariff label/name: {source_name} "
-        f"(source_pattern={source_pattern}, dest_pattern={dest_pattern})"
+        f"Unexpected tariff label/name: {source_name} (source_pattern={source_pattern}, dest_pattern={dest_pattern})"
     )
 
 
@@ -77,11 +76,7 @@ def _discover_utilities(path_output_dir: Path, source_pattern: str) -> list[str]
     return sorted(
         candidate
         for candidate in candidates
-        if not any(
-            candidate.startswith(f"{other}_")
-            for other in candidates
-            if other != candidate
-        )
+        if not any(candidate.startswith(f"{other}_") for other in candidates if other != candidate)
     )
 
 
@@ -94,10 +89,7 @@ def _copy_utility_tariffs(
     for source_suffix, dest_suffix in _suffix_pairs(source_pattern, dest_pattern):
         path_source = path_output_dir / f"{utility}{source_suffix}"
         if not path_source.exists():
-            raise FileNotFoundError(
-                "Source not found: "
-                f"{path_source} (run create-{source_pattern}-tariffs first)"
-            )
+            raise FileNotFoundError(f"Source not found: {path_source} (run create-{source_pattern}-tariffs first)")
         _copy_variant(
             path_source,
             path_output_dir / f"{utility}{dest_suffix}",
@@ -107,9 +99,7 @@ def _copy_utility_tariffs(
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Copy tariff JSONs to variant names with updated labels"
-    )
+    parser = argparse.ArgumentParser(description="Copy tariff JSONs to variant names with updated labels")
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -156,9 +146,7 @@ def main() -> None:
                 f"{path_output_dir} (run create-{source_pattern}-tariffs first)"
             )
         for utility in utilities:
-            _copy_utility_tariffs(
-                path_output_dir, utility, source_pattern, dest_pattern
-            )
+            _copy_utility_tariffs(path_output_dir, utility, source_pattern, dest_pattern)
         return
 
     _copy_utility_tariffs(path_output_dir, args.utility, source_pattern, dest_pattern)

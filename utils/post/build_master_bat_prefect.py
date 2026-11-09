@@ -199,22 +199,17 @@ def _assert_building_match(
         )
 
 
-def _assert_rows_per_building(
-    df: pl.DataFrame, expected: int, label: str, utility: str
-) -> None:
+def _assert_rows_per_building(df: pl.DataFrame, expected: int, label: str, utility: str) -> None:
     counts = df.group_by(BLDG_ID).agg(pl.len().alias("n"))
     bad = counts.filter(pl.col("n") != expected)
     if not bad.is_empty():
         examples = bad.head(5).to_dicts()
         raise AssertionError(
-            f"[{utility}] {label}: expected {expected} rows per building, "
-            f"but found exceptions: {examples}"
+            f"[{utility}] {label}: expected {expected} rows per building, but found exceptions: {examples}"
         )
 
 
-def _assert_bat_identity(
-    df: pl.DataFrame, metric: str, tol: float, utility: str
-) -> None:
+def _assert_bat_identity(df: pl.DataFrame, metric: str, tol: float, utility: str) -> None:
     """Assert BAT_m_total == BAT_m_delivery + BAT_m_supply."""
     total_col = f"{metric}_total"
     delivery_col = f"{metric}_delivery"
@@ -224,11 +219,7 @@ def _assert_bat_identity(
     if not violations.is_empty():
         n = violations.height
         max_diff = cast(float, violations.select(diff.alias("d"))["d"].max())
-        example = (
-            violations.head(3)
-            .select(BLDG_ID, total_col, delivery_col, supply_col)
-            .to_dicts()
-        )
+        example = violations.head(3).select(BLDG_ID, total_col, delivery_col, supply_col).to_dicts()
         raise AssertionError(
             f"[{utility}] Identity violation: {total_col} != "
             f"{delivery_col} + {supply_col}. "
@@ -289,16 +280,13 @@ def _load_configs(state: str, utilities: list[str]) -> dict[str, PipelineConfig]
         config = load_pipeline_config(yaml_path)
         if config.utility != utility or config.state != state:
             raise ValueError(
-                f"{yaml_path} declares state={config.state}/utility={config.utility}, "
-                f"expected {state}/{utility}"
+                f"{yaml_path} declares state={config.state}/utility={config.utility}, expected {state}/{utility}"
             )
         configs[utility] = config
     return configs
 
 
-def _resolve_baseline(
-    state: str, configs: dict[str, PipelineConfig]
-) -> tuple[str, str]:
+def _resolve_baseline(state: str, configs: dict[str, PipelineConfig]) -> tuple[str, str]:
     """The baseline segment and its upgrade, which every utility must agree on."""
     baselines: dict[str, tuple[str, str]] = {}
     for utility, config in configs.items():
@@ -326,11 +314,7 @@ def _resolve_run_pairs(
     pairs: dict[str, dict[str, RunPair]] = {}
     for utility, config in configs.items():
         found = find_run_pairs(config, batch, scenarios=scenarios)
-        skipped = [
-            segment
-            for segment in expected_segments(config, scenarios=scenarios)
-            if segment not in found
-        ]
+        skipped = [segment for segment in expected_segments(config, scenarios=scenarios) if segment not in found]
         _log(f"  {utility}: {len(found)} segment(s) found: {list(found)}")
         if skipped:
             _log(f"  {utility}: skipping {len(skipped)} segment(s) not run: {skipped}")
@@ -388,12 +372,8 @@ def _process_utility(
     # --- Validate building IDs ---
     delivery_ids = set(bat_delivery_df[BLDG_ID].unique().to_list())
     supply_ids = set(bat_supply_df[BLDG_ID].unique().to_list())
-    _assert_building_match(
-        "bat_delivery", delivery_ids, "bat_supply", supply_ids, utility
-    )
-    _assert_building_match(
-        "bat_delivery", delivery_ids, "metadata", meta_bldg_ids, utility
-    )
+    _assert_building_match("bat_delivery", delivery_ids, "bat_supply", supply_ids, utility)
+    _assert_building_match("bat_delivery", delivery_ids, "metadata", meta_bldg_ids, utility)
     _assert_rows_per_building(bat_delivery_df, 1, "bat_delivery", utility)
     _assert_rows_per_building(bat_supply_df, 1, "bat_supply", utility)
 
@@ -416,20 +396,12 @@ def _process_utility(
     bat_metrics = [m for m in BAT_METRICS_KNOWN if m in delivery_cols]
     missing_bat = set(BAT_METRICS_KNOWN) - set(bat_metrics)
     if missing_bat:
-        _log(
-            f"  [{utility}] BAT metrics not in CAIRO output (skipping): "
-            f"{sorted(missing_bat)}"
-        )
+        _log(f"  [{utility}] BAT metrics not in CAIRO output (skipping): {sorted(missing_bat)}")
 
-    cost_components_src = {
-        k: v for k, v in COST_COMPONENTS_SRC_KNOWN.items() if k in delivery_cols
-    }
+    cost_components_src = {k: v for k, v in COST_COMPONENTS_SRC_KNOWN.items() if k in delivery_cols}
     missing_cost = set(COST_COMPONENTS_SRC_KNOWN) - set(cost_components_src)
     if missing_cost:
-        _log(
-            f"  [{utility}] Cost components not in CAIRO output (skipping): "
-            f"{sorted(missing_cost)}"
-        )
+        _log(f"  [{utility}] Cost components not in CAIRO output (skipping): {sorted(missing_cost)}")
     cost_components = list(cost_components_src.values())
 
     # --- Validate no nulls in source columns ---
@@ -443,18 +415,12 @@ def _process_utility(
     delivery_select = (
         [BLDG_ID, "weight"]
         + [pl.col(m).alias(f"{m}_delivery") for m in bat_metrics]
-        + [
-            pl.col(src).alias(f"{short}_delivery")
-            for src, short in cost_components_src.items()
-        ]
+        + [pl.col(src).alias(f"{short}_delivery") for src, short in cost_components_src.items()]
     )
     supply_select = (
         [BLDG_ID]
         + [pl.col(m).alias(f"{m}_total") for m in bat_metrics]
-        + [
-            pl.col(src).alias(f"{short}_total")
-            for src, short in cost_components_src.items()
-        ]
+        + [pl.col(src).alias(f"{short}_total") for src, short in cost_components_src.items()]
     )
     bat = (
         bat_delivery_df.select(delivery_select)
@@ -464,14 +430,8 @@ def _process_utility(
             how="inner",
         )
         .with_columns(
-            [
-                (pl.col(f"{m}_total") - pl.col(f"{m}_delivery")).alias(f"{m}_supply")
-                for m in bat_metrics
-            ]
-            + [
-                (pl.col(f"{c}_total") - pl.col(f"{c}_delivery")).alias(f"{c}_supply")
-                for c in cost_components
-            ]
+            [(pl.col(f"{m}_total") - pl.col(f"{m}_delivery")).alias(f"{m}_supply") for m in bat_metrics]
+            + [(pl.col(f"{c}_total") - pl.col(f"{c}_delivery")).alias(f"{c}_supply") for c in cost_components]
         )
     )
     _log_done("  BAT decomposition", t, f"{bat.height} rows")
@@ -502,9 +462,7 @@ def _process_utility(
     joined = joined_core.join(ref, on=BLDG_ID, how="left")
     n_null = int(joined["baseline_elec_delivery_bill"].null_count())
     if n_null > 0:
-        root = baseline_ref_root(
-            state_lower=state_lower, output_batch=batch, segment=baseline
-        )
+        root = baseline_ref_root(state_lower=state_lower, output_batch=batch, segment=baseline)
         raise FileNotFoundError(
             f"[{utility}] Could not join baseline columns from {baseline!r} "
             f"({n_null} null rows). Build master comb bills for the baseline "
@@ -513,9 +471,7 @@ def _process_utility(
     _log_done("  Joining with metadata", t, f"{joined.height} rows")
 
     if joined.height != n_bldgs:
-        raise AssertionError(
-            f"[{utility}] Expected {n_bldgs} rows (1 per building), got {joined.height}"
-        )
+        raise AssertionError(f"[{utility}] Expected {n_bldgs} rows (1 per building), got {joined.height}")
 
     # --- Validate identities and nulls ---
     for m in bat_metrics:
@@ -524,19 +480,11 @@ def _process_utility(
         _assert_bat_identity(joined, c, FLOAT_TOL, utility)
     _assert_bill_decomposition(joined, FLOAT_TOL, utility)
 
-    bat_output_cols = [
-        f"{m}_{component}"
-        for m in bat_metrics
-        for component in ("delivery", "supply", "total")
-    ]
-    cost_output_cols = [
-        f"{c}_{component}"
-        for c in cost_components
-        for component in ("delivery", "supply", "total")
-    ]
+    bat_output_cols = [f"{m}_{component}" for m in bat_metrics for component in ("delivery", "supply", "total")]
+    cost_output_cols = [f"{c}_{component}" for c in cost_components for component in ("delivery", "supply", "total")]
     _assert_no_nulls(
         joined,
-        ["weight"] + bat_output_cols + cost_output_cols + BASELINE_COLS,
+        ["weight", *bat_output_cols, *cost_output_cols, *BASELINE_COLS],
         utility,
     )
 
@@ -559,9 +507,7 @@ def _write_parquet_dir(df: pl.DataFrame, output_s3: str) -> None:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-def _write_hive_partitioned(
-    df: pl.DataFrame, output_s3: str, partition_col: str
-) -> None:
+def _write_hive_partitioned(df: pl.DataFrame, output_s3: str, partition_col: str) -> None:
     """Write a Hive-partitioned dataset (one parquet per partition value) to S3."""
     tmp_dir = Path(tempfile.mkdtemp(prefix="master_bat_all_"))
     try:
@@ -587,8 +533,7 @@ def _write_hive_partitioned(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Build master BAT tables for every scenario/stage in a "
-        "Prefect pipeline batch.",
+        description="Build master BAT tables for every scenario/stage in a Prefect pipeline batch.",
     )
     parser.add_argument("--state", required=True, help="State code (e.g. md)")
     parser.add_argument(
@@ -622,10 +567,7 @@ def main() -> None:
     utilities = args.utilities.split(",") if args.utilities else _read_utilities(state)
     storage_options = get_aws_storage_options()
 
-    _log(
-        f"Building master BAT: state={state_upper}, batch={args.batch}, "
-        f"utilities={utilities}"
-    )
+    _log(f"Building master BAT: state={state_upper}, batch={args.batch}, utilities={utilities}")
 
     # --- Resolve the batch: configs, baseline, and completed run pairs ---
     configs = _load_configs(state, utilities)
@@ -637,7 +579,7 @@ def main() -> None:
 
     # --- Load metadata (one read per distinct ResStock release) ---
     metadata_by_base: dict[str, pl.DataFrame] = {}
-    for utility, config in configs.items():
+    for _utility, config in configs.items():
         base = config.run_defaults.resstock_base.rstrip("/")
         if base in metadata_by_base:
             continue
@@ -648,9 +590,7 @@ def main() -> None:
     bldgs_per_utility: dict[str, int] = {}
     for utility, config in configs.items():
         metadata = metadata_by_base[config.run_defaults.resstock_base.rstrip("/")]
-        n = metadata.filter(pl.col("sb.electric_utility") == utility)[
-            BLDG_ID
-        ].n_unique()
+        n = metadata.filter(pl.col("sb.electric_utility") == utility)[BLDG_ID].n_unique()
         bldgs_per_utility[utility] = n
         _log(f"  {utility}: {n} buildings")
 
@@ -659,10 +599,7 @@ def main() -> None:
     # --- One master table per segment ---
     for seg_i, segment in enumerate(segments, 1):
         seg_utilities = [u for u in utilities if segment in run_pairs.get(u, {})]
-        _log(
-            f"=== Segment {seg_i}/{len(segments)}: {segment} "
-            f"({len(seg_utilities)} utility/ies: {seg_utilities}) ==="
-        )
+        _log(f"=== Segment {seg_i}/{len(segments)}: {segment} ({len(seg_utilities)} utility/ies: {seg_utilities}) ===")
 
         all_dfs: list[pl.DataFrame] = []
         for i, utility in enumerate(seg_utilities, 1):
@@ -673,9 +610,7 @@ def main() -> None:
             df = _process_utility(
                 utility=utility,
                 run=run_pairs[utility][segment],
-                metadata_for_utility=metadata_by_base[base].filter(
-                    pl.col("sb.electric_utility") == utility
-                ),
+                metadata_for_utility=metadata_by_base[base].filter(pl.col("sb.electric_utility") == utility),
                 state_lower=state,
                 batch=args.batch,
                 baseline=baseline,
@@ -684,8 +619,7 @@ def main() -> None:
             )
 
             per_util_output_s3 = (
-                f"{output_base_s3}/{state}/{utility}/{args.batch}/{segment}/"
-                f"cross_subsidization_BAT_values/"
+                f"{output_base_s3}/{state}/{utility}/{args.batch}/{segment}/cross_subsidization_BAT_values/"
             )
             t_util = _log(f"  Writing per-utility output to {per_util_output_s3}...")
             _write_parquet_dir(df, per_util_output_s3)
@@ -712,27 +646,17 @@ def main() -> None:
                 f"{expected_bldgs} (across {len(seg_utilities)} utilities)"
             )
 
-        per_util_check = master.group_by("sb.electric_utility").agg(
-            pl.col(BLDG_ID).n_unique().alias("n_bldgs")
-        )
+        per_util_check = master.group_by("sb.electric_utility").agg(pl.col(BLDG_ID).n_unique().alias("n_bldgs"))
         for row in per_util_check.iter_rows(named=True):
             u = row["sb.electric_utility"]
             actual = row["n_bldgs"]
             expected = bldgs_per_utility.get(u, -1)
             if actual != expected:
-                raise AssertionError(
-                    f"Utility {u}: expected {expected} buildings, got {actual}"
-                )
+                raise AssertionError(f"Utility {u}: expected {expected} buildings, got {actual}")
 
         master_cols = set(master.columns)
-        final_bat_metrics = [
-            m for m in BAT_METRICS_KNOWN if f"{m}_delivery" in master_cols
-        ]
-        final_cost_components = [
-            v
-            for v in COST_COMPONENTS_SRC_KNOWN.values()
-            if f"{v}_delivery" in master_cols
-        ]
+        final_bat_metrics = [m for m in BAT_METRICS_KNOWN if f"{m}_delivery" in master_cols]
+        final_cost_components = [v for v in COST_COMPONENTS_SRC_KNOWN.values() if f"{v}_delivery" in master_cols]
         for m in final_bat_metrics:
             _assert_bat_identity(master, m, FLOAT_TOL, "ALL")
         for c in final_cost_components:
@@ -741,10 +665,7 @@ def main() -> None:
         _log_done("Validation", t)
 
         # --- Write output (Hive-partitioned parquet) ---
-        output_s3 = (
-            f"{output_base_s3}/{state}/all_utilities/{args.batch}/{segment}/"
-            f"cross_subsidization_BAT_values/"
-        )
+        output_s3 = f"{output_base_s3}/{state}/all_utilities/{args.batch}/{segment}/cross_subsidization_BAT_values/"
         t = _log(f"Writing to {output_s3}...")
         _write_hive_partitioned(master, output_s3, "sb.electric_utility")
         _log_done("Writing", t)

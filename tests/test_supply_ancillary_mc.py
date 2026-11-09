@@ -17,7 +17,6 @@ from utils.data_prep.marginal_costs.supply_utils import (
     prepare_component_output,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
 # ---------------------------------------------------------------------------
@@ -54,10 +53,9 @@ def test_load_ancillary_sums_reg_service_and_capacity() -> None:
     result = (
         raw.rename({"interval_start_et": "timestamp"})
         .with_columns(
-            (
-                pl.col("reg_service_price_usd_per_mwh")
-                + pl.col("reg_capacity_price_usd_per_mwh")
-            ).alias("ancillary_cost_enduse")
+            (pl.col("reg_service_price_usd_per_mwh") + pl.col("reg_capacity_price_usd_per_mwh")).alias(
+                "ancillary_cost_enduse"
+            )
         )
         .select("timestamp", "ancillary_cost_enduse")
     )
@@ -67,12 +65,8 @@ def test_load_ancillary_sums_reg_service_and_capacity() -> None:
     assert result["ancillary_cost_enduse"][0] == pytest.approx(expected_first)
 
     # all values must equal sum of the two source columns
-    expected = (
-        raw["reg_service_price_usd_per_mwh"] + raw["reg_capacity_price_usd_per_mwh"]
-    )
-    assert result["ancillary_cost_enduse"].to_list() == pytest.approx(
-        expected.to_list()
-    )
+    expected = raw["reg_service_price_usd_per_mwh"] + raw["reg_capacity_price_usd_per_mwh"]
+    assert result["ancillary_cost_enduse"].to_list() == pytest.approx(expected.to_list())
 
 
 def test_load_ancillary_columns() -> None:
@@ -81,10 +75,9 @@ def test_load_ancillary_columns() -> None:
     result = (
         raw.rename({"interval_start_et": "timestamp"})
         .with_columns(
-            (
-                pl.col("reg_service_price_usd_per_mwh")
-                + pl.col("reg_capacity_price_usd_per_mwh")
-            ).alias("ancillary_cost_enduse")
+            (pl.col("reg_service_price_usd_per_mwh") + pl.col("reg_capacity_price_usd_per_mwh")).alias(
+                "ancillary_cost_enduse"
+            )
         )
         .select("timestamp", "ancillary_cost_enduse")
     )
@@ -99,18 +92,15 @@ def test_ancillary_wide_to_enduse_isone_matches_reg_sum_formula() -> None:
     manual = (
         raw.rename({"interval_start_et": "timestamp"})
         .with_columns(
-            (
-                pl.col("reg_service_price_usd_per_mwh")
-                + pl.col("reg_capacity_price_usd_per_mwh")
-            ).alias("ancillary_cost_enduse")
+            (pl.col("reg_service_price_usd_per_mwh") + pl.col("reg_capacity_price_usd_per_mwh")).alias(
+                "ancillary_cost_enduse"
+            )
         )
         .select("timestamp", "ancillary_cost_enduse")
     )
     assert from_module.schema == manual.schema
     assert from_module["timestamp"].to_list() == manual["timestamp"].to_list()
-    assert from_module["ancillary_cost_enduse"].to_list() == pytest.approx(
-        manual["ancillary_cost_enduse"].to_list()
-    )
+    assert from_module["ancillary_cost_enduse"].to_list() == pytest.approx(manual["ancillary_cost_enduse"].to_list())
 
 
 def test_ancillary_wide_to_enduse_nyiso_one_hour_interval() -> None:
@@ -214,7 +204,7 @@ def test_prepare_collapses_subhourly_nyiso_style_rows_to_hourly_mean() -> None:
 
 def test_nyiso_scan_columns_include_fetch_schema_core() -> None:
     """NYISO parquet select list stays aligned with ``fetch_nyiso_as_prices_parquet``."""
-    cfg = supply_ancillary_mod._ancillary_config("nyiso")  # noqa: SLF001 — internal config table
+    cfg = supply_ancillary_mod._ancillary_config("nyiso")
     names = set(cfg.scan_columns)
     assert "interval_start_et" in names
     assert "interval_end_et" in names

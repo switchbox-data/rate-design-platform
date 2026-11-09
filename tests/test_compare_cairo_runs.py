@@ -59,21 +59,15 @@ class TestCompareArtifact:
         store["s3://base/bat.csv"] = csv_bytes
         store["s3://chal/bat.csv"] = csv_bytes
 
-        result = compare_artifact(
-            "s3://base", "s3://chal", "bat", "bat.csv", ["bldg_id"]
-        )
+        result = compare_artifact("s3://base", "s3://chal", "bat", "bat.csv", ["bldg_id"])
         assert result.passed
         assert result.max_abs_diff == 0.0
         assert result.mismatched_columns == []
 
-    def test_small_diff_within_tolerance_passes(
-        self, _patch_s3_reader: dict[str, bytes]
-    ) -> None:
+    def test_small_diff_within_tolerance_passes(self, _patch_s3_reader: dict[str, bytes]) -> None:
         store = _patch_s3_reader
         base_df = pl.DataFrame({"bldg_id": [1, 2], "bill": [100.0, 200.0]})
-        chal_df = pl.DataFrame(
-            {"bldg_id": [1, 2], "bill": [100.0 + 1e-13, 200.0 - 1e-13]}
-        )
+        chal_df = pl.DataFrame({"bldg_id": [1, 2], "bill": [100.0 + 1e-13, 200.0 - 1e-13]})
         store["s3://base/bat.csv"] = _df_to_csv_bytes(base_df)
         store["s3://chal/bat.csv"] = _df_to_csv_bytes(chal_df)
 

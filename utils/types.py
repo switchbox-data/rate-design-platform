@@ -69,16 +69,12 @@ GasUtility = Literal[
 
 
 class SBScenario:
-    analysis_type: Literal[
-        "default", "seasonal", "seasonal_discount", "class_specific_seasonal"
-    ]
+    analysis_type: Literal["default", "seasonal", "seasonal_discount", "class_specific_seasonal"]
     analysis_year: int
 
     def __init__(
         self,
-        analysis_type: Literal[
-            "default", "seasonal", "seasonal_discount", "class_specific_seasonal"
-        ],
+        analysis_type: Literal["default", "seasonal", "seasonal_discount", "class_specific_seasonal"],
         analysis_year: int,
     ):
         if analysis_type not in [

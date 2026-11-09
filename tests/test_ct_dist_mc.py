@@ -69,9 +69,7 @@ _SECONDARY_LOSS_FACTOR = 1.051845136935937
 
 class TestCtMarginalCostTable:
     def test_config_csv_exists(self) -> None:
-        assert CT_MC_TABLE_PATH.exists(), (
-            f"Expected CT marginal cost config at {CT_MC_TABLE_PATH}"
-        )
+        assert CT_MC_TABLE_PATH.exists(), f"Expected CT marginal cost config at {CT_MC_TABLE_PATH}"
 
     def test_ct_eversource_value_is_table3_times_secondary_loss_factor(self) -> None:
         """MCOS-2 Table 3 ($20.17/kW-yr) grossed up to secondary service.
@@ -152,9 +150,7 @@ class TestCtSystemLoadSource:
         normalized = normalize_load_to_cairo_8760(df, "ct_eversource", 2025)
         assert normalized.height == 8760
         assert normalized.schema["timestamp"] == pl.Datetime("us")
-        kept = normalized.filter(
-            pl.col("timestamp") == pl.lit("2025-01-01 00:00:00").str.to_datetime()
-        )
+        kept = normalized.filter(pl.col("timestamp") == pl.lit("2025-01-01 00:00:00").str.to_datetime())
         assert float(kept["load_mw"][0]) == pytest.approx(1000.0)
 
 
@@ -180,11 +176,7 @@ def _make_ct_summer_peaking_load(year: int = 2025) -> pl.DataFrame:
     afternoon_hours = {14, 15, 16, 17, 18}
     load_mw = (
         3000.0
-        + pl.when(month.is_in(summer_peak_months))
-        .then(2500.0)
-        .when(month.is_in([6, 9]))
-        .then(800.0)
-        .otherwise(0.0)
+        + pl.when(month.is_in(summer_peak_months)).then(2500.0).when(month.is_in([6, 9])).then(800.0).otherwise(0.0)
         + pl.when(hour.is_in(afternoon_hours)).then(500.0).otherwise(0.0)
         + df["idx"].cast(pl.Float64) * 0.001
     )
@@ -217,9 +209,7 @@ class TestCtPopAllocationEndToEnd:
         normalized = normalize_load_to_cairo_8760(load_df, "ct_eversource", 2025)
         weighted = calculate_pop_weights(normalized, n_hours=100)
 
-        peak_months = (
-            weighted.filter(pl.col("is_peak"))["timestamp"].dt.month().to_list()
-        )
+        peak_months = weighted.filter(pl.col("is_peak"))["timestamp"].dt.month().to_list()
         assert all(m in {6, 7, 8, 9} for m in peak_months)
         assert sum(1 for m in peak_months if m in {7, 8}) / len(peak_months) > 0.5
 
@@ -228,9 +218,7 @@ class TestCtPopAllocationEndToEnd:
         normalized = normalize_load_to_cairo_8760(load_df, "ct_eversource", 2025)
         weighted = calculate_pop_weights(normalized, n_hours=100)
 
-        peak_months = set(
-            weighted.filter(pl.col("is_peak"))["timestamp"].dt.month().to_list()
-        )
+        peak_months = set(weighted.filter(pl.col("is_peak"))["timestamp"].dt.month().to_list())
         assert peak_months.isdisjoint({11, 12, 1, 2, 3})
 
 

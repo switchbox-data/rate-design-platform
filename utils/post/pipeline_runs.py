@@ -36,13 +36,7 @@ def pipeline_yaml_path(state: str, utility: str) -> Path:
 
     ``{state}/config/scenarios/pipeline_{utility}.yaml``
     """
-    path = (
-        HP_RATES_DIR
-        / state.lower()
-        / "config"
-        / "scenarios"
-        / f"pipeline_{utility}.yaml"
-    )
+    path = HP_RATES_DIR / state.lower() / "config" / "scenarios" / f"pipeline_{utility}.yaml"
     if not path.is_file():
         raise FileNotFoundError(
             f"No pipeline YAML for utility {utility!r} at {path}. "
@@ -118,9 +112,7 @@ class RunPair:
         return master_segment(self.scenario, self.stage)
 
 
-def expected_segments(
-    config: PipelineConfig, *, scenarios: Iterable[str] | None = None
-) -> list[str]:
+def expected_segments(config: PipelineConfig, *, scenarios: Iterable[str] | None = None) -> list[str]:
     """Every ``{scenario}_{stage}`` the pipeline YAML declares, in YAML order."""
     names = list(config.scenarios) if scenarios is None else list(scenarios)
     for name in names:
@@ -149,9 +141,7 @@ def find_run_pairs(
         scenario = config.scenario(name)
         for stage in STAGES:
             run_names = {
-                variant: canonical_run_name(
-                    config.state, config.utility, scenario.name, stage, variant
-                )
+                variant: canonical_run_name(config.state, config.utility, scenario.name, stage, variant)
                 for variant in VARIANTS
             }
             delivery = read_run_dir(root, run_names["delivery"])

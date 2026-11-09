@@ -63,9 +63,7 @@ def test_find_tou_derivation_path_key_only(tmp_path: Path) -> None:
     # One re.sub removes both trailing _flex and _calibrated from the key.
     target = ddir / "nimo_hp_seasonalTOU_derivation.json"
     target.write_text("[]", encoding="utf-8")
-    assert (
-        find_tou_derivation_path("nimo_hp_seasonalTOU_flex_calibrated", ddir) == target
-    )
+    assert find_tou_derivation_path("nimo_hp_seasonalTOU_flex_calibrated", ddir) == target
 
 
 def test_find_tou_derivation_path_supply_stem_does_not_use_delivery_json(
@@ -76,16 +74,10 @@ def test_find_tou_derivation_path_supply_stem_does_not_use_delivery_json(
     ddir.mkdir()
     delivery = ddir / "nimo_hp_seasonalTOU_derivation.json"
     delivery.write_text("[]", encoding="utf-8")
-    assert (
-        find_tou_derivation_path("nimo_hp_seasonalTOU_flex_supply_calibrated", ddir)
-        is None
-    )
+    assert find_tou_derivation_path("nimo_hp_seasonalTOU_flex_supply_calibrated", ddir) is None
     supply = ddir / "nimo_hp_seasonalTOU_supply_derivation.json"
     supply.write_text("[]", encoding="utf-8")
-    assert (
-        find_tou_derivation_path("nimo_hp_seasonalTOU_flex_supply_calibrated", ddir)
-        == supply
-    )
+    assert find_tou_derivation_path("nimo_hp_seasonalTOU_flex_supply_calibrated", ddir) == supply
 
 
 def test_recompute_tou_precalc_mapping_warns_for_multiple_tou_tariffs(

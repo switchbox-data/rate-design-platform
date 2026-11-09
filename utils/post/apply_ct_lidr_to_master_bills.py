@@ -107,11 +107,7 @@ def _build_smi_threshold_column(
     expr = pl.lit(smi_thresholds.get(8, 0.0))
     for hh_size in range(8, 0, -1):
         thresh = smi_thresholds.get(hh_size, 0.0)
-        expr = (
-            pl.when(pl.col(occupants_col) == hh_size)
-            .then(pl.lit(thresh))
-            .otherwise(expr)
-        )
+        expr = pl.when(pl.col(occupants_col) == hh_size).then(pl.lit(thresh)).otherwise(expr)
     return expr
 
 
@@ -149,34 +145,16 @@ def _build_ct_raw_tiers(
     )
 
     meta = meta.with_columns(parse_occupants_expr("in.occupants").alias(occupants_num))
-    meta = meta.with_columns(
-        fpl_threshold_expr(occupants_num, fpl["base"], fpl["increment"]).alias(
-            fpl_threshold
-        )
-    )
-    meta = meta.with_columns(
-        inflate_income_expr("in.representative_income", cpi_ratio).alias(
-            income_inflated
-        )
-    )
-    meta = meta.with_columns(
-        fpl_pct_expr(income_inflated, pl.col(fpl_threshold)).alias(fpl_pct)
-    )
-    meta = meta.with_columns(
-        _build_smi_threshold_column(occupants_num, smi_100).alias(smi_threshold)
-    )
-    meta = meta.with_columns(
-        smi_pct_expr(income_inflated, smi_threshold).alias(smi_pct)
-    )
-    meta = meta.with_columns(
-        assign_ct_lidr_tier_expr(fpl_pct, smi_pct, config).alias(tier_col)
-    )
+    meta = meta.with_columns(fpl_threshold_expr(occupants_num, fpl["base"], fpl["increment"]).alias(fpl_threshold))
+    meta = meta.with_columns(inflate_income_expr("in.representative_income", cpi_ratio).alias(income_inflated))
+    meta = meta.with_columns(fpl_pct_expr(income_inflated, pl.col(fpl_threshold)).alias(fpl_pct))
+    meta = meta.with_columns(_build_smi_threshold_column(occupants_num, smi_100).alias(smi_threshold))
+    meta = meta.with_columns(smi_pct_expr(income_inflated, smi_threshold).alias(smi_pct))
+    meta = meta.with_columns(assign_ct_lidr_tier_expr(fpl_pct, smi_pct, config).alias(tier_col))
     meta = meta.filter(pl.col("in.vacancy_status") != "Vacant")
     meta = meta.with_columns((pl.col(tier_col) >= 1).alias("is_lmi_elec"))
 
-    result = (
-        meta.select(BLDG_ID, tier_col, "is_lmi_elec", fpl_pct).sort(BLDG_ID).collect()
-    )
+    result = meta.select(BLDG_ID, tier_col, "is_lmi_elec", fpl_pct).sort(BLDG_ID).collect()
     assert isinstance(result, pl.DataFrame)
     return result
 
@@ -204,9 +182,7 @@ def _sample_ct_participation(
         result = raw_tiers.with_columns(eligible.alias("participates"))
     elif participation_mode == "uniform":
         result = raw_tiers.with_columns(
-            participation_uniform_expr(
-                BLDG_ID, participation_rate, seed, eligible
-            ).alias("participates")
+            participation_uniform_expr(BLDG_ID, participation_rate, seed, eligible).alias("participates")
         )
     else:
         eligible_df = (
@@ -214,9 +190,7 @@ def _sample_ct_participation(
             .with_columns((1.0 / pl.col(fpl_pct).clip(lower_bound=1.0)).alias("weight"))
             .select(BLDG_ID, fpl_pct, tier_col, "weight")
         )
-        part_df = select_participants_weighted(
-            eligible_df, participation_rate, seed, "weight", BLDG_ID
-        )
+        part_df = select_participants_weighted(eligible_df, participation_rate, seed, "weight", BLDG_ID)
         result = raw_tiers.join(part_df, on=BLDG_ID, how="left")
         result = result.with_columns(
             pl.when(eligible)
@@ -226,14 +200,9 @@ def _sample_ct_participation(
         )
 
     result = result.with_columns(
-        pl.when(pl.col("participates"))
-        .then(pl.col(tier_col))
-        .otherwise(pl.lit(0))
-        .alias("elec_lmi_tier")
+        pl.when(pl.col("participates")).then(pl.col(tier_col)).otherwise(pl.lit(0)).alias("elec_lmi_tier")
     )
-    return result.select(
-        BLDG_ID, "elec_lmi_tier", tier_col, "is_lmi_elec", "participates"
-    )
+    return result.select(BLDG_ID, "elec_lmi_tier", tier_col, "is_lmi_elec", "participates")
 
 
 def _apply_lidr_discount(
@@ -273,17 +242,11 @@ def _apply_lidr_discount(
             pl.col("participates").fill_null(False),
         )
     if joined.height != n_expected_rows:
-        raise AssertionError(
-            f"CT LIDR join changed row count: {n_expected_rows} -> {joined.height}"
-        )
+        raise AssertionError(f"CT LIDR join changed row count: {n_expected_rows} -> {joined.height}")
 
     disc_pct = pl.lit(0.0)
     for tier, pct in disc_by_tier.items():
-        disc_pct = (
-            pl.when(pl.col("elec_lmi_tier") == tier)
-            .then(pl.lit(pct))
-            .otherwise(disc_pct)
-        )
+        disc_pct = pl.when(pl.col("elec_lmi_tier") == tier).then(pl.lit(pct)).otherwise(disc_pct)
 
     cap_kwh = ct_usage_cap_kwh_expr("heats_with_electricity", config)
     # The discount applies to the whole bill (fixed + volumetric), but the
@@ -293,9 +256,7 @@ def _apply_lidr_discount(
     # approximation for tiered/seasonal block rates).
     avg_rate = (
         (pl.col("elec_total_bill") - pl.col("elec_fixed_charge"))
-        / pl.when(pl.col("elec_grid_kwh") > 0)
-        .then(pl.col("elec_grid_kwh"))
-        .otherwise(None)
+        / pl.when(pl.col("elec_grid_kwh") > 0).then(pl.col("elec_grid_kwh")).otherwise(None)
     ).fill_null(0.0)
     bill_at_cap = pl.col("elec_fixed_charge") + avg_rate * cap_kwh
     discountable_bill = pl.min_horizontal(pl.col("elec_total_bill"), bill_at_cap)
@@ -316,12 +277,7 @@ def _apply_lidr_discount(
     # LIDR is electric-only so the other fuels pass through.
     joined = joined.with_columns(
         pl.when(pl.col("month") != ANNUAL_MONTH)
-        .then(
-            pl.col(elec_col)
-            + pl.col("gas_total_bill")
-            + pl.col("propane_total_bill")
-            + pl.col("oil_total_bill")
-        )
+        .then(pl.col(elec_col) + pl.col("gas_total_bill") + pl.col("propane_total_bill") + pl.col("oil_total_bill"))
         .otherwise(pl.lit(None))
         .alias(energy_col),
     )
@@ -336,9 +292,7 @@ def _apply_lidr_discount(
     )
     joined = joined.join(monthly_sums, on=BLDG_ID, how="left")
     if joined.height != n_expected_rows:
-        raise AssertionError(
-            f"CT LIDR annual-sum join changed row count: {n_expected_rows} -> {joined.height}"
-        )
+        raise AssertionError(f"CT LIDR annual-sum join changed row count: {n_expected_rows} -> {joined.height}")
 
     return joined.with_columns(
         pl.when(pl.col("month") == ANNUAL_MONTH)
@@ -392,12 +346,8 @@ def apply_ct_lidr_to_master(
         )
 
     s3_base = path_resstock_release.rstrip("/")
-    meta_path = (
-        f"{s3_base}/metadata/state={state_upper}/upgrade={upgrade}/metadata-sb.parquet"
-    )
-    util_path = (
-        f"{s3_base}/metadata_utility/state={state_upper}/utility_assignment.parquet"
-    )
+    meta_path = f"{s3_base}/metadata/state={state_upper}/upgrade={upgrade}/metadata-sb.parquet"
+    util_path = f"{s3_base}/metadata_utility/state={state_upper}/utility_assignment.parquet"
 
     config = load_ct_lidr_config()
     disc_by_tier = discount_fractions_for_ct(config)
@@ -427,19 +377,14 @@ def apply_ct_lidr_to_master(
         config=config,
         opts=opts,
     )
-    print(
-        f"[CT LIDR] {raw_tiers.height} buildings, "
-        f"{raw_tiers['is_lmi_elec'].sum()} elec-eligible"
-    )
+    print(f"[CT LIDR] {raw_tiers.height} buildings, {raw_tiers['is_lmi_elec'].sum()} elec-eligible")
 
     n_expected_rows = master.height
     for rate in participation_rates:
         pct_label = round(rate * 100)
         print(f"[CT LIDR] Applying discounts (p{pct_label})...")
         tier_info = _sample_ct_participation(raw_tiers, rate, participation_mode, seed)
-        master = _apply_lidr_discount(
-            master, tier_info, pct_label, disc_by_tier, config, n_expected_rows
-        )
+        master = _apply_lidr_discount(master, tier_info, pct_label, disc_by_tier, config, n_expected_rows)
 
         n_part = (
             master.filter(pl.col("month") == ANNUAL_MONTH)
@@ -453,9 +398,7 @@ def apply_ct_lidr_to_master(
 
 def main() -> None:
     load_dotenv()
-    parser = argparse.ArgumentParser(
-        description="Apply CT LIDR discounts to a built master-bills parquet."
-    )
+    parser = argparse.ArgumentParser(description="Apply CT LIDR discounts to a built master-bills parquet.")
     parser.add_argument(
         "--master-bills-path",
         required=True,
@@ -466,9 +409,7 @@ def main() -> None:
         required=True,
         help="Path (local or s3://) to write augmented master bills",
     )
-    parser.add_argument(
-        "--utility", required=True, help="Electric utility code (e.g. ct_eversource)"
-    )
+    parser.add_argument("--utility", required=True, help="Electric utility code (e.g. ct_eversource)")
     parser.add_argument("--state", default="CT")
     parser.add_argument("--upgrade", default="00")
     parser.add_argument(
@@ -488,9 +429,7 @@ def main() -> None:
         "lmi_discounts_in_ct.md Section 4.2). Keep 45-60%% as a later "
         "sensitivity range, not as extra default columns.",
     )
-    parser.add_argument(
-        "--participation-mode", choices=["uniform", "weighted"], default="uniform"
-    )
+    parser.add_argument("--participation-mode", choices=["uniform", "weighted"], default="uniform")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 

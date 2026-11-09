@@ -63,11 +63,7 @@ def load_eia176_residential_kwh(
     )
     imputed = by_operator.filter(pl.col("heat_content_imputed"))
     if imputed.height:
-        share = (
-            float(imputed["volume_mcf"].sum())
-            / float(by_operator["volume_mcf"].sum())
-            * 100
-        )
+        share = float(imputed["volume_mcf"].sum()) / float(by_operator["volume_mcf"].sum()) * 100
         print(
             f"  WARNING: EIA-176 {state} {year} has no delivered-gas heat content for "
             f"operator(s) {imputed['operator_id_eia'].to_list()} ({share:.1f}% of "
@@ -84,9 +80,7 @@ def resstock_weighted_gas_kwh(load_curve_annual: pl.LazyFrame) -> float:
         if col not in schema:
             raise ValueError(f"Load curve annual is missing column {col!r}.")
     return float(
-        load_curve_annual.select(
-            (pl.col(ANNUAL_GAS_TOTAL_COL).fill_null(0) * pl.col(WEIGHT_COL)).sum()
-        )
+        load_curve_annual.select((pl.col(ANNUAL_GAS_TOTAL_COL).fill_null(0) * pl.col(WEIGHT_COL)).sum())
         .collect()
         .item()
     )
@@ -98,14 +92,10 @@ def scale_gas_hourly(load_curve_hourly: pl.LazyFrame, factor: float) -> pl.LazyF
     missing = [c for c in HOURLY_GAS_COLS if c not in schema]
     if missing:
         raise ValueError(f"Hourly load curve is missing gas columns {missing}.")
-    return load_curve_hourly.with_columns(
-        (pl.col(c) * factor).alias(c) for c in HOURLY_GAS_COLS
-    )
+    return load_curve_hourly.with_columns((pl.col(c) * factor).alias(c) for c in HOURLY_GAS_COLS)
 
 
-def adjust_gas_usage_hourly_dir(
-    load_curve_hourly_dir: Path, factor: float, max_workers: int = 128
-) -> int:
+def adjust_gas_usage_hourly_dir(load_curve_hourly_dir: Path, factor: float, max_workers: int = 128) -> int:
     """Scale gas columns in every hourly parquet in the directory, in place.
 
     Returns the number of files rewritten.
@@ -114,9 +104,7 @@ def adjust_gas_usage_hourly_dir(
 
     def _scale_one(path: Path) -> None:
         # Collect before writing: source and sink are the same file.
-        scale_gas_hourly(pl.scan_parquet(str(path)), factor).collect().write_parquet(
-            str(path)
-        )
+        scale_gas_hourly(pl.scan_parquet(str(path)), factor).collect().write_parquet(str(path))
 
     n_files = len(paths)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:

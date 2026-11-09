@@ -36,9 +36,7 @@ QUARTET_KINDS: frozenset[str] = frozenset(
 
 # One posted tariff, no subclass split. Includes uncalibrated (CAIRO default
 # mode: tariff is not solved to the class RR).
-_SINGLE_RATE_QUARTETS: frozenset[str] = frozenset(
-    {"single_rate", "single_rate_uncalibrated"}
-)
+_SINGLE_RATE_QUARTETS: frozenset[str] = frozenset({"single_rate", "single_rate_uncalibrated"})
 
 # CAIRO leaves the posted tariff unchanged (run_type: default + large-number RR).
 _UNCALIBRATED_QUARTETS: frozenset[str] = frozenset({"single_rate_uncalibrated"})
@@ -52,9 +50,7 @@ _MULTI_PRECALC_QUARTETS: frozenset[str] = frozenset(
 _MULTI_EVAL_QUARTETS: frozenset[str] = frozenset({"multi_rate_preserved"})
 
 # Multi-rate quartets that are not fixed: one parent, then derive_tariffs.
-_DERIVE_QUARTETS: frozenset[str] = frozenset(
-    {"multi_rate_collapsed", "multi_rate_preserved"}
-)
+_DERIVE_QUARTETS: frozenset[str] = frozenset({"multi_rate_collapsed", "multi_rate_preserved"})
 
 # Residual allocation method -> BAT cross-subsidy column in CAIRO outputs.
 ALLOCATION_TO_BAT_COL: dict[str, str] = {
@@ -291,9 +287,7 @@ class PipelineConfig:
 
     def scenario(self, name: str) -> ScenarioConfig:
         if name not in self.scenarios:
-            raise KeyError(
-                f"Unknown scenario {name!r}; available: {sorted(self.scenarios)}"
-            )
+            raise KeyError(f"Unknown scenario {name!r}; available: {sorted(self.scenarios)}")
         return self.scenarios[name]
 
 
@@ -322,9 +316,7 @@ def tariff_stem(
     """
     if scenario.is_single_rate:
         if scenario.tariff_base is None:
-            raise ValueError(
-                f"Scenario {scenario.name!r} is single-rate but has no tariff_base."
-            )
+            raise ValueError(f"Scenario {scenario.name!r} is single-rate but has no tariff_base.")
         name = f"{utility}_{scenario.tariff_base}"
     else:
         if alias is None:
@@ -356,12 +348,7 @@ def gas_tariff_map_path(config: PipelineConfig, *, calibrated: bool) -> Path:
     """Path to the gas tariff map CSV (scenario-independent)."""
     rd = config.run_defaults
     upgrade = rd.upgrade_calibrated if calibrated else rd.upgrade_precalc
-    return (
-        config.state_config_dir
-        / "tariff_maps"
-        / "gas"
-        / f"{config.utility}_u{upgrade}.csv"
-    )
+    return config.state_config_dir / "tariff_maps" / "gas" / f"{config.utility}_u{upgrade}.csv"
 
 
 def canonical_run_name(
@@ -388,10 +375,7 @@ def multi_rate_rr_path(config: PipelineConfig, scenario: ScenarioConfig) -> str:
     Uses exact subgroup alias strings in declaration order.
     """
     if scenario.subclass_config is None:
-        raise ValueError(
-            f"Scenario {scenario.name!r} has no subclass_config; "
-            "cannot derive multi-rate RR path."
-        )
+        raise ValueError(f"Scenario {scenario.name!r} has no subclass_config; cannot derive multi-rate RR path.")
     aliases = [sg.alias for sg in scenario.subclass_config.subgroups]
     joined = "_vs_".join(aliases)
     return f"rev_requirement/{config.utility}_{joined}.yaml"
@@ -415,10 +399,7 @@ def _parse_marginal_costs(raw: dict[str, Any]) -> tuple[dict[str, str], dict[str
     """
     unknown = set(raw) - set(MC_NAMES)
     if unknown:
-        raise ValueError(
-            f"Unknown marginal_costs entries {sorted(unknown)}; "
-            f"expected {list(MC_NAMES)}"
-        )
+        raise ValueError(f"Unknown marginal_costs entries {sorted(unknown)}; expected {list(MC_NAMES)}")
     missing = _REQUIRED_MC_NAMES - set(raw)
     if missing:
         raise ValueError(f"marginal_costs is missing {sorted(missing)}")
@@ -430,16 +411,12 @@ def _parse_marginal_costs(raw: dict[str, Any]) -> tuple[dict[str, str], dict[str
         elif isinstance(value, dict) and isinstance(value.get("path"), str):
             unexpected = set(value) - {"path", "key"}
             if unexpected:
-                raise ValueError(
-                    f"marginal_costs.{name} has unknown fields {sorted(unexpected)}"
-                )
+                raise ValueError(f"marginal_costs.{name} has unknown fields {sorted(unexpected)}")
             paths[name] = value["path"]
             if value.get("key"):
                 keys[name] = str(value["key"])
         else:
-            raise ValueError(
-                f"marginal_costs.{name} must be a path or {{path, key}}, got {value!r}"
-            )
+            raise ValueError(f"marginal_costs.{name} must be a path or {{path, key}}, got {value!r}")
     return paths, keys
 
 
@@ -490,10 +467,7 @@ def load_pipeline_config(yaml_path: Path) -> PipelineConfig:
         mc_expected_keys=mc_keys,
     )
 
-    if (
-        any(s.is_uncalibrated for s in scenarios.values())
-        and run_defaults.rr_single_rate_uncalibrated is None
-    ):
+    if any(s.is_uncalibrated for s in scenarios.values()) and run_defaults.rr_single_rate_uncalibrated is None:
         raise ValueError(
             "revenue_requirement.single_rate_uncalibrated is required when a "
             "'single_rate_uncalibrated' scenario is declared (the large-number "
@@ -510,9 +484,7 @@ def load_pipeline_config(yaml_path: Path) -> PipelineConfig:
         output_base=data["output_base"],
         scenarios=scenarios,
         run_defaults=run_defaults,
-        bill_change_baseline=_parse_bill_change_baseline(
-            data.get("bill_change_baseline"), scenarios
-        ),
+        bill_change_baseline=_parse_bill_change_baseline(data.get("bill_change_baseline"), scenarios),
     )
 
 
@@ -525,10 +497,7 @@ def _parse_scenario(name: str, raw: dict[str, Any]) -> ScenarioConfig:
     """Parse one scenario entry from the pipeline YAML."""
     quartet = str(raw.get("quartet", ""))
     if not quartet:
-        raise ValueError(
-            f"Scenario {name!r} must declare a 'quartet' "
-            f"(one of {sorted(QUARTET_KINDS)})."
-        )
+        raise ValueError(f"Scenario {name!r} must declare a 'quartet' (one of {sorted(QUARTET_KINDS)}).")
     ra = raw.get("residual_allocation") or {}
     return ScenarioConfig(
         name=name,
@@ -557,9 +526,7 @@ def _parse_depends_on(raw: object) -> list[str] | None:
         return [raw]
     if isinstance(raw, list):
         return [str(item) for item in raw]
-    raise ValueError(
-        f"'depends_on' must be a scenario name or a list of names; got {type(raw).__name__}."
-    )
+    raise ValueError(f"'depends_on' must be a scenario name or a list of names; got {type(raw).__name__}.")
 
 
 def _parse_subclass_config(raw: dict[str, Any] | None) -> SubclassConfig | None:
@@ -590,29 +557,22 @@ def _parse_bill_change_baseline(
 
     missing = [key for key in ("scenario", "stage") if key not in raw]
     if missing:
-        raise ValueError(
-            f"bill_change_baseline is missing required key(s): {', '.join(missing)}"
-        )
+        raise ValueError(f"bill_change_baseline is missing required key(s): {', '.join(missing)}")
 
     scenario = str(raw["scenario"])
     if scenario not in scenarios:
         raise ValueError(
-            f"bill_change_baseline.scenario {scenario!r} is not a declared "
-            f"scenario; available: {sorted(scenarios)}"
+            f"bill_change_baseline.scenario {scenario!r} is not a declared scenario; available: {sorted(scenarios)}"
         )
 
     stage = str(raw["stage"])
     if stage not in _STAGES:
-        raise ValueError(
-            f"bill_change_baseline.stage {stage!r} must be one of {list(_STAGES)}"
-        )
+        raise ValueError(f"bill_change_baseline.stage {stage!r} must be one of {list(_STAGES)}")
 
     return BillChangeBaseline(scenario=scenario, stage=stage)
 
 
-_PROMOTE_QUARTETS: frozenset[str] = frozenset(
-    {"multi_rate_collapsed", "multi_rate_fixed"}
-)
+_PROMOTE_QUARTETS: frozenset[str] = frozenset({"multi_rate_collapsed", "multi_rate_fixed"})
 
 
 def _validate_scenario(scenario: ScenarioConfig) -> None:
@@ -629,14 +589,10 @@ def _validate_scenario(scenario: ScenarioConfig) -> None:
         )
     if not scenario.precalc_is_multi and scenario.subclass_config is not None:
         raise ValueError(
-            f"Scenario {scenario.name!r} ({scenario.quartet}) is single-rate "
-            "and must not declare a 'subclass_config'."
+            f"Scenario {scenario.name!r} ({scenario.quartet}) is single-rate and must not declare a 'subclass_config'."
         )
     if scenario.is_single_rate and scenario.tariff_base is None:
-        raise ValueError(
-            f"Scenario {scenario.name!r}: single-rate scenarios require a "
-            "'tariff_base' (e.g. 'default')."
-        )
+        raise ValueError(f"Scenario {scenario.name!r}: single-rate scenarios require a 'tariff_base' (e.g. 'default').")
     if scenario.promote is not None and scenario.quartet not in _PROMOTE_QUARTETS:
         raise ValueError(
             f"Scenario {scenario.name!r}: 'promote' only applies to "
@@ -647,10 +603,7 @@ def _validate_scenario(scenario: ScenarioConfig) -> None:
             f"Scenario {scenario.name!r}: {scenario.quartet!r} requires an "
             "explicit 'promote' field naming the subgroup to promote."
         )
-    if (
-        scenario.bat_allocation_scenario is not None
-        and scenario.quartet != "multi_rate_fixed"
-    ):
+    if scenario.bat_allocation_scenario is not None and scenario.quartet != "multi_rate_fixed":
         raise ValueError(
             f"Scenario {scenario.name!r}: 'bat_allocation_scenario' only applies to "
             f"'multi_rate_fixed' (got quartet {scenario.quartet!r})."
@@ -658,11 +611,7 @@ def _validate_scenario(scenario: ScenarioConfig) -> None:
     # multi_rate_fixed specific validation
     if scenario.quartet == "multi_rate_fixed":
         manual_rr = scenario.candidate_tariff_rr_yaml_path is not None
-        subgroups = (
-            scenario.subclass_config.subgroups
-            if scenario.subclass_config is not None
-            else []
-        )
+        subgroups = scenario.subclass_config.subgroups if scenario.subclass_config is not None else []
 
         # Structural per-subgroup checks (independent of 'depends_on').
         for sg in subgroups:
@@ -690,9 +639,7 @@ def _validate_scenario(scenario: ScenarioConfig) -> None:
                 )
 
         # 'depends_on' is only optional when nothing needs to be derived from it.
-        needs_depends_on = not manual_rr or any(
-            sg.tariff_json_path is None for sg in subgroups
-        )
+        needs_depends_on = not manual_rr or any(sg.tariff_json_path is None for sg in subgroups)
         if needs_depends_on and not scenario.depends_on:
             raise ValueError(
                 f"Scenario {scenario.name!r}: 'multi_rate_fixed' requires a "
@@ -744,11 +691,7 @@ def _validate_scenario(scenario: ScenarioConfig) -> None:
                         f"Scenario {scenario.name!r}, subgroup {sg.alias!r}: "
                         f"copy_from={sg.copy_from!r} must be in 'depends_on'."
                     )
-    if (
-        scenario.quartet in _DERIVE_QUARTETS
-        and scenario.depends_on is not None
-        and len(scenario.depends_on) != 1
-    ):
+    if scenario.quartet in _DERIVE_QUARTETS and scenario.depends_on is not None and len(scenario.depends_on) != 1:
         raise ValueError(
             f"Scenario {scenario.name!r}: {scenario.quartet!r} 'depends_on' "
             "must be a single scenario name (the parent whose outputs feed "
@@ -773,10 +716,7 @@ def _find_subgroup(scenario: ScenarioConfig, alias: str) -> SubgroupSpec:
         if sg.alias == alias:
             return sg
     aliases = [sg.alias for sg in scenario.subclass_config.subgroups]
-    raise KeyError(
-        f"Subgroup {alias!r} not found in scenario {scenario.name!r}; "
-        f"available: {aliases}"
-    )
+    raise KeyError(f"Subgroup {alias!r} not found in scenario {scenario.name!r}; available: {aliases}")
 
 
 def _parse_optional_int(value: Any) -> int | None:
@@ -859,9 +799,7 @@ def _select_scenarios(
         return list(config.scenarios.values())
     missing = [n for n in names if n not in config.scenarios]
     if missing:
-        raise ValueError(
-            f"Unknown scenario(s): {missing}; available: {sorted(config.scenarios)}"
-        )
+        raise ValueError(f"Unknown scenario(s): {missing}; available: {sorted(config.scenarios)}")
     return [config.scenarios[n] for n in names]
 
 
@@ -878,9 +816,7 @@ def _top_level_subclass_config(
         if sc.subclass_config is not None:
             return {
                 "group_col": sc.subclass_config.group_col,
-                "selectors": {
-                    sg.alias: ",".join(sg.values) for sg in sc.subclass_config.subgroups
-                },
+                "selectors": {sg.alias: ",".join(sg.values) for sg in sc.subclass_config.subgroups},
             }
     return None
 
@@ -902,23 +838,12 @@ def _build_run_entry(
     run_type = "default" if (is_calibrated or scenario.is_uncalibrated) else "precalc"
 
     # ResStock paths
-    meta = (
-        f"{rd.resstock_base}/metadata/state={state_upper}"
-        f"/upgrade={upgrade}/metadata-sb.parquet"
-    )
-    loads = (
-        f"{rd.resstock_base}/load_curve_hourly/state={state_upper}/upgrade={upgrade}/"
-    )
-    ua = (
-        f"{rd.resstock_base}/metadata_utility/state={state_upper}"
-        "/utility_assignment.parquet"
-    )
+    meta = f"{rd.resstock_base}/metadata/state={state_upper}/upgrade={upgrade}/metadata-sb.parquet"
+    loads = f"{rd.resstock_base}/load_curve_hourly/state={state_upper}/upgrade={upgrade}/"
+    ua = f"{rd.resstock_base}/metadata_utility/state={state_upper}/utility_assignment.parquet"
 
     # Output path: parent of this is the batch dir (path_results)
-    batch_dir = (
-        f"/data.sb/switchbox/cairo/outputs/hp_rates"
-        f"/{config.state}/{config.utility}/{batch}"
-    )
+    batch_dir = f"/data.sb/switchbox/cairo/outputs/hp_rates/{config.state}/{config.utility}/{batch}"
     path_outputs = f"{batch_dir}/{run_name}"
 
     # Tariff paths and maps
@@ -940,10 +865,7 @@ def _build_run_entry(
     supply_capacity = supply_mc_path(rd.mc_supply_capacity, include_supply=is_supply)
 
     # EIA utility stats
-    eia_stats = (
-        f"s3://data.sb/eia/861/electric_utility_stats"
-        f"/year={config.year - 1}/state={state_upper}/data.parquet"
-    )
+    eia_stats = f"s3://data.sb/eia/861/electric_utility_stats/year={config.year - 1}/state={state_upper}/data.parquet"
 
     entry: dict[str, Any] = {
         "run_name": run_name,
@@ -987,10 +909,7 @@ def _build_run_entry(
     if includes_subclasses and scenario.subclass_config is not None:
         entry["subclass_config"] = {
             "group_col": scenario.subclass_config.group_col,
-            "selectors": {
-                sg.alias: ",".join(sg.values)
-                for sg in scenario.subclass_config.subgroups
-            },
+            "selectors": {sg.alias: ",".join(sg.values) for sg in scenario.subclass_config.subgroups},
         }
 
     return entry
@@ -1110,14 +1029,8 @@ def _scenario_map_stem(
     ``_supply`` before ``_calibrated`` matches the tariff stem convention.
     """
     assert scenario.subclass_config is not None
-    segments = "_vs_".join(
-        f"{sg.alias}_{sg.structure}" for sg in scenario.subclass_config.subgroups
-    )
-    name = (
-        f"{utility}_{segments}"
-        f"_{scenario.residual_allocation_delivery}"
-        f"_{scenario.residual_allocation_supply}"
-    )
+    segments = "_vs_".join(f"{sg.alias}_{sg.structure}" for sg in scenario.subclass_config.subgroups)
+    name = f"{utility}_{segments}_{scenario.residual_allocation_delivery}_{scenario.residual_allocation_supply}"
     if supply:
         name += "_supply"
     if calibrated:
@@ -1220,9 +1133,7 @@ def validate_marginal_cost_manifests(config: PipelineConfig) -> list[str]:
     return errors
 
 
-def warn_mc_generator_ancestry(
-    name: str, path: str, entry: Mapping[str, Any]
-) -> bool | None:
+def warn_mc_generator_ancestry(name: str, path: str, entry: Mapping[str, Any]) -> bool | None:
     """Warn when an MC file was generated by a commit not in this checkout's history.
 
     The key only names a method; a different branch can change how that key
@@ -1268,12 +1179,10 @@ def validate_preflight_inputs(
     errors: list[str] = []
 
     # Output mount — fail fast when /data.sb FUSE is not active
-    if config.output_base.startswith("/data.sb"):
-        if not Path("/data.sb").is_mount():
-            errors.append(
-                f"Output base {config.output_base} requires /data.sb to be "
-                f"mounted (s3fs FUSE).  Run: sudo mount /data.sb"
-            )
+    if config.output_base.startswith("/data.sb") and not Path("/data.sb").is_mount():
+        errors.append(
+            f"Output base {config.output_base} requires /data.sb to be mounted (s3fs FUSE).  Run: sudo mount /data.sb"
+        )
 
     rd = config.run_defaults
     config_dir = config.state_config_dir
@@ -1285,17 +1194,10 @@ def validate_preflight_inputs(
         meta = base / "metadata" / f"state={state_upper}" / f"upgrade={upgrade}"
         if not meta.exists():
             errors.append(f"ResStock metadata missing: {meta}")
-        loads = (
-            base / "load_curve_hourly" / f"state={state_upper}" / f"upgrade={upgrade}"
-        )
+        loads = base / "load_curve_hourly" / f"state={state_upper}" / f"upgrade={upgrade}"
         if not loads.exists():
             errors.append(f"ResStock loads missing: {loads}")
-    ua = (
-        base
-        / "metadata_utility"
-        / f"state={state_upper}"
-        / "utility_assignment.parquet"
-    )
+    ua = base / "metadata_utility" / f"state={state_upper}" / "utility_assignment.parquet"
     if not ua.exists():
         errors.append(f"Utility assignment missing: {ua}")
 
@@ -1312,9 +1214,7 @@ def validate_preflight_inputs(
 
     # Gas tariff maps
     for upgrade in (rd.upgrade_precalc, rd.upgrade_calibrated):
-        gas_map = (
-            config_dir / "tariff_maps" / "gas" / f"{config.utility}_u{upgrade}.csv"
-        )
+        gas_map = config_dir / "tariff_maps" / "gas" / f"{config.utility}_u{upgrade}.csv"
         if not gas_map.exists():
             errors.append(f"Gas tariff map missing: {gas_map}")
 
@@ -1327,9 +1227,7 @@ def validate_preflight_inputs(
         ("supply_capacity", rd.mc_supply_capacity),
     ):
         if f"/{state_lower}/" not in mc_path:
-            errors.append(
-                f"MC path '{label}' does not contain '/{state_lower}/': {mc_path}"
-            )
+            errors.append(f"MC path '{label}' does not contain '/{state_lower}/': {mc_path}")
 
     errors.extend(validate_marginal_cost_manifests(config))
 
@@ -1338,9 +1236,7 @@ def validate_preflight_inputs(
     for sc in selected:
         if sc.is_single_rate and sc.derive_method is None:
             for supply_flag in (False, True):
-                stem = tariff_stem(
-                    config.utility, sc, supply=supply_flag, calibrated=False
-                )
+                stem = tariff_stem(config.utility, sc, supply=supply_flag, calibrated=False)
                 json_path = config_dir / "tariffs" / "electric" / f"{stem}.json"
                 if not json_path.exists():
                     errors.append(f"Tariff JSON missing: {json_path}")

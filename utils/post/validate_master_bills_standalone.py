@@ -25,8 +25,8 @@ from utils.post.build_master_bills import (
 )
 from utils.post.io import (
     ANNUAL_MONTH,
-    BLDG_ID,
     BILL_LEVEL,
+    BLDG_ID,
     scan,
 )
 
@@ -43,14 +43,7 @@ def _log(msg: str) -> None:
 def _read_fixed_charge(state: str, utility: str) -> float:
     repo_root = Path(__file__).resolve().parents[2]
     tariff_path = (
-        repo_root
-        / "rate_design"
-        / "hp_rates"
-        / state
-        / "config"
-        / "tariffs"
-        / "electric"
-        / f"{utility}_flat.json"
+        repo_root / "rate_design" / "hp_rates" / state / "config" / "tariffs" / "electric" / f"{utility}_flat.json"
     )
     with tariff_path.open() as f:
         data = json.load(f)
@@ -73,9 +66,7 @@ def _check_source_round_trips(
     """Verify each output column traces back to its source file."""
     results: list[tuple[str, bool, str]] = []
 
-    s3_base = (
-        f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/{utility}/{util_batch}"
-    )
+    s3_base = f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/{utility}/{util_batch}"
     _log(f"  Using batch {util_batch} for {utility}")
     dir_delivery = _find_run_dir(s3_base, run_delivery)
     dir_supply = _find_run_dir(s3_base, run_supply)
@@ -132,11 +123,7 @@ def _check_source_round_trips(
             on=[BLDG_ID, "month"],
             how="inner",
         )
-        .with_columns(
-            (pl.col("elec_fixed_charge") + pl.col("elec_delivery_bill")).alias(
-                "computed"
-            )
-        )
+        .with_columns((pl.col("elec_fixed_charge") + pl.col("elec_delivery_bill")).alias("computed"))
     )
     diff = (check["computed"] - check["src"]).abs()
     max_diff = cast(float, diff.max()) if diff.len() > 0 else 0.0
@@ -166,8 +153,7 @@ def _check_source_round_trips(
         (
             "elec_fixed_charge == tariff JSON",
             ok,
-            f"monthly: max_diff={max_diff_m:.8f}, n_bad={n_bad_m}; "
-            f"annual: max_diff={max_diff_a:.8f}, n_bad={n_bad_a}",
+            f"monthly: max_diff={max_diff_m:.8f}, n_bad={n_bad_m}; annual: max_diff={max_diff_a:.8f}, n_bad={n_bad_a}",
         )
     )
 
@@ -179,9 +165,7 @@ def _check_source_round_trips(
 # ---------------------------------------------------------------------------
 
 
-def _check_aggregate_sanity(
-    master: pl.DataFrame, utility: str
-) -> list[tuple[str, bool, str]]:
+def _check_aggregate_sanity(master: pl.DataFrame, utility: str) -> list[tuple[str, bool, str]]:
     results: list[tuple[str, bool, str]] = []
     util = master.filter(pl.col("sb.electric_utility") == utility)
     annual = util.filter(pl.col("month") == ANNUAL_MONTH)
@@ -200,16 +184,11 @@ def _check_aggregate_sanity(
     # Plausible elec range
     mean_elec = cast(
         float,
-        annual.select(
-            (pl.col("elec_total_bill") * pl.col("weight")).sum()
-            / pl.col("weight").sum()
-        ).item(),
+        annual.select((pl.col("elec_total_bill") * pl.col("weight")).sum() / pl.col("weight").sum()).item(),
     )
     ok = 500 <= mean_elec <= 5000
     level = "PASS" if ok else "WARN"
-    results.append(
-        (f"mean annual elec in $500-$5000 ({level})", ok, f"${mean_elec:,.0f}")
-    )
+    results.append((f"mean annual elec in $500-$5000 ({level})", ok, f"${mean_elec:,.0f}"))
 
     # Gas-heated buildings must have positive gas bills
     gas_heated_zero = annual.filter(
@@ -232,9 +211,7 @@ def _check_aggregate_sanity(
         - annual["oil_total_bill"]
         - annual["propane_total_bill"]
     ).abs()
-    max_identity_diff = (
-        cast(float, identity_diff.max()) if identity_diff.len() > 0 else 0.0
-    )
+    max_identity_diff = cast(float, identity_diff.max()) if identity_diff.len() > 0 else 0.0
     n_bad_identity = (identity_diff > FLOAT_TOL).sum()
     ok = n_bad_identity == 0
     results.append(
@@ -300,14 +277,10 @@ def _check_aggregate_sanity(
         )
 
     # Consistent weight per building
-    weight_var = util.group_by(BLDG_ID).agg(
-        pl.col("weight").n_unique().alias("n_weights")
-    )
+    weight_var = util.group_by(BLDG_ID).agg(pl.col("weight").n_unique().alias("n_weights"))
     multi_weight = weight_var.filter(pl.col("n_weights") > 1)
     ok = multi_weight.is_empty()
-    results.append(
-        ("consistent weight per building", ok, f"exceptions={multi_weight.height}")
-    )
+    results.append(("consistent weight per building", ok, f"exceptions={multi_weight.height}"))
 
     return results
 
@@ -324,9 +297,7 @@ def _check_building_ids_vs_utility_assignment(
     the *set* of unique bldg_ids per electric utility.
     """
     results: list[tuple[str, bool, str]] = []
-    annual = master.filter(
-        (pl.col("sb.electric_utility") == utility) & (pl.col("month") == ANNUAL_MONTH)
-    )
+    annual = master.filter((pl.col("sb.electric_utility") == utility) & (pl.col("month") == ANNUAL_MONTH))
     master_ids = set(annual[BLDG_ID].to_list())
 
     ua_for_util = utility_assignment.filter(pl.col("sb.electric_utility") == utility)
@@ -381,9 +352,7 @@ def _spot_check_report(
     if not candidates:
         candidates.append(("random", annual.head(1)))
 
-    s3_base = (
-        f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/{utility}/{util_batch}"
-    )
+    s3_base = f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/{utility}/{util_batch}"
     dir_delivery = _find_run_dir(s3_base, run_delivery)
     dir_supply = _find_run_dir(s3_base, run_supply)
     monthly_fc = _read_fixed_charge(state, utility)
@@ -418,25 +387,17 @@ def _spot_check_report(
         _log(f"  Source: elec_delivery bill_level = ${d_bill:,.2f}")
         _log(f"  Source: elec_supply bill_level   = ${s_bill:,.2f}")
         _log(f"  Source: gas bill_level            = ${g_bill:,.2f}")
-        _log(
-            f"  Tariff: fixedchargefirstmeter     = ${monthly_fc:,.2f}/mo = ${monthly_fc * 12:,.2f}/yr"
-        )
+        _log(f"  Tariff: fixedchargefirstmeter     = ${monthly_fc:,.2f}/mo = ${monthly_fc * 12:,.2f}/yr")
         _log("  Decomposition:")
-        _log(
-            f"    elec_fixed_charge   = ${master_row['elec_fixed_charge']:,.2f} (expected ${monthly_fc * 12:,.2f})"
-        )
+        _log(f"    elec_fixed_charge   = ${master_row['elec_fixed_charge']:,.2f} (expected ${monthly_fc * 12:,.2f})")
         _log(
             f"    elec_delivery_bill  = ${master_row['elec_delivery_bill']:,.2f} (expected ${d_bill - monthly_fc * 12:,.2f} = delivery - fixed)"
         )
         _log(
             f"    elec_supply_bill    = ${master_row['elec_supply_bill']:,.2f} (expected ${s_bill - d_bill:,.2f} = supply - delivery)"
         )
-        _log(
-            f"    elec_total_bill     = ${master_row['elec_total_bill']:,.2f} (expected ${s_bill:,.2f})"
-        )
-        _log(
-            f"    gas_total_bill      = ${master_row['gas_total_bill']:,.2f} (expected ${g_bill:,.2f})"
-        )
+        _log(f"    elec_total_bill     = ${master_row['elec_total_bill']:,.2f} (expected ${s_bill:,.2f})")
+        _log(f"    gas_total_bill      = ${master_row['gas_total_bill']:,.2f} (expected ${g_bill:,.2f})")
         _log(f"    oil_total_bill      = ${master_row['oil_total_bill']:,.2f}")
         _log(f"    propane_total_bill  = ${master_row['propane_total_bill']:,.2f}")
         _log(f"    energy_total_bill   = ${master_row['energy_total_bill']:,.2f}")
@@ -471,9 +432,7 @@ def _parse_args() -> argparse.Namespace:
         default="s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb",
     )
     parser.add_argument("--path-load-curves-local", required=True)
-    parser.add_argument(
-        "--path-heating-fuel-prices", default="s3://data.sb/eia/heating_fuel_prices/"
-    )
+    parser.add_argument("--path-heating-fuel-prices", default="s3://data.sb/eia/heating_fuel_prices/")
     parser.add_argument("--price-year", type=int, default=2024)
     return parser.parse_args()
 
@@ -488,9 +447,7 @@ def main() -> None:
     s3_all_utils = f"s3://data.sb/switchbox/cairo/outputs/hp_rates/{state}/all_utilities/{batch_suffix}"
     master_path = f"{s3_all_utils}/run_{args.run_delivery}+{args.run_supply}/comb_bills_year_target/"
 
-    _log(
-        f"Standalone validation for {args.utility} (state={state}, batch={util_batch})"
-    )
+    _log(f"Standalone validation for {args.utility} (state={state}, batch={util_batch})")
     _log(f"  Master: {master_path}")
 
     _log("\nLoading master table...")
@@ -519,8 +476,7 @@ def main() -> None:
     # 2b. Building ID coverage vs utility assignment
     _log("\n=== Building ID coverage check ===")
     meta_path = (
-        f"{args.path_resstock_release.rstrip('/')}"
-        f"/metadata_utility/state={state.upper()}/utility_assignment.parquet"
+        f"{args.path_resstock_release.rstrip('/')}/metadata_utility/state={state.upper()}/utility_assignment.parquet"
     )
     ua = pl.scan_parquet(meta_path).collect()
     id_results = _check_building_ids_vs_utility_assignment(master, args.utility, ua)

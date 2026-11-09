@@ -79,9 +79,7 @@ def _state_config(state: str) -> Path:
     return PATH_PROJECT / state.lower() / "config"
 
 
-def assert_output_dir_is_mounted(
-    path_results: Path, mount_root: Path = Path("/data.sb")
-) -> None:
+def assert_output_dir_is_mounted(path_results: Path, mount_root: Path = Path("/data.sb")) -> None:
     """Fail fast if *path_results* lives under an unmounted FUSE mountpoint.
 
     CAIRO's postprocessing (and our own ``write_billing_kwh``) writes outputs
@@ -186,9 +184,7 @@ def apply_prototype_sample(
     if sample_size <= 0:
         raise ValueError(f"sample_size must be positive, got {sample_size}")
     if sample_size > len(prototype_ids):
-        raise ValueError(
-            f"sample_size {sample_size} exceeds number of prototype IDs ({len(prototype_ids)})"
-        )
+        raise ValueError(f"sample_size {sample_size} exceeds number of prototype IDs ({len(prototype_ids)})")
     gen = rng if rng is not None else random
     return gen.sample(prototype_ids, sample_size)
 
@@ -210,9 +206,7 @@ def _load_run_from_yaml(scenario_config: Path, run_num: str | int) -> dict[str, 
     with scenario_config.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
     if not isinstance(data, dict):
-        raise ValueError(
-            f"Invalid YAML format in {scenario_config}: expected top-level map"
-        )
+        raise ValueError(f"Invalid YAML format in {scenario_config}: expected top-level map")
     runs = cast(
         dict[str | int, Any],
         _require_mapping(data.get("runs"), "runs"),
@@ -253,8 +247,7 @@ def _resolve_output_dir(
     path_outputs_raw = run.get("path_outputs")
     if not path_outputs_raw:
         raise ValueError(
-            f"runs[{run_num}] is missing required key 'path_outputs' "
-            "and no --output-dir was provided on the CLI."
+            f"runs[{run_num}] is missing required key 'path_outputs' and no --output-dir was provided on the CLI."
         )
     return Path(str(path_outputs_raw)).parent
 
@@ -276,9 +269,7 @@ def _build_settings_from_yaml_run(
         _require_value(run, "year_dollar_conversion"),
         "year_dollar_conversion",
     )
-    process_workers = _parse_int(
-        _require_value(run, "process_workers"), "process_workers"
-    )
+    process_workers = _parse_int(_require_value(run, "process_workers"), "process_workers")
     path_electric_utility_stats = _resolve_path_or_uri(
         str(_require_value(run, "path_electric_utility_stats")),
         path_config,
@@ -333,14 +324,11 @@ def _build_settings_from_yaml_run(
     elasticity_raw = run.get("elasticity", 0.0)
     if isinstance(elasticity_raw, dict):
         elasticity: float | dict[str, float] = {
-            str(k): _parse_float(v, f"elasticity.{k}")
-            for k, v in elasticity_raw.items()
+            str(k): _parse_float(v, f"elasticity.{k}") for k, v in elasticity_raw.items()
         }
     else:
         elasticity = _parse_float(elasticity_raw, "elasticity")
-    sample_size = (
-        _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
-    )
+    sample_size = _parse_int(run["sample_size"], "sample_size") if "sample_size" in run else None
     path_bulk_tx_mc: str | Path | None = None
     bulk_tx_raw = run.get("path_bulk_tx_mc")
     if bulk_tx_raw and str(bulk_tx_raw).strip():
@@ -348,9 +336,7 @@ def _build_settings_from_yaml_run(
     path_supply_ancillary_mc: str | Path | None = None
     ancillary_raw = run.get("path_supply_ancillary_mc")
     if ancillary_raw and str(ancillary_raw).strip():
-        path_supply_ancillary_mc = _resolve_path_or_uri(
-            str(ancillary_raw).strip(), path_config
-        )
+        path_supply_ancillary_mc = _resolve_path_or_uri(str(ancillary_raw).strip(), path_config)
     subclass_config: dict[str, Any] | None = run.get("subclass_config")
     output_dir = _resolve_output_dir(run, run_num, output_dir_override)
     run_name = run_name_override or run.get("run_name") or f"run_{run_num}"
@@ -402,9 +388,7 @@ def _build_settings_from_yaml_run(
         run_includes_supply=run_includes_supply,
         elasticity=elasticity,
         path_bulk_tx_mc=path_bulk_tx_mc,
-        path_supply_ancillary_mc=path_supply_ancillary_mc
-        if run_includes_supply
-        else None,
+        path_supply_ancillary_mc=path_supply_ancillary_mc if run_includes_supply else None,
         customer_count_override=rr_config.customer_count_override,
         kwh_scale_factor=rr_config.kwh_scale_factor,
         subclass_config=subclass_config,
@@ -412,9 +396,7 @@ def _build_settings_from_yaml_run(
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description=("Run heat-pump scenario using YAML config.")
-    )
+    parser = argparse.ArgumentParser(description=("Run heat-pump scenario using YAML config."))
     parser.add_argument(
         "--scenario-config",
         type=Path,
@@ -450,10 +432,7 @@ def _parse_args() -> argparse.Namespace:
         "--output-dir",
         type=Path,
         default=None,
-        help=(
-            "Output root dir passed to CAIRO. When omitted, uses "
-            "parent(path_outputs) from the scenario YAML."
-        ),
+        help=("Output root dir passed to CAIRO. When omitted, uses parent(path_outputs) from the scenario YAML."),
     )
     parser.add_argument(
         "--run-name",
@@ -568,15 +547,9 @@ def _load_prototype_ids_for_run(
     """Load utility assignment, fetch prototype IDs for the utility, optionally sample."""
 
     path_ua = path_utility_assignment
-    storage_opts = (
-        _storage_options()
-        if isinstance(path_ua, str) and path_ua.startswith("s3://")
-        else None
-    )
+    storage_opts = _storage_options() if isinstance(path_ua, str) and path_ua.startswith("s3://") else None
     utility_assignment = pl.scan_parquet(str(path_ua), storage_options=storage_opts)
-    prototype_ids = _fetch_prototype_ids_by_electric_util(
-        cast(ElectricUtility, utility), utility_assignment
-    )
+    prototype_ids = _fetch_prototype_ids_by_electric_util(cast(ElectricUtility, utility), utility_assignment)
     log.info(
         ".... Found %s bldgs for utility %s",
         len(prototype_ids),
@@ -687,8 +660,7 @@ def _describe_marginal_costs(settings: ScenarioSettings) -> dict[str, Any]:
             continue
         if described[name].get("generator_commit_in_run_history") is False:
             log.warning(
-                "MC %s (%s) was generated by commit %s, which is not in this "
-                "run's history",
+                "MC %s (%s) was generated by commit %s, which is not in this run's history",
                 name,
                 path,
                 str(described[name].get("git_commit"))[:12],
@@ -700,9 +672,7 @@ def _describe_marginal_costs(settings: ScenarioSettings) -> dict[str, Any]:
     return {"run_git": run_git, "marginal_costs": described}
 
 
-def _write_marginal_costs_used(
-    run_output_dir: Path, marginal_costs_used: dict[str, Any]
-) -> None:
+def _write_marginal_costs_used(run_output_dir: Path, marginal_costs_used: dict[str, Any]) -> None:
     out_path = run_output_dir / "marginal_costs_used.json"
     with out_path.open("w") as f:
         json.dump(marginal_costs_used, f, indent=2, default=str)
@@ -724,11 +694,7 @@ def run(
 
     assert_output_dir_is_mounted(settings.path_results)
 
-    _effective_workers = (
-        num_workers
-        if num_workers is not None
-        else min(settings.process_workers, os.cpu_count() or 1)
-    )
+    _effective_workers = num_workers if num_workers is not None else min(settings.process_workers, os.cpu_count() or 1)
     dask.config.set(scheduler="processes", num_workers=_effective_workers)
     log.info(
         "TIMING workers: %d (yaml=%d, cpu_count=%d)",
@@ -805,9 +771,7 @@ def run(
                 "(electricity_net == grid_cons for all downstream calculations)",
                 neg_count,
             )
-            raw_load_elec["electricity_net"] = raw_load_elec["electricity_net"].clip(
-                lower=0.0
-            )
+            raw_load_elec["electricity_net"] = raw_load_elec["electricity_net"].clip(lower=0.0)
 
     # Phase 2 ---------------------------------------------------------------
     # ------------------------------------------------------------------
@@ -889,9 +853,7 @@ def run(
             run_includes_subclasses=settings.run_includes_subclasses,
         )
 
-        revenue_requirement: float | dict[str, float] | None = (
-            flex.revenue_requirement_raw
-        )
+        revenue_requirement: float | dict[str, float] | None = flex.revenue_requirement_raw
         marginal_system_prices = flex.marginal_system_prices
         _marginal_system_costs = flex.marginal_system_costs
         costs_by_type = flex.costs_by_type
@@ -906,8 +868,7 @@ def run(
             # TOU subclasses absorb their own MC delta; non-TOU subclasses are
             # unchanged (calibrated identically to the no-flex run).
             revenue_requirement = {
-                k: v + flex.mc_delta_by_tou_tariff.get(k, 0.0)
-                for k, v in settings.subclass_rr.items()
+                k: v + flex.mc_delta_by_tou_tariff.get(k, 0.0) for k, v in settings.subclass_rr.items()
             }
             log.info(
                 "Subclass RR (demand-flex, per-subclass frozen residual): %s",

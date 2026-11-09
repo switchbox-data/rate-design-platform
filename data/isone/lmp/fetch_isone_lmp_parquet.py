@@ -71,9 +71,7 @@ PARQUET_SCHEMA = {
 
 def _reject_just_placeholders(val: str) -> None:
     if "{{" in val or "}}" in val:
-        print(
-            f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr
-        )
+        print(f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -93,9 +91,7 @@ def _load_env(repo_root: Path) -> tuple[str, str]:
     user = env.get("ISONE_USERNAME")
     pw = env.get("ISONE_PASSWORD")
     if not user or not pw:
-        print(
-            "ERROR: ISONE_USERNAME or ISONE_PASSWORD missing from .env", file=sys.stderr
-        )
+        print("ERROR: ISONE_USERNAME or ISONE_PASSWORD missing from .env", file=sys.stderr)
         sys.exit(1)
     return user, pw
 
@@ -170,8 +166,7 @@ def _api_get_with_retry(
         if attempt < MAX_RETRIES:
             backoff = RETRY_BACKOFF_SECS[attempt]
             print(
-                f"    429 rate limited, retry {attempt + 1}/{MAX_RETRIES} "
-                f"in {backoff}s...",
+                f"    429 rate limited, retry {attempt + 1}/{MAX_RETRIES} in {backoff}s...",
                 file=sys.stderr,
             )
             time.sleep(backoff)
@@ -194,9 +189,7 @@ def _fetch_month_for_zone(
 
     for day in range(1, ndays + 1):
         yyyymmdd = f"{year}{month:02d}{day:02d}"
-        url = (
-            f"{BASE_URL}/hourlylmp/{api_prefix}/final/day/{yyyymmdd}/location/{loc_id}"
-        )
+        url = f"{BASE_URL}/hourlylmp/{api_prefix}/final/day/{yyyymmdd}/location/{loc_id}"
         try:
             r = _api_get_with_retry(session, url, rate_limiter)
             r.raise_for_status()
@@ -225,17 +218,13 @@ def _parse_lmp_items(items: list[dict], zone: str, loc_id: int) -> pl.DataFrame:
                 "location_id": loc_id,
                 "lmp_usd_per_mwh": float(item["LmpTotal"]),
                 "lmp_energy_usd_per_mwh": float(item["EnergyComponent"]),
-                "marginal_cost_congestion_usd_per_mwh": float(
-                    item["CongestionComponent"]
-                ),
+                "marginal_cost_congestion_usd_per_mwh": float(item["CongestionComponent"]),
                 "marginal_cost_losses_usd_per_mwh": float(item["LossComponent"]),
             }
         )
     df = pl.DataFrame(rows)
     df = df.with_columns(
-        pl.col("interval_start_et")
-        .str.to_datetime("%Y-%m-%dT%H:%M:%S%.f%:z")
-        .dt.convert_time_zone("America/New_York")
+        pl.col("interval_start_et").str.to_datetime("%Y-%m-%dT%H:%M:%S%.f%:z").dt.convert_time_zone("America/New_York")
     )
     return df.cast({"location_id": pl.Int32})
 
@@ -348,9 +337,7 @@ def _find_repo_root() -> Path:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Fetch ISO-NE zonal LMP (day_ahead and/or real_time) → parquet."
-    )
+    parser = argparse.ArgumentParser(description="Fetch ISO-NE zonal LMP (day_ahead and/or real_time) → parquet.")
     parser.add_argument(
         "--start",
         type=str,

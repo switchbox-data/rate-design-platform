@@ -12,13 +12,13 @@ Usage:
 
 from __future__ import annotations
 
-from utils.numeric import as_float
-
 import sys
 from datetime import date
 from pathlib import Path
 
 import polars as pl
+
+from utils.numeric import as_float
 
 EXPECTED_COLUMNS = [
     "delivery_year",
@@ -208,9 +208,7 @@ def check_source_urls(df: pl.DataFrame, result: ValidationResult) -> None:
     for col in URL_COLUMNS:
         if col not in df.columns:
             continue
-        bad = df.filter(
-            ~pl.col(col).str.starts_with("https://www.pjm.com/") | pl.col(col).is_null()
-        )
+        bad = df.filter(~pl.col(col).str.starts_with("https://www.pjm.com/") | pl.col(col).is_null())
         if bad.height:
             sample = bad.select("delivery_year", "zone", col).head(3).to_dicts()
             errors.append(f"{col}: {bad.height} non-pjm.com/empty URLs, e.g. {sample}")
@@ -229,13 +227,9 @@ def check_uniqueness(df: pl.DataFrame, result: ValidationResult) -> None:
     n_total = df.height
     n_unique = df.select(keys).unique().height
     if n_unique != n_total:
-        result.error(
-            "Uniqueness", f"{n_total - n_unique} duplicate (delivery_year, zone) rows"
-        )
+        result.error("Uniqueness", f"{n_total - n_unique} duplicate (delivery_year, zone) rows")
     else:
-        result.passed(
-            "Uniqueness", f"all {n_total} rows have unique (delivery_year, zone)"
-        )
+        result.passed("Uniqueness", f"all {n_total} rows have unique (delivery_year, zone)")
 
 
 def check_dy_coverage(df: pl.DataFrame, result: ValidationResult) -> None:
@@ -255,28 +249,20 @@ def check_dy_coverage(df: pl.DataFrame, result: ValidationResult) -> None:
 
 def check_dy_dates(df: pl.DataFrame, result: ValidationResult) -> None:
     errors: list[str] = []
-    for row in (
-        df.select("delivery_year", "dy_start", "dy_end").unique().iter_rows(named=True)
-    ):
+    for row in df.select("delivery_year", "dy_start", "dy_end").unique().iter_rows(named=True):
         label = row["delivery_year"]
         y0 = int(label[:4])
         expected_start = date(y0, 6, 1)
         expected_end = date(y0 + 1, 5, 31)
         if row["dy_start"] != expected_start:
-            errors.append(
-                f"DY {label}: dy_start={row['dy_start']}, expected {expected_start}"
-            )
+            errors.append(f"DY {label}: dy_start={row['dy_start']}, expected {expected_start}")
         if row["dy_end"] != expected_end:
-            errors.append(
-                f"DY {label}: dy_end={row['dy_end']}, expected {expected_end}"
-            )
+            errors.append(f"DY {label}: dy_end={row['dy_end']}, expected {expected_end}")
     if errors:
         for e in errors:
             result.error("DY dates", e)
     else:
-        result.passed(
-            "DY dates", "dy_start/dy_end consistent with labels (Jun 1 - May 31)"
-        )
+        result.passed("DY dates", "dy_start/dy_end consistent with labels (Jun 1 - May 31)")
 
 
 def check_zone_vocabulary(df: pl.DataFrame, result: ValidationResult) -> None:
@@ -369,32 +355,23 @@ def check_lda_nesting(df: pl.DataFrame, result: ValidationResult) -> None:
         sub = df.filter(pl.col("delivery_year") == dy)
         lda_price: dict[str, float] = {
             row["lda"]: row["bra_price_per_mw_day"]
-            for row in sub.select("lda", "bra_price_per_mw_day")
-            .unique()
-            .iter_rows(named=True)
+            for row in sub.select("lda", "bra_price_per_mw_day").unique().iter_rows(named=True)
         }
         rto_price = lda_price.get("RTO")
         for lda, price in lda_price.items():
             if rto_price is not None and price < rto_price:
-                errors.append(
-                    f"DY {dy}: lda {lda} BRA ${price:.2f} < RTO ${rto_price:.2f}"
-                )
+                errors.append(f"DY {dy}: lda {lda} BRA ${price:.2f} < RTO ${rto_price:.2f}")
             # Walk up the nesting chain to the nearest priced ancestor.
             parent = LDA_NESTING.get(lda)
             while parent is not None and parent not in lda_price:
                 parent = LDA_NESTING.get(parent)
             if parent is not None and price < lda_price[parent]:
-                errors.append(
-                    f"DY {dy}: lda {lda} BRA ${price:.2f} < parent {parent} "
-                    f"${lda_price[parent]:.2f}"
-                )
+                errors.append(f"DY {dy}: lda {lda} BRA ${price:.2f} < parent {parent} ${lda_price[parent]:.2f}")
     if errors:
         for e in errors:
             result.error("LDA nesting", e)
     else:
-        result.passed(
-            "LDA nesting", "BRA prices monotone along the LDA nesting chain in every DY"
-        )
+        result.passed("LDA nesting", "BRA prices monotone along the LDA nesting chain in every DY")
 
 
 def check_final_vs_bra(df: pl.DataFrame, result: ValidationResult) -> None:
@@ -430,17 +407,11 @@ def check_cross_check_values(df: pl.DataFrame, result: ValidationResult) -> None
             continue
         bra_actual = float(row["bra_price_per_mw_day"][0])
         if abs(bra_actual - bra_expected) > 0.005:
-            errors.append(
-                f"DY {dy} zone {zone}: BRA expected ${bra_expected:.2f}, "
-                f"got ${bra_actual:.2f}"
-            )
+            errors.append(f"DY {dy} zone {zone}: BRA expected ${bra_expected:.2f}, got ${bra_actual:.2f}")
         if final_expected is not None:
             final_actual = float(row["final_zonal_capacity_price_per_mw_day"][0])
             if abs(final_actual - final_expected) > 0.005:
-                errors.append(
-                    f"DY {dy} zone {zone}: final expected ${final_expected:.2f}, "
-                    f"got ${final_actual:.2f}"
-                )
+                errors.append(f"DY {dy} zone {zone}: final expected ${final_expected:.2f}, got ${final_actual:.2f}")
     if errors:
         for e in errors:
             result.error("Cross-check", e)

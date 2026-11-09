@@ -32,7 +32,6 @@ from data.resstock.manifest import (
     upsert_run,
 )
 
-
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -217,9 +216,7 @@ def test_sync_check_does_not_use_unfiltered_run_ids(tmp_path: Path) -> None:
         )
 
     # NY run IDs match, but MD run IDs differ — should NOT claim in sync
-    assert "OUT OF SYNC" in output, (
-        f"Sync check incorrectly used unfiltered NY run IDs:\n{output}"
-    )
+    assert "OUT OF SYNC" in output, f"Sync check incorrectly used unfiltered NY run IDs:\n{output}"
 
 
 def test_sync_check_cannot_determine_when_state_missing_from_one_side(
@@ -249,9 +246,7 @@ def test_sync_check_cannot_determine_when_state_missing_from_one_side(
             variant="sb",
         )
 
-    assert "cannot determine sync" in output, (
-        f"Expected indeterminate sync message:\n{output}"
-    )
+    assert "cannot determine sync" in output, f"Expected indeterminate sync message:\n{output}"
 
 
 # ── _filter_runs unit tests ───────────────────────────────────────────────────
@@ -340,10 +335,7 @@ def test_check_integrity_unions_file_types_across_runs(tmp_path: Path) -> None:
             "missing_file_type",
         )
     ]
-    assert raw_issues == [], (
-        f"Union of metadata + load_curve_hourly runs should expect both; "
-        f"got issues: {raw_issues}"
-    )
+    assert raw_issues == [], f"Union of metadata + load_curve_hourly runs should expect both; got issues: {raw_issues}"
 
 
 def test_check_integrity_file_type_bijection_passes(tmp_path: Path) -> None:
@@ -449,8 +441,7 @@ def test_check_integrity_flags_unexpected_file_type_on_sb(tmp_path: Path) -> Non
     unexpected = [
         m
         for m in report["mismatches"]
-        if m.get("issue") == "unexpected_file_type"
-        and m.get("file_type") == "load_curve_annual"
+        if m.get("issue") == "unexpected_file_type" and m.get("file_type") == "load_curve_annual"
     ]
     assert unexpected, f"Expected unexpected_file_type for load_curve_annual:\n{report}"
 
@@ -488,9 +479,7 @@ def test_check_integrity_flags_missing_file_type(tmp_path: Path) -> None:
         )
 
     missing = [
-        m
-        for m in report["mismatches"]
-        if m.get("issue") == "missing_file_type" and m.get("release") == f"{release}_sb"
+        m for m in report["mismatches"] if m.get("issue") == "missing_file_type" and m.get("release") == f"{release}_sb"
     ]
     assert any(m["file_type"] == "metadata" for m in missing)
     assert any(m["file_type"] == "load_curve_hourly" for m in missing)
@@ -542,7 +531,5 @@ def test_check_integrity_flags_timestamp_mismatch(tmp_path: Path) -> None:
             output_path=tmp_path / "report.yaml",
         )
 
-    ts_issues = [
-        m for m in report["mismatches"] if m.get("issue") == "timestamp_mismatch"
-    ]
+    ts_issues = [m for m in report["mismatches"] if m.get("issue") == "timestamp_mismatch"]
     assert ts_issues, f"Expected timestamp_mismatch:\n{report}"

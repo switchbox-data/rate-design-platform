@@ -11,14 +11,14 @@ Usage:
 
 from __future__ import annotations
 
-from utils.numeric import as_float
-
 import argparse
 import math
 import sys
 from pathlib import Path
 
 import polars as pl
+
+from utils.numeric import as_float
 
 EXPECTED_SCHEMA = {
     "celt_year": pl.Int16,
@@ -170,9 +170,7 @@ def check_subtotals(df: pl.DataFrame, result: ValidationResult) -> None:
     errors: list[str] = []
     n_checked = 0
 
-    for (cy, fca, state), group in df.group_by(
-        "celt_year", "fca_number", "state", maintain_order=True
-    ):
+    for (cy, fca, state), group in df.group_by("celt_year", "fca_number", "state", maintain_order=True):
         rt_map: dict[str, dict[str, float]] = {}
         for row in group.iter_rows(named=True):
             rt_map[row["resource_type"]] = {
@@ -201,9 +199,7 @@ def check_subtotals(df: pl.DataFrame, result: ValidationResult) -> None:
         if len(errors) > 10:
             result.error("Subtotals", f"... and {len(errors) - 10} more")
     else:
-        result.passed(
-            "Subtotals", f"all {n_checked} subtotal checks pass (tol={FLOAT_TOL} MW)"
-        )
+        result.passed("Subtotals", f"all {n_checked} subtotal checks pass (tol={FLOAT_TOL} MW)")
 
 
 def check_known_values(df: pl.DataFrame, result: ValidationResult) -> None:
@@ -267,9 +263,7 @@ def main() -> int:
         print(f"No parquet partitions found under {root}", file=sys.stderr)
         return 1
 
-    df = pl.read_parquet(root / "**/*.parquet", hive_partitioning=True).cast(
-        {"celt_year": pl.Int16}
-    )
+    df = pl.read_parquet(root / "**/*.parquet", hive_partitioning=True).cast({"celt_year": pl.Int16})
 
     print("ISO-NE CELT CSO Validation Report")
     print(f"{'=' * 60}")

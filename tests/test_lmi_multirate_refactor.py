@@ -72,8 +72,7 @@ def _make_ri_raw_tiers(
     if fpl_pcts is None:
         fpl_pcts = [50.0] * len(bldg_ids)
     gas_tiers = [
-        (2 if fpl <= 138 else (1 if fpl <= 185 else 0)) if t > 0 else 0
-        for t, fpl in zip(tiers, fpl_pcts)
+        (2 if fpl <= 138 else (1 if fpl <= 185 else 0)) if t > 0 else 0 for t, fpl in zip(tiers, fpl_pcts, strict=False)
     ]
     return pl.DataFrame(
         {
@@ -185,9 +184,7 @@ def test_sample_participation_preserves_raw_tier() -> None:
 def test_apply_credits_second_rate_no_duplicate_shared_cols() -> None:
     """Second _apply_credits call must add rate-specific cols without duplicating shared LMI cols."""
     credits_df = get_ny_eap_credits_df(load_ny_eap_config())
-    master = _make_master_bills(
-        [1, 2, 3], electric_utility="coned", gas_utility="kedny"
-    )
+    master = _make_master_bills([1, 2, 3], electric_utility="coned", gas_utility="kedny")
 
     # First rate (p100)
     tier_info_100 = _sample_participation(
@@ -211,9 +208,7 @@ def test_apply_credits_second_rate_no_duplicate_shared_cols() -> None:
         "uniform",
         42,
     )
-    master_after_40 = _apply_credits(
-        master_after_100, tier_info_40, 40, credits_df, "monthly"
-    )
+    master_after_40 = _apply_credits(master_after_100, tier_info_40, 40, credits_df, "monthly")
     assert "elec_lmi_tier" in master_after_40.columns
     assert "gas_lmi_tier" in master_after_40.columns
     assert "is_lmi_elec" in master_after_40.columns
@@ -228,26 +223,16 @@ def test_apply_credits_second_rate_no_duplicate_shared_cols() -> None:
 def test_apply_credits_shared_cols_consistent_across_rates() -> None:
     """elec_lmi_tier and is_lmi_elec must be identical regardless of which rate added them."""
     credits_df = get_ny_eap_credits_df(load_ny_eap_config())
-    master = _make_master_bills(
-        [10, 20, 30], electric_utility="nyseg", gas_utility="nyseg"
-    )
+    master = _make_master_bills([10, 20, 30], electric_utility="nyseg", gas_utility="nyseg")
     raw = _make_ny_raw_tiers([10, 20, 30], [1, 3, 0])
 
     tier_100 = _sample_participation(raw, 1.0, "uniform", 42)
     after_100 = _apply_credits(master, tier_100, 100, credits_df, "monthly")
-    lmi_tier_100 = (
-        after_100.filter(pl.col("month") == "Annual")
-        .sort("bldg_id")["elec_lmi_tier"]
-        .to_list()
-    )
+    lmi_tier_100 = after_100.filter(pl.col("month") == "Annual").sort("bldg_id")["elec_lmi_tier"].to_list()
 
     tier_40 = _sample_participation(raw, 0.4, "uniform", 42)
     after_40 = _apply_credits(after_100, tier_40, 40, credits_df, "monthly")
-    lmi_tier_40 = (
-        after_40.filter(pl.col("month") == "Annual")
-        .sort("bldg_id")["elec_lmi_tier"]
-        .to_list()
-    )
+    lmi_tier_40 = after_40.filter(pl.col("month") == "Annual").sort("bldg_id")["elec_lmi_tier"].to_list()
 
     assert lmi_tier_100 == lmi_tier_40
 
@@ -310,8 +295,8 @@ def _fake_apply_ri_lmi_to_master_multi_rate(
     so we can test the column-appending logic without S3 access.
     """
     from utils.post.apply_ri_lmi_discounts_to_bills import (
-        _sample_ri_participation,
         BLDG_ID_COL,
+        _sample_ri_participation,
     )
     from utils.post.lmi_common import discount_fractions_for_ri
 
@@ -321,7 +306,7 @@ def _fake_apply_ri_lmi_to_master_multi_rate(
     disc_elec, disc_gas = discount_fractions_for_ri()
 
     for rate in participation_rates:
-        pct_label = int(round(rate * 100))
+        pct_label = round(rate * 100)
         tier_info = _sample_ri_participation(raw, rate, "uniform", 42)
         elec_col = f"elec_total_bill_lmi_{pct_label}"
         gas_col = f"gas_total_bill_lmi_{pct_label}"
@@ -426,16 +411,8 @@ def test_ri_master_bills_non_participants_bill_unchanged() -> None:
     result = _fake_apply_ri_lmi_to_master_multi_rate(master, [1.0])
     non_part = result.filter(~pl.col("applied_discount_elec_100"))
     if non_part.height > 0:
-        elec_diff = (
-            (non_part["elec_total_bill"] - non_part["elec_total_bill_lmi_100"])
-            .abs()
-            .max()
-        )
-        gas_diff = (
-            (non_part["gas_total_bill"] - non_part["gas_total_bill_lmi_100"])
-            .abs()
-            .max()
-        )
+        elec_diff = (non_part["elec_total_bill"] - non_part["elec_total_bill_lmi_100"]).abs().max()
+        gas_diff = (non_part["gas_total_bill"] - non_part["gas_total_bill_lmi_100"]).abs().max()
         assert as_float(elec_diff) < 1e-6
         assert as_float(gas_diff) < 1e-6
 

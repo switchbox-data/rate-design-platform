@@ -24,9 +24,7 @@ from data.resstock.load_curve.aggregate_loads import (
 def test_is_annual_metric_column() -> None:
     assert is_annual_metric_column("out.electricity.heating.energy_consumption")
     assert is_annual_metric_column("out.load.heating.energy_delivered.kbtu")
-    assert not is_annual_metric_column(
-        "out.electricity.heating.energy_consumption_intensity"
-    )
+    assert not is_annual_metric_column("out.electricity.heating.energy_consumption_intensity")
     assert not is_annual_metric_column("out.outdoor_air_dryblub_temp.c")
     assert not is_annual_metric_column("bldg_id")
 
@@ -36,10 +34,7 @@ def test_annual_column_name_adds_kwh_suffix() -> None:
         annual_column_name("out.electricity.heating.energy_consumption")
         == "out.electricity.heating.energy_consumption.kwh"
     )
-    assert (
-        annual_column_name("out.load.heating.energy_delivered.kbtu")
-        == "out.load.heating.energy_delivered.kbtu"
-    )
+    assert annual_column_name("out.load.heating.energy_delivered.kbtu") == "out.load.heating.energy_delivered.kbtu"
 
 
 def test_build_annual_agg_exprs_subset_only() -> None:
@@ -247,9 +242,7 @@ def test_process_upgrade_raises_when_all_buildings_fail(tmp_path: Path) -> None:
 
     raw_dir = tmp_path / "raw" / "load_curve_annual" / "state=CT" / "upgrade=00"
     raw_dir.mkdir(parents=True)
-    pl.DataFrame({"bldg_id": [1], "upgrade": [0], "weight": [1.0]}).write_parquet(
-        raw_dir / "annual.parquet"
-    )
+    pl.DataFrame({"bldg_id": [1], "upgrade": [0], "weight": [1.0]}).write_parquet(raw_dir / "annual.parquet")
 
     with pytest.raises(RuntimeError, match="1 of 1 hourly files failed to aggregate"):
         process_upgrade(
@@ -303,9 +296,7 @@ def test_process_upgrade_raises_on_partial_building_failure(tmp_path: Path) -> N
 
 
 def test_join_left_keeps_energy_when_params_missing() -> None:
-    energy = pl.DataFrame(
-        {"bldg_id": [1], "out.electricity.heating.energy_consumption.kwh": [5.0]}
-    ).lazy()
+    energy = pl.DataFrame({"bldg_id": [1], "out.electricity.heating.energy_consumption.kwh": [5.0]}).lazy()
     params = pl.DataFrame({"bldg_id": [2], "upgrade": [0], "weight": [1.0]}).lazy()
     joined = join_aggregated_energy_to_annual(energy, params).collect()
     assert isinstance(joined, pl.DataFrame)

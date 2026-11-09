@@ -129,14 +129,10 @@ def _check_file(path: Path) -> list[str]:
             errors.append(f"{path}: nulls in required column {col}")
 
     if "ptid" in df.columns:
-        bad_ptid = df.filter(
-            pl.col("ptid").is_null()
-            & ~pl.col("zone").cast(pl.String).is_in(list(_LEGACY_HUB_ZONES))
-        )
+        bad_ptid = df.filter(pl.col("ptid").is_null() & ~pl.col("zone").cast(pl.String).is_in(list(_LEGACY_HUB_ZONES)))
         if bad_ptid.height > 0:
             errors.append(
-                f"{path}: {bad_ptid.height} rows with null ptid outside legacy hubs "
-                f"{sorted(_LEGACY_HUB_ZONES)}",
+                f"{path}: {bad_ptid.height} rows with null ptid outside legacy hubs {sorted(_LEGACY_HUB_ZONES)}",
             )
 
     for col in _NON_NULL_FLOAT_IF_PRESENT:
@@ -171,9 +167,12 @@ def _check_file(path: Path) -> list[str]:
     y = int(df["year"][0])
     mo = int(df["month"][0])
     rt = df.filter(pl.col("market").cast(pl.String) == "rt")
-    if rt.height > 0 and (y, mo) >= _MOVEMENT_REQUIRED_FROM:
-        if rt["nyca_regulation_movement_usd_per_mw"].null_count() == rt.height:
-            errors.append(f"{path}: all RT regulation movement values are null")
+    if (
+        rt.height > 0
+        and (y, mo) >= _MOVEMENT_REQUIRED_FROM
+        and rt["nyca_regulation_movement_usd_per_mw"].null_count() == rt.height
+    ):
+        errors.append(f"{path}: all RT regulation movement values are null")
 
     return errors
 

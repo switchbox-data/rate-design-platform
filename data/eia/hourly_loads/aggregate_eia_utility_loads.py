@@ -95,9 +95,7 @@ def load_zone_data(
     return combined
 
 
-def aggregate_utility_load(
-    zone_df: pl.DataFrame, utility_name: str, zones: list[str]
-) -> pl.DataFrame:
+def aggregate_utility_load(zone_df: pl.DataFrame, utility_name: str, zones: list[str]) -> pl.DataFrame:
     """Aggregate zone loads for a single utility.
 
     Args:
@@ -160,10 +158,7 @@ def write_utility_loads_local(
         compression="zstd",
         partition_by=["region", "utility", "year", "month"],
     )
-    print(
-        "\n✓ Wrote utility partitioned data under "
-        f"{utility_base}/region={iso_region}/utility={utility_name}/"
-    )
+    print(f"\n✓ Wrote utility partitioned data under {utility_base}/region={iso_region}/utility={utility_name}/")
 
 
 def process_all_utilities(
@@ -237,18 +232,14 @@ def process_all_utilities(
 
     print(f"\n{'=' * 60}")
     print("✓ All utilities processed")
-    print(
-        f"✓ Output: {utility_base}/region={iso_region}/utility=<UTILITY>/year={year}/month=<M>/data.parquet"
-    )
+    print(f"✓ Output: {utility_base}/region={iso_region}/utility=<UTILITY>/year={year}/month=<M>/data.parquet")
     print("  (run Justfile upload recipe to sync to S3)")
     print(f"{'=' * 60}")
 
 
 def main():
     """Main entry point for the script."""
-    parser = argparse.ArgumentParser(
-        description="Aggregate state zone loads to utility-level profiles (calendar year)"
-    )
+    parser = argparse.ArgumentParser(description="Aggregate state zone loads to utility-level profiles (calendar year)")
     parser.add_argument(
         "--state",
         type=str,
@@ -293,10 +284,7 @@ def main():
     selected_utility = args.utility.lower()
     if selected_utility != "all" and selected_utility not in utility_zone_mapping:
         valid = ", ".join(sorted(utility_zone_mapping.keys()))
-        parser.error(
-            f"Invalid --utility '{args.utility}' for state {args.state}. "
-            f"Valid values: all, {valid}"
-        )
+        parser.error(f"Invalid --utility '{args.utility}' for state {args.state}. Valid values: all, {valid}")
 
     zone_base = args.path_local_zone_parquet
     utility_base = args.path_local_utility_parquet
@@ -310,10 +298,7 @@ def main():
     print(f"ISO region partition: {config.iso_region}")
     print(f"Zone input: {zone_base}")
     print(f"Utility output: {utility_base}")
-    print(
-        "Utilities: "
-        f"{selected_utility if selected_utility != 'all' else 'All (' + ', '.join(utility_list) + ')'}"
-    )
+    print(f"Utilities: {selected_utility if selected_utility != 'all' else 'All (' + ', '.join(utility_list) + ')'}")
     print("=" * 60)
 
     if selected_utility == "all":

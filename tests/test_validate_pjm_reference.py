@@ -60,9 +60,7 @@ class TestFivecpValidator:
         result = run_validator(FIVECP_VALIDATOR, ["--path-csv", str(FIVECP_CSV)])
         assert result.returncode == 0, result.stdout + result.stderr
 
-    def _tamper_and_run(
-        self, tmp_path: Path, tamper: pl.Expr | None, **kwargs
-    ) -> subprocess.CompletedProcess[str]:
+    def _tamper_and_run(self, tmp_path: Path, tamper: pl.Expr | None, **kwargs) -> subprocess.CompletedProcess[str]:
         df = pl.read_csv(FIVECP_CSV, comment_prefix="#", try_parse_dates=True)
         if tamper is not None:
             df = df.with_columns(tamper)
@@ -73,11 +71,7 @@ class TestFivecpValidator:
     def test_weekend_peak_date_fails(self, tmp_path: Path) -> None:
         # 2024-07-16 (Tue) -> 2024-07-14 (Sun)
         tamper = (
-            pl.when(
-                (pl.col("summer_year") == 2024)
-                & (pl.col("rank") == 1)
-                & (pl.col("zone") == "RTO")
-            )
+            pl.when((pl.col("summer_year") == 2024) & (pl.col("rank") == 1) & (pl.col("zone") == "RTO"))
             .then(pl.lit("2024-07-14").str.to_date())
             .otherwise(pl.col("peak_date"))
             .alias("peak_date")
@@ -88,11 +82,7 @@ class TestFivecpValidator:
 
     def test_non_descending_rto_fails(self, tmp_path: Path) -> None:
         tamper = (
-            pl.when(
-                (pl.col("summer_year") == 2024)
-                & (pl.col("rank") == 1)
-                & (pl.col("zone") == "RTO")
-            )
+            pl.when((pl.col("summer_year") == 2024) & (pl.col("rank") == 1) & (pl.col("zone") == "RTO"))
             .then(pl.lit(1.0))
             .otherwise(pl.col("mw_unrestricted"))
             .alias("mw_unrestricted")
@@ -102,12 +92,7 @@ class TestFivecpValidator:
         assert "not strictly descending" in result.stdout
 
     def test_non_canonical_zone_fails(self, tmp_path: Path) -> None:
-        tamper = (
-            pl.when(pl.col("zone") == "DUQ")
-            .then(pl.lit("DLCO"))
-            .otherwise(pl.col("zone"))
-            .alias("zone")
-        )
+        tamper = pl.when(pl.col("zone") == "DUQ").then(pl.lit("DLCO")).otherwise(pl.col("zone")).alias("zone")
         result = self._tamper_and_run(tmp_path, tamper)
         assert result.returncode == 1
         assert "non-canonical" in result.stdout
@@ -127,9 +112,7 @@ class TestRpmValidator:
         result = run_validator(RPM_VALIDATOR, ["--path-csv", str(RPM_CSV)])
         assert result.returncode == 0, result.stdout + result.stderr
 
-    def _tamper_and_run(
-        self, tmp_path: Path, tamper: pl.Expr
-    ) -> subprocess.CompletedProcess[str]:
+    def _tamper_and_run(self, tmp_path: Path, tamper: pl.Expr) -> subprocess.CompletedProcess[str]:
         df = pl.read_csv(RPM_CSV, comment_prefix="#", try_parse_dates=True)
         df = df.with_columns(tamper)
         dst = tmp_path / "rpm_capacity_prices.csv"
@@ -224,9 +207,7 @@ class TestMappingValidator:
         assert result.returncode == 1
         assert "weights sum" in result.stdout.lower()
 
-    def test_inconsistent_crosswalk_fails(
-        self, mapping_csv: Path, tmp_path: Path
-    ) -> None:
+    def test_inconsistent_crosswalk_fails(self, mapping_csv: Path, tmp_path: Path) -> None:
         df = pl.read_csv(mapping_csv)
         # BGE's Data Miner code is BC, not BGE.
         df = df.with_columns(
@@ -249,9 +230,7 @@ class TestConvertIdempotency:
     CSV, or an intermediate edited without re-running `convert`, makes these fail.
     """
 
-    def _convert(
-        self, converter: Path, sources: Path, tmp_path: Path
-    ) -> subprocess.CompletedProcess[str]:
+    def _convert(self, converter: Path, sources: Path, tmp_path: Path) -> subprocess.CompletedProcess[str]:
         out = tmp_path / "out.csv"
         proc = subprocess.run(
             [

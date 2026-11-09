@@ -38,9 +38,9 @@ ATTR_COLS = [
 def load_metadata(path_resstock_base: str, state_upper: str) -> pl.DataFrame:
     """Utility assignment joined to baseline building attributes, one row per building."""
     base = path_resstock_base.rstrip("/")
-    assignment = pl.scan_parquet(
-        f"{base}/metadata_utility/state={state_upper}/utility_assignment.parquet"
-    ).select(BLDG_ID, *UTILITY_COLS)
+    assignment = pl.scan_parquet(f"{base}/metadata_utility/state={state_upper}/utility_assignment.parquet").select(
+        BLDG_ID, *UTILITY_COLS
+    )
     attributes = pl.scan_parquet(
         f"{base}/metadata/state={state_upper}/upgrade={METADATA_UPGRADE}/metadata-sb.parquet"
     ).select(BLDG_ID, *ATTR_COLS)

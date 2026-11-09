@@ -20,7 +20,9 @@ import requests
 
 # PJM URL patterns for NITS rate PDFs (PJM has changed naming conventions over time)
 _URL_JAN = "https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-jan-{year}.pdf"
-_URL_JUN = "https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-june-{year}.pdf"
+_URL_JUN = (
+    "https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-june-{year}.pdf"
+)
 _URL_ANNUAL = "https://www.pjm.com/-/media/DotCom/markets-ops/settlements/network-integration-trans-service-{year}.pdf"
 
 
@@ -77,10 +79,9 @@ def fetch_year(year: int, output_dir: Path) -> dict[str, bool]:
     # If both failed, try the combined annual PDF (older PJM naming convention)
     if not results["jan"] and not results["jun"]:
         annual_path = output_dir / f"nits_{year}.pdf"
-        if not annual_path.exists():
-            if fetch_pdf(_URL_ANNUAL.format(year=year), annual_path):
-                print(f"    → Combined annual PDF saved as nits_{year}.pdf")
-                results["annual"] = True
+        if not annual_path.exists() and fetch_pdf(_URL_ANNUAL.format(year=year), annual_path):
+            print(f"    → Combined annual PDF saved as nits_{year}.pdf")
+            results["annual"] = True
 
     return results
 
@@ -105,9 +106,7 @@ def parse_years(year_specs: list[str]) -> list[int]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Fetch PJM NITS rate PDFs for specified years."
-    )
+    parser = argparse.ArgumentParser(description="Fetch PJM NITS rate PDFs for specified years.")
     parser.add_argument(
         "--years",
         nargs="+",
@@ -164,9 +163,7 @@ def main() -> None:
     failed_count = sum(
         1
         for results in all_results.values()
-        if not results.get("jan")
-        and not results.get("jun")
-        and not results.get("annual")
+        if not results.get("jan") and not results.get("jun") and not results.get("annual")
     )
 
     if failed_count > 0:

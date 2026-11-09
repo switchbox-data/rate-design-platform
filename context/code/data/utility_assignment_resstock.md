@@ -270,10 +270,9 @@ from data.resstock.utils import load_state_configs, select_puma_and_heating_fuel
 from data.resstock.utility.utils import create_hh_utilities, read_csv_to_gdf_from_s3
 
 EXCLUDED_GAS_UTILITIES: frozenset[str] = frozenset(
-    (load_state_configs()["XX"]["utility_assignment"].get("kwargs") or {}).get(
-        "excluded_gas_utilities", []
-    )
+    (load_state_configs()["XX"]["utility_assignment"].get("kwargs") or {}).get("excluded_gas_utilities", [])
 )
+
 
 def assign_utility(
     metadata: pl.LazyFrame,

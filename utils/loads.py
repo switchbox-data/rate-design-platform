@@ -7,7 +7,6 @@ specific building IDs for alignment with CAIRO sample runs.
 
 from __future__ import annotations
 
-
 import pandas as pd
 import polars as pl
 
@@ -39,9 +38,7 @@ def grid_consumption_expr(
 
     ``grid_cons = max(total_load - abs(pv), 0)``
     """
-    return (
-        pl.col(load_col).cast(pl.Float64) - pl.col(pv_col).cast(pl.Float64).abs()
-    ).clip(lower_bound=0.0)
+    return (pl.col(load_col).cast(pl.Float64) - pl.col(pv_col).cast(pl.Float64).abs()).clip(lower_bound=0.0)
 
 
 def scan_resstock_loads(
@@ -170,20 +167,13 @@ def hourly_resstock_load_from_parquet(
     ).lazy()
     schema_names = loads_lf.collect_schema().names()
     if load_col not in schema_names:
-        raise ValueError(
-            f"Load column '{load_col}' not found; available: {schema_names[:15]}"
-        )
+        raise ValueError(f"Load column '{load_col}' not found; available: {schema_names[:15]}")
     aggregated = (
         loads_lf.select(bldg_id_col, timestamp_col, load_col, pv_col)
         .join(weights_lf, on=bldg_id_col, how="inner")
         .with_columns(
-            pl.col(timestamp_col)
-            .cast(pl.String, strict=False)
-            .str.to_datetime(strict=False)
-            .alias("_ts"),
-            (grid_consumption_expr(load_col, pv_col) * pl.col(weight_col)).alias(
-                "_wload"
-            ),
+            pl.col(timestamp_col).cast(pl.String, strict=False).str.to_datetime(strict=False).alias("_ts"),
+            (grid_consumption_expr(load_col, pv_col) * pl.col(weight_col)).alias("_wload"),
         )
         .group_by("_ts")
         .agg(pl.col("_wload").sum().alias("load"))

@@ -70,9 +70,7 @@ def _write_fair_default_fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
     ).write_csv(run_dir / "bills" / "elec_bills_year_target.csv")
 
     resstock_base = tmp_path / "resstock"
-    partition_dir = (
-        resstock_base / "load_curve_hourly" / f"state={_STATE}" / f"upgrade={_UPGRADE}"
-    )
+    partition_dir = resstock_base / "load_curve_hourly" / f"state={_STATE}" / f"upgrade={_UPGRADE}"
     partition_dir.mkdir(parents=True)
     rows: list[dict[str, object]] = []
     for bldg_id, (winter_kwh, summer_kwh, _is_hp) in loads.items():
@@ -131,12 +129,8 @@ def test_compute_fair_default_inputs_closed_forms(tmp_path: Path) -> None:
     assert out["seasonal_rates_only_winter_rate"][0] == pytest.approx(0.25)
     assert out["seasonal_rates_only_summer_rate"][0] == pytest.approx(0.625)
     assert out["seasonal_rates_only_feasible"][0]
-    assert out["seasonal_rates_only_residual_cross_subsidy_after_clipping"][
-        0
-    ] == pytest.approx(0.0)
-    assert out["fixed_plus_seasonal_mc_fixed_charge"][0] == pytest.approx(
-        -18.833333333333332
-    )
+    assert out["seasonal_rates_only_residual_cross_subsidy_after_clipping"][0] == pytest.approx(0.0)
+    assert out["fixed_plus_seasonal_mc_fixed_charge"][0] == pytest.approx(-18.833333333333332)
     assert out["fixed_plus_seasonal_mc_winter_rate"][0] == pytest.approx(1.75)
     assert out["fixed_plus_seasonal_mc_summer_rate"][0] == pytest.approx(0.875)
     assert not out["fixed_plus_seasonal_mc_feasible"][0]
@@ -152,36 +146,24 @@ def test_compute_fair_default_inputs_closed_forms(tmp_path: Path) -> None:
     class_energy_revenue = out["class_energy_revenue"][0]
     subclass_energy_revenue = out["subclass_energy_revenue"][0]
     lambda_a = (rr - 12.0 * fixed_a * customer_count) / class_energy_revenue
-    assert (
-        12.0 * fixed_a * customer_count + lambda_a * class_energy_revenue
-    ) == pytest.approx(rr)
-    assert (
-        12.0 * fixed_a * subclass_customer_count + lambda_a * subclass_energy_revenue
-    ) == pytest.approx(target)
+    assert (12.0 * fixed_a * customer_count + lambda_a * class_energy_revenue) == pytest.approx(rr)
+    assert (12.0 * fixed_a * subclass_customer_count + lambda_a * subclass_energy_revenue) == pytest.approx(target)
 
     fixed_b = out["seasonal_rates_only_fixed_charge"][0]
     winter_b = out["seasonal_rates_only_winter_rate"][0]
     summer_b = out["seasonal_rates_only_summer_rate"][0]
+    assert (12.0 * fixed_b * customer_count + winter_b * winter_kwh + summer_b * summer_kwh) == pytest.approx(rr)
     assert (
-        12.0 * fixed_b * customer_count + winter_b * winter_kwh + summer_b * summer_kwh
-    ) == pytest.approx(rr)
-    assert (
-        12.0 * fixed_b * subclass_customer_count
-        + winter_b * subclass_winter_kwh
-        + summer_b * subclass_summer_kwh
+        12.0 * fixed_b * subclass_customer_count + winter_b * subclass_winter_kwh + summer_b * subclass_summer_kwh
     ) == pytest.approx(target)
 
     fixed_c = out["fixed_plus_seasonal_mc_fixed_charge"][0]
     winter_c = out["fixed_plus_seasonal_mc_winter_rate"][0]
     summer_c = out["fixed_plus_seasonal_mc_summer_rate"][0]
     assert winter_c / summer_c == pytest.approx(2.0)
+    assert (12.0 * fixed_c * customer_count + winter_c * winter_kwh + summer_c * summer_kwh) == pytest.approx(rr)
     assert (
-        12.0 * fixed_c * customer_count + winter_c * winter_kwh + summer_c * summer_kwh
-    ) == pytest.approx(rr)
-    assert (
-        12.0 * fixed_c * subclass_customer_count
-        + winter_c * subclass_winter_kwh
-        + summer_c * subclass_summer_kwh
+        12.0 * fixed_c * subclass_customer_count + winter_c * subclass_winter_kwh + summer_c * subclass_summer_kwh
     ) == pytest.approx(target)
 
 
@@ -230,6 +212,4 @@ def test_compute_fair_default_inputs_strategy_b_clipped_residual(
     assert out["seasonal_rates_only_summer_rate"][0] < 0.0
     assert out["seasonal_rates_only_clipped_summer_rate"][0] == pytest.approx(0.0)
     assert out["seasonal_rates_only_clipped_winter_rate"][0] == pytest.approx(1.5)
-    assert out["seasonal_rates_only_residual_cross_subsidy_after_clipping"][
-        0
-    ] == pytest.approx(-60.0)
+    assert out["seasonal_rates_only_residual_cross_subsidy_after_clipping"][0] == pytest.approx(-60.0)

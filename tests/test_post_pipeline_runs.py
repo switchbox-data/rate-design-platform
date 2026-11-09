@@ -69,20 +69,13 @@ def _config(tmp_path: Path) -> PipelineConfig:
     return _load(tmp_path, _pipeline_yaml(tmp_path / "outputs"))
 
 
-def _write_run_index(
-    config: PipelineConfig, scenario: str, stage: str, *variants: str
-) -> None:
+def _write_run_index(config: PipelineConfig, scenario: str, stage: str, *variants: str) -> None:
     """Record completed runs the way the Prefect pipeline does."""
     runs_dir = Path(batch_dir(config, BATCH)) / ".runs"
     runs_dir.mkdir(parents=True, exist_ok=True)
     for variant in variants:
-        name = canonical_run_name(
-            config.state, config.utility, scenario, stage, variant
-        )
-        target = (
-            f"/data.sb/switchbox/cairo/outputs/hp_rates/md/bge/{BATCH}/"
-            f"20260803_120000_{name}"
-        )
+        name = canonical_run_name(config.state, config.utility, scenario, stage, variant)
+        target = f"/data.sb/switchbox/cairo/outputs/hp_rates/md/bge/{BATCH}/20260803_120000_{name}"
         (runs_dir / f"{name}.path").write_text(f"{target}\n", encoding="utf-8")
 
 
@@ -129,12 +122,8 @@ class TestSegments:
 class TestUpgradeForStage:
     """Stages are 1-1 with ResStock upgrades."""
 
-    @pytest.mark.parametrize(
-        ("stage", "upgrade"), [("precalc", "00"), ("calibrated", "02")]
-    )
-    def test_stage_maps_to_upgrade(
-        self, tmp_path: Path, stage: str, upgrade: str
-    ) -> None:
+    @pytest.mark.parametrize(("stage", "upgrade"), [("precalc", "00"), ("calibrated", "02")])
+    def test_stage_maps_to_upgrade(self, tmp_path: Path, stage: str, upgrade: str) -> None:
         assert upgrade_for_stage(_config(tmp_path), stage) == upgrade
 
     def test_unknown_stage_is_rejected(self, tmp_path: Path) -> None:
@@ -227,9 +216,7 @@ class TestBaselineRefRoot:
     """BAT and non-baseline bills read baseline columns from the master bills."""
 
     def test_path_points_at_all_utilities_segment(self) -> None:
-        root = baseline_ref_root(
-            state_lower="md", output_batch=BATCH, segment="default_precalc"
-        )
+        root = baseline_ref_root(state_lower="md", output_batch=BATCH, segment="default_precalc")
         assert root == (
             "s3://data.sb/switchbox/cairo/outputs/hp_rates/md/all_utilities/"
             f"{BATCH}/default_precalc/comb_bills_year_target/"

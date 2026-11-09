@@ -61,9 +61,7 @@ SCHEMA = {
 
 def _reject_just_placeholders(val: str) -> None:
     if "{{" in val or "}}" in val:
-        print(
-            f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr
-        )
+        print(f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr)
         sys.exit(1)
 
 

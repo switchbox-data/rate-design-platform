@@ -15,9 +15,7 @@ HP_SUBSTRINGS = ("Heat Pump", "MSHP", "ASHP", "GSHP")
 
 def _col_contains_any(column: str, substrings: tuple[str, ...]) -> pl.Expr:
     """True where the column value contains any of the given substrings (literal match)."""
-    return pl.any_horizontal(
-        [pl.col(column).str.contains(s, literal=True) for s in substrings]
-    ).fill_null(False)
+    return pl.any_horizontal([pl.col(column).str.contains(s, literal=True) for s in substrings]).fill_null(False)
 
 
 def identify_hp_customers(metadata: pl.LazyFrame, upgrade_id: str) -> pl.LazyFrame:
@@ -33,23 +31,15 @@ def identify_hp_customers(metadata: pl.LazyFrame, upgrade_id: str) -> pl.LazyFra
         in_hvac_cooling_is_hp = _col_contains_any(IN_HVAC_COOLING_COLUMN, HP_SUBSTRINGS)
         in_hvac_heating_is_hp = _col_contains_any(IN_HVAC_HEATING_COLUMN, HP_SUBSTRINGS)
         in_hvac_is_hp = (in_hvac_cooling_is_hp & in_hvac_heating_is_hp).fill_null(False)
-        upgrade_hvac_cooling_is_hp = _col_contains_any(
-            UPGRADE_HVAC_COOLING_COLUMN, HP_SUBSTRINGS
-        )
-        upgrade_hvac_heating_is_hp = _col_contains_any(
-            UPGRADE_HVAC_HEATING_COLUMN, HP_SUBSTRINGS
-        )
-        upgrade_hvac_is_hp = (
-            upgrade_hvac_cooling_is_hp & upgrade_hvac_heating_is_hp
-        ).fill_null(False)
+        upgrade_hvac_cooling_is_hp = _col_contains_any(UPGRADE_HVAC_COOLING_COLUMN, HP_SUBSTRINGS)
+        upgrade_hvac_heating_is_hp = _col_contains_any(UPGRADE_HVAC_HEATING_COLUMN, HP_SUBSTRINGS)
+        upgrade_hvac_is_hp = (upgrade_hvac_cooling_is_hp & upgrade_hvac_heating_is_hp).fill_null(False)
         hp_customers = (upgrade_hvac_is_hp | in_hvac_is_hp).fill_null(False)
     return metadata.with_columns(hp_customers.alias("postprocess_group.has_hp"))
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Add has_HP column to ResStock metadata."
-    )
+    parser = argparse.ArgumentParser(description="Add has_HP column to ResStock metadata.")
     parser.add_argument(
         "--input_dir",
         required=True,
@@ -82,13 +72,9 @@ if __name__ == "__main__":
     metadata_path = S3Path(args.input_dir) / args.input_filename
     if not metadata_path.exists():
         raise FileNotFoundError(f"Metadata file {metadata_path} does not exist")
-    input_metadata = pl.scan_parquet(
-        str(metadata_path), storage_options=STORAGE_OPTIONS
-    )
+    input_metadata = pl.scan_parquet(str(metadata_path), storage_options=STORAGE_OPTIONS)
     # Add `has_hp` column
-    output_metadata = identify_hp_customers(
-        metadata=input_metadata, upgrade_id=upgrade_id
-    )
+    output_metadata = identify_hp_customers(metadata=input_metadata, upgrade_id=upgrade_id)
     # Write output metadata file
     output_path = S3Path(args.output_dir) / args.output_filename
     if not output_path.parent.exists():

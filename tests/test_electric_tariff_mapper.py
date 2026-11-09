@@ -130,9 +130,7 @@ def test_generate_tariff_map_two_way_subclass_config():
         "hp": "tariffs/electric/util_hp.json",
         "non-hp": "tariffs/electric/util_nonhp.json",
     }
-    result = generate_tariff_map_from_scenario_keys(
-        path_tariffs, _bldg_data_has_hp(), subclass_config
-    ).sort("bldg_id")
+    result = generate_tariff_map_from_scenario_keys(path_tariffs, _bldg_data_has_hp(), subclass_config).sort("bldg_id")
 
     assert result["tariff_key"].to_list() == [
         "util_hp",
@@ -156,9 +154,9 @@ def test_generate_tariff_map_two_way_multi_value_selectors():
         "electric_heating": "tariffs/electric/util_elec_heating.json",
         "non_electric_heating": "tariffs/electric/util_non_elec_heating.json",
     }
-    result = generate_tariff_map_from_scenario_keys(
-        path_tariffs, _bldg_data_heating_type_v2(), subclass_config
-    ).sort("bldg_id")
+    result = generate_tariff_map_from_scenario_keys(path_tariffs, _bldg_data_heating_type_v2(), subclass_config).sort(
+        "bldg_id"
+    )
 
     assert result["tariff_key"].to_list() == [
         "util_elec_heating",
@@ -190,9 +188,7 @@ def test_generate_tariff_map_three_way_subclass_config():
         "small_commercial": "tariffs/electric/util_sml.json",
         "large_commercial": "tariffs/electric/util_lrg.json",
     }
-    result = generate_tariff_map_from_scenario_keys(
-        path_tariffs, bldg_data, subclass_config
-    ).sort("bldg_id")
+    result = generate_tariff_map_from_scenario_keys(path_tariffs, bldg_data, subclass_config).sort("bldg_id")
 
     assert result["tariff_key"].to_list() == [
         "util_res",

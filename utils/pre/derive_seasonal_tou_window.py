@@ -183,9 +183,7 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument("--state", required=True, help="State code (e.g. NY).")
     p.add_argument("--utility", required=True, help="Utility short name (e.g. coned).")
-    p.add_argument(
-        "--year", type=int, required=True, help="Target year for marginal cost data."
-    )
+    p.add_argument("--year", type=int, required=True, help="Target year for marginal cost data.")
     p.add_argument(
         "--path-dist-and-sub-tx-mc",
         required=True,
@@ -215,10 +213,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--has-hp",
         default="true",
-        help=(
-            "Filter buildings by HP status: 'true' (HP only, default), "
-            "'false' (non-HP only), or 'all' (no filter)."
-        ),
+        help=("Filter buildings by HP status: 'true' (HP only, default), 'false' (non-HP only), or 'all' (no filter)."),
     )
     p.add_argument(
         "--winter-months",
@@ -229,8 +224,7 @@ def _parse_args() -> argparse.Namespace:
         "--periods-yaml",
         default=None,
         help=(
-            "Path to periods YAML.  When omitted, resolves "
-            "rate_design/hp_rates/<state>/config/periods/<utility>.yaml."
+            "Path to periods YAML.  When omitted, resolves rate_design/hp_rates/<state>/config/periods/<utility>.yaml."
         ),
     )
     p.add_argument(
@@ -253,9 +247,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO, format="%(name)s %(levelname)s: %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
     args = _parse_args()
 
     project_root = Path(__file__).resolve().parents[2]
@@ -290,9 +282,7 @@ def main() -> None:
     elif has_hp_raw == "false":
         has_hp_filter = {False}
     else:
-        raise SystemExit(
-            f"--has-hp must be 'true', 'false', or 'all', got '{args.has_hp}'"
-        )
+        raise SystemExit(f"--has-hp must be 'true', 'false', or 'all', got '{args.has_hp}'")
 
     # -- Load data -----------------------------------------------------------
     bulk_mc, dist_mc, bulk_tx_mc, hourly_load = load_tou_inputs(
@@ -376,9 +366,7 @@ def main() -> None:
     border = "+" + "-" * 68 + "+"
     log.info("")
     log.info(border)
-    log.info(
-        "|  %-66s|", f"OPTIMAL TOU WINDOW for {args.utility}: {best.window_hours} hours"
-    )
+    log.info("|  %-66s|", f"OPTIMAL TOU WINDOW for {args.utility}: {best.window_hours} hours")
     log.info("|  %-66s|", "")
     for sn in [s.name for s in seasons]:
         peak = best.peak_hours_by_season.get(sn, [])
@@ -397,8 +385,7 @@ def main() -> None:
     if runner_up:
         log.info(
             "|  %-66s|",
-            f"Runner-up: {runner_up.window_hours} hrs "
-            f"(metric {runner_up.metric_total:.6e}, +{pct_gap:.1f}%)",
+            f"Runner-up: {runner_up.window_hours} hrs (metric {runner_up.metric_total:.6e}, +{pct_gap:.1f}%)",
         )
     log.info(border)
 
@@ -430,9 +417,7 @@ def main() -> None:
     # -- Update periods YAML -------------------------------------------------
     if not args.no_write_yaml:
         update_periods_yaml(periods_yaml_path, best.window_hours)
-        log.info(
-            "Updated %s: tou_window_hours = %d", periods_yaml_path, best.window_hours
-        )
+        log.info("Updated %s: tou_window_hours = %d", periods_yaml_path, best.window_hours)
     else:
         log.info("--no-write-yaml set; periods YAML not updated")
 

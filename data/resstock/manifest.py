@@ -41,7 +41,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -75,12 +75,12 @@ def _git_info() -> dict[str, Any]:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def _new_run_id() -> str:
     """Globally unique run ID: timestamp + UUID4 suffix to avoid same-second collisions."""
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     return f"{ts}-{uuid.uuid4().hex[:8]}"
 
 
@@ -239,8 +239,7 @@ def mark_crashed_runs(
         manifest["runs"] = runs
         write_manifest(release_dir, manifest)
         print(
-            f"  NOTE: marked {len(updated)} stale in_progress run(s) as crashed "
-            f"in {release_dir / MANIFEST_FILENAME}.",
+            f"  NOTE: marked {len(updated)} stale in_progress run(s) as crashed in {release_dir / MANIFEST_FILENAME}.",
             flush=True,
         )
     return updated
@@ -304,11 +303,7 @@ def _format_run(run: dict[str, Any], verbose: bool = False) -> str:
     step_names = [s.get("step", "?") for s in steps]
     lines.append(f"  steps:      {' → '.join(step_names)}")
     if verbose:
-        flags = {
-            k: v
-            for k, v in args.items()
-            if k not in ("states", "upgrade_ids", "file_types")
-        }
+        flags = {k: v for k, v in args.items() if k not in ("states", "upgrade_ids", "file_types")}
         if flags:
             lines.append(f"  flags:      {flags}")
         lines.append(f"  file_types: {', '.join(args.get('file_types', ['?']))}")
@@ -332,11 +327,7 @@ def _format_location(
     runs = _filter_runs(all_runs, states=states, upgrades=upgrades)
     if not runs:
         filter_desc = _describe_filter(states, upgrades)
-        return (
-            f"\n{label}:\n"
-            f"  No runs match filter ({filter_desc}).\n"
-            f"  total_runs (unfiltered): {len(all_runs)}\n"
-        )
+        return f"\n{label}:\n  No runs match filter ({filter_desc}).\n  total_runs (unfiltered): {len(all_runs)}\n"
 
     lines = [f"\n{label}:"]
 
@@ -352,13 +343,9 @@ def _format_location(
     if data_commit == current_commit:
         lines.append("  status:     ✓ matches current HEAD")
     else:
-        lines.append(
-            f"  status:     ✗ DIFFERS from current HEAD ({current_commit[:12]})"
-        )
+        lines.append(f"  status:     ✗ DIFFERS from current HEAD ({current_commit[:12]})")
         lines.append("              Data was produced by a different commit.")
-        lines.append(
-            "              To recreate, checkout the commit above and re-run the command."
-        )
+        lines.append("              To recreate, checkout the commit above and re-run the command.")
 
     if n_history > 1 and len(runs) > 1:
         older = runs[-(n_history):-1]
@@ -460,12 +447,8 @@ def print_status(
             )
 
         if check_ebs and check_s3:
-            ebs_runs = _filter_runs(
-                ebs_manifest.get("runs", []), states=states, upgrades=upgrades
-            )
-            s3_runs = _filter_runs(
-                s3_manifest.get("runs", []), states=states, upgrades=upgrades
-            )
+            ebs_runs = _filter_runs(ebs_manifest.get("runs", []), states=states, upgrades=upgrades)
+            s3_runs = _filter_runs(s3_manifest.get("runs", []), states=states, upgrades=upgrades)
             if not ebs_runs or not s3_runs:
                 filter_desc = _describe_filter(states, upgrades)
                 print(
@@ -572,7 +555,7 @@ def _list_ebs_files(local_dir: Path, state: str) -> list[tuple[str, int, datetim
         if rel == MANIFEST_FILENAME or rel.startswith(f"{MANIFEST_FILENAME}/"):
             continue
         stat = f.stat()
-        mtime = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+        mtime = datetime.fromtimestamp(stat.st_mtime, tz=UTC)
         entries.append((rel, stat.st_size, mtime))
     return entries
 
@@ -605,9 +588,7 @@ def _expected_file_types(runs: list[dict[str, Any]], *, is_sb: bool) -> set[str]
     for run in runs:
         base_types = set(run.get("args", {}).get("file_types", []))
         if is_sb:
-            expected |= {
-                ft for ft in base_types if ft not in SB_CLONE_EXCLUDED_FILE_TYPES
-            }
+            expected |= {ft for ft in base_types if ft not in SB_CLONE_EXCLUDED_FILE_TYPES}
             for step in run.get("steps", []):
                 expected |= set(_STEP_FILE_TYPES.get(step.get("step", ""), frozenset()))
         else:
@@ -615,9 +596,7 @@ def _expected_file_types(runs: list[dict[str, Any]], *, is_sb: bool) -> set[str]
     return expected
 
 
-def _latest_step_times_by_file_type(
-    runs: list[dict[str, Any]], *, is_sb: bool
-) -> dict[str, datetime]:
+def _latest_step_times_by_file_type(runs: list[dict[str, Any]], *, is_sb: bool) -> dict[str, datetime]:
     """Map each file type to the newest step ``completed_at`` across all runs."""
     from data.resstock.constants import SB_CLONE_EXCLUDED_FILE_TYPES
 
@@ -627,22 +606,16 @@ def _latest_step_times_by_file_type(
         args = run.get("args", {})
         base_types = set(args.get("file_types", []))
         if is_sb:
-            base_types = {
-                ft for ft in base_types if ft not in SB_CLONE_EXCLUDED_FILE_TYPES
-            }
+            base_types = {ft for ft in base_types if ft not in SB_CLONE_EXCLUDED_FILE_TYPES}
 
         for step in run.get("steps", []):
             name = step.get("step", "")
             completed_raw = step.get("completed_at")
             if not completed_raw:
                 continue
-            completed = datetime.fromisoformat(completed_raw).astimezone(timezone.utc)
+            completed = datetime.fromisoformat(completed_raw).astimezone(UTC)
 
-            if name == "fetch" and not is_sb:
-                touched = base_types
-            elif name == "clone" and is_sb:
-                touched = base_types
-            elif name == "upload_raw" and not is_sb:
+            if (name == "fetch" and not is_sb) or (name == "clone" and is_sb) or (name == "upload_raw" and not is_sb):
                 touched = base_types
             elif name == "upload_sb" and is_sb:
                 touched = set(base_types)
@@ -755,8 +728,7 @@ def check_integrity(
         run_ids = [r.get("run_id", "?") for r in runs]
 
         print(
-            f"  [{rel}] Expected file types from {len(runs)} manifest run(s): "
-            f"{sorted(expected) or '(none)'}",
+            f"  [{rel}] Expected file types from {len(runs)} manifest run(s): {sorted(expected) or '(none)'}",
             flush=True,
         )
 
@@ -798,9 +770,7 @@ def check_integrity(
         for loc_name, files in checks:
             actual_types = _file_types_from_paths([p for p, _, _ in files])
             print(
-                f"  [{rel}/{loc_name}] Actual file types: "
-                f"{sorted(actual_types) or '(none)'} "
-                f"({len(files):,} files)",
+                f"  [{rel}/{loc_name}] Actual file types: {sorted(actual_types) or '(none)'} ({len(files):,} files)",
                 flush=True,
             )
 
@@ -870,9 +840,7 @@ def check_integrity(
                                     f"({n_files:,} files checked)"
                                 ),
                                 "file_mtime_max": mx.isoformat(timespec="seconds"),
-                                "step_completed_at": step_ts.isoformat(
-                                    timespec="seconds"
-                                ),
+                                "step_completed_at": step_ts.isoformat(timespec="seconds"),
                                 "delta_seconds": int((mx - step_ts).total_seconds()),
                                 "n_files": n_files,
                             }
@@ -894,7 +862,7 @@ def check_integrity(
         report["summary"] = f"Found {n} integrity issue(s): " + ", ".join(parts) + "."
 
     if output_path is None:
-        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         output_path = Path(__file__).parent / f"integrity_report_{state}_{ts}.yaml"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w") as f:
@@ -910,10 +878,7 @@ def check_integrity(
     if all_mismatches:
         print("\n  Issues:")
         for m in all_mismatches[:30]:
-            print(
-                f"    [{m['location'].upper()}] {m['release']}/"
-                f"{m.get('file_type') or '?'} — {m['issue']}"
-            )
+            print(f"    [{m['location'].upper()}] {m['release']}/{m.get('file_type') or '?'} — {m['issue']}")
             if m.get("detail"):
                 print(f"      {m['detail']}")
         if n > 30:
@@ -931,9 +896,7 @@ def _status_main() -> None:
 
     rs = cfg["resstock"]
 
-    default_release = (
-        f"res_{rs['release_year']}_{rs['weather_file']}_{rs['release_version']}"
-    )
+    default_release = f"res_{rs['release_year']}_{rs['weather_file']}_{rs['release_version']}"
 
     parser = argparse.ArgumentParser(
         description="Check provenance status of ResStock data on EBS and S3.",

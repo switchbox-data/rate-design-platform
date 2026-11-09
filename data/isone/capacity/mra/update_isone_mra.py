@@ -20,6 +20,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import polars as pl
 from fetch_isone_mra import (
     SCHEMA,
     _cp_for_month,
@@ -27,8 +28,6 @@ from fetch_isone_mra import (
     _parse_csv,
     _write_partition,
 )
-
-import polars as pl
 
 PARTITION_RE = re.compile(r"year=(\d{4})/month=(\d{1,2})")
 
@@ -64,9 +63,7 @@ def _next_month(year: int, month: int) -> tuple[int, int]:
     return (year, month + 1)
 
 
-def _months_in_range(
-    start: tuple[int, int], end: tuple[int, int]
-) -> list[tuple[int, int]]:
+def _months_in_range(start: tuple[int, int], end: tuple[int, int]) -> list[tuple[int, int]]:
     months: list[tuple[int, int]] = []
     current = start
     while current <= end:

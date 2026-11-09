@@ -100,15 +100,14 @@ def _get_rpm_price_per_mw_day(
     Raises:
         ValueError: If no matching (delivery_year, zone) row is found.
     """
-    rows = rpm_df.filter(
-        (pl.col("dy_start").dt.year() == dy_start_year) & (pl.col("zone") == price_zone)
-    )
+    rows = rpm_df.filter((pl.col("dy_start").dt.year() == dy_start_year) & (pl.col("zone") == price_zone))
     if rows.is_empty():
         available = sorted(
             set(
                 zip(
                     rpm_df["dy_start"].dt.year().to_list(),
                     rpm_df["zone"].to_list(),
+                    strict=False,
                 )
             )
         )
@@ -150,9 +149,7 @@ def resolve_rpm_price_for_calendar_year(
     days_jan_may = (date(calendar_year, 6, 1) - date(calendar_year, 1, 1)).days
     days_jun_dec = (date(calendar_year + 1, 1, 1) - date(calendar_year, 6, 1)).days
 
-    price_dy1, dy1_label = _get_rpm_price_per_mw_day(
-        rpm_df, calendar_year - 1, price_zone
-    )
+    price_dy1, dy1_label = _get_rpm_price_per_mw_day(rpm_df, calendar_year - 1, price_zone)
     price_dy2, dy2_label = _get_rpm_price_per_mw_day(rpm_df, calendar_year, price_zone)
 
     cost_dy1 = price_dy1 * days_jan_may / 1000.0
@@ -204,14 +201,11 @@ def select_5cp_hours(
         raise ValueError(f"5CP parquet missing columns: {sorted(missing)}")
 
     peaks = (
-        fivecp_df.filter(
-            (pl.col("zone") == "RTO") & (pl.col("summer_year") == summer_year)
-        )
+        fivecp_df.filter((pl.col("zone") == "RTO") & (pl.col("summer_year") == summer_year))
         .with_columns(
-            (
-                pl.col("peak_date").cast(pl.Datetime)
-                + pl.duration(hours=pl.col("hour_ending_ept") - 1)
-            ).alias("timestamp")
+            (pl.col("peak_date").cast(pl.Datetime) + pl.duration(hours=pl.col("hour_ending_ept") - 1)).alias(
+                "timestamp"
+            )
         )
         .select("timestamp", "rank", "mw_unrestricted")
         .sort("timestamp")
@@ -225,20 +219,15 @@ def select_5cp_hours(
     n_unique = peaks.select(pl.col("timestamp").n_unique()).item()
     if n_unique != N_5CP_HOURS:
         raise ValueError(
-            f"5CP hours for summer {summer_year} contain duplicate timestamps "
-            f"({n_unique} unique of {peaks.height})."
+            f"5CP hours for summer {summer_year} contain duplicate timestamps ({n_unique} unique of {peaks.height})."
         )
 
     months = peaks.select(pl.col("timestamp").dt.month()).to_series().to_list()
     if any(m < 6 or m > 9 for m in months):
-        raise ValueError(
-            f"5CP hours for summer {summer_year} fall outside Jun–Sep: months={months}"
-        )
+        raise ValueError(f"5CP hours for summer {summer_year} fall outside Jun–Sep: months={months}")
 
     print(f"  Selected {peaks.height} RTO 5CP hours for summer {summer_year}:")
-    for ts, rank in zip(
-        peaks["timestamp"].to_list(), peaks["rank"].to_list(), strict=True
-    ):
+    for ts, rank in zip(peaks["timestamp"].to_list(), peaks["rank"].to_list(), strict=True):
         print(f"    rank {rank}: {ts}")
     return peaks
 
@@ -263,16 +252,12 @@ def validate_pjm_allocation(
     """
     actual_annual = float(capacity_df["capacity_cost_per_kw"].sum())
     error = abs(actual_annual - capacity_cost_kw_year)
-    error_pct = (
-        (error / capacity_cost_kw_year * 100) if capacity_cost_kw_year > 0 else 0.0
-    )
+    error_pct = (error / capacity_cost_kw_year * 100) if capacity_cost_kw_year > 0 else 0.0
 
     print("\n" + "=" * 60)
     print("VALIDATION: 1 kW Constant Load -> RPM Recovery")
     print("=" * 60)
-    print(
-        f"  Expected (annual RPM cost):             ${capacity_cost_kw_year:.4f}/kW-yr"
-    )
+    print(f"  Expected (annual RPM cost):             ${capacity_cost_kw_year:.4f}/kW-yr")
     print(f"  Actual (sum of hourly allocations):     ${actual_annual:.4f}/kW-yr")
     print(f"  Error: ${error:.6f} ({error_pct:.6f}%)")
 
@@ -350,9 +335,7 @@ def compute_supply_capacity_mc_pjm(
 
     # 3. Equal 1/K allocation (PLC = average over the five hours).
     per_hour_cost = capacity_cost_kw_year / n_peak_hours
-    peak_hours_df = peaks.select(
-        "timestamp", pl.lit(per_hour_cost).alias("capacity_cost_per_kw")
-    )
+    peak_hours_df = peaks.select("timestamp", pl.lit(per_hour_cost).alias("capacity_cost_per_kw"))
     print(
         f"\n  Equal-weight allocation: ${capacity_cost_kw_year:.4f}/kW-yr / "
         f"{n_peak_hours} = ${per_hour_cost:.4f}/kW on each 5CP hour"
@@ -384,8 +367,7 @@ def compute_supply_capacity_mc_pjm(
         raise ValueError(f"Capacity MC DataFrame has {n_rows} rows, expected 8760.")
     if n_rows != n_unique:
         raise ValueError(
-            f"Capacity MC DataFrame has {n_rows} rows but {n_unique} unique "
-            f"timestamps. Duplicate timestamps detected."
+            f"Capacity MC DataFrame has {n_rows} rows but {n_unique} unique timestamps. Duplicate timestamps detected."
         )
 
     return capacity_df

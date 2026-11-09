@@ -147,10 +147,7 @@ def fetch_ugi_pgc(
     parser.feed(resp.text)
 
     if not parser.rows:
-        raise RuntimeError(
-            f"No pricing rows found in {_SOURCE_URL}. "
-            "The page structure may have changed."
-        )
+        raise RuntimeError(f"No pricing rows found in {_SOURCE_URL}. The page structure may have changed.")
 
     # Build dict: YYYY-MM -> price_per_ccf
     scraped: dict[str, float] = {}
@@ -194,9 +191,7 @@ def fetch_ugi_pgc(
 
     # Collect months in range
     new_rows: dict[str, float] = {
-        ym: price
-        for ym, price in scraped.items()
-        if start_date <= _ym_to_date(ym) <= end_date
+        ym: price for ym, price in scraped.items() if start_date <= _ym_to_date(ym) <= end_date
     }
     log.info(
         "Fetched %d months in available range %s – %s",

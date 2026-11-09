@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-
 from typing import Any, cast
 
 import numpy as np
@@ -83,9 +82,7 @@ class TestComputeTouFitMetric:
         """When MC takes exactly two values that perfectly align with the
         peak/off-peak split, the metric should be zero."""
         idx = _make_hourly_index()
-        mc, load = _spike_mc_profile(
-            idx, spike_hours=list(range(12, 24)), spike_mc=0.20, base_mc=0.05
-        )
+        mc, load = _spike_mc_profile(idx, spike_hours=list(range(12, 24)), spike_mc=0.20, base_mc=0.05)
         metric = compute_tou_fit_metric(mc, load, peak_hours=list(range(12, 24)))
         assert metric == pytest.approx(0.0, abs=1e-12)
 
@@ -116,14 +113,10 @@ class TestSweepTouWindowHours:
 
         peak_hours = find_tou_peak_window(mc, load, window_hours=1)
 
-        candidate_metrics = {
-            start: compute_tou_fit_metric(mc, load, [start]) for start in range(24)
-        }
+        candidate_metrics = {start: compute_tou_fit_metric(mc, load, [start]) for start in range(24)}
         best_metric = min(candidate_metrics.values())
 
-        assert compute_tou_fit_metric(mc, load, peak_hours) == pytest.approx(
-            best_metric
-        )
+        assert compute_tou_fit_metric(mc, load, peak_hours) == pytest.approx(best_metric)
 
     def test_picks_correct_width_for_sharp_spike(self) -> None:
         """A 3-hour MC spike should yield N=3 as the best window width."""
@@ -204,13 +197,9 @@ class TestSweepTouWindowHours:
                 if n <= 1:
                     continue
                 hours_sorted = sorted(peak_hours)
-                gaps = [
-                    (hours_sorted[(i + 1) % n] - hours_sorted[i]) % 24 for i in range(n)
-                ]
+                gaps = [(hours_sorted[(i + 1) % n] - hours_sorted[i]) % 24 for i in range(n)]
                 is_contiguous = all(g == 1 or g == 24 - n + 1 for g in gaps)
-                assert is_contiguous, (
-                    f"Non-contiguous peak: {peak_hours} for N={r.window_hours}"
-                )
+                assert is_contiguous, f"Non-contiguous peak: {peak_hours} for N={r.window_hours}"
 
     def test_filters_out_flat_or_inverted_rates(self) -> None:
         """Candidates with on-peak price <= off-peak price (ratio <= 1.0) should be filtered out."""
@@ -229,9 +218,7 @@ class TestSweepTouWindowHours:
         idx = _make_hourly_index()
         # Create a profile where some window widths might have ratio <= 1.0
         # Use a very small spike that might not create ratio > 1.0 for all window widths
-        mc, load = _spike_mc_profile(
-            idx, spike_hours=[17, 18], spike_mc=0.11, base_mc=0.10
-        )
+        mc, load = _spike_mc_profile(idx, spike_hours=[17, 18], spike_mc=0.11, base_mc=0.10)
         seasons = make_winter_summer_seasons()
 
         results = sweep_tou_window_hours(mc, load, seasons, window_range=range(1, 24))
@@ -239,10 +226,7 @@ class TestSweepTouWindowHours:
         # All returned results should have ratio > 1.0 in all seasons
         for r in results:
             for season_name, ratio in r.ratio_by_season.items():
-                assert ratio > 1.0, (
-                    f"Result with N={r.window_hours} has ratio={ratio} <= 1.0 "
-                    f"in season {season_name}"
-                )
+                assert ratio > 1.0, f"Result with N={r.window_hours} has ratio={ratio} <= 1.0 in season {season_name}"
 
 
 # ---------------------------------------------------------------------------

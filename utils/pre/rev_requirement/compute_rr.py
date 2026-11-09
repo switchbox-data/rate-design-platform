@@ -23,11 +23,10 @@ from __future__ import annotations
 
 import argparse
 import calendar
+import logging
 import re
 from collections import defaultdict
 from pathlib import Path
-
-import logging
 
 import yaml
 
@@ -58,9 +57,7 @@ def _months_in_range(start_month: str, end_month: str) -> list[tuple[int, int]]:
     return out
 
 
-def _day_weighted_avg_rate(
-    monthly_rates: dict[str, float], month_list: list[tuple[int, int]]
-) -> float:
+def _day_weighted_avg_rate(monthly_rates: dict[str, float], month_list: list[tuple[int, int]]) -> float:
     """Compute sum(rate_m * days_m) / total_days for the given months."""
     if not month_list:
         return 0.0
@@ -137,8 +134,7 @@ def _compute_monthly_kwh_from_resstock(
     weight_sum = float(weights_df["weight"].sum())
     if weight_sum <= 0:
         raise ValueError(
-            f"ResStock weight sum is {weight_sum} for utility {utility!r}; "
-            "cannot scale to customer count."
+            f"ResStock weight sum is {weight_sum} for utility {utility!r}; cannot scale to customer count."
         )
     scale_factor = customer_count / weight_sum
 
@@ -153,11 +149,7 @@ def _compute_monthly_kwh_from_resstock(
     monthly_df = (
         loads_lf.join(weights_df.lazy(), on="bldg_id", how="inner")
         .group_by("month")
-        .agg(
-            (pl.col(ELEC_CONSUMPTION_COL) * pl.col("weight"))
-            .sum()
-            .alias("weighted_kwh")
-        )
+        .agg((pl.col(ELEC_CONSUMPTION_COL) * pl.col("weight")).sum().alias("weighted_kwh"))
         .sort("month")
         .collect()
     )
@@ -211,9 +203,7 @@ def _resolve_customer_count_with_year_fallback(
         try_year = year - offset
         path = pattern.sub(f"year={try_year}", path_template, count=1)
         try:
-            count = get_residential_customer_count_from_utility_stats(
-                path, utility, storage_options=storage_options
-            )
+            count = get_residential_customer_count_from_utility_stats(path, utility, storage_options=storage_options)
             if offset > 0:
                 logging.warning(
                     "EIA-861 customer count for year %s not found; used year %s.",
@@ -224,8 +214,7 @@ def _resolve_customer_count_with_year_fallback(
         except (OSError, FileNotFoundError):
             continue
     raise FileNotFoundError(
-        f"Could not read EIA-861 customer count for utility={utility} "
-        f"for year {year} or prior 20 years."
+        f"Could not read EIA-861 customer count for utility={utility} for year {year} or prior 20 years."
     )
 
 
@@ -239,18 +228,14 @@ def _resolve_path_eia_with_year_fallback(
     pattern = re.compile(r"year=\d{4}")
     match = pattern.search(path_template)
     if not match:
-        kwh = get_residential_sales_kwh_from_utility_stats(
-            path_template, utility, storage_options=storage_options
-        )
+        kwh = get_residential_sales_kwh_from_utility_stats(path_template, utility, storage_options=storage_options)
         return kwh, year
 
     for offset in range(0, 21):
         try_year = year - offset
         path = pattern.sub(f"year={try_year}", path_template, count=1)
         try:
-            kwh = get_residential_sales_kwh_from_utility_stats(
-                path, utility, storage_options=storage_options
-            )
+            kwh = get_residential_sales_kwh_from_utility_stats(path, utility, storage_options=storage_options)
             if offset > 0:
                 logging.warning(
                     "EIA-861 data for year %s not found; used year %s (path %s).",
@@ -261,9 +246,7 @@ def _resolve_path_eia_with_year_fallback(
             return kwh, try_year
         except (OSError, FileNotFoundError):
             continue
-    raise FileNotFoundError(
-        f"Could not read EIA-861 for utility={utility} for year {year} or prior 20 years."
-    )
+    raise FileNotFoundError(f"Could not read EIA-861 for utility={utility} for year {year} or prior 20 years.")
 
 
 def _warn_potential_zonal_duplicates(charges: dict[str, dict], utility: str) -> None:
@@ -308,9 +291,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Compute topped-up delivery and supply revenue requirements from EIA kWh and monthly charge rates."
     )
-    parser.add_argument(
-        "--utility", required=True, help="Utility shortcode (e.g. coned, rie)"
-    )
+    parser.add_argument("--utility", required=True, help="Utility shortcode (e.g. coned, rie)")
     parser.add_argument(
         "--path-monthly-rates",
         type=Path,
@@ -340,9 +321,7 @@ def main() -> None:
             "supply rates that can't be summed directly."
         ),
     )
-    parser.add_argument(
-        "--output", type=Path, required=True, help="Output rev_requirement YAML path"
-    )
+    parser.add_argument("--output", type=Path, required=True, help="Output rev_requirement YAML path")
     parser.add_argument(
         "--use-resstock-loads",
         action="store_true",
@@ -356,27 +335,19 @@ def main() -> None:
         "--path-resstock-release",
         type=str,
         default=None,
-        help=(
-            "Root of the ResStock release (local or s3://). "
-            "Required when --use-resstock-loads is set."
-        ),
+        help=("Root of the ResStock release (local or s3://). Required when --use-resstock-loads is set."),
     )
     parser.add_argument(
         "--state",
         type=str,
         default=None,
-        help=(
-            "Two-letter state code (uppercase, e.g. RI). "
-            "Required when --use-resstock-loads is set."
-        ),
+        help=("Two-letter state code (uppercase, e.g. RI). Required when --use-resstock-loads is set."),
     )
     args = parser.parse_args()
 
     if args.use_resstock_loads:
         if not args.path_resstock_release:
-            parser.error(
-                "--path-resstock-release is required when --use-resstock-loads is set."
-            )
+            parser.error("--path-resstock-release is required when --use-resstock-loads is set.")
         if not args.state:
             parser.error("--state is required when --use-resstock-loads is set.")
 
@@ -398,9 +369,7 @@ def main() -> None:
     start_month = monthly_rates_data.get("start_month")
     end_month = monthly_rates_data.get("end_month")
     if not start_month or not end_month:
-        raise SystemExit(
-            f"{args.path_monthly_rates} must have start_month and end_month."
-        )
+        raise SystemExit(f"{args.path_monthly_rates} must have start_month and end_month.")
     # Read charges from the decision-grouped YAML format.
     # Each decision section has {rate_structure, charges}.  We only process
     # flat sections; non-flat sections (seasonal_tiered, seasonal_tou) are
@@ -444,21 +413,17 @@ def main() -> None:
     resstock_scale_factor: float | None = None
 
     if args.use_resstock_loads:
-        residential_customer_count_for_scaling, _ = (
-            _resolve_customer_count_with_year_fallback(
-                args.path_electric_utility_stats,
-                year_for_eia,
-                utility,
-                storage_options,
-            )
+        residential_customer_count_for_scaling, _ = _resolve_customer_count_with_year_fallback(
+            args.path_electric_utility_stats,
+            year_for_eia,
+            utility,
+            storage_options,
         )
-        resstock_monthly_kwh, resstock_scale_factor = (
-            _compute_monthly_kwh_from_resstock(
-                path_resstock_release=args.path_resstock_release,
-                state=args.state,
-                utility=utility,
-                customer_count=residential_customer_count_for_scaling,
-            )
+        resstock_monthly_kwh, resstock_scale_factor = _compute_monthly_kwh_from_resstock(
+            path_resstock_release=args.path_resstock_release,
+            state=args.state,
+            utility=utility,
+            customer_count=residential_customer_count_for_scaling,
         )
         total_residential_kwh = sum(resstock_monthly_kwh.values())
         logging.info(
@@ -500,17 +465,13 @@ def main() -> None:
         charge_unit = data.get("charge_unit", "$/kWh")
         if charge_unit in ("$/day", "$/month"):
             if residential_customer_count is None:
-                residential_customer_count, _ = (
-                    _resolve_customer_count_with_year_fallback(
-                        args.path_electric_utility_stats,
-                        year_for_eia,
-                        utility,
-                        storage_options,
-                    )
+                residential_customer_count, _ = _resolve_customer_count_with_year_fallback(
+                    args.path_electric_utility_stats,
+                    year_for_eia,
+                    utility,
+                    storage_options,
                 )
-            total_budget = _fixed_charge_annual_budget(
-                monthly, month_list, charge_unit, residential_customer_count
-            )
+            total_budget = _fixed_charge_annual_budget(monthly, month_list, charge_unit, residential_customer_count)
             entry: dict = {
                 "charge_unit": charge_unit,
                 "customer_count": residential_customer_count,
@@ -518,9 +479,7 @@ def main() -> None:
             }
         elif charge_unit == "$/kWh":
             if resstock_monthly_kwh is not None:
-                total_budget = _resstock_monthly_budget(
-                    monthly, month_list, resstock_monthly_kwh
-                )
+                total_budget = _resstock_monthly_budget(monthly, month_list, resstock_monthly_kwh)
                 entry = {
                     "charge_unit": charge_unit,
                     "budget_method": "resstock",
@@ -536,9 +495,7 @@ def main() -> None:
                     "total_budget": round(total_budget, 2),
                 }
         else:
-            logging.warning(
-                "Skipping %s: unsupported charge_unit %r", slug, charge_unit
-            )
+            logging.warning("Skipping %s: unsupported charge_unit %r", slug, charge_unit)
             continue
 
         if decision == "add_to_drr":
@@ -570,8 +527,7 @@ def main() -> None:
     delivery_revenue_requirement_topups = round(delivery_budgets_sum, 2)
     supply_revenue_requirement_topups = round(supply_budgets_sum, 2)
     total_delivery_revenue_requirement = round(
-        delivery_revenue_requirement_from_rate_case
-        + delivery_revenue_requirement_topups,
+        delivery_revenue_requirement_from_rate_case + delivery_revenue_requirement_topups,
         2,
     )
     total_delivery_and_supply_revenue_requirement = round(
@@ -596,18 +552,10 @@ def main() -> None:
     }
 
     if args.use_resstock_loads and resstock_monthly_kwh is not None:
-        out["resstock_monthly_kwh"] = {
-            m: round(kwh, 2) for m, kwh in sorted(resstock_monthly_kwh.items())
-        }
-        out["resstock_scale_factor"] = (
-            round(resstock_scale_factor, 6)
-            if resstock_scale_factor is not None
-            else None
-        )
+        out["resstock_monthly_kwh"] = {m: round(kwh, 2) for m, kwh in sorted(resstock_monthly_kwh.items())}
+        out["resstock_scale_factor"] = round(resstock_scale_factor, 6) if resstock_scale_factor is not None else None
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    yaml_str = yaml.safe_dump(
-        out, default_flow_style=False, sort_keys=False, allow_unicode=True
-    )
+    yaml_str = yaml.safe_dump(out, default_flow_style=False, sort_keys=False, allow_unicode=True)
     if args.use_resstock_loads:
         inline_comments: dict[str, str] = {
             "total_residential_kwh:": "# sum(resstock_monthly_kwh) * resstock_scale_factor",

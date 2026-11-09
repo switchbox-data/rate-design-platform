@@ -32,11 +32,7 @@ class SubclassSpec:
 
     @property
     def value_to_alias(self) -> dict[str, str]:
-        return {
-            _normalize_group_value(value): alias
-            for alias, values in self.selectors.items()
-            for value in values
-        }
+        return {_normalize_group_value(value): alias for alias, values in self.selectors.items() for value in values}
 
 
 def legacy_hp_subclass_spec() -> SubclassSpec:
@@ -55,19 +51,13 @@ def subclass_spec_from_raw(raw: object) -> SubclassSpec:
     raw_dict = {str(key): value for key, value in raw.items()}
     raw_group_col = str(raw_dict["group_col"])
     _prefix = "postprocess_group."
-    group_col = (
-        raw_group_col
-        if raw_group_col.startswith(_prefix)
-        else f"{_prefix}{raw_group_col}"
-    )
+    group_col = raw_group_col if raw_group_col.startswith(_prefix) else f"{_prefix}{raw_group_col}"
     raw_selectors = raw_dict["selectors"]
     if not isinstance(raw_selectors, dict):
         raise ValueError("subclass_config.selectors must be a mapping")
 
     selectors = {
-        str(alias): tuple(
-            value.strip() for value in str(values).split(",") if value.strip()
-        )
+        str(alias): tuple(value.strip() for value in str(values).split(",") if value.strip())
         for alias, values in raw_selectors.items()
     }
     return SubclassSpec(group_col=group_col, selectors=selectors)
@@ -99,12 +89,7 @@ def subclass_alias_expr(
     source_col: str | None = None,
 ) -> pl.Expr:
     """Return a Polars expression mapping raw metadata values to subclass aliases."""
-    normalized = (
-        pl.col(source_col or spec.group_col)
-        .cast(pl.Utf8, strict=False)
-        .str.to_lowercase()
-        .str.strip_chars()
-    )
+    normalized = pl.col(source_col or spec.group_col).cast(pl.Utf8, strict=False).str.to_lowercase().str.strip_chars()
 
     expr = pl.lit(None).cast(pl.Utf8)
     for raw_value, alias in spec.value_to_alias.items():

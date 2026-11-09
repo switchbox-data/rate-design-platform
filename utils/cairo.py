@@ -42,7 +42,7 @@ def _log_rss(label: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _normalize_mc_path(path: CambiumPathLike):  # noqa: ANN201
+def _normalize_mc_path(path: CambiumPathLike):
     """Return a single path-like (Path or S3Path) for an MC CSV or Parquet.
 
     Accepts:
@@ -100,9 +100,7 @@ def _is_cambium_path(path: CambiumPathLike) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _load_cambium_marginal_costs(
-    cambium_scenario: CambiumPathLike, target_year: int
-) -> pd.DataFrame:
+def _load_cambium_marginal_costs(cambium_scenario: CambiumPathLike, target_year: int) -> pd.DataFrame:
     """
     Load Cambium marginal costs from CSV or Parquet (local or S3). Returns costs in $/kWh.
 
@@ -136,9 +134,7 @@ def _load_cambium_marginal_costs(
         df = _read_parquet_to_pandas(path)
         df = _set_timestamp_index(df)
     else:
-        raise ValueError(
-            f"Cambium file must be .csv or .parquet; got {path} (suffix {suffix})"
-        )
+        raise ValueError(f"Cambium file must be .csv or .parquet; got {path} (suffix {suffix})")
 
     keep_cols = {
         "energy_cost_enduse": "Marginal Energy Costs ($/kWh)",
@@ -150,8 +146,7 @@ def _load_cambium_marginal_costs(
     df = df.dropna(subset=numeric_input_cols, how="any")
     if df.empty:
         raise ValueError(
-            f"Cambium marginal cost file {path} has no valid numeric rows in required "
-            f"columns: {numeric_input_cols}"
+            f"Cambium marginal cost file {path} has no valid numeric rows in required columns: {numeric_input_cols}"
         )
 
     df = df.loc[:, list(keep_cols.keys())].rename(columns=keep_cols)
@@ -198,9 +193,7 @@ def _load_supply_mc_column(
     if not normalized.exists():
         raise FileNotFoundError(f"{context} file {normalized} does not exist")
     if normalized.suffix.lower() != ".parquet":
-        raise ValueError(
-            f"{context} file must be .parquet; got {normalized} (suffix {normalized.suffix})"
-        )
+        raise ValueError(f"{context} file must be .parquet; got {normalized} (suffix {normalized.suffix})")
 
     df = _read_parquet_to_pandas(normalized)
     df = _set_timestamp_index(df)
@@ -212,9 +205,7 @@ def _load_supply_mc_column(
     df[col] = pd.to_numeric(df[col], errors="coerce")
     df = df.dropna(subset=[col])
     if df.empty:
-        raise ValueError(
-            f"{context} file {normalized} has no valid numeric rows in {col}"
-        )
+        raise ValueError(f"{context} file {normalized} has no valid numeric rows in {col}")
 
     df = df.rename(columns={col: label})
     df.loc[:, label] /= 1000  # $/MWh → $/kWh
@@ -296,15 +287,12 @@ def _load_supply_marginal_costs(
     """
     if energy_path is None and capacity_path is None:
         raise ValueError(
-            "Both energy_path and capacity_path are None. "
-            "Use _load_cambium_marginal_costs for combined files."
+            "Both energy_path and capacity_path are None. Use _load_cambium_marginal_costs for combined files."
         )
     if energy_path is None:
         raise ValueError("energy_path is required when using separate supply MC files")
     if capacity_path is None:
-        raise ValueError(
-            "capacity_path is required when using separate supply MC files"
-        )
+        raise ValueError("capacity_path is required when using separate supply MC files")
 
     # Backward compatibility: if either path is a Cambium file (combined energy+capacity),
     # route to the Cambium loader and let it produce both columns.
@@ -334,9 +322,7 @@ def _load_supply_marginal_costs(
 
         combined = pd.concat([energy_df, capacity_df], axis=1)
         if len(combined) != 8760:
-            raise ValueError(
-                f"Combined supply MC has {len(combined)} rows, expected 8760"
-            )
+            raise ValueError(f"Combined supply MC has {len(combined)} rows, expected 8760")
 
     if ancillary_path is not None and str(ancillary_path).strip():
         ancillary_df = _load_supply_mc_column(
@@ -397,11 +383,7 @@ def build_bldg_id_to_load_filepath(
         if building_ids_set is not None and bldg_id not in building_ids_set:
             continue
 
-        filepath = (
-            parquet_file
-            if return_path_base is None
-            else return_path_base / parquet_file.name
-        )
+        filepath = parquet_file if return_path_base is None else return_path_base / parquet_file.name
         bldg_id_to_load_filepath[bldg_id] = filepath
 
     return bldg_id_to_load_filepath
@@ -422,9 +404,7 @@ def _fetch_prototype_ids_by_electric_util(
     """
     if "sb.electric_utility" not in utility_assignment.collect_schema().names():
         raise ValueError("sb.electric_utility column not found in utility assignment")
-    utility_assignment = utility_assignment.filter(
-        pl.col("sb.electric_utility") == electric_utility
-    )
+    utility_assignment = utility_assignment.filter(pl.col("sb.electric_utility") == electric_utility)
     bldg_ids = utility_assignment.select("bldg_id").collect()
     if bldg_ids.height == 0:
         raise ValueError(f"No buildings assigned to {electric_utility}")
@@ -503,9 +483,7 @@ def load_bulk_tx_marginal_costs(
         )
 
     if df["bulk_tx_cost_enduse"].isna().any():
-        raise ValueError(
-            "Bulk transmission marginal costs contain null values in bulk_tx_cost_enduse"
-        )
+        raise ValueError("Bulk transmission marginal costs contain null values in bulk_tx_cost_enduse")
 
     if len(df) != 8760:
         log.warning(
@@ -525,8 +503,7 @@ def load_bulk_tx_marginal_costs(
         )
 
     log.info(
-        "Loaded bulk transmission MC: %d rows, annual sum = %.4f $/kW-yr, "
-        "avg = %.6f $/kWh, max = %.6f $/kWh",
+        "Loaded bulk transmission MC: %d rows, annual sum = %.4f $/kW-yr, avg = %.6f $/kWh, max = %.6f $/kWh",
         len(series),
         float(series.sum()),
         float(series.mean()),
@@ -613,9 +590,7 @@ def add_bulk_tx_and_dist_and_sub_tx_marginal_cost(
     )
 
     if path_bulk_tx_mc is not None and str(path_bulk_tx_mc).strip():
-        bulk_tx_mc = _align_mc_to_index(
-            load_bulk_tx_marginal_costs(path_bulk_tx_mc), target_index, "bulk_tx"
-        )
+        bulk_tx_mc = _align_mc_to_index(load_bulk_tx_marginal_costs(path_bulk_tx_mc), target_index, "bulk_tx")
         dist_sum = float(dist_and_sub_tx_mc.sum())
         bulk_tx_sum = float(bulk_tx_mc.sum())
         log.info(
@@ -625,9 +600,7 @@ def add_bulk_tx_and_dist_and_sub_tx_marginal_cost(
         )
         delivery_mc = dist_and_sub_tx_mc + bulk_tx_mc
         if delivery_mc.isna().any():
-            raise ValueError(
-                "Combined delivery MC (dist+sub-tx + bulk transmission) contains null values"
-            )
+            raise ValueError("Combined delivery MC (dist+sub-tx + bulk transmission) contains null values")
         log.info(
             "Combined delivery MC: Total=%.4f $/kW-yr (Dist+Sub-Tx=%.4f + Bulk Tx=%.4f)",
             float(delivery_mc.sum()),
@@ -687,9 +660,7 @@ def _zero_unsafe_period_shifts_and_rebalance(
     out.loc[unsafe, "load_shift"] = 0.0
     recv_mask = out["energy_period"] == receiver_period
     donor_sum = out.loc[~recv_mask].groupby("bldg_id", sort=False)["load_shift"].sum()
-    out.loc[recv_mask, "load_shift"] = (
-        out.loc[recv_mask, "bldg_id"].map(-donor_sum).fillna(0.0).astype(np.float64)
-    )
+    out.loc[recv_mask, "load_shift"] = out.loc[recv_mask, "bldg_id"].map(-donor_sum).fillna(0.0).astype(np.float64)
     return out
 
 
@@ -742,9 +713,7 @@ def assign_hourly_periods(
     hours = np.asarray(cast(Any, hourly_index).hour)
     is_weekday = np.asarray(cast(Any, hourly_index).dayofweek) < 5
 
-    periods = np.where(
-        is_weekday, weekday_schedule[months, hours], weekend_schedule[months, hours]
-    )
+    periods = np.where(is_weekday, weekday_schedule[months, hours], weekend_schedule[months, hours])
     return pd.Series(periods, index=hourly_index, name="energy_period", dtype=int)
 
 
@@ -788,9 +757,9 @@ def _compute_equivalent_flat_tariff(
         `sum_t(Q_t * P_t) / sum_t(Q_t)`.
     """
     rates = period_rate.rename("rate").reset_index()
-    class_period = (
-        period_consumption.groupby("energy_period", as_index=False)["Q_orig"].sum()
-    ).merge(rates, on="energy_period", how="left")
+    class_period = (period_consumption.groupby("energy_period", as_index=False)["Q_orig"].sum()).merge(
+        rates, on="energy_period", how="left"
+    )
     total_demand = float(class_period["Q_orig"].sum())
     if total_demand <= 0:
         raise ValueError("Cannot compute equivalent flat tariff with zero demand.")
@@ -816,28 +785,16 @@ def _build_period_shift_targets(
     Returns:
         DataFrame with per-building/period target demand and `load_shift`.
     """
-    targets = period_consumption.merge(
-        period_rate.rename("rate").reset_index(), on="energy_period", how="left"
-    )
-    targets["Q_target"] = targets["Q_orig"] * (
-        (targets["rate"] / equivalent_flat_tariff) ** demand_elasticity
-    )
+    targets = period_consumption.merge(period_rate.rename("rate").reset_index(), on="energy_period", how="left")
+    targets["Q_target"] = targets["Q_orig"] * ((targets["rate"] / equivalent_flat_tariff) ** demand_elasticity)
     targets["load_shift"] = targets["Q_target"] - targets["Q_orig"]
     # Zero-sum: receiver period absorbs the negated sum of donor shifts.
     recv_period = (
-        int(targets.loc[targets["rate"].idxmin(), "energy_period"])
-        if receiver_period is None
-        else receiver_period
+        int(targets.loc[targets["rate"].idxmin(), "energy_period"]) if receiver_period is None else receiver_period
     )
-    donor_shift = (
-        targets[targets["energy_period"] != recv_period]
-        .groupby("bldg_id")["load_shift"]
-        .sum()
-    )
+    donor_shift = targets[targets["energy_period"] != recv_period].groupby("bldg_id")["load_shift"].sum()
     recv_mask = targets["energy_period"] == recv_period
-    targets.loc[recv_mask, "load_shift"] = (
-        targets.loc[recv_mask, "bldg_id"].map(-donor_shift).fillna(0.0)
-    )
+    targets.loc[recv_mask, "load_shift"] = targets.loc[recv_mask, "bldg_id"].map(-donor_shift).fillna(0.0)
     return targets
 
 
@@ -863,9 +820,7 @@ def _shift_building_hourly_demand(
         on="energy_period",
         how="left",
     )
-    _n = shifted.groupby(["bldg_id", "energy_period"], sort=False)[
-        "electricity_net"
-    ].transform("size")
+    _n = shifted.groupby(["bldg_id", "energy_period"], sort=False)["electricity_net"].transform("size")
     shifted["hour_share"] = _flex_shift_hour_share_from_groups(
         shifted["electricity_net"].to_numpy(),
         shifted["Q_orig"].to_numpy(),
@@ -880,15 +835,11 @@ def _shift_building_hourly_demand(
         Q_new=("shifted_net", "sum"),
         rate=("rate", "first"),
     )
-    valid = (
-        (tracker["Q_new"] > 0)
-        & (tracker["Q_orig"] > 0)
-        & (tracker["rate"] != equivalent_flat_tariff)
-    )
+    valid = (tracker["Q_new"] > 0) & (tracker["Q_orig"] > 0) & (tracker["rate"] != equivalent_flat_tariff)
     tracker["epsilon"] = np.nan
-    tracker.loc[valid, "epsilon"] = np.log(
-        tracker.loc[valid, "Q_new"] / tracker.loc[valid, "Q_orig"]
-    ) / np.log(tracker.loc[valid, "rate"] / equivalent_flat_tariff)
+    tracker.loc[valid, "epsilon"] = np.log(tracker.loc[valid, "Q_new"] / tracker.loc[valid, "Q_orig"]) / np.log(
+        tracker.loc[valid, "rate"] / equivalent_flat_tariff
+    )
     return shifted, tracker
 
 
@@ -924,11 +875,7 @@ def process_residential_hourly_demand_response_shift(
     if hourly_load_df.empty:
         return np.array([]), np.array([]), pd.DataFrame()
 
-    min_k = (
-        float(min_period_abs_kwh)
-        if min_period_abs_kwh is not None
-        else float(FLEX_SHIFT_MIN_PERIOD_ABS_KWH)
-    )
+    min_k = float(min_period_abs_kwh) if min_period_abs_kwh is not None else float(FLEX_SHIFT_MIN_PERIOD_ABS_KWH)
 
     period_consumption = _build_period_consumption(hourly_load_df)
     flat_tariff = (
@@ -965,12 +912,8 @@ def process_residential_hourly_demand_response_shift(
     q_orig = grp["electricity_net"].transform("sum")
     n_in_group = grp["electricity_net"].transform("size")
 
-    hourly_keys = tuple(
-        zip(hourly_load_df["bldg_id"], hourly_load_df["energy_period"], strict=False)
-    )
-    load_shift_arr = np.array(
-        [load_shift_map.get(k, 0.0) for k in hourly_keys], dtype=np.float64
-    )
+    hourly_keys = tuple(zip(hourly_load_df["bldg_id"], hourly_load_df["energy_period"], strict=False))
+    load_shift_arr = np.array([load_shift_map.get(k, 0.0) for k in hourly_keys], dtype=np.float64)
     del hourly_keys
 
     hour_share = _flex_shift_hour_share_from_groups(
@@ -997,15 +940,11 @@ def process_residential_hourly_demand_response_shift(
     )
     rate_map = period_rate.to_dict()
     tracker["rate"] = tracker["energy_period"].map(rate_map)
-    valid = (
-        (tracker["Q_new"] > 0)
-        & (tracker["Q_orig"] > 0)
-        & (tracker["rate"] != flat_tariff)
-    )
+    valid = (tracker["Q_new"] > 0) & (tracker["Q_orig"] > 0) & (tracker["rate"] != flat_tariff)
     tracker["epsilon"] = np.nan
-    tracker.loc[valid, "epsilon"] = np.log(
-        tracker.loc[valid, "Q_new"] / tracker.loc[valid, "Q_orig"]
-    ) / np.log(tracker.loc[valid, "rate"] / flat_tariff)
+    tracker.loc[valid, "epsilon"] = np.log(tracker.loc[valid, "Q_new"] / tracker.loc[valid, "Q_orig"]) / np.log(
+        tracker.loc[valid, "rate"] / flat_tariff
+    )
 
     return shifted_net, hourly_shift, tracker
 
@@ -1037,9 +976,7 @@ def _infer_season_groups_from_tariff(
         return []
 
     groups: list[dict[str, object]] = []
-    for idx, (periods, months) in enumerate(
-        sorted(grouped.items(), key=lambda item: min(item[1]))
-    ):
+    for idx, (periods, months) in enumerate(sorted(grouped.items(), key=lambda item: min(item[1]))):
         if not periods:
             continue
         groups.append({"name": f"season_{idx + 1}", "months": sorted(months)})
@@ -1092,9 +1029,7 @@ def apply_runtime_tou_demand_response(
 
     rate_df = extract_tou_period_rates(tou_tariff)
     period_rate = cast(pd.Series, rate_df.groupby("energy_period")["rate"].first())
-    time_idx = pd.DatetimeIndex(
-        raw_load_elec.index.get_level_values("time").unique().sort_values()
-    )
+    time_idx = pd.DatetimeIndex(raw_load_elec.index.get_level_values("time").unique().sort_values())
     period_map = assign_hourly_periods(time_idx, tou_tariff)
 
     # Period lookup: 8760 rows (tiny), used to tag each season slice.
@@ -1107,8 +1042,7 @@ def apply_runtime_tou_demand_response(
     # Determine season groups from explicit specs, tariff-inferred, or full-year.
     if season_specs:
         season_groups: list[dict[str, object]] = [
-            {"name": str(spec.season.name), "months": list(spec.season.months)}
-            for spec in season_specs
+            {"name": str(spec.season.name), "months": list(spec.season.months)} for spec in season_specs
         ]
     else:
         season_groups = _infer_season_groups_from_tariff(period_map)
@@ -1123,17 +1057,13 @@ def apply_runtime_tou_demand_response(
     def _shift_season(season_name: str, season_months: set[int]) -> None:
         """Shift one season's TOU rows in-place on shifted_load_elec."""
         season_eps = (
-            demand_elasticity.get(season_name, 0.0)
-            if isinstance(demand_elasticity, dict)
-            else demand_elasticity
+            demand_elasticity.get(season_name, 0.0) if isinstance(demand_elasticity, dict) else demand_elasticity
         )
         if season_eps == 0.0:
             return
 
         mask = bldg_level.isin(tou_set) & month_level.isin(season_months)
-        season_df = (
-            shifted_load_elec.loc[mask, ["electricity_net"]].copy().reset_index()
-        )
+        season_df = shifted_load_elec.loc[mask, ["electricity_net"]].copy().reset_index()
         if season_df.empty:
             return
         season_df = season_df.merge(period_lookup, on="time", how="left")
@@ -1141,12 +1071,10 @@ def apply_runtime_tou_demand_response(
             return
         _log_rss(f"  season '{season_name}' slice ready ({len(season_df)} rows)")
 
-        shifted_net, hourly_shift_arr, tracker = (
-            process_residential_hourly_demand_response_shift(
-                hourly_load_df=season_df,
-                period_rate=period_rate,
-                demand_elasticity=season_eps,
-            )
+        shifted_net, hourly_shift_arr, tracker = process_residential_hourly_demand_response_shift(
+            hourly_load_df=season_df,
+            period_rate=period_rate,
+            demand_elasticity=season_eps,
         )
         tracker["season"] = season_name
         trackers.append(tracker)
@@ -1180,16 +1108,13 @@ def apply_runtime_tou_demand_response(
         tracker_df["period_label"] = tracker_df.apply(
             lambda row: f"{row['season']}_period_{int(row['energy_period'])}", axis=1
         )
-        elasticity_tracker = tracker_df.pivot(
-            index="bldg_id", columns="period_label", values="epsilon"
-        )
+        elasticity_tracker = tracker_df.pivot(index="bldg_id", columns="period_label", values="epsilon")
     else:
         elasticity_tracker = pd.DataFrame()
 
     shifted_total = shifted_load_elec.loc[tou_mask, "electricity_net"].sum()
     log.info(
-        "Runtime demand response complete: bldgs=%d, elasticity=%s, "
-        "original=%.0f, shifted=%.0f, diff=%.2f",
+        "Runtime demand response complete: bldgs=%d, elasticity=%s, original=%.0f, shifted=%.0f, diff=%.2f",
         len(tou_bldg_ids),
         demand_elasticity,
         original_total,

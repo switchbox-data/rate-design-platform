@@ -75,7 +75,7 @@ def _init_semaphore(max_concurrent: int) -> None:
     and gates ``subprocess.run`` calls from ``cairo_run`` tasks that execute
     in the same process via ``ThreadPoolTaskRunner``.
     """
-    global _cairo_semaphore  # noqa: PLW0603
+    global _cairo_semaphore
     _cairo_semaphore = threading.Semaphore(max_concurrent)
 
 
@@ -156,9 +156,7 @@ def cairo_run(
         log.info("Skipping %s — already completed at %s", run_id, output_dir)
         return output_dir
 
-    assert _cairo_semaphore is not None, (
-        "Semaphore not initialised — call _init_semaphore() before submitting tasks."
-    )
+    assert _cairo_semaphore is not None, "Semaphore not initialised — call _init_semaphore() before submitting tasks."
 
     cmd = [
         sys.executable,
@@ -182,14 +180,11 @@ def cairo_run(
         result = subprocess.run(cmd, check=False)
 
     if result.returncode != 0:
-        raise RuntimeError(
-            f"CAIRO subprocess failed for {run_id} (exit code {result.returncode})"
-        )
+        raise RuntimeError(f"CAIRO subprocess failed for {run_id} (exit code {result.returncode})")
 
     if not _run_is_complete(batch_dir, run_id):
         raise RuntimeError(
-            f"CAIRO completed for {run_id} but no run index file found at "
-            f"{batch_dir / '.runs' / f'{run_id}.path'}"
+            f"CAIRO completed for {run_id} but no run index file found at {batch_dir / '.runs' / f'{run_id}.path'}"
         )
 
     return read_run_output_dir(batch_dir, run_id)
@@ -261,27 +256,17 @@ def _compute_subclass_rr(
     group_col = scenario.subclass_config.group_col
     cols = tuple(SUBCLASS_RR_ALLOCATION_METHODS)
 
-    delivery_breakdowns = compute_subclass_rr(
-        run_dir=delivery_dir, group_col=group_col, cross_subsidy_cols=cols
-    )
-    total_breakdowns = compute_subclass_rr(
-        run_dir=supply_dir, group_col=group_col, cross_subsidy_cols=cols
-    )
+    delivery_breakdowns = compute_subclass_rr(run_dir=delivery_dir, group_col=group_col, cross_subsidy_cols=cols)
+    total_breakdowns = compute_subclass_rr(run_dir=supply_dir, group_col=group_col, cross_subsidy_cols=cols)
 
     base_rr_path = config.state_config_dir / rd.rr_single_rate
     base_rr = yaml.safe_load(base_rr_path.read_text(encoding="utf-8"))
     total_delivery_rr = base_rr.get("total_delivery_revenue_requirement")
     if total_delivery_rr is None:
-        raise ValueError(
-            f"Missing 'total_delivery_revenue_requirement' in {base_rr_path}"
-        )
-    total_delivery_and_supply_rr = base_rr.get(
-        "total_delivery_and_supply_revenue_requirement"
-    )
+        raise ValueError(f"Missing 'total_delivery_revenue_requirement' in {base_rr_path}")
+    total_delivery_and_supply_rr = base_rr.get("total_delivery_and_supply_revenue_requirement")
     if total_delivery_and_supply_rr is None:
-        raise ValueError(
-            f"Missing 'total_delivery_and_supply_revenue_requirement' in {base_rr_path}"
-        )
+        raise ValueError(f"Missing 'total_delivery_and_supply_revenue_requirement' in {base_rr_path}")
     overrides = _parse_resstock_overrides(base_rr)
 
     out_path = config.state_config_dir / multi_rate_rr_path(config, scenario)
@@ -345,14 +330,8 @@ def _derive_subgroup_tariffs(
     json_dir = config.state_config_dir / "tariffs" / "electric"
 
     # Dependency's calibrated tariff paths (for structure: base copies)
-    dep_delivery_cal = json_dir / (
-        tariff_stem(config.utility, dep_scenario, supply=False, calibrated=True)
-        + ".json"
-    )
-    dep_supply_cal = json_dir / (
-        tariff_stem(config.utility, dep_scenario, supply=True, calibrated=True)
-        + ".json"
-    )
+    dep_delivery_cal = json_dir / (tariff_stem(config.utility, dep_scenario, supply=False, calibrated=True) + ".json")
+    dep_supply_cal = json_dir / (tariff_stem(config.utility, dep_scenario, supply=True, calibrated=True) + ".json")
 
     written: list[Path] = []
 
@@ -360,12 +339,8 @@ def _derive_subgroup_tariffs(
     winter_months = tuple(load_winter_months_from_periods(periods_path))
 
     for sg in scenario.subclass_config.subgroups:
-        stem_d = tariff_stem(
-            config.utility, scenario, sg.alias, supply=False, calibrated=False
-        )
-        stem_s = tariff_stem(
-            config.utility, scenario, sg.alias, supply=True, calibrated=False
-        )
+        stem_d = tariff_stem(config.utility, scenario, sg.alias, supply=False, calibrated=False)
+        stem_s = tariff_stem(config.utility, scenario, sg.alias, supply=True, calibrated=False)
         out_d = json_dir / f"{stem_d}.json"
         out_s = json_dir / f"{stem_s}.json"
 
@@ -428,9 +403,7 @@ def check_dependency(
     results: dict[str, Path] = {}
     for stage in ("precalc", "calibrated"):
         for variant in ("delivery", "supply"):
-            run_id = canonical_run_name(
-                state, utility, dep_scenario_name, stage, variant
-            )
+            run_id = canonical_run_name(state, utility, dep_scenario_name, stage, variant)
             if not _run_is_complete(batch_dir, run_id):
                 raise RuntimeError(
                     f"Dependency {dep_scenario_name!r} run {run_id!r} has not "
@@ -512,9 +485,7 @@ def compute_candidate_tariff_rr_for_fixed(
     out_path = config.state_config_dir / multi_rate_rr_path(config, scenario)
 
     if scenario.candidate_tariff_rr_yaml_path is not None:
-        manual_path = _resolve_state_path(
-            config, scenario.candidate_tariff_rr_yaml_path
-        )
+        manual_path = _resolve_state_path(config, scenario.candidate_tariff_rr_yaml_path)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(manual_path, out_path)
         log.info(
@@ -542,9 +513,7 @@ def compute_candidate_tariff_rr_for_fixed(
     base_rr_path = config.state_config_dir / rd.rr_single_rate
     base_rr = yaml.safe_load(base_rr_path.read_text(encoding="utf-8"))
     total_delivery_rr = float(base_rr["total_delivery_revenue_requirement"])
-    total_delivery_and_supply_rr = float(
-        base_rr["total_delivery_and_supply_revenue_requirement"]
-    )
+    total_delivery_and_supply_rr = float(base_rr["total_delivery_and_supply_revenue_requirement"])
     overrides = _parse_resstock_overrides(base_rr)
 
     # Compute standard BAT-based delivery and supply breakdowns from the
@@ -643,9 +612,7 @@ def prepare_fixed_tariffs(
 
     for sg in scenario.subclass_config.subgroups:
         for is_supply in (False, True):
-            manual_source = (
-                sg.tariff_json_supply_path if is_supply else sg.tariff_json_path
-            )
+            manual_source = sg.tariff_json_supply_path if is_supply else sg.tariff_json_path
             if manual_source is not None:
                 source_path = _resolve_state_path(config, manual_source)
             else:
@@ -790,9 +757,7 @@ def run_quartet(
         each of the four runs.
     """
     results: dict[str, Path] = {}
-    num_workers = (
-        max(1, min(process_workers, os.cpu_count() or 1) // 2) if concurrent else None
-    )
+    num_workers = max(1, min(process_workers, os.cpu_count() or 1) // 2) if concurrent else None
 
     # --- Stage 1: precalc ---
     precalc_d_dir, precalc_s_dir = _run_stage(
@@ -809,9 +774,7 @@ def run_quartet(
 
     # --- Tariff promotion seam ---
     if promote_tariffs:
-        promoted = _promote_calibrated_tariffs(
-            [precalc_d_dir, precalc_s_dir], state=state
-        )
+        promoted = _promote_calibrated_tariffs([precalc_d_dir, precalc_s_dir], state=state)
         log.info(
             "run_quartet[%s]: promoted %d calibrated tariffs: %s",
             scenario_name,
@@ -883,15 +846,12 @@ def preflight(
     errors = validate_preflight_inputs(config, scenarios=scenarios)
     if errors:
         raise RuntimeError(
-            f"Preflight validation failed with {len(errors)} error(s):\n"
-            + "\n".join(f"  - {e}" for e in errors)
+            f"Preflight validation failed with {len(errors)} error(s):\n" + "\n".join(f"  - {e}" for e in errors)
         )
     log.info("preflight: validation passed")
 
     # Step 2: Generate scenario YAML
-    yaml_path = (
-        config.state_config_dir / "scenarios" / f"scenarios_{config.utility}.yaml"
-    )
+    yaml_path = config.state_config_dir / "scenarios" / f"scenarios_{config.utility}.yaml"
     generate_scenarios_yaml(config, batch, yaml_path, scenarios=scenarios)
     log.info("preflight: wrote scenario YAML at %s", yaml_path)
 
@@ -911,20 +871,13 @@ def _partition_scenarios(
     kind (or a new ``depends_on`` shape) cannot be skipped by ``run_batch``.
     """
     fixed = [s for s in selected if s.quartet == "multi_rate_fixed"]
-    dependent = [
-        s
-        for s in selected
-        if s.quartet != "multi_rate_fixed" and s.depends_on is not None
-    ]
-    independent = [
-        s for s in selected if s.quartet != "multi_rate_fixed" and s.depends_on is None
-    ]
+    dependent = [s for s in selected if s.quartet != "multi_rate_fixed" and s.depends_on is not None]
+    independent = [s for s in selected if s.quartet != "multi_rate_fixed" and s.depends_on is None]
     dispatched = {s.name for s in independent + dependent + fixed}
     missing = sorted({s.name for s in selected} - dispatched)
     if missing:
         raise RuntimeError(
-            f"run_batch: scenarios were not dispatched: {missing}. "
-            "Update the independent/dependent/fixed partition."
+            f"run_batch: scenarios were not dispatched: {missing}. Update the independent/dependent/fixed partition."
         )
     return independent, dependent, fixed
 
@@ -992,18 +945,13 @@ def run_batch(
     # --- Run dependent scenarios (after dependency + derive step) ---
     for scenario in dependent:
         assert scenario.depends_on is not None
-        dep_outputs = check_dependency(
-            batch_dir, config.state, config.utility, scenario.depends_on[0]
-        )
+        dep_outputs = check_dependency(batch_dir, config.state, config.utility, scenario.depends_on[0])
         if scenario.derive_method == "icos":
             from utils.mid.derive_icos_tariff import derive_icos_tariffs
 
             derive_icos_tariffs(config, scenario, dep_outputs)
         elif scenario.derive_method is not None:
-            raise ValueError(
-                f"Unknown derive_method {scenario.derive_method!r} on "
-                f"scenario {scenario.name!r}"
-            )
+            raise ValueError(f"Unknown derive_method {scenario.derive_method!r} on scenario {scenario.name!r}")
         else:
             dep_precalc = {
                 "precalc_delivery": dep_outputs["precalc_delivery"],
@@ -1027,9 +975,7 @@ def run_batch(
         # both the RR yaml and every subgroup's tariff are manually supplied.
         req_outputs: dict[str, dict[str, Path]] = {}
         for req_name in scenario.depends_on or []:
-            req_outputs[req_name] = check_dependency(
-                batch_dir, config.state, config.utility, req_name
-            )
+            req_outputs[req_name] = check_dependency(batch_dir, config.state, config.utility, req_name)
 
         # Task 1: Compute candidate-tariff subclass RR
         compute_candidate_tariff_rr_for_fixed(config, scenario, req_outputs)
@@ -1061,9 +1007,7 @@ def _cli() -> None:
     """Entry point: ``uv run python -m rate_design.hp_rates.run_pipeline``."""
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Run the hp_rates Prefect pipeline for a given utility."
-    )
+    parser = argparse.ArgumentParser(description="Run the hp_rates Prefect pipeline for a given utility.")
     parser.add_argument(
         "--yaml",
         required=True,

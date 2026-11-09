@@ -70,25 +70,16 @@ def _num(value: float) -> str:
 
 
 def _key_dist_pop(p: Mapping[str, Any]) -> str:
-    return (
-        f"pop_{p['load_source']}_{p['n_hours']}h"
-        f"_load{p['load_year']}_{p['target_dollar_year']}usd"
-    )
+    return f"pop_{p['load_source']}_{p['n_hours']}h_load{p['load_year']}_{p['target_dollar_year']}usd"
 
 
 def _key_dist_month_hour(p: Mapping[str, Any]) -> str:
     holidays = "holidays" if p["include_holidays"] else "noholidays"
-    return (
-        f"month_hour_{p['table_source']}_{p['voltage']}_{holidays}"
-        f"_cal{p['calendar_year']}"
-    )
+    return f"month_hour_{p['table_source']}_{p['voltage']}_{holidays}_cal{p['calendar_year']}"
 
 
 def _key_bulk_isone(p: Mapping[str, Any]) -> str:
-    return (
-        f"aesc_ptf{_num(p['ptf_kw_year'])}_{p['allocation_load']}"
-        f"_{p['n_peak_hours']}h_load{p['load_year']}"
-    )
+    return f"aesc_ptf{_num(p['ptf_kw_year'])}_{p['allocation_load']}_{p['n_peak_hours']}h_load{p['load_year']}"
 
 
 def _key_bulk_isone_pop_kde(p: Mapping[str, Any]) -> str:
@@ -145,8 +136,7 @@ def build_key(mc_type: str, method: str, params: Mapping[str, Any]) -> str:
         return builder(params)
     except KeyError as exc:
         raise ValueError(
-            f"Key for mc_type={mc_type!r}, method={method!r} needs param {exc}; "
-            f"got {sorted(params)}"
+            f"Key for mc_type={mc_type!r}, method={method!r} needs param {exc}; got {sorted(params)}"
         ) from exc
 
 
@@ -164,9 +154,7 @@ class McSpec:
 
     def __post_init__(self) -> None:
         if self.mc_type not in MC_TYPES:
-            raise ValueError(
-                f"mc_type must be one of {sorted(MC_TYPES)}, got {self.mc_type!r}"
-            )
+            raise ValueError(f"mc_type must be one of {sorted(MC_TYPES)}, got {self.mc_type!r}")
         build_key(self.mc_type, self.method, self.params)
 
     @property
@@ -216,9 +204,7 @@ def _parquet_files_under(path_dir: str) -> list[str]:
     return sorted(str(p) for p in root.rglob("*.parquet"))
 
 
-def partition_file_path(
-    base: str, utility: str, year: int, filename: str = "data.parquet"
-) -> str:
+def partition_file_path(base: str, utility: str, year: int, filename: str = "data.parquet") -> str:
     """``{base}/utility={utility}/year={year}/{filename}``."""
     return f"{str(base).rstrip('/')}/utility={utility}/year={year}/{filename}"
 
@@ -277,9 +263,7 @@ class UnpublishedCodeError(RuntimeError):
 
 
 def _git_run(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args], cwd=PATH_REPO, capture_output=True, text=True, check=False
-    )
+    return subprocess.run(["git", *args], cwd=PATH_REPO, capture_output=True, text=True, check=False)
 
 
 def _git(*args: str) -> str | None:
@@ -324,14 +308,12 @@ def require_published_code() -> dict[str, Any]:
         shown = "\n  ".join(dirty[:20])
         more = f"\n  ... and {len(dirty) - 20} more" if len(dirty) > 20 else ""
         raise UnpublishedCodeError(
-            "MC uploads need a clean working tree. Commit (or remove) these "
-            f"files, push, and re-run:\n  {shown}{more}"
+            f"MC uploads need a clean working tree. Commit (or remove) these files, push, and re-run:\n  {shown}{more}"
         )
     fetch = _git_run("fetch", "--quiet", GIT_REMOTE)
     if fetch.returncode != 0:
         raise UnpublishedCodeError(
-            f"git fetch {GIT_REMOTE} failed, so HEAD cannot be confirmed as "
-            f"pushed:\n{fetch.stderr.strip()}"
+            f"git fetch {GIT_REMOTE} failed, so HEAD cannot be confirmed as pushed:\n{fetch.stderr.strip()}"
         )
     remote_branches = [
         line.strip()
@@ -346,22 +328,16 @@ def require_published_code() -> dict[str, Any]:
         )
 
     tag = mc_tag_name(commit)
-    tagged = (
-        _git("rev-parse", "--verify", "--quiet", f"{tag}^{{commit}}") or ""
-    ).strip()
+    tagged = (_git("rev-parse", "--verify", "--quiet", f"{tag}^{{commit}}") or "").strip()
     if not tagged:
         created = _git_run("tag", tag, commit)
         if created.returncode != 0:
-            raise UnpublishedCodeError(
-                f"Could not create tag {tag}: {created.stderr.strip()}"
-            )
+            raise UnpublishedCodeError(f"Could not create tag {tag}: {created.stderr.strip()}")
     elif tagged != commit:
         raise UnpublishedCodeError(f"Tag {tag} exists but points at {tagged[:12]}")
     pushed = _git_run("push", "--quiet", GIT_REMOTE, f"refs/tags/{tag}")
     if pushed.returncode != 0:
-        raise UnpublishedCodeError(
-            f"Could not push tag {tag} to {GIT_REMOTE}: {pushed.stderr.strip()}"
-        )
+        raise UnpublishedCodeError(f"Could not push tag {tag} to {GIT_REMOTE}: {pushed.stderr.strip()}")
 
     _published = {
         "git_commit": commit,
@@ -394,9 +370,7 @@ def repo_git_state() -> dict[str, Any]:
     }
 
 
-def commit_in_history(
-    commit: str | None, *, head: str = "HEAD", fetch: bool = False
-) -> bool | None:
+def commit_in_history(commit: str | None, *, head: str = "HEAD", fetch: bool = False) -> bool | None:
     """Whether ``commit`` is an ancestor of (or equal to) ``head``.
 
     ``None`` when it cannot be decided: no commit, git unavailable, or the
@@ -469,9 +443,7 @@ def append_entry(path_file: str, entry: dict[str, Any]) -> str:
     manifest["entries"].append(entry)
     _write_text(
         path_manifest,
-        yaml.dump(
-            manifest, Dumper=_ManifestDumper, sort_keys=False, default_flow_style=False
-        ),
+        yaml.dump(manifest, Dumper=_ManifestDumper, sort_keys=False, default_flow_style=False),
     )
     return path_manifest
 
@@ -508,9 +480,7 @@ def summarize_8760(df: pl.DataFrame, value_col: str) -> dict[str, Any]:
     }
 
 
-def build_entry(
-    path_file: str, spec: McSpec, summary: dict[str, Any]
-) -> dict[str, Any]:
+def build_entry(path_file: str, spec: McSpec, summary: dict[str, Any]) -> dict[str, Any]:
     return {
         "file": str(path_file).rstrip("/").rsplit("/", 1)[-1],
         "key": spec.key,
@@ -529,9 +499,7 @@ def build_entry(
     }
 
 
-def record_mc_write(
-    path_file: str, spec: McSpec, df: pl.DataFrame, value_col: str
-) -> dict[str, Any]:
+def record_mc_write(path_file: str, spec: McSpec, df: pl.DataFrame, value_col: str) -> dict[str, Any]:
     """Append a manifest entry for a file that was just written."""
     entry = build_entry(path_file, spec, summarize_8760(df, value_col))
     path_manifest = append_entry(path_file, entry)

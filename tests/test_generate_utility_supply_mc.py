@@ -102,18 +102,12 @@ def test_compute_capacity_mc_components_two_locality_utility() -> None:
         }
     )
 
-    result = compute_components(
-        utility_icap_rows, icap_df, locality_profiles, n_peak_hours=8
-    )
+    result = compute_components(utility_icap_rows, icap_df, locality_profiles, n_peak_hours=8)
 
     # Non-zero hours = union of NYC's 96 hours and LHV's 96 hours (≥96, ≤192)
     nonzero = result.filter(pl.col("capacity_cost_per_kw") > 0)
-    assert nonzero.height >= 8 * 12, (
-        f"Expected ≥96 non-zero hours, got {nonzero.height}"
-    )
-    assert nonzero.height <= 2 * 8 * 12, (
-        f"Expected ≤192 non-zero hours, got {nonzero.height}"
-    )
+    assert nonzero.height >= 8 * 12, f"Expected ≥96 non-zero hours, got {nonzero.height}"
+    assert nonzero.height <= 2 * 8 * 12, f"Expected ≤192 non-zero hours, got {nonzero.height}"
 
     # Validate against expected annual total:
     # Expected = 0.87 * 10 * 12 + 0.13 * 8 * 12 = 104.4 + 12.48 = 116.88
@@ -123,9 +117,7 @@ def test_compute_capacity_mc_components_two_locality_utility() -> None:
             "capacity_weight": [0.13, 0.87],
         }
     )
-    icap_prices_validation = compute_weighted_icap_prices(
-        icap_df, price_locality_weights
-    )
+    icap_prices_validation = compute_weighted_icap_prices(icap_df, price_locality_weights)
     validate_allocation(result, icap_prices_validation)
 
     # Costs sum correctly: total should equal weighted ICAP annual total
@@ -175,9 +167,7 @@ def test_weighted_icap_prices_uses_partitioned_localities() -> None:
 # ── allocate_icap_to_hours tie-breaking ──────────────────────────────────────
 
 
-def _make_monthly_load(
-    year: int = 2025, n_peak_hours: int = 8, tie_months: list[int] | None = None
-) -> pl.DataFrame:
+def _make_monthly_load(year: int = 2025, n_peak_hours: int = 8, tie_months: list[int] | None = None) -> pl.DataFrame:
     """Build a synthetic 8760 load profile.
 
     For months in ``tie_months``, the Nth and (N+1)th highest loads are set equal.
@@ -204,10 +194,7 @@ def _make_monthly_load(
         next_load = float(month_loads["load_mw"][n_peak_hours])
         # Set the (N+1)th highest load equal to the Nth
         df = df.with_columns(
-            pl.when(pl.col("load_mw") == next_load)
-            .then(nth_load)
-            .otherwise(pl.col("load_mw"))
-            .alias("load_mw")
+            pl.when(pl.col("load_mw") == next_load).then(nth_load).otherwise(pl.col("load_mw")).alias("load_mw")
         )
 
     return df
@@ -217,24 +204,16 @@ def test_allocate_icap_tie_at_nth_hour() -> None:
     """When Nth and (N+1)th loads tie, exactly N hours per month get cost."""
     n_peak = 8
     load_df = _make_monthly_load(tie_months=[1, 6, 12], n_peak_hours=n_peak)
-    icap_prices = pl.DataFrame(
-        {"month": list(range(1, 13)), "icap_price_per_kw_month": [5.0] * 12}
-    )
+    icap_prices = pl.DataFrame({"month": list(range(1, 13)), "icap_price_per_kw_month": [5.0] * 12})
 
     result = allocate_icap_to_hours(load_df, icap_prices, n_peak_hours=n_peak)
     nonzero = result.filter(pl.col("capacity_cost_per_kw") > 0)
     assert nonzero.height == n_peak * 12
 
     # Per-month: every month should have exactly n_peak nonzero hours
-    monthly_counts = (
-        nonzero.with_columns(pl.col("timestamp").dt.month().alias("month"))
-        .group_by("month")
-        .len()
-    )
+    monthly_counts = nonzero.with_columns(pl.col("timestamp").dt.month().alias("month")).group_by("month").len()
     for row in monthly_counts.iter_rows(named=True):
-        assert row["len"] == n_peak, (
-            f"month {row['month']}: expected {n_peak} nonzero, got {row['len']}"
-        )
+        assert row["len"] == n_peak, f"month {row['month']}: expected {n_peak} nonzero, got {row['len']}"
 
     # 1 kW recovery: sum should equal annual ICAP total
     validate_allocation(result, icap_prices)
@@ -244,9 +223,7 @@ def test_allocate_icap_no_tie_unchanged() -> None:
     """Without ties, allocation produces the same result as before."""
     n_peak = 8
     load_df = _make_monthly_load(tie_months=[], n_peak_hours=n_peak)
-    icap_prices = pl.DataFrame(
-        {"month": list(range(1, 13)), "icap_price_per_kw_month": [5.0] * 12}
-    )
+    icap_prices = pl.DataFrame({"month": list(range(1, 13)), "icap_price_per_kw_month": [5.0] * 12})
 
     result = allocate_icap_to_hours(load_df, icap_prices, n_peak_hours=n_peak)
     nonzero = result.filter(pl.col("capacity_cost_per_kw") > 0)
@@ -262,15 +239,11 @@ def test_capacity_timestamp_remap_preserves_allocation() -> None:
     """Remapping 2018->2025 timestamps preserves ordinal positions and totals."""
     n_peak = 8
     load_df = _make_monthly_load(year=2018, n_peak_hours=n_peak)
-    icap_prices = pl.DataFrame(
-        {"month": list(range(1, 13)), "icap_price_per_kw_month": [5.0] * 12}
-    )
+    icap_prices = pl.DataFrame({"month": list(range(1, 13)), "icap_price_per_kw_month": [5.0] * 12})
 
     result_2018 = allocate_icap_to_hours(load_df, icap_prices, n_peak_hours=n_peak)
 
-    result_2025 = result_2018.with_columns(
-        pl.col("timestamp").dt.offset_by(f"{2025 - 2018}y")
-    )
+    result_2025 = result_2018.with_columns(pl.col("timestamp").dt.offset_by(f"{2025 - 2018}y"))
 
     years = result_2025["timestamp"].dt.year().unique().to_list()
     assert years == [2025]
@@ -285,9 +258,7 @@ def test_capacity_timestamp_remap_preserves_allocation() -> None:
     )
 
     def ordinals(df: pl.DataFrame) -> list[tuple[int, int, int]]:
-        ts = df.filter(pl.col("capacity_cost_per_kw") > 0).sort("timestamp")[
-            "timestamp"
-        ]
+        ts = df.filter(pl.col("capacity_cost_per_kw") > 0).sort("timestamp")["timestamp"]
         return [(t.month, t.day, t.hour) for t in ts.to_list()]
 
     assert ordinals(result_2018) == ordinals(result_2025)

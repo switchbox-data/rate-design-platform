@@ -58,9 +58,7 @@ def test_weekday_weekend_and_holiday_lookup() -> None:
     assert expanded.schema["year"] == pl.Int32
 
     def value_at(stamp: str) -> float:
-        return expanded.filter(pl.col("timestamp") == datetime.fromisoformat(stamp))[
-            "mc_total_per_kwh"
-        ].item()
+        return expanded.filter(pl.col("timestamp") == datetime.fromisoformat(stamp))["mc_total_per_kwh"].item()
 
     # Wednesday that is not a holiday.
     assert value_at("2025-01-08 00:00:00") == pytest.approx(1.0)
@@ -83,9 +81,7 @@ def test_saturday_holiday_is_observed_on_friday() -> None:
     )
 
     def value_at(stamp: str) -> float:
-        return expanded.filter(pl.col("timestamp") == datetime.fromisoformat(stamp))[
-            "mc_total_per_kwh"
-        ].item()
+        return expanded.filter(pl.col("timestamp") == datetime.fromisoformat(stamp))["mc_total_per_kwh"].item()
 
     # July 4, 2026 is a Saturday, so Friday July 3 is the observed holiday.
     assert value_at("2026-07-03 16:00:00") == pytest.approx(-7.16)
@@ -102,9 +98,7 @@ def test_weekday_holidays_stay_on_weekday_table_when_holidays_excluded() -> None
     )
 
     def value_at(stamp: str) -> float:
-        return expanded.filter(pl.col("timestamp") == datetime.fromisoformat(stamp))[
-            "mc_total_per_kwh"
-        ].item()
+        return expanded.filter(pl.col("timestamp") == datetime.fromisoformat(stamp))["mc_total_per_kwh"].item()
 
     # Wednesday New Year's and Friday July 4 stay on the weekday table.
     assert value_at("2025-01-01 00:00:00") == pytest.approx(1.0)
@@ -126,9 +120,7 @@ def test_calendar_year_sets_day_types_and_year_sets_timestamps() -> None:
     assert expanded["year"].unique().to_list() == [2025]
 
     def value_at(stamp: str) -> float:
-        return expanded.filter(pl.col("timestamp") == datetime.fromisoformat(stamp))[
-            "mc_total_per_kwh"
-        ].item()
+        return expanded.filter(pl.col("timestamp") == datetime.fromisoformat(stamp))["mc_total_per_kwh"].item()
 
     # 2025-01-04 is a Saturday, but 2018-01-04 was a Thursday.
     assert value_at("2025-01-04 16:00:00") == pytest.approx(1.16)
@@ -183,10 +175,4 @@ def test_leap_year_drops_december_31() -> None:
     )
     assert expanded.height == 8760
     assert expanded.filter(pl.col("timestamp").dt.month() == 2).height == 29 * 24
-    assert (
-        expanded.filter(
-            (pl.col("timestamp").dt.month() == 12)
-            & (pl.col("timestamp").dt.day() == 31)
-        ).height
-        == 0
-    )
+    assert expanded.filter((pl.col("timestamp").dt.month() == 12) & (pl.col("timestamp").dt.day() == 31)).height == 0

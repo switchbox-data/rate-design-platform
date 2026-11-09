@@ -18,9 +18,7 @@ PROPANE_SUBSTRINGS = ("Propane",)
 
 def _col_contains_any(column: str, substrings: tuple[str, ...]) -> pl.Expr:
     """True where the column value contains any of the given substrings (literal match)."""
-    return pl.any_horizontal(
-        [pl.col(column).str.contains(s, literal=True) for s in substrings]
-    ).fill_null(False)
+    return pl.any_horizontal([pl.col(column).str.contains(s, literal=True) for s in substrings]).fill_null(False)
 
 
 def identify_heating_type(metadata: pl.LazyFrame, upgrade_id: str) -> pl.LazyFrame:
@@ -38,32 +36,21 @@ def identify_heating_type(metadata: pl.LazyFrame, upgrade_id: str) -> pl.LazyFra
 
     # Identify electrical resistance heating (contains "Electricity" but not HP)
     if upgrade_id == "00":
-        heating_fuel_is_electric = _col_contains_any(
-            IN_HVAC_COLUMN, ELECTRICITY_SUBSTRING
-        )
-        heating_type_is_electric_resistance = (
-            heating_fuel_is_electric & ~heating_type_is_hp
-        ).fill_null(False)
+        heating_fuel_is_electric = _col_contains_any(IN_HVAC_COLUMN, ELECTRICITY_SUBSTRING)
+        heating_type_is_electric_resistance = (heating_fuel_is_electric & ~heating_type_is_hp).fill_null(False)
     else:
         # First check the upgrade.hvac_heating_efficiency column for electrical resistance (contains "Electricity" but not HP)
-        upgrade_heating_fuel_is_electric = _col_contains_any(
-            UPGRADE_HVAC_COLUMN, ELECTRICITY_SUBSTRING
+        upgrade_heating_fuel_is_electric = _col_contains_any(UPGRADE_HVAC_COLUMN, ELECTRICITY_SUBSTRING)
+        upgrade_heating_type_is_electric_resistance = (upgrade_heating_fuel_is_electric & ~upgrade_is_hp).fill_null(
+            False
         )
-        upgrade_heating_type_is_electric_resistance = (
-            upgrade_heating_fuel_is_electric & ~upgrade_is_hp
-        ).fill_null(False)
         # Sometimes there is a null value in the upgrade.hvac_heating_efficiency column, indicating no additional upgrade to hvac heating.
         # In this case, check the in.hvac_heating_type_and_fuel column for electrical resistance.
         is_null_upgrade = pl.col(UPGRADE_HVAC_COLUMN).is_null()
-        in_heating_fuel_is_electric = _col_contains_any(
-            IN_HVAC_COLUMN, ELECTRICITY_SUBSTRING
-        )
-        upgrade_is_null_and_in_electric = (
-            is_null_upgrade & in_heating_fuel_is_electric & ~in_is_hp
-        ).fill_null(False)
+        in_heating_fuel_is_electric = _col_contains_any(IN_HVAC_COLUMN, ELECTRICITY_SUBSTRING)
+        upgrade_is_null_and_in_electric = (is_null_upgrade & in_heating_fuel_is_electric & ~in_is_hp).fill_null(False)
         heating_type_is_electric_resistance = (
-            upgrade_heating_type_is_electric_resistance
-            | upgrade_is_null_and_in_electric
+            upgrade_heating_type_is_electric_resistance | upgrade_is_null_and_in_electric
         ).fill_null(False)
 
     # Identify fossil fuel heating (contains "Fuel Oil", "Natural Gas", "Other Fuel", or "Propane" in the column value)
@@ -71,19 +58,13 @@ def identify_heating_type(metadata: pl.LazyFrame, upgrade_id: str) -> pl.LazyFra
         heating_type_is_fossil = _col_contains_any(IN_HVAC_COLUMN, FOSSIL_SUBSTRINGS)
     else:
         # First check the upgrade.hvac_heating_efficiency column for fossil fuel
-        upgrade_heating_type_is_fossil = _col_contains_any(
-            UPGRADE_HVAC_COLUMN, FOSSIL_SUBSTRINGS
-        )
+        upgrade_heating_type_is_fossil = _col_contains_any(UPGRADE_HVAC_COLUMN, FOSSIL_SUBSTRINGS)
         # Sometimes there is a null value in the upgrade.hvac_heating_efficiency column, indicating no additional upgrade to hvac heating.
         # In this case, check the in.hvac_heating_type_and_fuel column for fossil fuel.
         is_null_upgrade = pl.col(UPGRADE_HVAC_COLUMN).is_null()
         in_heating_fuel_is_fossil = _col_contains_any(IN_HVAC_COLUMN, FOSSIL_SUBSTRINGS)
-        upgrade_is_null_and_in_fossil = (
-            is_null_upgrade & in_heating_fuel_is_fossil
-        ).fill_null(False)
-        heating_type_is_fossil = (
-            upgrade_heating_type_is_fossil | upgrade_is_null_and_in_fossil
-        ).fill_null(False)
+        upgrade_is_null_and_in_fossil = (is_null_upgrade & in_heating_fuel_is_fossil).fill_null(False)
+        heating_type_is_fossil = (upgrade_heating_type_is_fossil | upgrade_is_null_and_in_fossil).fill_null(False)
 
     heating_type = (
         pl.when(heating_type_is_hp)
@@ -99,9 +80,7 @@ def identify_heating_type(metadata: pl.LazyFrame, upgrade_id: str) -> pl.LazyFra
     )
 
     # Boolean heating fuel columns for EAP/LMI discount logic
-    heats_with_electricity = (
-        heating_type_is_hp | heating_type_is_electric_resistance
-    ).fill_null(False)
+    heats_with_electricity = (heating_type_is_hp | heating_type_is_electric_resistance).fill_null(False)
 
     if upgrade_id == "00":
         heats_with_natgas = _col_contains_any(IN_HVAC_COLUMN, NATGAS_SUBSTRINGS)
@@ -145,9 +124,7 @@ def identify_heating_type(metadata: pl.LazyFrame, upgrade_id: str) -> pl.LazyFra
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Add heating type column to ResStock metadata."
-    )
+    parser = argparse.ArgumentParser(description="Add heating type column to ResStock metadata.")
     parser.add_argument(
         "--input_dir",
         required=True,
@@ -180,14 +157,10 @@ if __name__ == "__main__":
     metadata_path = S3Path(args.input_dir) / args.input_filename
     if not metadata_path.exists():
         raise FileNotFoundError(f"Metadata file {metadata_path} does not exist")
-    input_metadata = pl.scan_parquet(
-        str(metadata_path), storage_options=STORAGE_OPTIONS
-    )
+    input_metadata = pl.scan_parquet(str(metadata_path), storage_options=STORAGE_OPTIONS)
 
     # Add `heating_type` column
-    output_metadata = identify_heating_type(
-        metadata=input_metadata, upgrade_id=upgrade_id
-    )
+    output_metadata = identify_heating_type(metadata=input_metadata, upgrade_id=upgrade_id)
 
     # Write output metadata file
     output_path = S3Path(args.output_dir) / args.output_filename

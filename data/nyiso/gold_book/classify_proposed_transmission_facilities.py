@@ -54,7 +54,6 @@ import csv
 from collections import Counter
 from pathlib import Path
 
-
 # ---------------------------------------------------------------------------
 # Row matching helper
 # ---------------------------------------------------------------------------
@@ -65,9 +64,7 @@ def _row_text(row: dict) -> str:
     return " ".join(row.values()).lower()
 
 
-def _matches(
-    row: dict, owner: str, year: str, desc_frag: str, disambig: str = ""
-) -> bool:
+def _matches(row: dict, owner: str, year: str, desc_frag: str, disambig: str = "") -> bool:
     """True if a row matches the given content key."""
     if row["transmission_owner"] != owner:
         return False
@@ -75,9 +72,7 @@ def _matches(
         return False
     if desc_frag.lower() not in row["project_description"].lower():
         return False
-    if disambig and disambig.lower() not in _row_text(row):
-        return False
-    return True
+    return not (disambig and disambig.lower() not in _row_text(row))
 
 
 # ---------------------------------------------------------------------------
@@ -970,9 +965,7 @@ def classify_equipment_subtype(row: dict) -> str:
 
     if "rebuild" in to or "rebuild" in desc or "expansion" in to or "expand" in desc:
         return "substation_rebuild"
-    if "substation" in to and any(
-        kw in desc for kw in ["rebuild", "replace", "upgrade"]
-    ):
+    if "substation" in to and any(kw in desc for kw in ["rebuild", "replace", "upgrade"]):
         return "substation_rebuild"
 
     if any(kw in desc for kw in ["breaker", "switch"]):
@@ -1041,9 +1034,7 @@ def determine_project_type(row: dict) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Classify Gold Book Table VII projects into type/subtype."
-    )
+    parser = argparse.ArgumentParser(description="Classify Gold Book Table VII projects into type/subtype.")
     parser.add_argument(
         "--path-input",
         type=Path,
@@ -1053,9 +1044,7 @@ def main() -> None:
     parser.add_argument(
         "--path-output",
         type=Path,
-        default=Path(__file__).parent
-        / "csv"
-        / "2025_proposed_transmission_facilities.csv",
+        default=Path(__file__).parent / "csv" / "2025_proposed_transmission_facilities.csv",
         help="Path to write the classified CSV.",
     )
     args = parser.parse_args()
@@ -1071,11 +1060,7 @@ def main() -> None:
     override_map: dict[int, tuple[str, str, str]] = {}
     unmatched_overrides: list[tuple[str, str, str, str]] = []
     for owner, year, desc_frag, disambig, ptype, psubtype, reason in MANUAL_OVERRIDES:
-        matched = [
-            i
-            for i, r in enumerate(rows)
-            if _matches(r, owner, year, desc_frag, disambig)
-        ]
+        matched = [i for i, r in enumerate(rows) if _matches(r, owner, year, desc_frag, disambig)]
         if len(matched) == 1:
             override_map[matched[0]] = (ptype, psubtype, reason)
         elif len(matched) == 0:
@@ -1106,9 +1091,7 @@ def main() -> None:
                 overridden_type += 1
                 existing_notes = row.get("line_length_miles_notes", "")
                 note = f"reclassified to {ptype}: {reason}"
-                row["line_length_miles_notes"] = (existing_notes + "; " + note).lstrip(
-                    "; "
-                )
+                row["line_length_miles_notes"] = (existing_notes + "; " + note).lstrip("; ")
 
             row["project_type"] = ptype
             row["project_subtype"] = psubtype
@@ -1131,11 +1114,7 @@ def main() -> None:
         new_fieldnames = old_fieldnames
     else:
         idx = old_fieldnames.index("line_length_miles") + 1
-        new_fieldnames = (
-            old_fieldnames[:idx]
-            + ["project_type", "project_subtype"]
-            + old_fieldnames[idx:]
-        )
+        new_fieldnames = [*old_fieldnames[:idx], "project_type", "project_subtype", *old_fieldnames[idx:]]
 
     path_output.parent.mkdir(parents=True, exist_ok=True)
     with open(path_output, "w", newline="") as f:
@@ -1148,9 +1127,7 @@ def main() -> None:
     equip_rows = [r for r in rows if r["project_type"] == "equipment"]
 
     print(f"Wrote {len(rows)} rows to {path_output}")
-    print(
-        f"Manual overrides: {overridden_subtype} subtype, {overridden_type} type flips"
-    )
+    print(f"Manual overrides: {overridden_subtype} subtype, {overridden_type} type flips")
     print()
     print(f"=== LINE projects: {len(line_rows)} ===")
     for st, c in Counter(r["project_subtype"] for r in line_rows).most_common():
@@ -1163,13 +1140,8 @@ def main() -> None:
     if unclassified:
         print(f"\n!!! UNCLASSIFIED: {len(unclassified)} rows !!!")
         for row_num, r in unclassified:
-            print(
-                f"  Row {row_num}: {r['transmission_owner']} | "
-                f"{r['terminal_from']} -> {r['terminal_to']}"
-            )
-            print(
-                f"    type={r['project_type']} | desc={r['project_description'][:80]}"
-            )
+            print(f"  Row {row_num}: {r['transmission_owner']} | {r['terminal_from']} -> {r['terminal_to']}")
+            print(f"    type={r['project_type']} | desc={r['project_description'][:80]}")
     else:
         print("\nAll rows classified successfully.")
 

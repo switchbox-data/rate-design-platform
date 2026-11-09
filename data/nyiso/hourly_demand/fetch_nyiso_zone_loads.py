@@ -64,9 +64,7 @@ EXPECTED_ZONES = frozenset(
 
 def _reject_just_placeholders(val: str) -> None:
     if "{{" in val or "}}" in val:
-        raise ValueError(
-            f"Path looks like uninterpolated Just: {val!r}. Pass a resolved path."
-        )
+        raise ValueError(f"Path looks like uninterpolated Just: {val!r}. Pass a resolved path.")
 
 
 def _zip_url(year: int, month: int) -> str:
@@ -90,9 +88,7 @@ def fetch_zips(year: int, workers: int = 8) -> dict[int, bytes]:
     result: dict[int, bytes] = {}
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {
-            executor.submit(_fetch_one_zip, url): month for month, url in urls.items()
-        }
+        futures = {executor.submit(_fetch_one_zip, url): month for month, url in urls.items()}
         for future in as_completed(futures):
             month = futures[future]
             data = future.result()
@@ -157,21 +153,13 @@ def extract_and_parse_zip(zip_bytes: bytes) -> pl.DataFrame:
         strict=False,
         ambiguous="earliest",
     )
-    combined = combined.with_columns(
-        pl.coalesce(with_sec, without_sec).alias("timestamp")
-    )
+    combined = combined.with_columns(pl.coalesce(with_sec, without_sec).alias("timestamp"))
 
-    combined = combined.with_columns(
-        pl.col("Integrated Load").cast(pl.Float64).alias("load_mw")
-    )
+    combined = combined.with_columns(pl.col("Integrated Load").cast(pl.Float64).alias("load_mw"))
 
     # Normalize zone names: fix misspellings, then spaces -> _ (same as LBMP pipeline)
     combined = combined.with_columns(
-        pl.col("Name")
-        .str.strip_chars()
-        .replace(ZONE_NAME_NORMALIZE)
-        .str.replace_all(" ", "_")
-        .alias("zone")
+        pl.col("Name").str.strip_chars().replace(ZONE_NAME_NORMALIZE).str.replace_all(" ", "_").alias("zone")
     )
 
     return combined.select(["timestamp", "zone", "load_mw"])
@@ -232,9 +220,7 @@ def fill_missing_hours(df: pl.DataFrame, zones: list[str], year: int) -> pl.Data
     while current <= end_dt:
         for hour in range(24):
             try:
-                candidate = current.replace(
-                    hour=hour, minute=0, second=0, microsecond=0
-                )
+                candidate = current.replace(hour=hour, minute=0, second=0, microsecond=0)
                 # Round-trip through UTC to verify the hour exists
                 utc = candidate.astimezone(ZoneInfo("UTC"))
                 back = utc.astimezone(tz)
@@ -277,15 +263,11 @@ def fill_missing_hours(df: pl.DataFrame, zones: list[str], year: int) -> pl.Data
                 f"(first gap at {gaps[0][0]}). Cannot safely interpolate."
             )
 
-        print(
-            f"  Zone {zone}: {len(missing)} missing hour(s), max consecutive: {max_gap}"
-        )
+        print(f"  Zone {zone}: {len(missing)} missing hour(s), max consecutive: {max_gap}")
 
         complete_df = pl.DataFrame({"timestamp": all_ts, "zone": [zone] * len(all_ts)})
         filled_df = complete_df.join(zone_df, on=["timestamp", "zone"], how="left")
-        filled_df = filled_df.with_columns(
-            pl.col("load_mw").interpolate(method="linear").alias("load_mw")
-        )
+        filled_df = filled_df.with_columns(pl.col("load_mw").interpolate(method="linear").alias("load_mw"))
         all_zones_data.append(filled_df)
         print("    Filled via linear interpolation")
 
@@ -386,9 +368,7 @@ def main() -> None:
     unmapped = df.filter(~pl.col("zone").is_in(zones))
     if len(unmapped) > 0:
         unmapped_zones = unmapped["zone"].unique().to_list()
-        print(
-            f"\n  Dropping {len(unmapped):,} rows with unknown zones: {unmapped_zones}"
-        )
+        print(f"\n  Dropping {len(unmapped):,} rows with unknown zones: {unmapped_zones}")
     df = df.filter(pl.col("zone").is_in(zones))
 
     print(f"\n  Parsed {len(df):,} rows across {df['zone'].n_unique()} zones")

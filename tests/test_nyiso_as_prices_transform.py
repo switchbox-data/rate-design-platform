@@ -9,10 +9,7 @@ import pandas as pd
 
 
 def _load_fetch_module():
-    path = (
-        Path(__file__).resolve().parents[1]
-        / "data/nyiso/ancillary/fetch_nyiso_as_prices_parquet.py"
-    )
+    path = Path(__file__).resolve().parents[1] / "data/nyiso/ancillary/fetch_nyiso_as_prices_parquet.py"
     spec = importlib.util.spec_from_file_location("fetch_nyiso_as_prices_parquet", path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load {path}")

@@ -126,7 +126,7 @@ def test_fetch_prototype_ids_missing_column_raises_error() -> None:
     }
     utility_assignment = pl.LazyFrame(data)
 
-    with pytest.raises(ValueError, match="sb.electric_utility column not found"):
+    with pytest.raises(ValueError, match=r"sb.electric_utility column not found"):
         _fetch_prototype_ids_by_electric_util("coned", utility_assignment)
 
 

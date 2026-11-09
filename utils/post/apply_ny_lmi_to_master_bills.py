@@ -99,11 +99,7 @@ def _build_smi_threshold_column(
     expr = pl.lit(smi_thresholds.get(8, 0.0))
     for hh_size in range(8, 0, -1):
         thresh = smi_thresholds.get(hh_size, 0.0)
-        expr = (
-            pl.when(pl.col(occupants_col) == hh_size)
-            .then(pl.lit(thresh))
-            .otherwise(expr)
-        )
+        expr = pl.when(pl.col(occupants_col) == hh_size).then(pl.lit(thresh)).otherwise(expr)
     return expr
 
 
@@ -111,10 +107,7 @@ def _infer_upgrade_from_run_pair(master_bills_path: str) -> str:
     """Extract run pair from path and infer upgrade (00 or 02)."""
     match = re.search(r"run_(\d+)\+(\d+)", master_bills_path)
     if not match:
-        raise ValueError(
-            f"Cannot parse run pair from path: {master_bills_path}. "
-            "Expected pattern 'run_X+Y'."
-        )
+        raise ValueError(f"Cannot parse run pair from path: {master_bills_path}. Expected pattern 'run_X+Y'.")
     run_delivery = int(match.group(1))
     if run_delivery in UPGRADE_00_RUNS:
         return "00"
@@ -160,9 +153,7 @@ def _build_raw_tiers_for_utility(
 
     # Read utility assignment to get bldg_ids for this utility
     util_df = pl.scan_parquet(util_assignment_path, storage_options=opts)
-    bldg_ids_for_util = util_df.filter(
-        pl.col("sb.electric_utility") == electric_utility
-    ).select(BLDG_ID)
+    bldg_ids_for_util = util_df.filter(pl.col("sb.electric_utility") == electric_utility).select(BLDG_ID)
 
     # Read metadata and filter to this utility's buildings
     meta = pl.scan_parquet(meta_path, storage_options=opts)
@@ -170,25 +161,11 @@ def _build_raw_tiers_for_utility(
 
     # Parse occupants, inflate income, compute FPL% and SMI%
     meta = meta.with_columns(parse_occupants_expr("in.occupants").alias(occupants_num))
-    meta = meta.with_columns(
-        fpl_threshold_expr(occupants_num, fpl["base"], fpl["increment"]).alias(
-            fpl_threshold
-        )
-    )
-    meta = meta.with_columns(
-        inflate_income_expr("in.representative_income", cpi_ratio).alias(
-            income_inflated
-        )
-    )
-    meta = meta.with_columns(
-        fpl_pct_expr(income_inflated, pl.col(fpl_threshold)).alias(fpl_pct)
-    )
-    meta = meta.with_columns(
-        _build_smi_threshold_column(occupants_num, smi_100).alias(smi_threshold)
-    )
-    meta = meta.with_columns(
-        smi_pct_expr(income_inflated, smi_threshold).alias(smi_pct)
-    )
+    meta = meta.with_columns(fpl_threshold_expr(occupants_num, fpl["base"], fpl["increment"]).alias(fpl_threshold))
+    meta = meta.with_columns(inflate_income_expr("in.representative_income", cpi_ratio).alias(income_inflated))
+    meta = meta.with_columns(fpl_pct_expr(income_inflated, pl.col(fpl_threshold)).alias(fpl_pct))
+    meta = meta.with_columns(_build_smi_threshold_column(occupants_num, smi_100).alias(smi_threshold))
+    meta = meta.with_columns(smi_pct_expr(income_inflated, smi_threshold).alias(smi_pct))
 
     # AMI threshold and percentage (AMI territories only)
     ami_pct_col_name: str | None = None
@@ -196,12 +173,8 @@ def _build_raw_tiers_for_utility(
         ami_threshold = "ami_threshold"
         ami_pct_name = "ami_pct"
         ami_pct_col_name = ami_pct_name
-        meta = meta.with_columns(
-            _build_smi_threshold_column(occupants_num, ami_100).alias(ami_threshold)
-        )
-        meta = meta.with_columns(
-            smi_pct_expr(income_inflated, ami_threshold).alias(ami_pct_name)
-        )
+        meta = meta.with_columns(_build_smi_threshold_column(occupants_num, ami_100).alias(ami_threshold))
+        meta = meta.with_columns(smi_pct_expr(income_inflated, ami_threshold).alias(ami_pct_name))
 
     # Filter out vacant units
     meta = meta.filter(pl.col("in.vacancy_status") != "Vacant")
@@ -274,9 +247,7 @@ def _sample_participation(
 
     if participation_mode == "uniform":
         return raw_tiers.with_columns(
-            participation_uniform_expr(
-                BLDG_ID, participation_rate, seed, eligible
-            ).alias("participates")
+            participation_uniform_expr(BLDG_ID, participation_rate, seed, eligible).alias("participates")
         ).select(_select)
 
     # weighted: bias towards lowest-income eligible buildings
@@ -285,15 +256,10 @@ def _sample_participation(
         .with_columns((1.0 / pl.col("fpl_pct").clip(lower_bound=1.0)).alias("weight"))
         .select(BLDG_ID, "fpl_pct", "elec_lmi_tier", "weight")
     )
-    part_df = select_participants_weighted(
-        eligible_df, participation_rate, seed, "weight", BLDG_ID
-    )
+    part_df = select_participants_weighted(eligible_df, participation_rate, seed, "weight", BLDG_ID)
     result = raw_tiers.join(part_df, on=BLDG_ID, how="left")
     result = result.with_columns(
-        pl.when(eligible)
-        .then(pl.col("participates").fill_null(False))
-        .otherwise(pl.lit(False))
-        .alias("participates")
+        pl.when(eligible).then(pl.col("participates").fill_null(False)).otherwise(pl.lit(False)).alias("participates")
     )
     return result.select(_select)
 
@@ -328,9 +294,7 @@ def _build_raw_tiers_all_utilities(
         if utility in ami_territory_set:
             if utility not in ami_cache:
                 _log(f"  Loading AMI thresholds for {utility}...")
-                ami_cache[utility] = get_ami_threshold_for_utility(
-                    utility, inflation_year, 100.0, opts, ny_eap_config
-                )
+                ami_cache[utility] = get_ami_threshold_for_utility(utility, inflation_year, 100.0, opts, ny_eap_config)
             ami_100 = ami_cache[utility]
 
         t = _log(f"  Assigning tiers for {utility} ({i}/{len(utilities)})...")
@@ -404,10 +368,7 @@ def _apply_credits(
             pl.col("is_lmi_elec").fill_null(False),
             pl.col("is_lmi_gas").fill_null(False),
             pl.col("participates").fill_null(False),
-            (
-                pl.col("is_lmi_elec").fill_null(False)
-                | pl.col("is_lmi_gas").fill_null(False)
-            ).alias("is_lmi_any"),
+            (pl.col("is_lmi_elec").fill_null(False) | pl.col("is_lmi_gas").fill_null(False)).alias("is_lmi_any"),
         )
 
     n_before_joins = joined.height
@@ -422,9 +383,7 @@ def _apply_credits(
         pl.col("elec_heat").alias("_cr_elec_heat"),
         pl.col("elec_nonheat").alias("_cr_elec_nonheat"),
     )
-    joined = joined.join(
-        elec_credits, on=["sb.electric_utility", "elec_lmi_tier"], how="left"
-    )
+    joined = joined.join(elec_credits, on=["sb.electric_utility", "elec_lmi_tier"], how="left")
     if joined.height != n_before_joins:
         raise AssertionError(
             f"Electric credit join changed row count: {n_before_joins} → "
@@ -438,9 +397,7 @@ def _apply_credits(
     )
     # Unpublished credits (null in YAML) are treated as $0 for bill calculation —
     # we can't give a discount we don't know the amount of.
-    elec_credit_monthly = (
-        pl.when(pl.col("participates")).then(elec_monthly.fill_null(0.0)).otherwise(0.0)
-    )
+    elec_credit_monthly = pl.when(pl.col("participates")).then(elec_monthly.fill_null(0.0)).otherwise(0.0)
 
     # --- Gas credits ---
     gas_credits = credits_df.select(
@@ -461,9 +418,7 @@ def _apply_credits(
         .then(pl.col("_cr_gas_heat"))
         .otherwise(pl.col("_cr_gas_nonheat"))
     )
-    gas_credit_monthly = (
-        pl.when(pl.col("participates")).then(gas_monthly.fill_null(0.0)).otherwise(0.0)
-    )
+    gas_credit_monthly = pl.when(pl.col("participates")).then(gas_monthly.fill_null(0.0)).otherwise(0.0)
 
     # Warn about null credits only for the cases that indicate missing data:
     # utilities that ARE in the YAML but have null credits for specific tiers
@@ -472,23 +427,17 @@ def _apply_credits(
     #   - Utility not in YAML at all (small municipals like corning, fillmore)
     #   - Tier 0 (ineligible): no match in credit table by design
     configured_elec_utils = set(
-        credits_df.filter(
-            pl.col("elec_heat").is_not_null() | pl.col("elec_nonheat").is_not_null()
-        )["utility"]
+        credits_df.filter(pl.col("elec_heat").is_not_null() | pl.col("elec_nonheat").is_not_null())["utility"]
         .unique()
         .to_list()
     )
     configured_gas_utils = set(
-        credits_df.filter(
-            pl.col("gas_heat").is_not_null() | pl.col("gas_nonheat").is_not_null()
-        )["utility"]
+        credits_df.filter(pl.col("gas_heat").is_not_null() | pl.col("gas_nonheat").is_not_null())["utility"]
         .unique()
         .to_list()
     )
 
-    eligible_participants = joined.filter(
-        pl.col("participates") & (pl.col("elec_lmi_tier") > 0)
-    )
+    eligible_participants = joined.filter(pl.col("participates") & (pl.col("elec_lmi_tier") > 0))
     if eligible_participants.height > 0:
         # Electric: only warn for utilities that have SOME electric credits
         # configured (i.e., they're in the YAML with non-null electric values
@@ -516,11 +465,7 @@ def _apply_credits(
                 f"electric credits (treated as $0): {combos.to_dicts()}"
             )
         if null_gas.height > 0:
-            combos = (
-                null_gas.select("sb.gas_utility", "gas_lmi_tier")
-                .unique()
-                .sort("sb.gas_utility", "gas_lmi_tier")
-            )
+            combos = null_gas.select("sb.gas_utility", "gas_lmi_tier").unique().sort("sb.gas_utility", "gas_lmi_tier")
             _log(
                 f"  WARNING: {null_gas.height} participant rows have unpublished "
                 f"gas credits (treated as $0): {combos.to_dicts()}"
@@ -573,9 +518,7 @@ def _apply_discounted_bill_calculation(
         # as the sum of the 12 clamped monthly values (below).
         joined = joined.with_columns(
             pl.when(pl.col("month") != ANNUAL_MONTH)
-            .then(
-                (pl.col("elec_total_bill") - elec_credit_monthly).clip(lower_bound=0.0)
-            )
+            .then((pl.col("elec_total_bill") - elec_credit_monthly).clip(lower_bound=0.0))
             .otherwise(pl.lit(None))
             .alias(elec_col),
             pl.when(pl.col("month") != ANNUAL_MONTH)
@@ -598,10 +541,7 @@ def _apply_discounted_bill_calculation(
         )
         joined = joined.join(monthly_sums, on=BLDG_ID, how="left")
         if joined.height != n_expected_rows:
-            raise AssertionError(
-                "Annual sum join changed row count: "
-                f"{n_expected_rows} → {joined.height}"
-            )
+            raise AssertionError(f"Annual sum join changed row count: {n_expected_rows} → {joined.height}")
         return joined.with_columns(
             pl.when(pl.col("month") == ANNUAL_MONTH)
             .then(pl.col("_annual_elec_lmi"))
@@ -627,10 +567,7 @@ def _apply_discounted_bill_calculation(
         )
         joined = joined.join(annual_bills, on=BLDG_ID, how="left")
         if joined.height != n_expected_rows:
-            raise AssertionError(
-                "Annual bill join changed row count: "
-                f"{n_expected_rows} → {joined.height}"
-            )
+            raise AssertionError(f"Annual bill join changed row count: {n_expected_rows} → {joined.height}")
 
         # Participants: apply monthly credit against the flat budget base (annual/12).
         # Non-participants: preserve the original monthly bill unchanged so the
@@ -640,11 +577,7 @@ def _apply_discounted_bill_calculation(
             pl.when(pl.col("month") != ANNUAL_MONTH)
             .then(
                 pl.when(pl.col("participates"))
-                .then(
-                    (
-                        (pl.col("_annual_elec_bill_base") / 12.0) - elec_credit_monthly
-                    ).clip(lower_bound=0.0)
-                )
+                .then(((pl.col("_annual_elec_bill_base") / 12.0) - elec_credit_monthly).clip(lower_bound=0.0))
                 .otherwise(pl.col("elec_total_bill"))
             )
             .otherwise(pl.lit(None))
@@ -652,11 +585,7 @@ def _apply_discounted_bill_calculation(
             pl.when(pl.col("month") != ANNUAL_MONTH)
             .then(
                 pl.when(pl.col("participates"))
-                .then(
-                    (
-                        (pl.col("_annual_gas_bill_base") / 12.0) - gas_credit_monthly
-                    ).clip(lower_bound=0.0)
-                )
+                .then(((pl.col("_annual_gas_bill_base") / 12.0) - gas_credit_monthly).clip(lower_bound=0.0))
                 .otherwise(pl.col("gas_total_bill"))
             )
             .otherwise(pl.lit(None))
@@ -675,10 +604,7 @@ def _apply_discounted_bill_calculation(
         )
         joined = joined.join(monthly_sums, on=BLDG_ID, how="left")
         if joined.height != n_expected_rows:
-            raise AssertionError(
-                "Budget annual sum join changed row count: "
-                f"{n_expected_rows} → {joined.height}"
-            )
+            raise AssertionError(f"Budget annual sum join changed row count: {n_expected_rows} → {joined.height}")
         return joined.with_columns(
             pl.when(pl.col("month") == ANNUAL_MONTH)
             .then(pl.col("_annual_elec_lmi"))
@@ -690,10 +616,7 @@ def _apply_discounted_bill_calculation(
             .alias(gas_col),
         )
 
-    raise ValueError(
-        "calculation_type must be one of {'monthly', 'budget'}; "
-        f"got {calculation_type!r}"
-    )
+    raise ValueError(f"calculation_type must be one of {{'monthly', 'budget'}}; got {calculation_type!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -741,14 +664,10 @@ def _validate(
     if no_discount_elec.height > 0:
         nd_elec_diff = cast(
             float,
-            (no_discount_elec["elec_total_bill"] - no_discount_elec[elec_col])
-            .abs()
-            .max(),
+            (no_discount_elec["elec_total_bill"] - no_discount_elec[elec_col]).abs().max(),
         )
         if nd_elec_diff > 1e-6:
-            raise AssertionError(
-                f"Non-discounted electric bills differ: max diff={nd_elec_diff}"
-            )
+            raise AssertionError(f"Non-discounted electric bills differ: max diff={nd_elec_diff}")
     no_discount_gas = df.filter(~pl.col(applied_gas_col))
     if no_discount_gas.height > 0:
         nd_gas_diff = cast(
@@ -756,9 +675,7 @@ def _validate(
             (no_discount_gas["gas_total_bill"] - no_discount_gas[gas_col]).abs().max(),
         )
         if nd_gas_diff > 1e-6:
-            raise AssertionError(
-                f"Non-discounted gas bills differ: max diff={nd_gas_diff}"
-            )
+            raise AssertionError(f"Non-discounted gas bills differ: max diff={nd_gas_diff}")
 
     # Monotonicity: discounted <= original.
     # In budget mode, participants' monthly lmi values use annual/12 as the base,
@@ -766,52 +683,31 @@ def _validate(
     # customer's July bill). Check the Annual row only for budget mode; monthly rows
     # for non-participants are still the original bill so they pass regardless.
     tol = 1e-6
-    mono_df = (
-        df.filter(pl.col("month") == ANNUAL_MONTH)
-        if calculation_type == "budget"
-        else df
-    )
-    elec_over = mono_df.filter(
-        pl.col(elec_col) > pl.col("elec_total_bill") + tol
-    ).height
+    mono_df = df.filter(pl.col("month") == ANNUAL_MONTH) if calculation_type == "budget" else df
+    elec_over = mono_df.filter(pl.col(elec_col) > pl.col("elec_total_bill") + tol).height
     gas_over = mono_df.filter(pl.col(gas_col) > pl.col("gas_total_bill") + tol).height
     if elec_over > 0 or gas_over > 0:
         scope = "Annual rows" if calculation_type == "budget" else "rows"
-        raise AssertionError(
-            f"Discounted > original ({scope}): {elec_over} elec, {gas_over} gas"
-        )
+        raise AssertionError(f"Discounted > original ({scope}): {elec_over} elec, {gas_over} gas")
 
     # is_lmi_elec == (elec_lmi_tier > 0) consistency
-    is_lmi_mismatch = df.filter(
-        pl.col("is_lmi_elec") != (pl.col("elec_lmi_tier") > 0)
-    ).height
+    is_lmi_mismatch = df.filter(pl.col("is_lmi_elec") != (pl.col("elec_lmi_tier") > 0)).height
     if is_lmi_mismatch > 0:
-        raise AssertionError(
-            f"is_lmi_elec != (elec_lmi_tier > 0) for {is_lmi_mismatch} rows"
-        )
+        raise AssertionError(f"is_lmi_elec != (elec_lmi_tier > 0) for {is_lmi_mismatch} rows")
 
     # NY-specific: gas tiers and eligibility must equal electric
-    gas_tier_mismatch = df.filter(
-        pl.col("gas_lmi_tier") != pl.col("elec_lmi_tier")
-    ).height
+    gas_tier_mismatch = df.filter(pl.col("gas_lmi_tier") != pl.col("elec_lmi_tier")).height
     if gas_tier_mismatch > 0:
-        raise AssertionError(
-            f"gas_lmi_tier != elec_lmi_tier for {gas_tier_mismatch} rows"
-        )
+        raise AssertionError(f"gas_lmi_tier != elec_lmi_tier for {gas_tier_mismatch} rows")
     gas_lmi_mismatch = df.filter(pl.col("is_lmi_gas") != pl.col("is_lmi_elec")).height
     if gas_lmi_mismatch > 0:
         raise AssertionError(f"is_lmi_gas != is_lmi_elec for {gas_lmi_mismatch} rows")
 
     # p100: applied_discount should equal is_lmi (every eligible building participates)
     if participation_rate >= 1.0:
-        applied_vs_lmi = df.filter(
-            pl.col(applied_elec_col) != pl.col("is_lmi_elec")
-        ).height
+        applied_vs_lmi = df.filter(pl.col(applied_elec_col) != pl.col("is_lmi_elec")).height
         if applied_vs_lmi > 0:
-            raise AssertionError(
-                f"At 100% participation, {applied_elec_col} != is_lmi_elec "
-                f"for {applied_vs_lmi} rows"
-            )
+            raise AssertionError(f"At 100% participation, {applied_elec_col} != is_lmi_elec for {applied_vs_lmi} rows")
 
     # Annual row == sum of 12 monthly rows for discounted bill columns
     monthly = df.filter(pl.col("month") != ANNUAL_MONTH)
@@ -819,9 +715,7 @@ def _validate(
         pl.col(elec_col).sum().alias("_check_elec_sum"),
         pl.col(gas_col).sum().alias("_check_gas_sum"),
     )
-    annual_check = df.filter(pl.col("month") == ANNUAL_MONTH).join(
-        monthly_sums, on=BLDG_ID, how="left"
-    )
+    annual_check = df.filter(pl.col("month") == ANNUAL_MONTH).join(monthly_sums, on=BLDG_ID, how="left")
     elec_annual_diff = cast(
         float,
         (annual_check[elec_col] - annual_check["_check_elec_sum"]).abs().max(),
@@ -871,10 +765,7 @@ def _validate(
     )
     _log("Tier distribution (annual rows):")
     for row in tier_dist.iter_rows(named=True):
-        _log(
-            f"  {row['sb.electric_utility']:>8s}  "
-            f"tier {row['elec_lmi_tier']}: {row['n']:>6d}"
-        )
+        _log(f"  {row['sb.electric_utility']:>8s}  tier {row['elec_lmi_tier']}: {row['n']:>6d}")
 
     # Total annual discount
     participants = annual.filter(pl.col(applied_elec_col))
@@ -884,10 +775,7 @@ def _validate(
             (pl.col("gas_total_bill") - pl.col(gas_col)).sum().alias("total_gas"),
         )
         row = totals.row(0, named=True)
-        _log(
-            f"Total annual discount: electric=${row['total_elec']:,.0f}, "
-            f"gas=${row['total_gas']:,.0f}"
-        )
+        _log(f"Total annual discount: electric=${row['total_elec']:,.0f}, gas=${row['total_gas']:,.0f}")
 
 
 # ---------------------------------------------------------------------------
@@ -939,9 +827,7 @@ def apply_ny_lmi_to_master(
 
     release = path_resstock_release.rstrip("/")
     meta_path = f"{release}/metadata/state=NY/upgrade={upgrade}/metadata-sb.parquet"
-    util_assignment_path = (
-        f"{release}/metadata_utility/state=NY/utility_assignment.parquet"
-    )
+    util_assignment_path = f"{release}/metadata_utility/state=NY/utility_assignment.parquet"
 
     t = _log("Building LMI eligibility tiers for all utilities...")
     raw_tiers = _build_raw_tiers_all_utilities(
@@ -958,15 +844,10 @@ def apply_ny_lmi_to_master(
     _log_done("Building LMI eligibility tiers", t, f"{raw_tiers.height} buildings")
 
     for rate in participation_rates:
-        pct_label = int(round(rate * 100))
-        t = _log(
-            f"Sampling participation and applying credits "
-            f"(p{pct_label}, {calculation_type})..."
-        )
+        pct_label = round(rate * 100)
+        t = _log(f"Sampling participation and applying credits (p{pct_label}, {calculation_type})...")
         tier_info = _sample_participation(raw_tiers, rate, participation_mode, seed)
-        master = _apply_credits(
-            master, tier_info, pct_label, credits_df, calculation_type
-        )
+        master = _apply_credits(master, tier_info, pct_label, credits_df, calculation_type)
         _log_done("Applying LMI credits", t, f"{master.height} rows")
 
         t = _log(f"Validating LMI columns (p{pct_label})...")
@@ -1014,9 +895,7 @@ def main() -> None:
     _t0 = time.monotonic()
     load_dotenv()
 
-    parser = argparse.ArgumentParser(
-        description="Apply NY EAP/EEAP LMI discounts to master bills tables."
-    )
+    parser = argparse.ArgumentParser(description="Apply NY EAP/EEAP LMI discounts to master bills tables.")
     parser.add_argument(
         "--master-bills-path",
         required=True,
@@ -1025,8 +904,7 @@ def main() -> None:
     parser.add_argument(
         "--output-path",
         default=None,
-        help="S3 path for output (Hive-partitioned parquet). "
-        "Defaults to --master-bills-path (in-place update).",
+        help="S3 path for output (Hive-partitioned parquet). Defaults to --master-bills-path (in-place update).",
     )
     parser.add_argument("--state", required=True, help="State abbreviation (NY)")
     parser.add_argument(
@@ -1052,9 +930,7 @@ def main() -> None:
         default="weighted",
         help="Participation sampling: uniform or weighted by need",
     )
-    parser.add_argument(
-        "--seed", type=int, default=42, help="RNG seed for participation"
-    )
+    parser.add_argument("--seed", type=int, default=42, help="RNG seed for participation")
     parser.add_argument(
         "--resstock-release",
         default="s3://data.sb/nrel/resstock/res_2024_amy2018_2_sb",
@@ -1072,7 +948,7 @@ def main() -> None:
     state = args.state.upper()
     output_path = args.output_path or args.master_bills_path
     upgrade = _infer_upgrade_from_run_pair(args.master_bills_path)
-    pct_label = int(round(args.participation_rate * 100))
+    pct_label = round(args.participation_rate * 100)
     opts = get_aws_storage_options()
 
     _log(
@@ -1125,25 +1001,19 @@ def main() -> None:
     in_place = output_path == args.master_bills_path
     if has_existing_shared:
         if in_place:
-            _log(
-                "  elec_lmi_tier/is_lmi_elec already present — verifying consistency..."
-            )
+            _log("  elec_lmi_tier/is_lmi_elec already present — verifying consistency...")
             _raw_for_check = _build_raw_tiers_all_utilities(
                 utilities=utilities,
                 meta_path=(
-                    f"{args.resstock_release.rstrip('/')}/metadata/state={state}"
-                    f"/upgrade={upgrade}/metadata-sb.parquet"
+                    f"{args.resstock_release.rstrip('/')}/metadata/state={state}/upgrade={upgrade}/metadata-sb.parquet"
                 ),
                 util_assignment_path=(
-                    f"{args.resstock_release.rstrip('/')}/metadata_utility"
-                    f"/state={state}/utility_assignment.parquet"
+                    f"{args.resstock_release.rstrip('/')}/metadata_utility/state={state}/utility_assignment.parquet"
                 ),
                 inflation_year=args.fpl_year,
                 cpi_ratio=load_cpi_ratio(args.cpi_s3_path, args.fpl_year, opts),
                 fpl=load_fpl_guidelines(args.fpl_year),
-                smi_100=smi_threshold_by_hh_size(
-                    load_smi_for_state(state, args.fpl_year, opts), pct=100.0
-                ),
+                smi_100=smi_threshold_by_hh_size(load_smi_for_state(state, args.fpl_year, opts), pct=100.0),
                 ny_eap_config=load_ny_eap_config(),
                 opts=opts,
             )
@@ -1151,32 +1021,24 @@ def main() -> None:
                 master.select(BLDG_ID, "elec_lmi_tier", "is_lmi_elec")
                 .unique(subset=[BLDG_ID])
                 .join(
-                    _raw_for_check.select(
-                        BLDG_ID, "elec_lmi_tier", "is_lmi_elec"
-                    ).rename({"elec_lmi_tier": "_new_tier", "is_lmi_elec": "_new_lmi"}),
+                    _raw_for_check.select(BLDG_ID, "elec_lmi_tier", "is_lmi_elec").rename(
+                        {"elec_lmi_tier": "_new_tier", "is_lmi_elec": "_new_lmi"}
+                    ),
                     on=BLDG_ID,
                     how="inner",
                 )
             )
-            tier_mismatch = check.filter(
-                pl.col("elec_lmi_tier") != pl.col("_new_tier")
-            ).height
-            lmi_mismatch = check.filter(
-                pl.col("is_lmi_elec") != pl.col("_new_lmi")
-            ).height
+            tier_mismatch = check.filter(pl.col("elec_lmi_tier") != pl.col("_new_tier")).height
+            lmi_mismatch = check.filter(pl.col("is_lmi_elec") != pl.col("_new_lmi")).height
             if tier_mismatch > 0 or lmi_mismatch > 0:
                 raise AssertionError(
                     f"Existing elec_lmi_tier/is_lmi_elec mismatch with recomputed "
                     f"values: {tier_mismatch} tier mismatches, "
                     f"{lmi_mismatch} is_lmi mismatches"
                 )
-            _log(
-                "  Verified: existing elec_lmi_tier/is_lmi_elec match recomputed values"
-            )
+            _log("  Verified: existing elec_lmi_tier/is_lmi_elec match recomputed values")
         else:
-            _log(
-                "  Staging mode: dropping existing LMI shared columns to recompute from scratch"
-            )
+            _log("  Staging mode: dropping existing LMI shared columns to recompute from scratch")
         master = master.drop(shared_cols)
 
     # 3. Apply LMI discounts via the public function

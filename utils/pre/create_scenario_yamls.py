@@ -117,6 +117,7 @@ path_tou_supply_mc formula (for runs where num = 13 or 14):
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -200,18 +201,11 @@ def _path_tariffs_to_dict(comma_separated: str) -> dict[str, str]:
             key = key.strip()
             path_str = path_str.strip()
             if not key or not path_str:
-                raise ValueError(
-                    f"path_tariffs segment must be 'key: path', got {part!r}"
-                )
+                raise ValueError(f"path_tariffs segment must be 'key: path', got {part!r}")
         else:
-            raise ValueError(
-                "path_tariffs segment must be 'key: path'; "
-                f"bare path is not allowed: {part!r}"
-            )
+            raise ValueError(f"path_tariffs segment must be 'key: path'; bare path is not allowed: {part!r}")
         if key in out:
-            raise ValueError(
-                f"path_tariffs duplicate key {key!r} from {out[key]!r} and {path_str!r}"
-            )
+            raise ValueError(f"path_tariffs duplicate key {key!r} from {out[key]!r} and {path_str!r}")
         out[key] = path_str
     return out
 
@@ -232,10 +226,7 @@ def _parse_bool(value: object) -> bool:
         return True
     if s in ("FALSE", "0", "NO", "N"):
         return False
-    raise ValueError(
-        f"Invalid boolean value {value!r}; expected one of "
-        "TRUE/FALSE, 1/0, YES/NO, Y/N."
-    )
+    raise ValueError(f"Invalid boolean value {value!r}; expected one of TRUE/FALSE, 1/0, YES/NO, Y/N.")
 
 
 def _parse_subclass_selectors(raw: str) -> dict[str, str]:
@@ -267,16 +258,12 @@ def _parse_subclass_selectors(raw: str) -> dict[str, str]:
         if not entry:
             continue
         if ":" not in entry:
-            raise ValueError(
-                f"subclass_selectors entry must be 'key:value(s)', got {entry!r}"
-            )
+            raise ValueError(f"subclass_selectors entry must be 'key:value(s)', got {entry!r}")
         key, values_raw = entry.split(":", 1)
         key = key.strip()
         values = ",".join(v.strip() for v in values_raw.split("|"))
         if not key or not values:
-            raise ValueError(
-                f"subclass_selectors entry has blank key or values: {entry!r}"
-            )
+            raise ValueError(f"subclass_selectors entry has blank key or values: {entry!r}")
         if key in out:
             raise ValueError(f"subclass_selectors duplicate key {key!r}")
         out[key] = values
@@ -322,9 +309,7 @@ def _hoist_shared_subclass_config(
     if max_count <= 1:
         return None
 
-    shared_keys = [
-        config_key for config_key, count in counts.items() if count == max_count
-    ]
+    shared_keys = [config_key for config_key, count in counts.items() if count == max_count]
     if len(shared_keys) != 1:
         return None
 
@@ -344,10 +329,7 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
     for h in headers:
         norm = _normalize_header(h)
         if norm in norm_to_header:
-            raise ValueError(
-                f"Duplicate normalized header {norm!r} from "
-                f"{norm_to_header[norm]!r} and {h!r}"
-            )
+            raise ValueError(f"Duplicate normalized header {norm!r} from {norm_to_header[norm]!r} and {h!r}")
         norm_to_header[norm] = h
 
     def get(key: str) -> str:
@@ -420,9 +402,7 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
 
     run["run_includes_supply"] = _parse_bool(require_non_empty("run_includes_supply"))
 
-    run["run_includes_subclasses"] = _parse_bool(
-        require_non_empty("run_includes_subclasses")
-    )
+    run["run_includes_subclasses"] = _parse_bool(require_non_empty("run_includes_subclasses"))
 
     residual_allocation_delivery = get_optional("residual_allocation_delivery")
     if residual_allocation_delivery:
@@ -441,9 +421,7 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
             "group_col": subclass_group_col,
             "selectors": selectors,
         }
-    elif run["run_includes_subclasses"] and (
-        not subclass_group_col or not subclass_selectors_raw
-    ):
+    elif run["run_includes_subclasses"] and (not subclass_group_col or not subclass_selectors_raw):
         raise ValueError(
             "run_includes_subclasses is True but subclass_group_col and/or "
             "subclass_selectors are blank. Populate both columns in the sheet or "
@@ -485,9 +463,8 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         periods_path = config_dir / elasticity_raw
         if not periods_path.exists():
             raise FileNotFoundError(
-                f"Elasticity path {elasticity_raw!r} resolved to "
-                f"{periods_path} which does not exist"
-            )
+                f"Elasticity path {elasticity_raw!r} resolved to {periods_path} which does not exist"
+            ) from None
         with open(periods_path) as f:
             periods_data = yaml.safe_load(f)
 
@@ -495,7 +472,7 @@ def _row_to_run(row: dict[str, str], headers: list[str]) -> dict[str, object]:
         use_with_tech = enabling_tech not in ("false", "no", "0")
         yaml_key = "elasticity_with_tech" if use_with_tech else "elasticity"
         if yaml_key not in periods_data:
-            raise ValueError(f"No '{yaml_key}' key in {periods_path}")
+            raise ValueError(f"No '{yaml_key}' key in {periods_path}") from None
         run["elasticity"] = periods_data[yaml_key]
 
     return run
@@ -508,9 +485,7 @@ def _cell_to_str(value: object) -> str:
     return str(value).strip()
 
 
-def _get_worksheet(
-    gc: gspread.Client, sheet_id: str, name: str | None, index: int | None
-):  # noqa: ANN001
+def _get_worksheet(gc: gspread.Client, sheet_id: str, name: str | None, index: int | None):
     """Open spreadsheet and return worksheet by name or index."""
     sh = gc.open_by_key(sheet_id)
     if name is not None:
@@ -550,35 +525,25 @@ def run(
             "client_id": client_id,
             "client_secret": client_secret,
             "project_id": os.getenv("G_PROJECT_ID", ""),
-            "auth_uri": os.getenv(
-                "G_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"
-            ),
-            "token_uri": os.getenv(
-                "G_TOKEN_URI", "https://oauth2.googleapis.com/token"
-            ),
+            "auth_uri": os.getenv("G_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
+            "token_uri": os.getenv("G_TOKEN_URI", "https://oauth2.googleapis.com/token"),
             "redirect_uris": ["http://localhost"],
         }
     }
     token_path = _gspread_token_path()
     saved_token: dict[str, object] | None = None
     if token_path.exists():
-        try:
+        with contextlib.suppress(json.JSONDecodeError, OSError):
             saved_token = json.loads(token_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            pass
     if saved_token is not None:
-        gc, authorized_user = gspread.oauth_from_dict(
-            credentials=app_creds, authorized_user_info=saved_token
-        )
+        gc, authorized_user = gspread.oauth_from_dict(credentials=app_creds, authorized_user_info=saved_token)
     else:
         gc, authorized_user = gspread.oauth_from_dict(credentials=app_creds)
     # Persist token so next run can skip the browser (gspread returns JSON str or dict)
     if authorized_user:
         token_path.parent.mkdir(parents=True, exist_ok=True)
         if isinstance(authorized_user, dict):
-            token_path.write_text(
-                json.dumps(authorized_user, indent=2), encoding="utf-8"
-            )
+            token_path.write_text(json.dumps(authorized_user, indent=2), encoding="utf-8")
         else:
             token_path.write_text(str(authorized_user), encoding="utf-8")
 
@@ -604,10 +569,7 @@ def run(
     utility_key = norm_to_header.get("utility")
     num_key = norm_to_header.get("num")
     if not state_key or not utility_key or not num_key:
-        raise ValueError(
-            "Sheet must have columns state, utility, and num. "
-            f"Normalized headers: {list(norm_to_header)}"
-        )
+        raise ValueError(f"Sheet must have columns state, utility, and num. Normalized headers: {list(norm_to_header)}")
 
     # Filter to data rows with state set; require utility on every row
     data_rows: list[dict[str, str]] = []
@@ -662,13 +624,7 @@ def run(
             continue
 
         out_path = (
-            out_root
-            / "rate_design"
-            / "hp_rates"
-            / state.lower()
-            / "config"
-            / "scenarios"
-            / f"scenarios_{utility}.yaml"
+            out_root / "rate_design" / "hp_rates" / state.lower() / "config" / "scenarios" / f"scenarios_{utility}.yaml"
         )
 
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -687,9 +643,7 @@ def run(
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Create scenario YAMLs from the Runs & Charts Google Sheet."
-    )
+    parser = argparse.ArgumentParser(description="Create scenario YAMLs from the Runs & Charts Google Sheet.")
     parser.add_argument(
         "--sheet-id",
         default=None,

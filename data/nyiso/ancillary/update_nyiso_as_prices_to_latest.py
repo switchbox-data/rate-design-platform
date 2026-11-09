@@ -25,13 +25,12 @@ from datetime import datetime
 from pathlib import Path
 
 import polars as pl
-from gridstatus import NYISO
-
 from fetch_nyiso_as_prices_parquet import (
     _write_month_partition,
     fetch_as_month,
     parse_markets_cli,
 )
+from gridstatus import NYISO
 
 PARTITION_RE = re.compile(r"year=(\d{4})/month=(\d{1,2})")
 
@@ -76,9 +75,7 @@ def _last_complete_month() -> tuple[int, int]:
     return (today.year, today.month - 1)
 
 
-def _months_in_range(
-    start: tuple[int, int], end: tuple[int, int]
-) -> list[tuple[int, int]]:
+def _months_in_range(start: tuple[int, int], end: tuple[int, int]) -> list[tuple[int, int]]:
     months: list[tuple[int, int]] = []
     current = start
     while current <= end:

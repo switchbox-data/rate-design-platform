@@ -15,8 +15,6 @@ See `context/domain/charges/lmi_discounts_in_ny.md` for EAP/EEAP tier and credit
 
 from __future__ import annotations
 
-from utils.numeric import as_float
-
 import argparse
 from pathlib import Path
 
@@ -27,6 +25,7 @@ import polars as pl
 from dotenv import load_dotenv
 
 from utils.file_io import get_aws_storage_options
+from utils.numeric import as_float
 from utils.post.lmi_common import get_ny_eap_credits_df
 
 matplotlib.use("Agg")
@@ -43,17 +42,11 @@ MASTER_S3_PREFIX = "s3://data.sb/switchbox/cairo/outputs/hp_rates"
 
 
 def _build_lmi_path(state: str, batch: str, run_d: int, run_s: int, pct: int) -> str:
-    return (
-        f"{LMI_S3_PREFIX}/{state}/{batch}/run_{run_d}+{run_s}/"
-        f"p{pct}/comb_bills_year_target/"
-    )
+    return f"{LMI_S3_PREFIX}/{state}/{batch}/run_{run_d}+{run_s}/p{pct}/comb_bills_year_target/"
 
 
 def _build_master_path(state: str, batch: str, run_d: int, run_s: int) -> str:
-    return (
-        f"{MASTER_S3_PREFIX}/{state}/all_utilities/"
-        f"{batch}/run_{run_d}+{run_s}/comb_bills_year_target/"
-    )
+    return f"{MASTER_S3_PREFIX}/{state}/all_utilities/{batch}/run_{run_d}+{run_s}/comb_bills_year_target/"
 
 
 ANNUAL_MONTH = "Annual"
@@ -75,9 +68,7 @@ def _section_header(title: str) -> None:
 
 def _elec_summary_stats(df: pl.DataFrame) -> None:
     """Print per-electric-utility summary stats for p100 annual electric bills."""
-    _section_header(
-        "Section 1.1: Electric Discount Summary Stats (p100, Annual, elec_total_bill > 0)"
-    )
+    _section_header("Section 1.1: Electric Discount Summary Stats (p100, Annual, elec_total_bill > 0)")
 
     stats = (
         df.group_by("sb.electric_utility")
@@ -125,9 +116,7 @@ def _elec_discount_histogram(df: pl.DataFrame) -> None:
     for idx, util in enumerate(utilities):
         ax = axes[idx // ncols][idx % ncols]
         subset = participants.filter(pl.col("sb.electric_utility") == util)
-        discount = (
-            subset["elec_total_bill"] - subset["elec_total_bill_lmi_100"]
-        ).to_numpy()
+        discount = (subset["elec_total_bill"] - subset["elec_total_bill_lmi_100"]).to_numpy()
         ax.hist(discount, bins=40, color="steelblue", edgecolor="white")
         ax.set_title(util)
         ax.set_xlabel("Electric discount ($)")
@@ -136,9 +125,7 @@ def _elec_discount_histogram(df: pl.DataFrame) -> None:
     for idx in range(n_utils, nrows * ncols):
         axes[idx // ncols][idx % ncols].set_visible(False)
 
-    fig.suptitle(
-        "Electric Bill Discount Amount — p100 Participants", fontsize=14, y=1.01
-    )
+    fig.suptitle("Electric Bill Discount Amount — p100 Participants", fontsize=14, y=1.01)
     fig.tight_layout()
     out = PLOTS_DIR / "elec_discount_hist_p100.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
@@ -249,9 +236,7 @@ def _tier_distribution_bar(df: pl.DataFrame) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _merge_expected_electric_credit(
-    df: pl.DataFrame, credits_df: pl.DataFrame
-) -> pl.DataFrame:
+def _merge_expected_electric_credit(df: pl.DataFrame, credits_df: pl.DataFrame) -> pl.DataFrame:
     """Join staging with NY EAP credits; add expected_annual_credit (electric, $/year).
 
     credits_df has utility, tier, elec_heat, elec_nonheat ($/month). We join on
@@ -264,9 +249,7 @@ def _merge_expected_electric_credit(
         pl.col("elec_heat").fill_null(0.0).alias("_elec_heat"),
         pl.col("elec_nonheat").fill_null(0.0).alias("_elec_nonheat"),
     )
-    merged = df.join(
-        elec_credits, on=["sb.electric_utility", "elec_lmi_tier"], how="left"
-    )
+    merged = df.join(elec_credits, on=["sb.electric_utility", "elec_lmi_tier"], how="left")
     merged = merged.with_columns(
         pl.when(pl.col("heats_with_electricity").fill_null(False))
         .then(pl.col("_elec_heat") * 12.0)
@@ -277,9 +260,7 @@ def _merge_expected_electric_credit(
     return merged
 
 
-def _merge_expected_electric_credit_monthly(
-    df: pl.DataFrame, credits_df: pl.DataFrame
-) -> pl.DataFrame:
+def _merge_expected_electric_credit_monthly(df: pl.DataFrame, credits_df: pl.DataFrame) -> pl.DataFrame:
     """Join staging with NY EAP credits; add expected_monthly_credit (electric, $/month).
 
     Same join as annual merge but uses monthly credit as-is (no *12). For use with
@@ -291,9 +272,7 @@ def _merge_expected_electric_credit_monthly(
         pl.col("elec_heat").fill_null(0.0).alias("_elec_heat"),
         pl.col("elec_nonheat").fill_null(0.0).alias("_elec_nonheat"),
     )
-    merged = df.join(
-        elec_credits, on=["sb.electric_utility", "elec_lmi_tier"], how="left"
-    )
+    merged = df.join(elec_credits, on=["sb.electric_utility", "elec_lmi_tier"], how="left")
     merged = merged.with_columns(
         pl.when(pl.col("heats_with_electricity").fill_null(False))
         .then(pl.col("_elec_heat"))
@@ -306,14 +285,10 @@ def _merge_expected_electric_credit_monthly(
 
 def _expected_vs_actual_summary(participants: pl.DataFrame) -> None:
     """Print summary: expected (from EAP table) vs actualized discount by utility and tier."""
-    _section_header(
-        "Section 1.5a: Expected vs Actual Electric Discount (p100 participants)"
-    )
+    _section_header("Section 1.5a: Expected vs Actual Electric Discount (p100 participants)")
 
     participants = participants.with_columns(
-        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias(
-            "actual_discount"
-        )
+        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias("actual_discount")
     )
 
     summary = (
@@ -324,31 +299,19 @@ def _expected_vs_actual_summary(participants: pl.DataFrame) -> None:
             pl.col("expected_annual_credit").median().alias("expected_median"),
             pl.col("actual_discount").mean().alias("actual_mean"),
             pl.col("actual_discount").median().alias("actual_median"),
-            (pl.col("actual_discount") - pl.col("expected_annual_credit"))
-            .mean()
-            .alias("diff_mean"),
-            (pl.col("actual_discount") - pl.col("expected_annual_credit"))
-            .abs()
-            .mean()
-            .alias("abs_diff_mean"),
+            (pl.col("actual_discount") - pl.col("expected_annual_credit")).mean().alias("diff_mean"),
+            (pl.col("actual_discount") - pl.col("expected_annual_credit")).abs().mean().alias("abs_diff_mean"),
         )
         .sort("sb.electric_utility", "elec_lmi_tier")
     )
     print(summary)
     n_mismatch = participants.filter(
-        (pl.col("actual_discount") - pl.col("expected_annual_credit")).abs()
-        > EXPECTED_VS_ACTUAL_TOL
+        (pl.col("actual_discount") - pl.col("expected_annual_credit")).abs() > EXPECTED_VS_ACTUAL_TOL
     ).height
     n_total = participants.height
-    print(
-        f"\nRows with |actual - expected| > ${EXPECTED_VS_ACTUAL_TOL}: "
-        f"{n_mismatch} / {n_total}"
-    )
+    print(f"\nRows with |actual - expected| > ${EXPECTED_VS_ACTUAL_TOL}: {n_mismatch} / {n_total}")
     if n_total > 0:
-        print(
-            "  (Small differences are normal when bill < expected credit: "
-            "discount is capped at bill amount.)"
-        )
+        print("  (Small differences are normal when bill < expected credit: discount is capped at bill amount.)")
 
 
 def _plot_expected_vs_actual_scatter(participants: pl.DataFrame) -> None:
@@ -356,9 +319,7 @@ def _plot_expected_vs_actual_scatter(participants: pl.DataFrame) -> None:
     _section_header("Section 1.5b: Expected vs Actual Scatter (p100)")
 
     participants = participants.with_columns(
-        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias(
-            "actual_discount"
-        )
+        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias("actual_discount")
     )
     exp = participants["expected_annual_credit"].to_numpy()
     act = participants["actual_discount"].to_numpy()
@@ -369,9 +330,7 @@ def _plot_expected_vs_actual_scatter(participants: pl.DataFrame) -> None:
     ax.plot([0, lim], [0, lim], "k--", alpha=0.8, label="1:1 (expected = actual)")
     ax.set_xlabel("Expected annual credit ($) — from EAP/EEAP table")
     ax.set_ylabel("Actual discount ($) — elec_total_bill - elec_total_bill_lmi_100")
-    ax.set_title(
-        "Electric LMI: Expected vs Actualized Discount (p100; points below line = bill cap)"
-    )
+    ax.set_title("Electric LMI: Expected vs Actualized Discount (p100; points below line = bill cap)")
     ax.legend()
     ax.set_xlim(0, lim)
     ax.set_ylim(0, lim)
@@ -388,9 +347,7 @@ def _plot_expected_vs_actual_by_utility_tier(participants: pl.DataFrame) -> None
     _section_header("Section 1.5c: Expected vs Actual by Utility and Tier (p100)")
 
     participants = participants.with_columns(
-        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias(
-            "actual_discount"
-        )
+        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias("actual_discount")
     )
     agg = (
         participants.group_by("sb.electric_utility", "elec_lmi_tier")
@@ -471,30 +428,18 @@ def _plot_expected_vs_actual_scatter_with_cap(participants: pl.DataFrame) -> Non
     _section_header("Section 1.5b2: Expected (capped) vs Actual Scatter (p100)")
 
     participants = participants.with_columns(
-        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias(
-            "actual_discount"
-        )
-    ).with_columns(
-        pl.min_horizontal("expected_annual_credit", "elec_total_bill").alias(
-            "expected_capped"
-        )
-    )
+        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias("actual_discount")
+    ).with_columns(pl.min_horizontal("expected_annual_credit", "elec_total_bill").alias("expected_capped"))
     exp_cap = participants["expected_capped"].to_numpy()
     act = participants["actual_discount"].to_numpy()
 
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.scatter(exp_cap, act, alpha=0.3, s=8, color="steelblue", label="Participants")
     lim = max(exp_cap.max(), act.max(), 1.0)
-    ax.plot(
-        [0, lim], [0, lim], "k--", alpha=0.8, label="1:1 (expected_capped = actual)"
-    )
-    ax.set_xlabel(
-        "Expected (capped) ($) — min(expected annual credit, elec_total_bill)"
-    )
+    ax.plot([0, lim], [0, lim], "k--", alpha=0.8, label="1:1 (expected_capped = actual)")
+    ax.set_xlabel("Expected (capped) ($) — min(expected annual credit, elec_total_bill)")
     ax.set_ylabel("Actual discount ($) — elec_total_bill - elec_total_bill_lmi_100")
-    ax.set_title(
-        "Electric LMI: Expected-With-Cap vs Actual — on line = correct zero-flooring"
-    )
+    ax.set_title("Electric LMI: Expected-With-Cap vs Actual — on line = correct zero-flooring")
     ax.legend()
     ax.set_xlim(0, lim)
     ax.set_ylim(0, lim)
@@ -515,22 +460,13 @@ def _plot_expected_vs_actual_diff_hist(participants: pl.DataFrame) -> None:
     _section_header("Section 1.5d: Distribution of (Actual - Expected) Discount (p100)")
 
     participants = participants.with_columns(
-        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias(
-            "actual_discount"
-        )
-    ).with_columns(
-        (pl.col("actual_discount") - pl.col("expected_annual_credit")).alias(
-            "discount_diff"
-        )
-    )
+        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias("actual_discount")
+    ).with_columns((pl.col("actual_discount") - pl.col("expected_annual_credit")).alias("discount_diff"))
     diff = participants["discount_diff"].to_numpy()
     d_min, d_max = float(diff.min()), float(diff.max())
     n_neg = 35
     n_nonneg = 15
-    if d_min < -1e-9:
-        bins_neg = np.linspace(d_min, -1e-9, n_neg + 1)
-    else:
-        bins_neg = np.array([d_min])
+    bins_neg = np.linspace(d_min, -1e-09, n_neg + 1) if d_min < -1e-09 else np.array([d_min])
     if d_max > 1e-9:
         bins_nonneg = np.linspace(0.0, d_max, n_nonneg + 1)
     else:
@@ -545,9 +481,7 @@ def _plot_expected_vs_actual_diff_hist(participants: pl.DataFrame) -> None:
     ax.axvline(0, color="black", linestyle="--", linewidth=1, label="0 (perfect match)")
     ax.set_xlabel("Actual discount − Expected annual credit ($)")
     ax.set_ylabel("Count")
-    ax.set_title(
-        "Electric LMI: (Actual − Expected) Discount — negative = bill cap, positive = check logic"
-    )
+    ax.set_title("Electric LMI: (Actual − Expected) Discount — negative = bill cap, positive = check logic")
     ax.legend()
     fig.tight_layout()
     out = PLOTS_DIR / "elec_expected_vs_actual_diff_hist.png"
@@ -563,26 +497,14 @@ def _plot_expected_vs_actual_diff_hist_with_cap(participants: pl.DataFrame) -> N
     floored at zero, actual_discount should equal this. So (actual - expected_capped)
     should be ~0 for all; concentration at 0 means implementation matches the cap rule.
     """
-    _section_header(
-        "Section 1.5e: Expected vs Actual (with zero cap) — diff should be ~0"
-    )
+    _section_header("Section 1.5e: Expected vs Actual (with zero cap) — diff should be ~0")
 
     participants = (
         participants.with_columns(
-            (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias(
-                "actual_discount"
-            )
+            (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias("actual_discount")
         )
-        .with_columns(
-            pl.min_horizontal("expected_annual_credit", "elec_total_bill").alias(
-                "expected_capped"
-            )
-        )
-        .with_columns(
-            (pl.col("actual_discount") - pl.col("expected_capped")).alias(
-                "diff_vs_capped"
-            )
-        )
+        .with_columns(pl.min_horizontal("expected_annual_credit", "elec_total_bill").alias("expected_capped"))
+        .with_columns((pl.col("actual_discount") - pl.col("expected_capped")).alias("diff_vs_capped"))
         .with_columns(
             pl.when(pl.col("diff_vs_capped").abs() < CAP_DIFF_ZERO_TOL)
             .then(0.0)
@@ -601,10 +523,7 @@ def _plot_expected_vs_actual_diff_hist_with_cap(participants: pl.DataFrame) -> N
     else:
         n_neg = 35
         n_nonneg = 15
-        if d_min < -1e-9:
-            bins_neg = np.linspace(d_min, -1e-9, n_neg + 1)
-        else:
-            bins_neg = np.array([d_min])
+        bins_neg = np.linspace(d_min, -1e-09, n_neg + 1) if d_min < -1e-09 else np.array([d_min])
         if d_max > 1e-9:
             bins_nonneg = np.linspace(0.0, d_max, n_nonneg + 1)
         else:
@@ -620,9 +539,7 @@ def _plot_expected_vs_actual_diff_hist_with_cap(participants: pl.DataFrame) -> N
         "Actual discount − min(expected credit, bill) ($)\n(expected when bill is floored at zero; |diff| < 1e-6 counted as 0)"
     )
     ax.set_ylabel("Count")
-    ax.set_title(
-        "Electric LMI: Actual vs Expected-With-Cap — centered at 0 = correct zero-flooring"
-    )
+    ax.set_title("Electric LMI: Actual vs Expected-With-Cap — centered at 0 = correct zero-flooring")
     ax.legend()
     fig.tight_layout()
     out = PLOTS_DIR / "elec_expected_vs_actual_diff_hist_with_cap.png"
@@ -647,9 +564,7 @@ def _plot_monthly_expected_vs_actual_scatter(
     _section_header("Section 1.6a: Month-by-month Expected vs Actual Scatter (p100)")
 
     monthly_participants = monthly_participants.with_columns(
-        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias(
-            "actual_discount_monthly"
-        )
+        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias("actual_discount_monthly")
     )
     exp = monthly_participants["expected_monthly_credit"].to_numpy()
     act = monthly_participants["actual_discount_monthly"].to_numpy()
@@ -659,12 +574,8 @@ def _plot_monthly_expected_vs_actual_scatter(
     lim = max(exp.max(), act.max(), 1.0)
     ax.plot([0, lim], [0, lim], "k--", alpha=0.8, label="1:1 (expected = actual)")
     ax.set_xlabel("Expected monthly credit ($) — from EAP/EEAP table")
-    ax.set_ylabel(
-        "Actual monthly discount ($) — elec_total_bill - elec_total_bill_lmi_100"
-    )
-    ax.set_title(
-        "Electric LMI: Month-by-month Expected vs Actual (p100; below line = bill cap)"
-    )
+    ax.set_ylabel("Actual monthly discount ($) — elec_total_bill - elec_total_bill_lmi_100")
+    ax.set_title("Electric LMI: Month-by-month Expected vs Actual (p100; below line = bill cap)")
     ax.legend()
     ax.set_xlim(0, lim)
     ax.set_ylim(0, lim)
@@ -684,39 +595,21 @@ def _plot_monthly_expected_vs_actual_scatter_with_cap(
     expected_capped = min(expected_monthly_credit, elec_total_bill) for that month.
     On line = correct zero-flooring at monthly level.
     """
-    _section_header(
-        "Section 1.6b: Month-by-month Expected (capped) vs Actual Scatter (p100)"
-    )
+    _section_header("Section 1.6b: Month-by-month Expected (capped) vs Actual Scatter (p100)")
 
     monthly_participants = monthly_participants.with_columns(
-        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias(
-            "actual_discount_monthly"
-        )
-    ).with_columns(
-        pl.min_horizontal("expected_monthly_credit", "elec_total_bill").alias(
-            "expected_monthly_capped"
-        )
-    )
+        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias("actual_discount_monthly")
+    ).with_columns(pl.min_horizontal("expected_monthly_credit", "elec_total_bill").alias("expected_monthly_capped"))
     exp_cap = monthly_participants["expected_monthly_capped"].to_numpy()
     act = monthly_participants["actual_discount_monthly"].to_numpy()
 
     fig, ax = plt.subplots(figsize=(8, 8))
-    ax.scatter(
-        exp_cap, act, alpha=0.2, s=6, color="steelblue", label="Participant-months"
-    )
+    ax.scatter(exp_cap, act, alpha=0.2, s=6, color="steelblue", label="Participant-months")
     lim = max(exp_cap.max(), act.max(), 1.0)
-    ax.plot(
-        [0, lim], [0, lim], "k--", alpha=0.8, label="1:1 (expected_capped = actual)"
-    )
-    ax.set_xlabel(
-        "Expected (capped) monthly ($) — min(expected monthly credit, elec_total_bill)"
-    )
-    ax.set_ylabel(
-        "Actual monthly discount ($) — elec_total_bill - elec_total_bill_lmi_100"
-    )
-    ax.set_title(
-        "Electric LMI: Month-by-month Expected-With-Cap vs Actual — on line = correct zero-flooring"
-    )
+    ax.plot([0, lim], [0, lim], "k--", alpha=0.8, label="1:1 (expected_capped = actual)")
+    ax.set_xlabel("Expected (capped) monthly ($) — min(expected monthly credit, elec_total_bill)")
+    ax.set_ylabel("Actual monthly discount ($) — elec_total_bill - elec_total_bill_lmi_100")
+    ax.set_title("Electric LMI: Month-by-month Expected-With-Cap vs Actual — on line = correct zero-flooring")
     ax.legend()
     ax.set_xlim(0, lim)
     ax.set_ylim(0, lim)
@@ -736,27 +629,18 @@ def _plot_monthly_expected_vs_actual_diff_hist(
     Uses a bin edge at 0 so the full range of differences is visible: negative
     (bill cap), zero (full credit applied), positive (check logic).
     """
-    _section_header(
-        "Section 1.6c: Month-by-month (Actual − Expected) Discount Distribution (p100)"
-    )
+    _section_header("Section 1.6c: Month-by-month (Actual − Expected) Discount Distribution (p100)")
 
     monthly_participants = monthly_participants.with_columns(
-        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias(
-            "actual_discount_monthly"
-        )
+        (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias("actual_discount_monthly")
     ).with_columns(
-        (pl.col("actual_discount_monthly") - pl.col("expected_monthly_credit")).alias(
-            "discount_diff_monthly"
-        )
+        (pl.col("actual_discount_monthly") - pl.col("expected_monthly_credit")).alias("discount_diff_monthly")
     )
     diff = monthly_participants["discount_diff_monthly"].to_numpy()
     d_min, d_max = float(diff.min()), float(diff.max())
     n_neg = 35
     n_nonneg = 15
-    if d_min < -1e-9:
-        bins_neg = np.linspace(d_min, -1e-9, n_neg + 1)
-    else:
-        bins_neg = np.array([d_min])
+    bins_neg = np.linspace(d_min, -1e-09, n_neg + 1) if d_min < -1e-09 else np.array([d_min])
     if d_max > 1e-9:
         bins_nonneg = np.linspace(0.0, d_max, n_nonneg + 1)
     else:
@@ -770,9 +654,7 @@ def _plot_monthly_expected_vs_actual_diff_hist(
     ax.axvline(0, color="black", linestyle="--", linewidth=1, label="0 (perfect match)")
     ax.set_xlabel("Actual monthly discount − Expected monthly credit ($)")
     ax.set_ylabel("Count (participant-months)")
-    ax.set_title(
-        "Electric LMI: Month-by-month (Actual − Expected) — negative = bill cap, positive = check logic"
-    )
+    ax.set_title("Electric LMI: Month-by-month (Actual − Expected) — negative = bill cap, positive = check logic")
     ax.legend()
     fig.tight_layout()
     out = PLOTS_DIR / "elec_monthly_expected_vs_actual_diff_hist.png"
@@ -789,25 +671,15 @@ def _plot_monthly_expected_vs_actual_diff_hist_with_cap(
     expected_monthly_capped = min(expected_monthly_credit, elec_total_bill).
     Concentration at 0 means implementation matches the cap rule at monthly level.
     """
-    _section_header(
-        "Section 1.6d: Month-by-month Expected vs Actual (with zero cap) — diff ~0"
-    )
+    _section_header("Section 1.6d: Month-by-month Expected vs Actual (with zero cap) — diff ~0")
 
     monthly_participants = (
         monthly_participants.with_columns(
-            (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias(
-                "actual_discount_monthly"
-            )
+            (pl.col("elec_total_bill") - pl.col("elec_total_bill_lmi_100")).alias("actual_discount_monthly")
         )
+        .with_columns(pl.min_horizontal("expected_monthly_credit", "elec_total_bill").alias("expected_monthly_capped"))
         .with_columns(
-            pl.min_horizontal("expected_monthly_credit", "elec_total_bill").alias(
-                "expected_monthly_capped"
-            )
-        )
-        .with_columns(
-            (
-                pl.col("actual_discount_monthly") - pl.col("expected_monthly_capped")
-            ).alias("diff_vs_capped_monthly")
+            (pl.col("actual_discount_monthly") - pl.col("expected_monthly_capped")).alias("diff_vs_capped_monthly")
         )
         .with_columns(
             pl.when(pl.col("diff_vs_capped_monthly").abs() < CAP_DIFF_ZERO_TOL)
@@ -825,10 +697,7 @@ def _plot_monthly_expected_vs_actual_diff_hist_with_cap(
     else:
         n_neg = 35
         n_nonneg = 15
-        if d_min < -1e-9:
-            bins_neg = np.linspace(d_min, -1e-9, n_neg + 1)
-        else:
-            bins_neg = np.array([d_min])
+        bins_neg = np.linspace(d_min, -1e-09, n_neg + 1) if d_min < -1e-09 else np.array([d_min])
         if d_max > 1e-9:
             bins_nonneg = np.linspace(0.0, d_max, n_nonneg + 1)
         else:
@@ -840,14 +709,9 @@ def _plot_monthly_expected_vs_actual_diff_hist_with_cap(
     fig, ax = plt.subplots(figsize=(9, 5))
     ax.hist(diff, bins=bins.tolist(), color="steelblue", edgecolor="white")
     ax.axvline(0, color="black", linestyle="--", linewidth=1, label="0 (perfect match)")
-    ax.set_xlabel(
-        "Actual monthly discount − min(expected monthly credit, bill) ($)\n"
-        "(|diff| < 1e-6 counted as 0)"
-    )
+    ax.set_xlabel("Actual monthly discount − min(expected monthly credit, bill) ($)\n(|diff| < 1e-6 counted as 0)")
     ax.set_ylabel("Count (participant-months)")
-    ax.set_title(
-        "Electric LMI: Month-by-month Actual vs Expected-With-Cap — centered at 0 = correct zero-flooring"
-    )
+    ax.set_title("Electric LMI: Month-by-month Actual vs Expected-With-Cap — centered at 0 = correct zero-flooring")
     ax.legend()
     fig.tight_layout()
     out = PLOTS_DIR / "elec_monthly_expected_vs_actual_diff_hist_with_cap.png"
@@ -883,18 +747,11 @@ def _p40_tier_comparison(df: pl.DataFrame) -> None:
             pl.len().alias("n_eligible"),
             pl.col("applied_discount_elec_40").sum().alias("n_participating"),
         )
-        .with_columns(
-            (pl.col("n_participating") / pl.col("n_eligible")).alias(
-                "participation_rate"
-            )
-        )
+        .with_columns((pl.col("n_participating") / pl.col("n_eligible")).alias("participation_rate"))
         .sort("elec_lmi_tier")
     )
     print(tier_stats)
-    print(
-        "\nExpected: lower tiers (1-3) should have higher participation rates "
-        "than higher tiers (5-7)."
-    )
+    print("\nExpected: lower tiers (1-3) should have higher participation rates than higher tiers (5-7).")
 
 
 def _p40_participant_vs_excluded_hist(df: pl.DataFrame) -> None:
@@ -930,9 +787,7 @@ def _p40_participant_vs_excluded_hist(df: pl.DataFrame) -> None:
     )
     ax.set_xlabel("Annual electric bill ($)")
     ax.set_ylabel("Count")
-    ax.set_title(
-        "p40: Electric Bill Distribution — Participants vs Excluded (LMI eligible)"
-    )
+    ax.set_title("p40: Electric Bill Distribution — Participants vs Excluded (LMI eligible)")
     ax.legend()
     fig.tight_layout()
     out = PLOTS_DIR / "p40_participant_vs_excluded_elec_bills.png"
@@ -951,11 +806,7 @@ def _p40_participation_rate_by_tier(df: pl.DataFrame) -> None:
             pl.len().alias("n_eligible"),
             pl.col("applied_discount_elec_40").sum().alias("n_participating"),
         )
-        .with_columns(
-            (pl.col("n_participating") / pl.col("n_eligible")).alias(
-                "participation_rate"
-            )
-        )
+        .with_columns((pl.col("n_participating") / pl.col("n_eligible")).alias("participation_rate"))
         .sort("elec_lmi_tier")
     )
     tiers = tier_stats["elec_lmi_tier"].to_list()
@@ -967,7 +818,7 @@ def _p40_participation_rate_by_tier(df: pl.DataFrame) -> None:
     ax.set_ylabel("Participation rate")
     ax.set_title("p40: Participation Rate by Tier (LMI eligible, electric)")
     ax.set_ylim(0, 1.0)
-    for i, (t, r) in enumerate(zip(tiers, rates)):
+    for i, (_t, r) in enumerate(zip(tiers, rates, strict=False)):
         ax.text(i, r + 0.02, f"{r:.2f}", ha="center", fontsize=9)
     fig.tight_layout()
     out = PLOTS_DIR / "p40_participation_rate_by_tier_elec.png"
@@ -978,9 +829,7 @@ def _p40_participation_rate_by_tier(df: pl.DataFrame) -> None:
 
 def _p40_participation_by_bill_size(df: pl.DataFrame) -> None:
     """Strip plot of electric bill by electric utility, colored by participation status."""
-    _section_header(
-        "Section 2.5: p40 Participation by Bill Size (Electric, strip plot)"
-    )
+    _section_header("Section 2.5: p40 Participation by Bill Size (Electric, strip plot)")
 
     has_elec = df.filter(pl.col("elec_total_bill") > 0)
     utilities = sorted(has_elec["sb.electric_utility"].unique().to_list())
@@ -1048,21 +897,13 @@ def _cross_check_p100_p40(p100: pl.DataFrame, p40: pl.DataFrame) -> None:
     """Verify elec_lmi_tier and is_lmi_elec are identical between p100 and p40."""
     _section_header("Section 3.1: p100 vs p40 tier/eligibility consistency")
 
-    p100_ann = p100.filter(pl.col("month") == ANNUAL_MONTH).select(
-        "bldg_id", "elec_lmi_tier", "is_lmi_elec"
-    )
-    p40_ann = p40.filter(pl.col("month") == ANNUAL_MONTH).select(
-        "bldg_id", "elec_lmi_tier", "is_lmi_elec"
-    )
+    p100_ann = p100.filter(pl.col("month") == ANNUAL_MONTH).select("bldg_id", "elec_lmi_tier", "is_lmi_elec")
+    p40_ann = p40.filter(pl.col("month") == ANNUAL_MONTH).select("bldg_id", "elec_lmi_tier", "is_lmi_elec")
 
     joined = p100_ann.join(p40_ann, on="bldg_id", suffix="_p40")
 
-    tier_mismatch = joined.filter(
-        pl.col("elec_lmi_tier") != pl.col("elec_lmi_tier_p40")
-    ).height
-    lmi_mismatch = joined.filter(
-        pl.col("is_lmi_elec") != pl.col("is_lmi_elec_p40")
-    ).height
+    tier_mismatch = joined.filter(pl.col("elec_lmi_tier") != pl.col("elec_lmi_tier_p40")).height
+    lmi_mismatch = joined.filter(pl.col("is_lmi_elec") != pl.col("is_lmi_elec_p40")).height
 
     print(f"Buildings compared: {joined.height}")
     print(f"elec_lmi_tier mismatches: {tier_mismatch}")
@@ -1073,9 +914,7 @@ def _cross_check_p100_p40(p100: pl.DataFrame, p40: pl.DataFrame) -> None:
         print("FAIL: tier assignments differ between p100 and p40")
 
 
-def _check_source_columns(
-    staging: pl.DataFrame, prod: pl.DataFrame, label: str
-) -> None:
+def _check_source_columns(staging: pl.DataFrame, prod: pl.DataFrame, label: str) -> None:
     """Verify pass-through columns in staging match the production source."""
     _section_header(f"Section 3.2: Source column integrity ({label})")
 
@@ -1094,19 +933,14 @@ def _check_source_columns(
         "applied_discount_elec_40",
         "applied_discount_gas_40",
     }
-    shared_cols = [
-        c for c in prod.columns if c in staging.columns and c not in lmi_cols
-    ]
+    shared_cols = [c for c in prod.columns if c in staging.columns and c not in lmi_cols]
     print(f"Checking {len(shared_cols)} pass-through columns: {shared_cols}")
 
     staging_sub = staging.select(shared_cols).sort("bldg_id", "month")
     prod_sub = prod.select(shared_cols).sort("bldg_id", "month")
 
     if staging_sub.height != prod_sub.height:
-        print(
-            f"FAIL: row count mismatch: staging={staging_sub.height}, "
-            f"prod={prod_sub.height}"
-        )
+        print(f"FAIL: row count mismatch: staging={staging_sub.height}, prod={prod_sub.height}")
         return
 
     n_diffs = 0
@@ -1135,15 +969,9 @@ def _parse_args() -> argparse.Namespace:
         description="Validate and explore LMI electric bill discounts from master-bills outputs.",
     )
     parser.add_argument("--state", default="ny", help="State code (default: ny).")
-    parser.add_argument(
-        "--batch", required=True, help="Batch name (e.g. ny_20260311b_r1-12)."
-    )
-    parser.add_argument(
-        "--run-delivery", type=int, default=1, help="Delivery run number (default: 1)."
-    )
-    parser.add_argument(
-        "--run-supply", type=int, default=2, help="Supply run number (default: 2)."
-    )
+    parser.add_argument("--batch", required=True, help="Batch name (e.g. ny_20260311b_r1-12).")
+    parser.add_argument("--run-delivery", type=int, default=1, help="Delivery run number (default: 1).")
+    parser.add_argument("--run-supply", type=int, default=2, help="Supply run number (default: 2).")
     parser.add_argument(
         "--p100-path",
         help="Override: S3/local path to p100 comb_bills_year_target dataset. "
@@ -1163,17 +991,11 @@ def _parse_args() -> argparse.Namespace:
 
     state = args.state.lower()
     if not args.p100_path:
-        args.p100_path = _build_lmi_path(
-            state, args.batch, args.run_delivery, args.run_supply, 100
-        )
+        args.p100_path = _build_lmi_path(state, args.batch, args.run_delivery, args.run_supply, 100)
     if not args.p40_path:
-        args.p40_path = _build_lmi_path(
-            state, args.batch, args.run_delivery, args.run_supply, 40
-        )
+        args.p40_path = _build_lmi_path(state, args.batch, args.run_delivery, args.run_supply, 40)
     if not args.prod_path:
-        args.prod_path = _build_master_path(
-            state, args.batch, args.run_delivery, args.run_supply
-        )
+        args.prod_path = _build_master_path(state, args.batch, args.run_delivery, args.run_supply)
     return args
 
 
@@ -1203,9 +1025,7 @@ def main() -> None:
         print(f"p40 columns: {p40.columns}")
 
     # --- Section 1: Electric discount EDA (p100) ---
-    p100_annual_elec = p100.filter(
-        (pl.col("month") == "Annual") & (pl.col("elec_total_bill") > 0)
-    )
+    p100_annual_elec = p100.filter((pl.col("month") == "Annual") & (pl.col("elec_total_bill") > 0))
     print(f"\np100 annual rows with elec > 0: {len(p100_annual_elec)}")
 
     _elec_summary_stats(p100_annual_elec)
@@ -1216,9 +1036,7 @@ def main() -> None:
     # --- Section 1.5: Expected vs actual discount (EAP/EEAP credit table) ---
     credits_df = get_ny_eap_credits_df()
     p100_participants = p100_annual_elec.filter(pl.col("applied_discount_elec_100"))
-    p100_participants_with_expected = _merge_expected_electric_credit(
-        p100_participants, credits_df
-    )
+    p100_participants_with_expected = _merge_expected_electric_credit(p100_participants, credits_df)
     if p100_participants_with_expected.height > 0:
         _expected_vs_actual_summary(p100_participants_with_expected)
         _plot_expected_vs_actual_scatter(p100_participants_with_expected)
@@ -1231,37 +1049,23 @@ def main() -> None:
         print("No p100 participants — skipping expected vs actual plots.")
 
     # --- Section 1.6: Month-by-month expected vs actual (p100) ---
-    p100_monthly_elec = p100.filter(
-        (pl.col("month") != ANNUAL_MONTH) & (pl.col("elec_total_bill") > 0)
-    )
-    p100_monthly_participants = p100_monthly_elec.filter(
-        pl.col("applied_discount_elec_100")
-    )
+    p100_monthly_elec = p100.filter((pl.col("month") != ANNUAL_MONTH) & (pl.col("elec_total_bill") > 0))
+    p100_monthly_participants = p100_monthly_elec.filter(pl.col("applied_discount_elec_100"))
     p100_monthly_participants_with_expected = _merge_expected_electric_credit_monthly(
         p100_monthly_participants, credits_df
     )
     if p100_monthly_participants_with_expected.height > 0:
-        _plot_monthly_expected_vs_actual_scatter(
-            p100_monthly_participants_with_expected
-        )
-        _plot_monthly_expected_vs_actual_scatter_with_cap(
-            p100_monthly_participants_with_expected
-        )
-        _plot_monthly_expected_vs_actual_diff_hist(
-            p100_monthly_participants_with_expected
-        )
-        _plot_monthly_expected_vs_actual_diff_hist_with_cap(
-            p100_monthly_participants_with_expected
-        )
+        _plot_monthly_expected_vs_actual_scatter(p100_monthly_participants_with_expected)
+        _plot_monthly_expected_vs_actual_scatter_with_cap(p100_monthly_participants_with_expected)
+        _plot_monthly_expected_vs_actual_diff_hist(p100_monthly_participants_with_expected)
+        _plot_monthly_expected_vs_actual_diff_hist_with_cap(p100_monthly_participants_with_expected)
     else:
         _section_header("Section 1.6: Month-by-month Expected vs Actual (p100)")
         print("No p100 monthly participant rows — skipping monthly plots.")
 
     # --- Section 2: Participation weighting (p40) ---
     if p40 is not None:
-        p40_annual_lmi = p40.filter(
-            (pl.col("month") == "Annual") & (pl.col("is_lmi_elec"))
-        )
+        p40_annual_lmi = p40.filter((pl.col("month") == "Annual") & (pl.col("is_lmi_elec")))
         print(f"\np40 annual LMI-eligible rows: {len(p40_annual_lmi)}")
 
         _p40_overview(p40_annual_lmi)
@@ -1274,9 +1078,7 @@ def main() -> None:
         _cross_check_p100_p40(p100, p40)
     else:
         _section_header("Section 2 & 3: p40 (skipped)")
-        print(
-            "p40 path set to 'skip' — skipping participation and cross-check sections."
-        )
+        print("p40 path set to 'skip' — skipping participation and cross-check sections.")
 
     # --- Source column integrity ---
     skip_prod = args.prod_path == args.p100_path

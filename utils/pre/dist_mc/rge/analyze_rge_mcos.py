@@ -22,7 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "nyseg"))
 
-from analyze_nyseg_mcos import CRAConfig, run_analysis  # noqa: E402  # ty: ignore[import-not-found]
+from analyze_nyseg_mcos import CRAConfig, run_analysis  # ty: ignore[import-not-found]
 
 RGE_DIVISIONS = ["Canandaigua", "Central", "Fillmore", "Sodus"]
 

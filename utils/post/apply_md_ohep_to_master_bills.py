@@ -132,9 +132,7 @@ def _build_md_ohep_profiles(
         config = load_md_ohep_config()
     fpl = load_fpl_guidelines(fpl_year)
     base = path_resstock_release.rstrip("/")
-    path_metadata = (
-        f"{base}/metadata/state={state}/upgrade={upgrade}/metadata-sb.parquet"
-    )
+    path_metadata = f"{base}/metadata/state={state}/upgrade={upgrade}/metadata-sb.parquet"
     path_annual_load = _annual_load_path(base, state, upgrade)
     ids = master_bldg_ids.select(BLDG_ID).unique().lazy()
 
@@ -163,24 +161,14 @@ def _build_md_ohep_profiles(
         .filter(pl.col("in.vacancy_status") != "Vacant")
         .with_columns(
             parse_occupants_expr("in.occupants").alias("_occupants"),
-            inflate_income_expr("in.representative_income", cpi_ratio).alias(
-                "_income_inflated"
-            ),
+            inflate_income_expr("in.representative_income", cpi_ratio).alias("_income_inflated"),
             primary_heating_fuel_expr().alias("primary_heating_fuel"),
         )
-        .with_columns(
-            fpl_threshold_expr("_occupants", fpl["base"], fpl["increment"]).alias(
-                "_fpl_threshold"
-            )
-        )
-        .with_columns(
-            fpl_pct_expr("_income_inflated", pl.col("_fpl_threshold")).alias("fpl_pct")
-        )
+        .with_columns(fpl_threshold_expr("_occupants", fpl["base"], fpl["increment"]).alias("_fpl_threshold"))
+        .with_columns(fpl_pct_expr("_income_inflated", pl.col("_fpl_threshold")).alias("fpl_pct"))
         .with_columns(
             assign_md_ohep_level_expr("fpl_pct", config).alias("ohep_poverty_level"),
-            assign_md_eusp_kwh_band_expr("annual_electric_kwh", config).alias(
-                "eusp_kwh_band"
-            ),
+            assign_md_eusp_kwh_band_expr("annual_electric_kwh", config).alias("eusp_kwh_band"),
         )
         .select(
             BLDG_ID,
@@ -218,43 +206,30 @@ def _build_md_ohep_profiles(
         .with_columns(
             pl.when(
                 (pl.col("eusp_annual_benefit") > 0)
-                | (
-                    (pl.col("primary_heating_fuel") == "electric")
-                    & (pl.col("meap_annual_benefit") > 0)
-                )
+                | ((pl.col("primary_heating_fuel") == "electric") & (pl.col("meap_annual_benefit") > 0))
             )
             .then(pl.col("ohep_poverty_level"))
             .otherwise(pl.lit(0))
             .cast(pl.Int32)
             .alias("elec_lmi_tier"),
-            pl.when(
-                (pl.col("primary_heating_fuel") == "gas")
-                & (pl.col("meap_annual_benefit") > 0)
-            )
+            pl.when((pl.col("primary_heating_fuel") == "gas") & (pl.col("meap_annual_benefit") > 0))
             .then(pl.col("ohep_poverty_level"))
             .otherwise(pl.lit(0))
             .cast(pl.Int32)
             .alias("gas_lmi_tier"),
-            pl.when(
-                (pl.col("primary_heating_fuel") == "oil_kerosene")
-                & (pl.col("meap_annual_benefit") > 0)
-            )
+            pl.when((pl.col("primary_heating_fuel") == "oil_kerosene") & (pl.col("meap_annual_benefit") > 0))
             .then(pl.col("ohep_poverty_level"))
             .otherwise(pl.lit(0))
             .cast(pl.Int32)
             .alias("oil_lmi_tier"),
-            pl.when(
-                (pl.col("primary_heating_fuel") == "propane")
-                & (pl.col("meap_annual_benefit") > 0)
-            )
+            pl.when((pl.col("primary_heating_fuel") == "propane") & (pl.col("meap_annual_benefit") > 0))
             .then(pl.col("ohep_poverty_level"))
             .otherwise(pl.lit(0))
             .cast(pl.Int32)
             .alias("propane_lmi_tier"),
-            (
-                (pl.col("primary_heating_fuel") == "wood_coal")
-                & (pl.col("meap_annual_benefit") > 0)
-            ).alias("has_unmodeled_meap_fuel"),
+            ((pl.col("primary_heating_fuel") == "wood_coal") & (pl.col("meap_annual_benefit") > 0)).alias(
+                "has_unmodeled_meap_fuel"
+            ),
         )
         .with_columns(
             (pl.col("elec_lmi_tier") > 0).alias("is_lmi_elec"),
@@ -263,12 +238,9 @@ def _build_md_ohep_profiles(
             (pl.col("propane_lmi_tier") > 0).alias("is_lmi_propane"),
         )
         .with_columns(
-            (
-                pl.col("is_lmi_elec")
-                | pl.col("is_lmi_gas")
-                | pl.col("is_lmi_oil")
-                | pl.col("is_lmi_propane")
-            ).alias("is_lmi_any")
+            (pl.col("is_lmi_elec") | pl.col("is_lmi_gas") | pl.col("is_lmi_oil") | pl.col("is_lmi_propane")).alias(
+                "is_lmi_any"
+            )
         )
     )
     return profiles
@@ -282,17 +254,13 @@ def _sample_md_participation(
 ) -> pl.DataFrame:
     """Add a deterministic participation flag to one-row-per-building profiles."""
     if participation_mode not in {"uniform", "weighted"}:
-        raise ValueError(
-            f"participation_mode must be 'uniform' or 'weighted'; got {participation_mode!r}"
-        )
+        raise ValueError(f"participation_mode must be 'uniform' or 'weighted'; got {participation_mode!r}")
     eligible = pl.col("is_lmi_any")
     if participation_rate >= 1.0:
         return profiles.with_columns(eligible.alias("participates"))
     if participation_mode == "uniform":
         return profiles.with_columns(
-            participation_uniform_expr(
-                BLDG_ID, participation_rate, seed, eligible
-            ).alias("participates")
+            participation_uniform_expr(BLDG_ID, participation_rate, seed, eligible).alias("participates")
         )
 
     eligible_df = (
@@ -302,24 +270,16 @@ def _sample_md_participation(
     )
     if eligible_df.is_empty():
         return profiles.with_columns(pl.lit(False).alias("participates"))
-    sampled = select_participants_weighted(
-        eligible_df, participation_rate, seed, "_weight", BLDG_ID
-    )
-    return profiles.join(sampled, on=BLDG_ID, how="left").with_columns(
-        pl.col("participates").fill_null(False)
-    )
+    sampled = select_participants_weighted(eligible_df, participation_rate, seed, "_weight", BLDG_ID)
+    return profiles.join(sampled, on=BLDG_ID, how="left").with_columns(pl.col("participates").fill_null(False))
 
 
-def _enrich_master_with_profiles(
-    master: pl.DataFrame, profiles: pl.DataFrame
-) -> pl.DataFrame:
+def _enrich_master_with_profiles(master: pl.DataFrame, profiles: pl.DataFrame) -> pl.DataFrame:
     """Join static OHEP profile columns (without participation) to master."""
     n_rows = master.height
     joined = master.join(profiles, on=BLDG_ID, how="left")
     if joined.height != n_rows:
-        raise AssertionError(
-            f"MD OHEP profile join changed row count: {n_rows} -> {joined.height}"
-        )
+        raise AssertionError(f"MD OHEP profile join changed row count: {n_rows} -> {joined.height}")
     return joined.with_columns(
         pl.col("ohep_poverty_level").fill_null(0).cast(pl.Int32),
         pl.col("eusp_kwh_band").fill_null(0).cast(pl.Int32),
@@ -355,11 +315,7 @@ def _warn_md_lim_scope(master: pl.DataFrame) -> None:
         details.append(f"electric={unsupported_electric}")
     if unsupported_gas:
         details.append(f"gas={unsupported_gas}")
-    suffix = (
-        f" Unsupported utilities receiving no LIM credit: {', '.join(details)}."
-        if details
-        else ""
-    )
+    suffix = f" Unsupported utilities receiving no LIM credit: {', '.join(details)}." if details else ""
     warnings.warn(
         "MD LIM is currently implemented only for BGE, using BGE's unapproved "
         f"July 2026 proposed rates. OHEP benefits still apply to all utilities.{suffix}",
@@ -379,9 +335,7 @@ def _enrich_bge_proposed_lim_inputs(
         how="left",
     )
     if result.height != n_rows:
-        raise AssertionError(
-            f"BGE proposed LIM input joins changed row count: {n_rows} -> {result.height}"
-        )
+        raise AssertionError(f"BGE proposed LIM input joins changed row count: {n_rows} -> {result.height}")
     return (
         result.with_columns(
             pl.when(pl.col("primary_heating_fuel") == "electric")
@@ -422,9 +376,7 @@ def _apply_bge_proposed_lim(
 
     result = enriched.with_columns(
         pl.when(
-            (pl.col("month") != ANNUAL_MONTH)
-            & pl.col("participates")
-            & (pl.col("bge_proposed_lim_electric_rate") > 0)
+            (pl.col("month") != ANNUAL_MONTH) & pl.col("participates") & (pl.col("bge_proposed_lim_electric_rate") > 0)
         )
         .then(
             pl.min_horizontal(
@@ -434,11 +386,7 @@ def _apply_bge_proposed_lim(
         )
         .otherwise(0.0)
         .alias(elec_credit),
-        pl.when(
-            (pl.col("month") != ANNUAL_MONTH)
-            & pl.col("participates")
-            & (pl.col("bge_proposed_lim_gas_rate") > 0)
-        )
+        pl.when((pl.col("month") != ANNUAL_MONTH) & pl.col("participates") & (pl.col("bge_proposed_lim_gas_rate") > 0))
         .then(
             pl.min_horizontal(
                 pl.col(gas_bill),
@@ -549,18 +497,10 @@ def _apply_md_ohep_benefits(
 
     fuel_annual_credit_exprs = {
         "elec": eusp_credit_expr
-        + pl.when(pl.col("primary_heating_fuel") == "electric")
-        .then(meap_credit_expr)
-        .otherwise(0.0),
-        "gas": pl.when(pl.col("primary_heating_fuel") == "gas")
-        .then(meap_credit_expr)
-        .otherwise(0.0),
-        "oil": pl.when(pl.col("primary_heating_fuel") == "oil_kerosene")
-        .then(meap_credit_expr)
-        .otherwise(0.0),
-        "propane": pl.when(pl.col("primary_heating_fuel") == "propane")
-        .then(meap_credit_expr)
-        .otherwise(0.0),
+        + pl.when(pl.col("primary_heating_fuel") == "electric").then(meap_credit_expr).otherwise(0.0),
+        "gas": pl.when(pl.col("primary_heating_fuel") == "gas").then(meap_credit_expr).otherwise(0.0),
+        "oil": pl.when(pl.col("primary_heating_fuel") == "oil_kerosene").then(meap_credit_expr).otherwise(0.0),
+        "propane": pl.when(pl.col("primary_heating_fuel") == "propane").then(meap_credit_expr).otherwise(0.0),
     }
 
     # Compute fraction_remaining from the sum of monthly bills, not the Annual
@@ -574,33 +514,17 @@ def _apply_md_ohep_benefits(
             pl.col("meap_annual_benefit").first(),
             pl.col("eusp_annual_benefit").first(),
             *[
-                pl.col(base_cols[fuel])
-                .filter(pl.col("month") != ANNUAL_MONTH)
-                .sum()
-                .alias(base_cols[fuel])
+                pl.col(base_cols[fuel]).filter(pl.col("month") != ANNUAL_MONTH).sum().alias(base_cols[fuel])
                 for fuel in base_cols
             ],
         )
-        .with_columns(
-            *[
-                fuel_annual_credit_exprs[fuel].alias(f"_credit_{fuel}")
-                for fuel in base_cols
-            ]
-        )
+        .with_columns(*[fuel_annual_credit_exprs[fuel].alias(f"_credit_{fuel}") for fuel in base_cols])
         .select(
             BLDG_ID,
             *[
                 pl.when(pl.col(base_cols[fuel]) > 0)
-                .then(
-                    (1.0 - pl.col(f"_credit_{fuel}") / pl.col(base_cols[fuel])).clip(
-                        lower_bound=0.0
-                    )
-                )
-                .otherwise(
-                    pl.when(pl.col(f"_credit_{fuel}") > 0)
-                    .then(pl.lit(0.0))
-                    .otherwise(pl.lit(1.0))
-                )
+                .then((1.0 - pl.col(f"_credit_{fuel}") / pl.col(base_cols[fuel])).clip(lower_bound=0.0))
+                .otherwise(pl.when(pl.col(f"_credit_{fuel}") > 0).then(pl.lit(0.0)).otherwise(pl.lit(1.0)))
                 .alias(f"_frac_{fuel}")
                 for fuel in base_cols
             ],
@@ -609,13 +533,8 @@ def _apply_md_ohep_benefits(
 
     result = enriched.join(annual_fractions, on=BLDG_ID, how="left")
     if result.height != enriched.height:
-        raise AssertionError(
-            "MD OHEP fraction join changed row count: "
-            f"{enriched.height} -> {result.height}"
-        )
-    result = result.with_columns(
-        *[pl.col(f"_frac_{fuel}").fill_null(1.0) for fuel in base_cols]
-    )
+        raise AssertionError(f"MD OHEP fraction join changed row count: {enriched.height} -> {result.height}")
+    result = result.with_columns(*[pl.col(f"_frac_{fuel}").fill_null(1.0) for fuel in base_cols])
 
     # Monthly rows: discounted = original × fraction_remaining
     # Annual row: placeholder (rebuilt below from monthly sum)
@@ -663,20 +582,12 @@ def _apply_md_ohep_benefits(
     monthly_sums = (
         result.filter(pl.col("month") != ANNUAL_MONTH)
         .group_by(BLDG_ID)
-        .agg(
-            *[
-                pl.col(lmi_cols[fuel]).sum().alias(sum_aliases[fuel])
-                for fuel in base_cols
-            ]
-        )
+        .agg(*[pl.col(lmi_cols[fuel]).sum().alias(sum_aliases[fuel]) for fuel in base_cols])
     )
     n_before_sum_join = result.height
     result = result.join(monthly_sums, on=BLDG_ID, how="left")
     if result.height != n_before_sum_join:
-        raise AssertionError(
-            "MD OHEP annual-sum join changed row count: "
-            f"{n_before_sum_join} -> {result.height}"
-        )
+        raise AssertionError(f"MD OHEP annual-sum join changed row count: {n_before_sum_join} -> {result.height}")
     result = result.with_columns(
         *[
             pl.when(pl.col("month") == ANNUAL_MONTH)
@@ -686,9 +597,7 @@ def _apply_md_ohep_benefits(
             for fuel in base_cols
         ]
     ).with_columns(
-        pl.sum_horizontal([pl.col(lmi_cols[fuel]) for fuel in base_cols]).alias(
-            f"energy_total_bill_lmi_{suffix}"
-        )
+        pl.sum_horizontal([pl.col(lmi_cols[fuel]) for fuel in base_cols]).alias(f"energy_total_bill_lmi_{suffix}")
     )
 
     if keep_component_columns:
@@ -713,54 +622,29 @@ def _validate_md_ohep(
 ) -> None:
     suffix = str(pct_label)
     fuels = ("elec", "gas", "oil", "propane")
-    bill_pairs = [
-        (f"{fuel}_total_bill", f"{fuel}_total_bill_lmi_{suffix}") for fuel in fuels
-    ]
+    bill_pairs = [(f"{fuel}_total_bill", f"{fuel}_total_bill_lmi_{suffix}") for fuel in fuels]
     for base_col, lmi_col in bill_pairs:
         if df[lmi_col].null_count() > 0:
             raise AssertionError(f"{lmi_col} contains nulls")
         if df.filter(pl.col(lmi_col) < -1e-6).height:
             raise AssertionError(f"{lmi_col} contains negative bills")
-        if (
-            df.filter(pl.col("month") == ANNUAL_MONTH)
-            .filter(pl.col(lmi_col) > pl.col(base_col) + 1e-6)
-            .height
-        ):
+        if df.filter(pl.col("month") == ANNUAL_MONTH).filter(pl.col(lmi_col) > pl.col(base_col) + 1e-6).height:
             raise AssertionError(f"{lmi_col} exceeds {base_col} on Annual rows")
 
     monthly_sums = (
         df.filter(pl.col("month") != ANNUAL_MONTH)
         .group_by(BLDG_ID)
-        .agg(
-            *[
-                pl.col(lmi_col).sum().alias(f"_check_{lmi_col}")
-                for _, lmi_col in bill_pairs
-            ]
-        )
+        .agg(*[pl.col(lmi_col).sum().alias(f"_check_{lmi_col}") for _, lmi_col in bill_pairs])
     )
-    annual = df.filter(pl.col("month") == ANNUAL_MONTH).join(
-        monthly_sums, on=BLDG_ID, how="left"
-    )
+    annual = df.filter(pl.col("month") == ANNUAL_MONTH).join(monthly_sums, on=BLDG_ID, how="left")
     for _, lmi_col in bill_pairs:
-        max_diff = (
-            annual.select(
-                (pl.col(lmi_col) - pl.col(f"_check_{lmi_col}")).abs().max()
-            ).item()
-            or 0.0
-        )
+        max_diff = annual.select((pl.col(lmi_col) - pl.col(f"_check_{lmi_col}")).abs().max()).item() or 0.0
         if float(max_diff) > 1e-6:
-            raise AssertionError(
-                f"{lmi_col} Annual row differs from monthly sum by {max_diff}"
-            )
+            raise AssertionError(f"{lmi_col} Annual row differs from monthly sum by {max_diff}")
 
     energy_col = f"energy_total_bill_lmi_{suffix}"
     energy_diff = df.select(
-        (
-            pl.col(energy_col)
-            - pl.sum_horizontal(
-                [pl.col(f"{fuel}_total_bill_lmi_{suffix}") for fuel in fuels]
-            )
-        )
+        (pl.col(energy_col) - pl.sum_horizontal([pl.col(f"{fuel}_total_bill_lmi_{suffix}") for fuel in fuels]))
         .abs()
         .max()
     ).item()
@@ -768,13 +652,10 @@ def _validate_md_ohep(
         raise AssertionError(f"{energy_col} does not equal discounted fuel bills")
 
     if participation_rate >= 1.0 and include_eusp:
-        mismatches = annual.filter(
-            pl.col(f"applied_discount_elec_{suffix}") != pl.col("is_lmi_elec")
-        ).height
+        mismatches = annual.filter(pl.col(f"applied_discount_elec_{suffix}") != pl.col("is_lmi_elec")).height
         if mismatches:
             raise AssertionError(
-                f"At 100% participation, electric applied flag mismatches "
-                f"eligibility for {mismatches} buildings"
+                f"At 100% participation, electric applied flag mismatches eligibility for {mismatches} buildings"
             )
 
 
@@ -860,14 +741,10 @@ def _infer_upgrade(master: pl.DataFrame, explicit_upgrade: str | None) -> str:
     if explicit_upgrade is not None:
         return explicit_upgrade.zfill(2)
     if "upgrade" not in master.columns:
-        raise ValueError(
-            "--upgrade is required when master bills lack an upgrade column"
-        )
+        raise ValueError("--upgrade is required when master bills lack an upgrade column")
     upgrades = master["upgrade"].drop_nulls().unique().to_list()
     if len(upgrades) != 1:
-        raise ValueError(
-            f"Cannot infer one ResStock upgrade from master bills: {upgrades}"
-        )
+        raise ValueError(f"Cannot infer one ResStock upgrade from master bills: {upgrades}")
     return str(int(upgrades[0])).zfill(2)
 
 
@@ -899,14 +776,8 @@ def _write_hive_partitioned(
 def _rate_specific_columns(pct_label: int) -> list[str]:
     suffix = str(pct_label)
     return [
-        *[
-            f"{fuel}_total_bill_lmi_{suffix}"
-            for fuel in ("elec", "gas", "oil", "propane", "energy")
-        ],
-        *[
-            f"applied_discount_{fuel}_{suffix}"
-            for fuel in ("elec", "gas", "oil", "propane")
-        ],
+        *[f"{fuel}_total_bill_lmi_{suffix}" for fuel in ("elec", "gas", "oil", "propane", "energy")],
+        *[f"applied_discount_{fuel}_{suffix}" for fuel in ("elec", "gas", "oil", "propane")],
         f"meap_annual_credit_{suffix}",
         f"eusp_annual_credit_{suffix}",
         f"bge_proposed_lim_electric_credit_{suffix}",
@@ -918,9 +789,7 @@ def _rate_specific_columns(pct_label: int) -> list[str]:
 
 def main() -> None:
     load_dotenv()
-    parser = argparse.ArgumentParser(
-        description="Apply Maryland FY26 OHEP MEAP/EUSP benefits to master bills."
-    )
+    parser = argparse.ArgumentParser(description="Apply Maryland FY26 OHEP MEAP/EUSP benefits to master bills.")
     parser.add_argument(
         "--master-bills-path",
         required=True,
@@ -970,8 +839,7 @@ def main() -> None:
     parser.add_argument(
         "--include-lim",
         action="store_true",
-        help="Apply available MD LIM rates; currently BGE's unapproved July 2026 "
-        "proposed rates only",
+        help="Apply available MD LIM rates; currently BGE's unapproved July 2026 proposed rates only",
     )
     args = parser.parse_args()
 

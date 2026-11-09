@@ -108,9 +108,7 @@ structure.
 ### Approach A: `scan_parquet` + filter
 
 ```python
-lf = pl.scan_parquet("load_curve_hourly/state=NY/upgrade=00/").filter(
-    pl.col("bldg_id").is_in(utility_bldg_ids)
-)
+lf = pl.scan_parquet("load_curve_hourly/state=NY/upgrade=00/").filter(pl.col("bldg_id").is_in(utility_bldg_ids))
 ```
 
 When you filter on a Hive partition column (like `state`), Polars can

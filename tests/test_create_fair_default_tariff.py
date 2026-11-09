@@ -4,7 +4,6 @@ import pytest
 
 from utils.mid.create_fair_default_tariff import create_fair_default_tariff
 
-
 type TariffItem = dict[str, object]
 type TariffPayload = dict[str, list[TariffItem]]
 
@@ -55,8 +54,7 @@ def _tou_base_tariff() -> TariffPayload:
                     [{"rate": 0.29, "unit": "kWh"}],
                 ],
                 "energyweekdayschedule": [
-                    [0] * 16 + [1] * 8 if month in {0, 1, 2, 10, 11} else [0] * 24
-                    for month in range(12)
+                    [0] * 16 + [1] * 8 if month in {0, 1, 2, 10, 11} else [0] * 24 for month in range(12)
                 ],
                 "energyweekendschedule": [[0] * 24 for _ in range(12)],
             }
@@ -108,9 +106,7 @@ def test_infeasible_seasonal_design_requires_explicit_allow() -> None:
     row["seasonal_rates_only_summer_rate"] = -0.1
     row["seasonal_rates_only_clipped_summer_rate"] = 0.0
 
-    with pytest.raises(
-        ValueError, match="seasonal_rates_only fair-default design is infeasible"
-    ):
+    with pytest.raises(ValueError, match="seasonal_rates_only fair-default design is infeasible"):
         create_fair_default_tariff(
             base_tariff=_base_tariff(),
             inputs_row=row,

@@ -311,9 +311,7 @@ unit check —
 ```python
 if "unit" in entry.keys():
     if entry["unit"].lower() != "kW".lower():
-        raise RuntimeError(
-            "UtilityRateDatabase error: unrecognized unit in rate structure"
-        )
+        raise RuntimeError("UtilityRateDatabase error: unrecognized unit in rate structure")
 ```
 
 CAIRO bills gas the same way as electricity, through PySAM's `UtilityRate5`

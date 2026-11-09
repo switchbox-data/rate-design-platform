@@ -51,7 +51,6 @@ import fsspec
 import openpyxl
 import polars as pl
 
-
 # ── Study parameters ─────────────────────────────────────────────────────────
 
 YEARS = list(range(2025, 2035))
@@ -113,9 +112,7 @@ TX_ALL_ROWS = range(8, 11)
 
 # Right-half cumulative cashflow columns ($000s).
 CAPEX_CF_YEAR_COL = {yr: 23 + (yr - 2025) for yr in YEARS}  # W(23)=2025 .. AF(32)=2034
-SUB_PROJECT_ROWS = range(
-    8, 12
-)  # rows 8–11 (4 projects; row 12 is a total, not a project)
+SUB_PROJECT_ROWS = range(8, 12)  # rows 8–11 (4 projects; row 12 is a total, not a project)
 
 # ── CapEx Primary ────────────────────────────────────────────────────────────
 PRI_REGION_ROWS = [57, 58, 59]  # Central, Eastern, Western ($000s)
@@ -215,24 +212,17 @@ def _load_wb(path: str):
 
 def parse_composite_rates(wb) -> dict[str, float]:
     sheet = wb[SH_SCHED10]
-    return {
-        name: _cell(sheet, row, SCHED10_RATE_COL) for name, row in SCHED10_ROWS.items()
-    }
+    return {name: _cell(sheet, row, SCHED10_RATE_COL) for name, row in SCHED10_ROWS.items()}
 
 
 def parse_escalation(wb) -> dict[int, float]:
     sheet = wb[SH_SCHED10]
-    return {
-        yr: _cell(sheet, SCHED10_ESC_ROW, col)
-        for yr, col in SCHED10_ESC_YEAR_COL.items()
-    }
+    return {yr: _cell(sheet, SCHED10_ESC_ROW, col) for yr, col in SCHED10_ESC_YEAR_COL.items()}
 
 
 def parse_coincident_peak(wb) -> dict[int, float]:
     sheet = wb[SH_COINC]
-    peaks = {
-        yr: _cell(sheet, COINC_TOTAL_ROW, col) for yr, col in COINC_YEAR_COL.items()
-    }
+    peaks = {yr: _cell(sheet, COINC_TOTAL_ROW, col) for yr, col in COINC_YEAR_COL.items()}
     peaks[2024] = _cell(sheet, COINC_TOTAL_ROW, COINC_2024_COL)
     return peaks
 
@@ -293,9 +283,7 @@ def _parse_tx_rows(wb, rows: list[int], name: str) -> CostCenterData:
     matching the NiMo/CenHud methodology.
     """
     sheet = wb[SH_TX]
-    projects = _parse_projects_from_cashflow(
-        sheet, rows, CAPEX_CF_YEAR_COL, CAPEX_RIGHT_MW, CAPEX_DESC_COL
-    )
+    projects = _parse_projects_from_cashflow(sheet, rows, CAPEX_CF_YEAR_COL, CAPEX_RIGHT_MW, CAPEX_DESC_COL)
     capital, capacity = _build_scoped_capital_capacity(projects)
 
     return CostCenterData(
@@ -321,9 +309,7 @@ def parse_capex_tx_split(wb) -> tuple[CostCenterData, CostCenterData]:
 def parse_capex_sub(wb) -> CostCenterData:
     """Parse CapEx Substation using per-project cashflow with in-service scoping."""
     sheet = wb[SH_SUB]
-    projects = _parse_projects_from_cashflow(
-        sheet, SUB_PROJECT_ROWS, CAPEX_CF_YEAR_COL, CAPEX_RIGHT_MW, CAPEX_DESC_COL
-    )
+    projects = _parse_projects_from_cashflow(sheet, SUB_PROJECT_ROWS, CAPEX_CF_YEAR_COL, CAPEX_RIGHT_MW, CAPEX_DESC_COL)
     capital, capacity = _build_scoped_capital_capacity(projects)
 
     return CostCenterData(
@@ -424,8 +410,8 @@ def parse_capex_secondary(wb, system_peak_mw: float) -> CostCenterData:
         total_capacity_mw=0.0,
         total_cost_k=total_capital_k,
         composite_rate=0.0,
-        capital_by_year={yr: total_capital_k for yr in YEARS},
-        capacity_by_year={yr: system_peak_mw for yr in YEARS},
+        capital_by_year=dict.fromkeys(YEARS, total_capital_k),
+        capacity_by_year=dict.fromkeys(YEARS, system_peak_mw),
         is_annual=True,
         is_per_kw_system=True,
     )
@@ -475,13 +461,8 @@ def levelized(rows: list[MCRow]) -> float:
 # ── CSV export ───────────────────────────────────────────────────────────────
 
 
-def _sum_mc(
-    mc_data: dict[str, list[MCRow]], centers: list[str], yi: int, *, nominal: bool
-) -> float:
-    return sum(
-        (mc_data[c][yi].nominal_mc if nominal else mc_data[c][yi].real_mc)
-        for c in centers
-    )
+def _sum_mc(mc_data: dict[str, list[MCRow]], centers: list[str], yi: int, *, nominal: bool) -> float:
+    return sum((mc_data[c][yi].nominal_mc if nominal else mc_data[c][yi].real_mc) for c in centers)
 
 
 def export_levelized_csv(
@@ -497,20 +478,14 @@ def export_levelized_csv(
             "label": CC_LABELS["transmission"],
             "levelized_mc_kw_yr": round(bulk_tx_lev, 2),
             "final_year_real_mc_kw_yr": round(mc_data["transmission"][-1].real_mc, 2),
-            "final_year_nominal_mc_kw_yr": round(
-                mc_data["transmission"][-1].nominal_mc, 2
-            ),
+            "final_year_nominal_mc_kw_yr": round(mc_data["transmission"][-1].nominal_mc, 2),
         },
         {
             "bucket": "sub_tx_and_dist",
             "label": CC_LABELS["local_total"],
             "levelized_mc_kw_yr": round(sub_tx_and_dist_lev, 2),
-            "final_year_real_mc_kw_yr": round(
-                sum(mc_data[c][-1].real_mc for c in LOCAL_CENTERS), 2
-            ),
-            "final_year_nominal_mc_kw_yr": round(
-                sum(mc_data[c][-1].nominal_mc for c in LOCAL_CENTERS), 2
-            ),
+            "final_year_real_mc_kw_yr": round(sum(mc_data[c][-1].real_mc for c in LOCAL_CENTERS), 2),
+            "final_year_nominal_mc_kw_yr": round(sum(mc_data[c][-1].nominal_mc for c in LOCAL_CENTERS), 2),
         },
     ]
 
@@ -526,12 +501,8 @@ def export_annualized_csv(mc_data: dict[str, list[MCRow]], path: Path) -> None:
                 "year": yr,
                 "bulk_tx_nominal": round(mc_data["transmission"][yi].nominal_mc, 2),
                 "bulk_tx_real": round(mc_data["transmission"][yi].real_mc, 2),
-                "sub_tx_and_dist_nominal": round(
-                    _sum_mc(mc_data, LOCAL_CENTERS, yi, nominal=True), 2
-                ),
-                "sub_tx_and_dist_real": round(
-                    _sum_mc(mc_data, LOCAL_CENTERS, yi, nominal=False), 2
-                ),
+                "sub_tx_and_dist_nominal": round(_sum_mc(mc_data, LOCAL_CENTERS, yi, nominal=True), 2),
+                "sub_tx_and_dist_real": round(_sum_mc(mc_data, LOCAL_CENTERS, yi, nominal=False), 2),
             }
         )
     pl.DataFrame(rows).write_csv(path)
@@ -557,9 +528,7 @@ def print_report(
     for name in COST_CENTERS:
         cc = ccs[name]
         if cc.projects:
-            print(
-                f"\n── {cc.label} — in-service years {'─' * max(1, W - 35 - len(cc.label))}"
-            )
+            print(f"\n── {cc.label} — in-service years {'─' * max(1, W - 35 - len(cc.label))}")
             by_year: dict[int, list[ProjectData]] = {}
             for p in cc.projects:
                 by_year.setdefault(p.in_service_year, []).append(p)
@@ -567,9 +536,7 @@ def print_report(
                 projs = by_year[yr]
                 mw = sum(p.capacity_mw for p in projs)
                 cap = sum(p.final_capital_k for p in projs)
-                print(
-                    f"  {yr}: {len(projs)} project(s), {mw:,.1f} MW, ${cap / 1e3:,.1f}M"
-                )
+                print(f"  {yr}: {len(projs)} project(s), {mw:,.1f} MW, ${cap / 1e3:,.1f}M")
 
     cum_dil = variants["cumulative_diluted"]
     inc_dil = variants["incremental_diluted"]
@@ -577,10 +544,7 @@ def print_report(
     inc_undil = variants["incremental_undiluted"]
 
     print(f"\n── Levelized MC ($/kW-yr, real) {'─' * (W - 32)}")
-    print(
-        f"  {'Cost center':<28} {'Cum.Dil':>8} {'Inc.Dil':>8}"
-        f" {'Cum.Und':>8} {'Inc.Und':>8}"
-    )
+    print(f"  {'Cost center':<28} {'Cum.Dil':>8} {'Inc.Dil':>8} {'Cum.Und':>8} {'Inc.Und':>8}")
     print(f"  {'─' * (W - 4)}")
     for name in COST_CENTERS:
         cc = ccs[name]
@@ -592,10 +556,7 @@ def print_report(
         ]
         parts = "  ".join(f"${v:>6.2f}" for v in vals)
         print(f"  {cc.label:<28} {parts}")
-    loc_vals = [
-        sum(levelized(v[c]) for c in LOCAL_CENTERS)
-        for v in [cum_dil, inc_dil, cum_undil, inc_undil]
-    ]
+    loc_vals = [sum(levelized(v[c]) for c in LOCAL_CENTERS) for v in [cum_dil, inc_dil, cum_undil, inc_undil]]
     parts = "  ".join(f"${v:>6.2f}" for v in loc_vals)
     print(f"  {'─' * (W - 4)}")
     print(f"  {'Sub-TX + dist total':<28} {parts}")
@@ -616,9 +577,7 @@ def print_report(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Compute MC variants from O&R MCOS workbook"
-    )
+    parser = argparse.ArgumentParser(description="Compute MC variants from O&R MCOS workbook")
     parser.add_argument(
         "--path-xlsx",
         type=str,
@@ -631,9 +590,7 @@ def main() -> None:
         required=True,
         help="Coincident forecast total (MW)",
     )
-    parser.add_argument(
-        "--path-output-dir", type=Path, required=True, help="Directory for output CSVs"
-    )
+    parser.add_argument("--path-output-dir", type=Path, required=True, help="Directory for output CSVs")
     args = parser.parse_args()
 
     print(f"Loading workbook: {args.path_xlsx}")
@@ -642,9 +599,7 @@ def main() -> None:
     composite = parse_composite_rates(wb)
     escalation = parse_escalation(wb)
     coinc = parse_coincident_peak(wb)
-    print(
-        f"  Composite rates: {', '.join(f'{k}={v:.5f}' for k, v in composite.items())}"
-    )
+    print(f"  Composite rates: {', '.join(f'{k}={v:.5f}' for k, v in composite.items())}")
     print(f"  Escalation: {escalation[2025]:.4f} → {escalation[2034]:.4f}")
     print(f"  Coincident 2024: {coinc.get(2024, 0):,.1f}, 2025: {coinc[2025]:,.1f} MW")
     print(f"  Using CLI peak: {args.system_peak_mw:,.1f} MW")
@@ -665,19 +620,15 @@ def main() -> None:
     print(
         f"  TX local: {tx_local.n_projects} projects (Oak St+New Hempstead), {tx_local.total_capacity_mw:,.1f} MW, ${tx_local.total_cost_k / 1e3:,.1f}M"
     )
-    print(
-        f"  Sub: {sub.n_projects} projects, {sub.total_capacity_mw:,.1f} MW, ${sub.total_cost_k / 1e3:,.1f}M"
-    )
+    print(f"  Sub: {sub.n_projects} projects, {sub.total_capacity_mw:,.1f} MW, ${sub.total_cost_k / 1e3:,.1f}M")
     print(
         f"  Primary: {primary.n_projects} projects, {primary.total_capacity_mw:,.1f} MW, ${primary.total_cost_k / 1e3:,.1f}M"
     )
-    print(
-        f"  SecDist: ${sec_dist.capital_by_year[2025] / args.system_peak_mw:.2f}/kW system (flat)"
-    )
+    print(f"  SecDist: ${sec_dist.capital_by_year[2025] / args.system_peak_mw:.2f}/kW system (flat)")
 
     # ── Build all 4 variants ──────────────────────────────────────────────────
 
-    peak_denom = {yr: args.system_peak_mw for yr in YEARS}
+    peak_denom = dict.fromkeys(YEARS, args.system_peak_mw)
 
     inc_capital: dict[str, dict[int, float]] = {}
     inc_capacity: dict[str, dict[int, float]] = {}
@@ -692,21 +643,15 @@ def main() -> None:
     variants: dict[str, dict[str, list[MCRow]]] = {}
 
     variants["cumulative_diluted"] = {
-        name: compute_mc(cc.capital_by_year, cc.composite_rate, escalation, peak_denom)
-        for name, cc in ccs.items()
+        name: compute_mc(cc.capital_by_year, cc.composite_rate, escalation, peak_denom) for name, cc in ccs.items()
     }
 
     variants["incremental_diluted"] = {
-        name: compute_mc(
-            inc_capital[name], ccs[name].composite_rate, escalation, peak_denom
-        )
-        for name in COST_CENTERS
+        name: compute_mc(inc_capital[name], ccs[name].composite_rate, escalation, peak_denom) for name in COST_CENTERS
     }
 
     variants["cumulative_undiluted"] = {
-        name: compute_mc(
-            cc.capital_by_year, cc.composite_rate, escalation, cc.capacity_by_year
-        )
+        name: compute_mc(cc.capital_by_year, cc.composite_rate, escalation, cc.capacity_by_year)
         for name, cc in ccs.items()
     }
 

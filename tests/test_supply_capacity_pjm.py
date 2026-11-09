@@ -169,7 +169,8 @@ def test_select_5cp_converts_hour_ending_to_hour_beginning() -> None:
 
 
 def test_select_5cp_sorted_and_filters_to_rto() -> None:
-    rows = _rto_5cp_rows(2025) + [
+    rows = [
+        *_rto_5cp_rows(2025),
         {
             "summer_year": 2025,
             "rank": 1,
@@ -177,7 +178,7 @@ def test_select_5cp_sorted_and_filters_to_rto() -> None:
             "hour_ending_ept": 18,
             "zone": "BGE",  # must be ignored
             "mw_unrestricted": 6587.7,
-        }
+        },
     ]
     peaks = select_5cp_hours(_make_5cp_df(rows), 2025)
     assert peaks.height == 5

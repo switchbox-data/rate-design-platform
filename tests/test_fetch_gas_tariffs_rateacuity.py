@@ -7,7 +7,6 @@ import pytest
 from utils.pre.fetch_gas_tariffs_rateacuity import _resolve_utility, load_config
 from utils.utility_codes import get_rate_acuity_utility_names, get_utilities_for_state
 
-
 # Example dropdown names that might appear in Rate Acuity (or exact candidates we use).
 FAKE_UTILITIES_NY = [
     "Consolidated Edison Company of New York",
@@ -80,26 +79,18 @@ def test_resolve_utility_candidates_from_utility_codes_exist_in_fake_list() -> N
 def test_load_config_ny() -> None:
     """load_config returns NY and utility keys from the NY rateacuity_tariffs.yaml."""
     project_root = Path(__file__).resolve().parents[1]
-    yaml_path = (
-        project_root
-        / "rate_design/hp_rates/ny/config/tariffs/gas/rateacuity_tariffs.yaml"
-    )
+    yaml_path = project_root / "rate_design/hp_rates/ny/config/tariffs/gas/rateacuity_tariffs.yaml"
     state, utilities = load_config(yaml_path)
     assert state == "NY"
     assert "coned" in utilities
-    assert utilities["coned"]["coned_nonheating"] == (
-        "-ON HOLD-1-RESIDENTIAL AND RELIGIOUS FIRM SALES SERVICE---"
-    )
+    assert utilities["coned"]["coned_nonheating"] == ("-ON HOLD-1-RESIDENTIAL AND RELIGIOUS FIRM SALES SERVICE---")
     assert "rie" not in utilities
 
 
 def test_load_config_ny_coned_kedli_kedny_structure() -> None:
     """NY YAML has correct tariff keys and schedule names for ConEd, KEDLI, KEDNY."""
     project_root = Path(__file__).resolve().parents[1]
-    yaml_path = (
-        project_root
-        / "rate_design/hp_rates/ny/config/tariffs/gas/rateacuity_tariffs.yaml"
-    )
+    yaml_path = project_root / "rate_design/hp_rates/ny/config/tariffs/gas/rateacuity_tariffs.yaml"
     _state, utilities = load_config(yaml_path)
 
     # ConEd: single non-heating rate; separate heating rates for SF vs MF
@@ -108,10 +99,7 @@ def test_load_config_ny_coned_kedli_kedny_structure() -> None:
         "coned_sf_heating",
         "coned_mf_heating",
     }
-    assert (
-        "1-RESIDENTIAL AND RELIGIOUS FIRM SALES SERVICE"
-        in utilities["coned"]["coned_nonheating"]
-    )
+    assert "1-RESIDENTIAL AND RELIGIOUS FIRM SALES SERVICE" in utilities["coned"]["coned_nonheating"]
     assert "HEATING FIRM SALES SERVICE" in utilities["coned"]["coned_sf_heating"]
     assert "Dwelling Units <=4" in utilities["coned"]["coned_sf_heating"]
     assert "Dwelling Units > 4" in utilities["coned"]["coned_mf_heating"]
@@ -140,10 +128,7 @@ def test_load_config_ny_coned_kedli_kedny_structure() -> None:
 def test_load_config_ri() -> None:
     """load_config returns RI and rie with heating/nonheating from the RI rateacuity_tariffs.yaml."""
     project_root = Path(__file__).resolve().parents[1]
-    yaml_path = (
-        project_root
-        / "rate_design/hp_rates/ri/config/tariffs/gas/rateacuity_tariffs.yaml"
-    )
+    yaml_path = project_root / "rate_design/hp_rates/ri/config/tariffs/gas/rateacuity_tariffs.yaml"
     state, utilities = load_config(yaml_path)
     assert state == "RI"
     assert "rie" in utilities and len(utilities) == 1

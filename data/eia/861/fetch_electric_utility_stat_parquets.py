@@ -58,9 +58,7 @@ def _utility_code_map_df() -> pl.DataFrame:
         state_raw = state_key.upper()
         eia_to_std = get_eia_utility_id_to_std_name(state_raw)
         for eia_id, std_name in eia_to_std.items():
-            rows.append(
-                {"utility_id_eia": eia_id, "state": state_raw, "utility_code": std_name}
-            )
+            rows.append({"utility_id_eia": eia_id, "state": state_raw, "utility_code": std_name})
     if not rows:
         return pl.DataFrame(
             schema={
@@ -83,24 +81,11 @@ def _aggregation_exprs() -> list[pl.Expr]:
         pl.col("sales_revenue").sum().alias("total_sales_revenue"),
     ]
     for c in CUSTOMER_CLASSES_ORDERED:
+        agg_exprs.append(pl.col("sales_mwh").filter(pl.col("customer_class") == c).sum().alias(f"{c}_sales_mwh"))
         agg_exprs.append(
-            pl.col("sales_mwh")
-            .filter(pl.col("customer_class") == c)
-            .sum()
-            .alias(f"{c}_sales_mwh")
+            pl.col("sales_revenue").filter(pl.col("customer_class") == c).sum().alias(f"{c}_sales_revenue")
         )
-        agg_exprs.append(
-            pl.col("sales_revenue")
-            .filter(pl.col("customer_class") == c)
-            .sum()
-            .alias(f"{c}_sales_revenue")
-        )
-        agg_exprs.append(
-            pl.col("customers")
-            .filter(pl.col("customer_class") == c)
-            .sum()
-            .alias(f"{c}_customers")
-        )
+        agg_exprs.append(pl.col("customers").filter(pl.col("customer_class") == c).sum().alias(f"{c}_customers"))
     return agg_exprs
 
 
@@ -120,14 +105,13 @@ def _output_columns() -> list[str]:
         "report_date",
         "total_sales_mwh",
         "total_sales_revenue",
-    ] + class_cols
+        *class_cols,
+    ]
 
 
 def _base_lazy() -> pl.LazyFrame:
     """Scan EIA-861 and add report year; no entity-type or latest-date filter."""
-    return pl.scan_parquet(PUDL_YEARLY_SALES_URL).with_columns(
-        pl.col("report_date").dt.year().alias("year")
-    )
+    return pl.scan_parquet(PUDL_YEARLY_SALES_URL).with_columns(pl.col("report_date").dt.year().alias("year"))
 
 
 def _aggregated_lazy(lf: pl.LazyFrame, utility_code_map: pl.DataFrame) -> pl.LazyFrame:
@@ -136,9 +120,7 @@ def _aggregated_lazy(lf: pl.LazyFrame, utility_code_map: pl.DataFrame) -> pl.Laz
     return (
         lf.group_by("utility_id_eia", "state", "year")
         .agg(_aggregation_exprs())
-        .sort(
-            ["year", "total_sales_mwh", "utility_name"], descending=[False, True, False]
-        )
+        .sort(["year", "total_sales_mwh", "utility_name"], descending=[False, True, False])
         .with_columns(pl.col("utility_id_eia").cast(pl.Int64))
         .join(map_lf, on=["utility_id_eia", "state"], how="left")
         .select(_output_columns())

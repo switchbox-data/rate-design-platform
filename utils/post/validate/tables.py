@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 import polars as pl
+
 from utils.post.validate.subclasses import (
     SUBCLASS_COL,
     SubclassSpec,
@@ -107,9 +108,7 @@ def summarize_bills_by_subclass(
         )
         for bill_type, lf in bills.items()
     ]
-    return pl.concat(frames).select(
-        ["bill_type", SUBCLASS_COL, "bill_mean_weighted", "customers_weighted"]
-    )
+    return pl.concat(frames).select(["bill_type", SUBCLASS_COL, "bill_mean_weighted", "customers_weighted"])
 
 
 def summarize_bat_by_subclass(
@@ -206,9 +205,7 @@ def compute_bill_deltas(
             _mean_by_subclass(bills_b, "bill_mean_b").drop("customers_weighted"),
             on=SUBCLASS_COL,
         )
-        .with_columns(
-            (pl.col("bill_mean_b") - pl.col("bill_mean_a")).alias("bill_delta")
-        )
+        .with_columns((pl.col("bill_mean_b") - pl.col("bill_mean_a")).alias("bill_delta"))
     )
 
 
@@ -253,17 +250,8 @@ def summarize_customer_counts(metadata: pl.LazyFrame) -> pl.DataFrame:
         ``customers_weighted`` (sum of building weights).
     """
     return (
-        _collect(
-            metadata.group_by(_HP).agg(
-                pl.col(_WEIGHT).sum().alias("customers_weighted")
-            )
-        )
-        .with_columns(
-            pl.when(pl.col(_HP))
-            .then(pl.lit("HP"))
-            .otherwise(pl.lit("Non-HP"))
-            .alias("subclass")
-        )
+        _collect(metadata.group_by(_HP).agg(pl.col(_WEIGHT).sum().alias("customers_weighted")))
+        .with_columns(pl.when(pl.col(_HP)).then(pl.lit("HP")).otherwise(pl.lit("Non-HP")).alias("subclass"))
         .select(["subclass", "customers_weighted"])
         .sort("subclass")
     )
@@ -312,10 +300,7 @@ def summarize_customer_weight_stats(metadata: pl.LazyFrame) -> pl.DataFrame:
     meta_collected = _collect(metadata)
     by_subclass = (
         meta_collected.with_columns(
-            pl.when(pl.col(_HP))
-            .then(pl.lit("HP"))
-            .otherwise(pl.lit("Non-HP"))
-            .alias("subclass")
+            pl.when(pl.col(_HP)).then(pl.lit("HP")).otherwise(pl.lit("Non-HP")).alias("subclass")
         )
         .group_by("subclass")
         .agg(
@@ -371,8 +356,6 @@ def compute_hourly_cost_of_service(
     # Join loads with MC on hour, compute cost
     return (
         loads_by_subclass_df.join(mc_df, on="hour", how="inner")
-        .with_columns(
-            (pl.col("mc_kwh") * pl.col("total_weighted_load_kwh")).alias("cost_usd")
-        )
+        .with_columns((pl.col("mc_kwh") * pl.col("total_weighted_load_kwh")).alias("cost_usd"))
         .select(["hour", "subclass", "cost_usd"])
     )

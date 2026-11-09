@@ -218,9 +218,7 @@ UTILITIES: list[UtilityRecord] = [
         "fuels": ["electric"],
         "display_name": "LIPA",
         "ny_open_data_state_names": ["Long Island Power Authority"],
-        "eia_utility_ids": [
-            11171
-        ],  # Long Island Power Authority (State; PSEG LI is operator)
+        "eia_utility_ids": [11171],  # Long Island Power Authority (State; PSEG LI is operator)
         "electric_tariff_key": "psegli",
     },
     {
@@ -403,9 +401,7 @@ UTILITIES: list[UtilityRecord] = [
         # Merged into Chesapeake Utilities effective 4/19/2025. Listed separately in
         # RateAcuity as "Sandpiper Energy - became part of Chesapeake Utilities effective
         # 4/19/2025". Use Chesapeake's tariff for buildings assigned this utility.
-        "rate_acuity_utility_names": [
-            "Sandpiper Energy - became part of Chesapeake Utilities effective 4/19/2025"
-        ],
+        "rate_acuity_utility_names": ["Sandpiper Energy - became part of Chesapeake Utilities effective 4/19/2025"],
     },
     {
         "std_name": "elkton_gas",
@@ -417,9 +413,7 @@ UTILITIES: list[UtilityRecord] = [
         # Merged into Chesapeake Utilities effective 4/19/2025. Listed separately in
         # RateAcuity as "Elkton Gas Company - became part of Chesapeake Utilities effective
         # 4/19/2025". Use Chesapeake's tariff for buildings assigned this utility.
-        "rate_acuity_utility_names": [
-            "Elkton Gas Company - became part of Chesapeake Utilities effective 4/19/2025"
-        ],
+        "rate_acuity_utility_names": ["Elkton Gas Company - became part of Chesapeake Utilities effective 4/19/2025"],
     },
     {
         "std_name": "ugi_central_penn",

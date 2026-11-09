@@ -99,9 +99,7 @@ def build_zone_mapping() -> pl.DataFrame:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Generate NY utility zone mapping CSV."
-    )
+    parser = argparse.ArgumentParser(description="Generate NY utility zone mapping CSV.")
     parser.add_argument(
         "--path-output-csv",
         type=str,
@@ -117,9 +115,7 @@ def main() -> None:
 
     # Safeguard: reject uninterpolated Just variables
     if "{{" in str(path_output) or "}}" in str(path_output):
-        raise ValueError(
-            f"Output path looks like an uninterpolated Just variable: {path_output}"
-        )
+        raise ValueError(f"Output path looks like an uninterpolated Just variable: {path_output}")
 
     path_output.parent.mkdir(parents=True, exist_ok=True)
 

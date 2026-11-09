@@ -40,8 +40,8 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import polars as pl
@@ -151,15 +151,12 @@ def build_annual_agg_exprs(
             case "first":
                 exprs.append(pl.col(col).first().alias(out_name))
             case _:
-                raise ValueError(
-                    f"Unknown aggregation function '{agg}' for column '{col}'"
-                )
+                raise ValueError(f"Unknown aggregation function '{agg}' for column '{col}'")
         n_metrics += 1
 
     if n_metrics == 0:
         raise ValueError(
-            "no annual metric columns found in hourly schema "
-            "(expected *.energy_consumption and/or energy_delivered)"
+            "no annual metric columns found in hourly schema (expected *.energy_consumption and/or energy_delivered)"
         )
     return exprs
 
@@ -183,10 +180,7 @@ def select_annual_params_weight_upgrade(annual_lf: pl.LazyFrame) -> pl.LazyFrame
     required = ("bldg_id", "upgrade", "weight")
     missing = [c for c in required if c not in schema_names]
     if missing:
-        raise ValueError(
-            f"load_curve_annual missing required columns {missing}; "
-            f"found: {schema_names[:20]}..."
-        )
+        raise ValueError(f"load_curve_annual missing required columns {missing}; found: {schema_names[:20]}...")
 
     keep: list[str] = ["bldg_id", "upgrade", "weight"]
     if "upgrade_name" in schema_names:
@@ -217,13 +211,9 @@ def write_consolidated_annual(
     if not annual_rows:
         return None
 
-    annual_raw_dir = (
-        path_annual_raw / f"load_curve_annual/state={state}/upgrade={upgrade}"
-    )
+    annual_raw_dir = path_annual_raw / f"load_curve_annual/state={state}/upgrade={upgrade}"
     if not annual_raw_dir.exists():
-        raise FileNotFoundError(
-            f"Raw annual directory does not exist: {annual_raw_dir}"
-        )
+        raise FileNotFoundError(f"Raw annual directory does not exist: {annual_raw_dir}")
     annual_raw_files = sorted(annual_raw_dir.glob("*.parquet"))
     if not annual_raw_files:
         raise FileNotFoundError(f"No annual parquet files in {annual_raw_dir}")
@@ -232,12 +222,8 @@ def write_consolidated_annual(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     aggregated = pl.concat(annual_rows, how="vertical_relaxed")
-    annual_params_lf = select_annual_params_weight_upgrade(
-        pl.scan_parquet(str(annual_raw_dir))
-    )
-    joined = join_aggregated_energy_to_annual(
-        aggregated.lazy(), annual_params_lf
-    ).collect()
+    annual_params_lf = select_annual_params_weight_upgrade(pl.scan_parquet(str(annual_raw_dir)))
+    joined = join_aggregated_energy_to_annual(aggregated.lazy(), annual_params_lf).collect()
 
     if len(annual_raw_files) == 1:
         out_name = annual_raw_files[0].name
@@ -266,9 +252,7 @@ def monthly_aggregation_exprs(rules: Mapping[str, str]) -> list[pl.Expr]:
             case "first":
                 exprs.append(pl.col(col).first())
             case _:
-                raise ValueError(
-                    f"Unknown aggregation function '{agg}' for column '{col}'"
-                )
+                raise ValueError(f"Unknown aggregation function '{agg}' for column '{col}'")
     return exprs
 
 
@@ -364,17 +348,13 @@ def process_upgrade(
     # for aws sync to silently re-upload as if it were current.
     if not input_dir.exists():
         raise FileNotFoundError(
-            f"Hourly input directory does not exist: {input_dir} "
-            f"(state={state} upgrade={upgrade})."
+            f"Hourly input directory does not exist: {input_dir} (state={state} upgrade={upgrade})."
         )
 
     files = sorted(input_dir.glob("*.parquet"))
     n_files = len(files)
     if n_files == 0:
-        raise FileNotFoundError(
-            f"No hourly parquet files found in {input_dir} "
-            f"(state={state} upgrade={upgrade})."
-        )
+        raise FileNotFoundError(f"No hourly parquet files found in {input_dir} (state={state} upgrade={upgrade}).")
 
     monthly_exprs = monthly_aggregation_exprs(rules) if add_monthly else None
 
@@ -382,9 +362,7 @@ def process_upgrade(
     if add_monthly:
         outputs.append(f"monthly -> {monthly_dir}")
     if add_annual:
-        annual_out_dir = (
-            path_output / f"load_curve_annual/state={state}/upgrade={upgrade}"
-        )
+        annual_out_dir = path_output / f"load_curve_annual/state={state}/upgrade={upgrade}"
         outputs.append(f"annual -> {annual_out_dir}")
 
     print(f"  Found {n_files:,} hourly files in {input_dir}")
@@ -427,9 +405,7 @@ def process_upgrade(
             if done % 5000 == 0 or done == n_files:
                 elapsed = time.time() - t0
                 rate = done / elapsed if elapsed > 0 else 0
-                print(
-                    f"  {done:,}/{n_files:,} ({rate:.0f} files/s, {elapsed:.1f}s elapsed)"
-                )
+                print(f"  {done:,}/{n_files:,} ({rate:.0f} files/s, {elapsed:.1f}s elapsed)")
 
     if errors:
         # Fail hard rather than write/sync partial output: a monthly or annual
@@ -454,9 +430,7 @@ def process_upgrade(
                 f"(processed={done}, errors={errors}). Refusing to continue so "
                 f"aws sync cannot upload stale load_curve_annual data."
             )
-        out_path = write_consolidated_annual(
-            annual_frames, path_annual_raw, path_output, state, upgrade
-        )
+        out_path = write_consolidated_annual(annual_frames, path_annual_raw, path_output, state, upgrade)
         assert out_path is not None
         print(f"  Wrote annual: {out_path} ({len(annual_frames):,} buildings)")
 
@@ -532,9 +506,7 @@ def main() -> None:
 
     path_input = Path(args.path_input)
     path_output = Path(args.path_output)
-    path_annual_raw = (
-        Path(args.path_annual_raw) if args.path_annual_raw is not None else None
-    )
+    path_annual_raw = Path(args.path_annual_raw) if args.path_annual_raw is not None else None
     upgrade_ids = args.upgrade_ids.split()
 
     if not path_input.exists():

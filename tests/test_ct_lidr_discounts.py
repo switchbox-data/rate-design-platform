@@ -201,9 +201,7 @@ def test_apply_lidr_discount_whole_bill_with_cap() -> None:
     config = load_ct_lidr_config()
     disc_by_tier = discount_fractions_for_ct(config)
 
-    result = _apply_lidr_discount(
-        master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height
-    )
+    result = _apply_lidr_discount(master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height)
 
     jan_bldg1 = result.filter((pl.col("bldg_id") == 1) & (pl.col("month") == "Jan"))
     jan_bldg2 = result.filter((pl.col("bldg_id") == 2) & (pl.col("month") == "Jan"))
@@ -217,9 +215,7 @@ def test_apply_lidr_discount_whole_bill_with_cap() -> None:
 
     # Annual row must equal the sum of the 12 monthly discounted bills, not a
     # cap applied to the annual total usage (9,600 kWh/yr vs. the monthly cap).
-    annual_bldg1 = result.filter(
-        (pl.col("bldg_id") == 1) & (pl.col("month") == "Annual")
-    )
+    annual_bldg1 = result.filter((pl.col("bldg_id") == 1) & (pl.col("month") == "Annual"))
     assert annual_bldg1["elec_total_bill_lmi_100"][0] == 210.0 * 12
     assert annual_bldg1["energy_total_bill_lmi_100"][0] == 210.0 * 12
 
@@ -235,9 +231,7 @@ def test_apply_lidr_discount_whole_bill_with_cap() -> None:
         (0, 0.0, 0.0),
     ],
 )
-def test_apply_lidr_discount_by_income_tier_under_cap(
-    tier: int, discount_pct: float, expected_discount: float
-) -> None:
+def test_apply_lidr_discount_by_income_tier_under_cap(tier: int, discount_pct: float, expected_discount: float) -> None:
     """Bill before/after at every income tier, same usage (under the 800 kWh
     non-electric-heat cap), so only the discount percentage varies with
     income level. Lower income (higher tier number) -> bigger discount, and
@@ -254,9 +248,7 @@ def test_apply_lidr_discount_by_income_tier_under_cap(
     config = load_ct_lidr_config()
     disc_by_tier = discount_fractions_for_ct(config)
 
-    result = _apply_lidr_discount(
-        master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height
-    )
+    result = _apply_lidr_discount(master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height)
     jan = result.filter(pl.col("month") == "Jan")
 
     bill_before = jan["elec_total_bill"][0]
@@ -291,9 +283,7 @@ def test_apply_lidr_discount_by_income_tier_over_cap_non_electric_heat(
     config = load_ct_lidr_config()
     disc_by_tier = discount_fractions_for_ct(config)
 
-    result = _apply_lidr_discount(
-        master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height
-    )
+    result = _apply_lidr_discount(master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height)
     jan = result.filter(pl.col("month") == "Jan")
 
     bill_before = jan["elec_total_bill"][0]
@@ -320,9 +310,7 @@ def test_apply_lidr_discount_electric_heat_higher_cap() -> None:
     config = load_ct_lidr_config()
     disc_by_tier = discount_fractions_for_ct(config)
 
-    result = _apply_lidr_discount(
-        master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height
-    )
+    result = _apply_lidr_discount(master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height)
     jan_bldg1 = result.filter((pl.col("bldg_id") == 1) & (pl.col("month") == "Jan"))
     jan_bldg2 = result.filter((pl.col("bldg_id") == 2) & (pl.col("month") == "Jan"))
 
@@ -343,9 +331,7 @@ def test_apply_lidr_discount_savings_monotonic_in_income_tier() -> None:
     config = load_ct_lidr_config()
     disc_by_tier = discount_fractions_for_ct(config)
 
-    result = _apply_lidr_discount(
-        master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height
-    )
+    result = _apply_lidr_discount(master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height)
     jan = result.filter(pl.col("month") == "Jan").sort("bldg_id")
     savings = (jan["elec_total_bill"] - jan["elec_total_bill_lmi_100"]).to_list()
 
@@ -367,9 +353,7 @@ def test_apply_lidr_discount_non_participant_unchanged() -> None:
     )
     config = load_ct_lidr_config()
     disc_by_tier = discount_fractions_for_ct(config)
-    result = _apply_lidr_discount(
-        master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height
-    )
+    result = _apply_lidr_discount(master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height)
 
     for bldg_id in (1, 2):
         jan = result.filter((pl.col("bldg_id") == bldg_id) & (pl.col("month") == "Jan"))
@@ -419,9 +403,7 @@ def test_apply_lidr_discount_zero_usage_no_divide_by_zero() -> None:
     config = load_ct_lidr_config()
     disc_by_tier = discount_fractions_for_ct(config)
 
-    result = _apply_lidr_discount(
-        master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height
-    )
+    result = _apply_lidr_discount(master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height)
     jan = result.filter(pl.col("month") == "Jan")
     assert jan["elec_total_bill"][0] == 20.0  # fixed charge only
     # Whole-bill discount: 50% of the $20 fixed charge = $10 discount
@@ -451,9 +433,7 @@ def test_energy_total_bill_lmi_includes_unchanged_gas() -> None:
     config = load_ct_lidr_config()
     disc_by_tier = discount_fractions_for_ct(config)
 
-    result = _apply_lidr_discount(
-        master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height
-    )
+    result = _apply_lidr_discount(master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height)
     jan = result.filter(pl.col("month") == "Jan").sort("bldg_id")
 
     # bldg 1: discounted
@@ -466,12 +446,8 @@ def test_energy_total_bill_lmi_includes_unchanged_gas() -> None:
 
     # Annual rows
     annual = result.filter(pl.col("month") == "Annual").sort("bldg_id")
-    assert annual.filter(pl.col("bldg_id") == 1)["energy_total_bill_lmi_100"][
-        0
-    ] == pytest.approx(125.0 * 12)
-    assert annual.filter(pl.col("bldg_id") == 2)["energy_total_bill_lmi_100"][
-        0
-    ] == pytest.approx(210.0 * 12)
+    assert annual.filter(pl.col("bldg_id") == 1)["energy_total_bill_lmi_100"][0] == pytest.approx(125.0 * 12)
+    assert annual.filter(pl.col("bldg_id") == 2)["energy_total_bill_lmi_100"][0] == pytest.approx(210.0 * 12)
 
 
 def test_bill_change_by_income_level_end_to_end() -> None:
@@ -500,9 +476,7 @@ def test_bill_change_by_income_level_end_to_end() -> None:
             "smi_pct": [80.0, 50.0, 80.0, 80.0, 80.0, 80.0],
         }
     )
-    tiers = incomes.with_columns(
-        assign_ct_lidr_tier_expr("fpl_pct", "smi_pct").alias("elec_lmi_tier")
-    )
+    tiers = incomes.with_columns(assign_ct_lidr_tier_expr("fpl_pct", "smi_pct").alias("elec_lmi_tier"))
     assert tiers.sort("bldg_id")["elec_lmi_tier"].to_list() == [0, 1, 2, 3, 4, 5]
 
     master = _synthetic_master(*[(i, 1000.0, False) for i in range(1, 7)])
@@ -512,9 +486,7 @@ def test_bill_change_by_income_level_end_to_end() -> None:
     )
     config = load_ct_lidr_config()
     disc_by_tier = discount_fractions_for_ct(config)
-    result = _apply_lidr_discount(
-        master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height
-    )
+    result = _apply_lidr_discount(master, tier_info, 100, disc_by_tier, config, n_expected_rows=master.height)
     jan = result.filter(pl.col("month") == "Jan").sort("bldg_id")
 
     expected_bill_after = {
@@ -528,9 +500,7 @@ def test_bill_change_by_income_level_end_to_end() -> None:
     for bldg_id, expected in expected_bill_after.items():
         row = jan.filter(pl.col("bldg_id") == bldg_id)
         assert row["elec_total_bill"][0] == 270.0, f"bldg {bldg_id} bill_before"
-        assert row["elec_total_bill_lmi_100"][0] == pytest.approx(expected), (
-            f"bldg {bldg_id} bill_after"
-        )
+        assert row["elec_total_bill_lmi_100"][0] == pytest.approx(expected), f"bldg {bldg_id} bill_after"
 
 
 def test_default_participation_rates_are_p100_and_p53() -> None:
@@ -577,9 +547,5 @@ def test_sample_ct_participation_partial_uniform_takeup() -> None:
     # generous tolerance band for n=2000.
     assert 0.4 * n < n_participants < 0.6 * n
     # Non-participants keep tier 0 (no discount), participants keep tier 3.
-    assert set(
-        out.filter(~pl.col("participates"))["elec_lmi_tier"].unique().to_list()
-    ) <= {0}
-    assert set(
-        out.filter(pl.col("participates"))["elec_lmi_tier"].unique().to_list()
-    ) <= {3}
+    assert set(out.filter(~pl.col("participates"))["elec_lmi_tier"].unique().to_list()) <= {0}
+    assert set(out.filter(pl.col("participates"))["elec_lmi_tier"].unique().to_list()) <= {3}

@@ -53,6 +53,7 @@ of US houses. *Energy and Buildings*, 66, 616-625.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import logging
 import math
 import shutil
@@ -195,18 +196,12 @@ def _load_context_config(path: str | Path) -> ContextConfig:
                     annual_kwh_cols=eu_raw["annual_kwh_cols"],
                 )
             )
-        groups.append(
-            GroupDefinition(
-                name=group_name, conditions=conditions, enduse_groups=enduse_groups
-            )
-        )
+        groups.append(GroupDefinition(name=group_name, conditions=conditions, enduse_groups=enduse_groups))
 
     return ContextConfig(
         climate_zone=raw["climate_zone"],
         vintage_mapping=raw["vintage_mapping"],
-        stories_to_height_m={
-            str(k): float(v) for k, v in raw["stories_to_height_m"].items()
-        },
+        stories_to_height_m={str(k): float(v) for k, v in raw["stories_to_height_m"].items()},
         groups=groups,
         ach50_column=raw.get("ach50_column", "in.infiltration"),
         sqft_column=raw.get("sqft_column", "in.sqft"),
@@ -232,9 +227,7 @@ def _matches_one_clause(row: dict[str, Any], clause: dict[str, bool]) -> bool:
     return True
 
 
-def _classify_building(
-    row: dict[str, Any], groups: list[GroupDefinition]
-) -> str | None:
+def _classify_building(row: dict[str, Any], groups: list[GroupDefinition]) -> str | None:
     """Classify a single building into a group. First match wins.
 
     ``conditions`` is OR-of-AND: if *any* clause dict is fully satisfied, the
@@ -287,12 +280,7 @@ def predict_ach50_chan(
         return float("nan")
 
     area_m2 = sqft / 10.764
-    ln_nl = (
-        beta_year
-        + climate_zone_beta
-        + chan.floor_area_per_m2 * area_m2
-        + chan.house_height_per_m * height_m
-    )
+    ln_nl = beta_year + climate_zone_beta + chan.floor_area_per_m2 * area_m2 + chan.house_height_per_m * height_m
     nl = math.exp(ln_nl)
     return chan.nl_to_ach50_constant * nl / (height_m**0.7)
 
@@ -444,9 +432,7 @@ def _build_building_table(
     else:
         meta_select = meta_select.with_columns(pl.lit(False).alias("_approximated"))
 
-    annual_select_cols = ["bldg_id"] + [
-        c for c in annual_cols_needed if c in annual.columns
-    ]
+    annual_select_cols = ["bldg_id"] + [c for c in annual_cols_needed if c in annual.columns]
     annual_select = annual.select(annual_select_cols)
 
     df = meta_select.join(annual_select, on="bldg_id", how="inner")
@@ -472,11 +458,7 @@ def _build_building_table(
         if chan_vintage is None:
             chan_ach50.append(float("nan"))
         else:
-            chan_ach50.append(
-                predict_ach50_chan(
-                    chan_vintage, sqft_parsed[i], height_m, cz_beta, chan
-                )
-            )
+            chan_ach50.append(predict_ach50_chan(chan_vintage, sqft_parsed[i], height_m, cz_beta, chan))
 
     df = df.with_columns(
         pl.Series("ach50", ach50_parsed),
@@ -497,8 +479,7 @@ def _build_building_table(
         median_delta = median_val if isinstance(median_val, (int, float)) else 0.0
         if median_delta <= 0:
             logger.warning(
-                "Median delta_ach50 = %.2f (expected positive). "
-                "Check sign convention: delta = resstock - chan.",
+                "Median delta_ach50 = %.2f (expected positive). Check sign convention: delta = resstock - chan.",
                 median_delta,
             )
 
@@ -568,12 +549,7 @@ def _fit_regressions(
                 kwh_per_sqft = np.where(sqft_arr > 0, annual_kwh / sqft_arr, 0.0)
 
             # Filter to finite, positive kWh/sqft values
-            mask = (
-                np.isfinite(kwh_per_sqft)
-                & (kwh_per_sqft > 0)
-                & np.isfinite(ach50_arr)
-                & (weight_arr > 0)
-            )
+            mask = np.isfinite(kwh_per_sqft) & (kwh_per_sqft > 0) & np.isfinite(ach50_arr) & (weight_arr > 0)
             if mask.sum() < min_group_size:
                 logger.warning(
                     "  Group %r / %s: only %d usable observations (min %d) — skipping regression",
@@ -655,9 +631,7 @@ def _compute_correction_fractions(
             )
             if usable:
                 raw_frac = 1.0 - pred_chan / pred_rs
-                frac = float(
-                    np.clip(raw_frac, ctx.frac_clip_lower, ctx.frac_clip_upper)
-                )
+                frac = float(np.clip(raw_frac, ctx.frac_clip_lower, ctx.frac_clip_upper))
             else:
                 frac = 0.0
 
@@ -694,17 +668,11 @@ _OTHER_FUEL_ANNUAL_EXCLUDE = (".total.",)
 
 def _annual_fuel_consumption_cols(schema: list[str], fuel_prefix: str) -> list[str]:
     """Individual (non-total/net/pv) annual ``*.energy_consumption.kwh`` columns."""
-    exclude = (
-        _ELECTRICITY_ANNUAL_EXCLUDE
-        if fuel_prefix == "out.electricity."
-        else _OTHER_FUEL_ANNUAL_EXCLUDE
-    )
+    exclude = _ELECTRICITY_ANNUAL_EXCLUDE if fuel_prefix == "out.electricity." else _OTHER_FUEL_ANNUAL_EXCLUDE
     return [
         c
         for c in schema
-        if c.startswith(fuel_prefix)
-        and c.endswith(_ANNUAL_KWH_SUFFIX)
-        and not any(ex in c for ex in exclude)
+        if c.startswith(fuel_prefix) and c.endswith(_ANNUAL_KWH_SUFFIX) and not any(ex in c for ex in exclude)
     ]
 
 
@@ -716,22 +684,14 @@ def _recompute_annual_fuel_totals(df: pl.DataFrame) -> pl.DataFrame:
         individual_cols = _annual_fuel_consumption_cols(schema_names, fuel_prefix)
         present = [c for c in individual_cols if c in schema_names]
         if total_col in schema_names and present:
-            df = df.with_columns(
-                pl.sum_horizontal([pl.col(c) for c in present]).alias(total_col)
-            )
+            df = df.with_columns(pl.sum_horizontal([pl.col(c) for c in present]).alias(total_col))
 
     site_total_col = "out.site_energy.total.energy_consumption.kwh"
     fuel_total_cols = [
-        f"{p}total.energy_consumption.kwh"
-        for p in _FUEL_PREFIXES
-        if f"{p}total.energy_consumption.kwh" in schema_names
+        f"{p}total.energy_consumption.kwh" for p in _FUEL_PREFIXES if f"{p}total.energy_consumption.kwh" in schema_names
     ]
     if site_total_col in schema_names and fuel_total_cols:
-        df = df.with_columns(
-            pl.sum_horizontal([pl.col(c) for c in fuel_total_cols]).alias(
-                site_total_col
-            )
-        )
+        df = df.with_columns(pl.sum_horizontal([pl.col(c) for c in fuel_total_cols]).alias(site_total_col))
     return df
 
 
@@ -808,9 +768,7 @@ def _get_fuel_consumption_cols(hourly_schema: list[str], fuel_prefix: str) -> li
     return [
         c
         for c in hourly_schema
-        if c.startswith(fuel_prefix)
-        and c.endswith(".energy_consumption")
-        and _OTHER_FUEL_EXCLUDE_SUFFIX not in c
+        if c.startswith(fuel_prefix) and c.endswith(".energy_consumption") and _OTHER_FUEL_EXCLUDE_SUFFIX not in c
     ]
 
 
@@ -839,9 +797,7 @@ def _recompute_fuel_totals(df: pl.DataFrame, schema_names: list[str]) -> pl.Data
         individual_cols = _get_fuel_consumption_cols(schema_names, fuel_prefix)
 
         if total_col in schema_names and individual_cols:
-            df = df.with_columns(
-                pl.sum_horizontal([pl.col(c) for c in individual_cols]).alias(total_col)
-            )
+            df = df.with_columns(pl.sum_horizontal([pl.col(c) for c in individual_cols]).alias(total_col))
         if total_intensity_col in schema_names:
             individual_intensity = [
                 _hourly_consumption_col_to_intensity(c)
@@ -850,9 +806,7 @@ def _recompute_fuel_totals(df: pl.DataFrame, schema_names: list[str]) -> pl.Data
             ]
             if individual_intensity:
                 df = df.with_columns(
-                    pl.sum_horizontal([pl.col(c) for c in individual_intensity]).alias(
-                        total_intensity_col
-                    )
+                    pl.sum_horizontal([pl.col(c) for c in individual_intensity]).alias(total_intensity_col)
                 )
 
     # Recompute site_energy.total = sum of all fuel totals
@@ -862,22 +816,12 @@ def _recompute_fuel_totals(df: pl.DataFrame, schema_names: list[str]) -> pl.Data
     fuel_total_cols = [c for c in fuel_total_cols if c in schema_names]
 
     if site_total_col in schema_names and fuel_total_cols:
-        df = df.with_columns(
-            pl.sum_horizontal([pl.col(c) for c in fuel_total_cols]).alias(
-                site_total_col
-            )
-        )
-    fuel_total_intensity_cols = [
-        f"{p}total.energy_consumption_intensity" for p in _FUEL_PREFIXES
-    ]
-    fuel_total_intensity_cols = [
-        c for c in fuel_total_intensity_cols if c in schema_names
-    ]
+        df = df.with_columns(pl.sum_horizontal([pl.col(c) for c in fuel_total_cols]).alias(site_total_col))
+    fuel_total_intensity_cols = [f"{p}total.energy_consumption_intensity" for p in _FUEL_PREFIXES]
+    fuel_total_intensity_cols = [c for c in fuel_total_intensity_cols if c in schema_names]
     if site_total_intensity in schema_names and fuel_total_intensity_cols:
         df = df.with_columns(
-            pl.sum_horizontal([pl.col(c) for c in fuel_total_intensity_cols]).alias(
-                site_total_intensity
-            )
+            pl.sum_horizontal([pl.col(c) for c in fuel_total_intensity_cols]).alias(site_total_intensity)
         )
 
     return df
@@ -962,11 +906,7 @@ def _process_one_building(
     for net_col, total_col in _NET_PAIRS:
         snap_col = f"__snap_{total_col.replace('.', '_')}"
         if snap_col in df.columns:
-            df = df.with_columns(
-                (pl.col(net_col) + (pl.col(total_col) - pl.col(snap_col))).alias(
-                    net_col
-                )
-            )
+            df = df.with_columns((pl.col(net_col) + (pl.col(total_col) - pl.col(snap_col))).alias(net_col))
     # Drop temporary snapshot columns
     drop_cols = [c for c in df.columns if c.startswith("__snap_")]
     if drop_cols:
@@ -984,12 +924,8 @@ def _copy_metadata_and_utility(
 ) -> None:
     """Copy metadata and utility assignment files from input to output release."""
     # Metadata
-    input_meta_dir = (
-        input_base / "metadata" / f"state={state}" / f"upgrade={upgrade_id}"
-    )
-    output_meta_dir = (
-        output_base / "metadata" / f"state={state}" / f"upgrade={upgrade_id}"
-    )
+    input_meta_dir = input_base / "metadata" / f"state={state}" / f"upgrade={upgrade_id}"
+    output_meta_dir = output_base / "metadata" / f"state={state}" / f"upgrade={upgrade_id}"
     if input_meta_dir.exists():
         output_meta_dir.mkdir(parents=True, exist_ok=True)
         for f in input_meta_dir.iterdir():
@@ -997,21 +933,11 @@ def _copy_metadata_and_utility(
                 shutil.copyfile(str(f), str(output_meta_dir / f.name))
 
     # Utility assignment (shared across upgrades)
-    input_ua = (
-        input_base
-        / "metadata_utility"
-        / f"state={state}"
-        / "utility_assignment.parquet"
-    )
+    input_ua = input_base / "metadata_utility" / f"state={state}" / "utility_assignment.parquet"
     output_ua_dir = output_base / "metadata_utility" / f"state={state}"
-    if (
-        input_ua.exists()
-        and not (output_ua_dir / "utility_assignment.parquet").exists()
-    ):
+    if input_ua.exists() and not (output_ua_dir / "utility_assignment.parquet").exists():
         output_ua_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(
-            str(input_ua), str(output_ua_dir / "utility_assignment.parquet")
-        )
+        shutil.copyfile(str(input_ua), str(output_ua_dir / "utility_assignment.parquet"))
 
 
 # ---------------------------------------------------------------------------
@@ -1043,9 +969,7 @@ def _build_report(
         n_approx = sub.filter(pl.col("_approximated")).height
         if n_approx > 0:
             group_counts[f"{g.name}__approximated"] = n_approx
-    group_counts["unclassified"] = building_table.filter(
-        pl.col("_group").is_null()
-    ).height
+    group_counts["unclassified"] = building_table.filter(pl.col("_group").is_null()).height
 
     # ── Regressions ───────────────────────────────────────────────────────
     regression_report: dict[str, dict[str, object]] = {}
@@ -1062,9 +986,7 @@ def _build_report(
     # gets its own summary rather than pooling across heating types.
     grouped_fracs: dict[str, list[float]] = {}
     bldg_groups = building_table.select("bldg_id", "_group").to_dict()
-    bldg_to_group: dict[int, str | None] = dict(
-        zip(bldg_groups["bldg_id"], bldg_groups["_group"])
-    )
+    bldg_to_group: dict[int, str | None] = dict(zip(bldg_groups["bldg_id"], bldg_groups["_group"], strict=False))
     for bldg_id, bldg_corrections in corrections.items():
         group_name = bldg_to_group.get(bldg_id)
         if group_name is None:
@@ -1118,17 +1040,14 @@ def _process_hourly_files(
     all_hourly_files = set(input_hourly_dir.glob(f"*-{int(upgrade_id)}.parquet"))
     hourly_bldg_ids_on_disk: set[int] = set()
     for f in all_hourly_files:
-        try:
+        with contextlib.suppress(ValueError, IndexError):
             hourly_bldg_ids_on_disk.add(int(f.stem.split("-")[0]))
-        except (ValueError, IndexError):
-            pass
 
     orphan_bldg_ids = sorted(hourly_bldg_ids_on_disk - set(bldg_ids_with_corrections))
     n_orphans = len(orphan_bldg_ids)
     if n_orphans > 0:
         print(
-            f"  WARNING: {n_orphans} orphan buildings on disk but not in "
-            f"building table. They will be copied unchanged."
+            f"  WARNING: {n_orphans} orphan buildings on disk but not in building table. They will be copied unchanged."
         )
         print(f"    Orphan bldg_ids: {orphan_bldg_ids}")
 
@@ -1157,13 +1076,8 @@ def _process_hourly_files(
 
     n_processed = 0
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {
-            executor.submit(_process_corrected, bid): bid
-            for bid in bldg_ids_with_corrections
-        }
-        futures.update(
-            {executor.submit(_copy_uncorrected, bid): bid for bid in orphan_bldg_ids}
-        )
+        futures = {executor.submit(_process_corrected, bid): bid for bid in bldg_ids_with_corrections}
+        futures.update({executor.submit(_copy_uncorrected, bid): bid for bid in orphan_bldg_ids})
         for future in as_completed(futures):
             n_processed += 1
             future.result()
@@ -1226,9 +1140,7 @@ def run_correction(
 
         # Read annual loads — single file per upgrade, prefer local
         annual_dir = f"load_curve_annual/state={state_upper}/upgrade={upgrade_id}"
-        annual_filename = (
-            f"{state_upper}_upgrade{upgrade_id}_metadata_and_annual_results.parquet"
-        )
+        annual_filename = f"{state_upper}_upgrade{upgrade_id}_metadata_and_annual_results.parquet"
         annual_path_local = input_local / annual_dir / annual_filename
         annual_path_s3 = f"{path_s3}/{input_release}/{annual_dir}/{annual_filename}"
         if annual_path_local.exists():
@@ -1246,9 +1158,7 @@ def run_correction(
         # ------------------------------------------------------------------
         building_table = _build_building_table(meta, annual, chan, ctx)
         finite_count = building_table.filter(pl.col("delta_ach50").is_finite()).height
-        print(
-            f"  Building table: {building_table.height:,} rows ({finite_count:,} with finite delta_ach50)"
-        )
+        print(f"  Building table: {building_table.height:,} rows ({finite_count:,} with finite delta_ach50)")
 
         # Report group classification counts
         for g in ctx.groups:
@@ -1264,9 +1174,7 @@ def run_correction(
         regressions = _fit_regressions(building_table, ctx)
         print(f"  Fitted {len(regressions)} regressions:")
         for (group, enduse), reg in sorted(regressions.items()):
-            print(
-                f"    {group:25s}  {enduse:20s}  slope={reg.slope:.5f}  R²={reg.r_squared:.3f}  n={reg.n}"
-            )
+            print(f"    {group:25s}  {enduse:20s}  slope={reg.slope:.5f}  R²={reg.r_squared:.3f}  n={reg.n}")
 
         # ------------------------------------------------------------------
         # 4. Compute per-building correction fractions
@@ -1277,46 +1185,33 @@ def run_correction(
             zip(
                 building_table["bldg_id"].to_list(),
                 building_table["_group"].to_list(),
+                strict=False,
             )
         )
 
         if skip_hourly:
             print("  --skip-hourly: scaling annual HVAC kWh only (no hourly write)")
-            annual_out = _apply_corrections_to_annual(
-                annual, corrections, bldg_group_map, group_lookup
-            )
+            annual_out = _apply_corrections_to_annual(annual, corrections, bldg_group_map, group_lookup)
             out_annual_dir = output_local / annual_dir
             out_annual_dir.mkdir(parents=True, exist_ok=True)
             out_annual_path = out_annual_dir / annual_filename
             annual_out.write_parquet(str(out_annual_path))
             print(f"  Wrote annual: {out_annual_path}")
-            _copy_metadata_and_utility(
-                input_local, output_local, state_upper, upgrade_id
-            )
+            _copy_metadata_and_utility(input_local, output_local, state_upper, upgrade_id)
             print("  Copied metadata and utility assignment to output release")
         else:
             _process_hourly_files(
                 upgrade_id=upgrade_id,
-                input_hourly_dir=(
-                    input_local
-                    / "load_curve_hourly"
-                    / f"state={state_upper}"
-                    / f"upgrade={upgrade_id}"
-                ),
+                input_hourly_dir=(input_local / "load_curve_hourly" / f"state={state_upper}" / f"upgrade={upgrade_id}"),
                 output_hourly_dir=(
-                    output_local
-                    / "load_curve_hourly"
-                    / f"state={state_upper}"
-                    / f"upgrade={upgrade_id}"
+                    output_local / "load_curve_hourly" / f"state={state_upper}" / f"upgrade={upgrade_id}"
                 ),
                 corrections=corrections,
                 bldg_group_map=bldg_group_map,
                 group_lookup=group_lookup,
                 workers=workers,
             )
-            _copy_metadata_and_utility(
-                input_local, output_local, state_upper, upgrade_id
-            )
+            _copy_metadata_and_utility(input_local, output_local, state_upper, upgrade_id)
             print("  Copied metadata and utility assignment to output release")
 
         # ------------------------------------------------------------------
@@ -1337,14 +1232,7 @@ def run_correction(
 
         # Write to rate_design/hp_rates/{state}/config/load_adj/
         project_root = Path(__file__).resolve().parents[3]
-        report_dir = (
-            project_root
-            / "rate_design"
-            / "hp_rates"
-            / state_upper.lower()
-            / "config"
-            / "load_adj"
-        )
+        report_dir = project_root / "rate_design" / "hp_rates" / state_upper.lower() / "config" / "load_adj"
         report_dir.mkdir(parents=True, exist_ok=True)
         report_path = report_dir / _report_yaml_name(output_release, upgrade_id)
         with open(report_path, "w") as f:

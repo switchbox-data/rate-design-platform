@@ -45,9 +45,7 @@ CANONICAL_NYISO_ZONES = frozenset(
     }
 )
 
-NYISO_PTIDS = frozenset(
-    {61752, 61753, 61754, 61755, 61756, 61757, 61758, 61759, 61760, 61761, 61762}
-)
+NYISO_PTIDS = frozenset({61752, 61753, 61754, 61755, 61756, 61757, 61758, 61759, 61760, 61761, 61762})
 
 # Plausible bounds for prices ($/MWh) — flag outliers
 LBMP_LOW, LBMP_HIGH = -500.0, 2000.0
@@ -163,10 +161,7 @@ def check_uniqueness(df: pl.DataFrame) -> list[str]:
 
 def check_row_count(df: pl.DataFrame, series: str, year: int, month: int) -> list[str]:
     errs: list[str] = []
-    if series == "day_ahead":
-        expected = expected_rows_day_ahead(year, month)
-    else:
-        expected = expected_rows_real_time(year, month)
+    expected = expected_rows_day_ahead(year, month) if series == "day_ahead" else expected_rows_real_time(year, month)
     actual = df.height
     if actual == 0:
         errs.append("Partition has 0 rows")
@@ -197,9 +192,7 @@ def validate_partition(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Validate NYISO zonal LBMP parquet tree."
-    )
+    parser = argparse.ArgumentParser(description="Validate NYISO zonal LBMP parquet tree.")
     parser.add_argument(
         "--path-local-parquet",
         type=Path,
@@ -228,9 +221,7 @@ def main() -> int:
                     continue
                 year = int(year_dir.name.replace("year=", "", 1))
                 for month_dir in year_dir.iterdir():
-                    if not month_dir.is_dir() or not month_dir.name.startswith(
-                        "month="
-                    ):
+                    if not month_dir.is_dir() or not month_dir.name.startswith("month="):
                         continue
                     month = int(month_dir.name.replace("month=", "", 1))
                     data_path = month_dir / "data.parquet"
