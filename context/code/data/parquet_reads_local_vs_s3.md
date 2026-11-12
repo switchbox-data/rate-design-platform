@@ -1,10 +1,6 @@
 # Reading Parquet from local disk vs S3
 
-A guide for data scientists on how Polars reads Parquet files under
-different storage backends and file layouts, and why performance can
-differ by orders of magnitude. The examples use our ResStock load curve
-data but the lessons apply to any Hive-partitioned Parquet dataset with
-many small files.
+The `polars-parquet` skill is the procedure (which read to use, and the path-list pattern). This file is why: per-GET cost, whole-state scans, and one-utility scans, using ResStock load curves as the example. Open it when the skill's table does not decide the case. The same lessons apply to any Hive dataset made of many small files.
 
 ## Two things you need to know
 

@@ -1,5 +1,7 @@
 # Run Orchestration (runs 1-16)
 
+Legacy Justfile orchestrator for numbered runs. Current batches use the Prefect pipeline and the `run-hp-rates` skill. Use this file for `RDP_BATCH` naming, the runs 1–16 dependency chain, and demand-flex runs 13–16.
+
 ## Purpose
 
 Automate the full sequence of 16 CAIRO runs for heat-pump rate design
