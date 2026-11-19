@@ -209,6 +209,8 @@ rate6_fixed_ratemc_trans:
 # Synapse TOU — ct_eversource_synapse_tou
 # OCC (Whited) proposed seasonal TOU electrification rate. Summer = Jun–Sep;
 # on-peak = 4pm–8pm (hours 16–19) on weekdays, all year; weekends all off-peak.
+# CAIRO localizes loads to EST with no DST, so while DST is in effect the
+# modeled on-peak window falls at 5pm–9pm clock time. Holidays are not off-peak.
 # Delivery = distribution + transmission only: Table 5 has no line for the
 # other riders (CTA, SBC, CAM, RE, FMCC), so they are excluded.
 # The _supply tariff adds Whited's TOU supply column in place of the
