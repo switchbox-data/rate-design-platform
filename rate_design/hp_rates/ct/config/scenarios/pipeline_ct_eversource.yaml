@@ -84,6 +84,10 @@ scenarios:
     # entirely (not moved to fixed charge) and swaps transmission for mc_bulk_tx.
     quartet: single_rate_uncalibrated
     tariff_base: rate6_ratemc_mfc0_trans
+  default_ry1_synapse_tou_uncalibrated:
+    # OCC (Whited) seasonal TOU, Table 5: on-peak 4-8pm weekdays, summer Jun-Sep.
+    quartet: single_rate_uncalibrated
+    tariff_base: synapse_tou
   default_ry1_icos_fair_flat_uncalibrated:
     # Fair flat rate: delivery rate set so avg bill_after = avg bill_before + avg ΔMC.
     quartet: single_rate_uncalibrated
