@@ -260,7 +260,7 @@ bill_change_baseline:
 
 ## Running a batch
 
-To launch, resume, build master tables, or read BAT versus bills, use the `run-hp-rates` skill (`.cursor/skills/run-hp-rates/`). LMI column flags and participation rates are in `lmi_master_bills_workflow.md` and the state `run-with-lmi` recipe. This file is the architecture: quartet kinds, concurrency, YAML fields, and the path templates below.
+To launch, resume, build master tables, or read BAT versus bills, use the `run-hp-rates` skill (`.agents/skills/run-hp-rates/`). LMI column flags and participation rates are in `lmi_master_bills_workflow.md` and the state `run-with-lmi` recipe. This file is the architecture: quartet kinds, concurrency, YAML fields, and the path templates below.
 
 ## Derived path anatomy
 

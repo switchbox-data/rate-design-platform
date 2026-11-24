@@ -2,7 +2,7 @@
 
 Reference docs and research notes. **When you add or remove a file under `context/`, update this index.**
 
-Procedures live in `.cursor/skills/`. Open a file here when a skill or a task names it. Top-level dirs: **domain/** (how does this work in the real world?), **methods/** (how do we justify and operationalize this?), **code/** (how does this tool work?), **docs/** (extracted technical docs), **sources/** (PDF-extracted source material).
+Procedures live in `.agents/skills/`. Open a file here when a skill or a task names it. Top-level dirs: **domain/** (how does this work in the real world?), **methods/** (how do we justify and operationalize this?), **code/** (how does this tool work?), **docs/** (extracted technical docs), **sources/** (PDF-extracted source material).
 
 ## domain/
 

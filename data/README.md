@@ -2,7 +2,7 @@
 
 Each directory under `data/` is one dataset, named `data/<org>/<dataproduct>/` (for example `eia/861`, `hud/ami`, `fred/cpi`, `nrel/cambium`) so it matches `s3://data.sb/<org>/<dataproduct>/`.
 
-Recipe names, path variables, and the fetch-then-upload order are the `data-pipeline` skill (`.cursor/skills/data-pipeline/SKILL.md`). The notes below are the exceptions and the existing pipelines that skill does not list.
+Recipe names, path variables, and the fetch-then-upload order are the `data-pipeline` skill (`.agents/skills/data-pipeline/SKILL.md`). The notes below are the exceptions and the existing pipelines that skill does not list.
 
 ## Exceptions
 

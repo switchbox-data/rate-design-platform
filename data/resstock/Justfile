@@ -1,5 +1,5 @@
 # ResStock data pipeline: fetch, modify, and upload to S3.
-# Preparing or uploading a _sb release: .cursor/skills/resstock-sb-release/
+# Preparing or uploading a _sb release: .agents/skills/resstock-sb-release/
 #
 # All recipes here are state-generic — they take a `state` argument and
 # dispatch to the appropriate scripts.  State-specific convenience wrappers
@@ -48,7 +48,7 @@ pums_year := `uv run python -m data.resstock.constants pums.year`
 # Full pipeline (all via main.py)
 ################################################################################
 
-# Full _sb release. Procedure: .cursor/skills/resstock-sb-release/
+# Full _sb release. Procedure: .agents/skills/resstock-sb-release/
 # Upgrade list: that state's upgrade_ids in state_configs.yaml, or
 # resstock.upgrade_ids in config.yaml when the state has none. NY and RI are
 # 0 and 2. --upgrade-ids overrides one run. States in one run must agree.

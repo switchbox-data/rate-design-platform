@@ -43,7 +43,7 @@ CAIRO writes run outputs under `s3://data.sb/switchbox/cairo/outputs/hp_rates/<s
 
 ## Reference context
 
-Repeatable procedures live in `.cursor/skills/` and load when their description matches the task. `context/` is reference for a file a skill or a task names. Do not open `context/README.md` to find a procedure.
+Repeatable procedures live in `.agents/skills/` and load when their description matches the task. `context/` is reference for a file a skill or a task names. Do not open `context/README.md` to find a procedure.
 
 **Conventions:**
 
