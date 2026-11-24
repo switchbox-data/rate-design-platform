@@ -196,9 +196,7 @@ def run(settings: ScenarioSettings) -> None:
     rr_setting = settings.utility_revenue_requirement
     if isinstance(rr_setting, dict):
         rr_total = sum(rr_setting.values())
-        rr_ratios: dict[str, float] | None = {
-            k: v / rr_total for k, v in rr_setting.items()
-        }
+        rr_ratios: dict[str, float] | None = {k: v / rr_total for k, v in rr_setting.items()}
     else:
         rr_total = rr_setting
         rr_ratios = None
@@ -219,9 +217,7 @@ def run(settings: ScenarioSettings) -> None:
         delivery_only_rev_req_passed=settings.add_supply_revenue_requirement,
     )
     if rr_ratios is not None:
-        revenue_requirement = {
-            k: v * revenue_requirement_raw for k, v in rr_ratios.items()
-        }
+        revenue_requirement = {k: v * revenue_requirement_raw for k, v in rr_ratios.items()}
     else:
         revenue_requirement = revenue_requirement_raw
     log.info("TIMING phase2_marginal_costs_rr: %.1fs", time.perf_counter() - t0)
@@ -344,6 +340,7 @@ See docs/plans/2026-02-23-cairo-speedup-design.md and context/code/cairo/cairo_s
 Import this module at the top of run_scenario.py (after all other imports):
     import rate_design.ri.hp_rates.patches  # noqa: F401
 """
+
 from __future__ import annotations
 ```
 
@@ -352,6 +349,7 @@ from __future__ import annotations
 ```python
 # tests/test_patches.py
 """Tests for rate_design/ri/hp_rates/patches.py — CAIRO performance monkey-patches."""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -366,6 +364,7 @@ SAMPLE_IDS = [100147, 100151, 100312]  # first 3 buildings from the upgrade dir
 def sample_filepaths():
     """Return {bldg_id: path} for SAMPLE_IDS. Skip if data not accessible."""
     from utils.cairo import build_bldg_id_to_load_filepath
+
     if not LOAD_DIR.exists():
         pytest.skip("ResStock load dir not accessible")
     fps = build_bldg_id_to_load_filepath(
@@ -451,6 +450,7 @@ See docs/plans/2026-02-23-cairo-speedup-design.md and context/code/cairo/cairo_s
 Import this module at the top of run_scenario.py (after all other imports):
     import rate_design.ri.hp_rates.patches  # noqa: F401  (currently no-op; patches added below)
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -512,10 +512,7 @@ def _return_loads_combined(
 
     # 4. Vectorized timeshift: same offset for all buildings (AMY2018 → target_year)
     source_year = df["time"].dt.year.iloc[0]
-    offset_days = (
-        dt.datetime(target_year, 1, 1).weekday()
-        - dt.datetime(source_year, 1, 1).weekday()
-    ) % 7
+    offset_days = (dt.datetime(target_year, 1, 1).weekday() - dt.datetime(source_year, 1, 1).weekday()) % 7
     offset_hours = offset_days * 24
 
     if offset_hours > 0:
@@ -544,10 +541,12 @@ def _return_loads_combined(
 
     # 8. Build electricity DataFrame
     elec = df[["out.electricity.total.energy_consumption", "out.electricity.pv.energy_consumption"]].copy()
-    elec = elec.rename(columns={
-        "out.electricity.total.energy_consumption": "load_data",
-        "out.electricity.pv.energy_consumption": "pv_generation",
-    })
+    elec = elec.rename(
+        columns={
+            "out.electricity.total.energy_consumption": "load_data",
+            "out.electricity.pv.energy_consumption": "pv_generation",
+        }
+    )
     # Make pv_generation non-negative (CAIRO convention)
     elec["pv_generation"] = elec["pv_generation"].abs()
     # Compute net electricity
@@ -724,17 +723,21 @@ git commit -m "Phase 1: combined batch parquet reader, halves file I/O"
 def test_vectorized_aggregation_matches_cairo(sample_filepaths):
     """_vectorized_process_building_demand_by_period returns same agg_load as CAIRO."""
     import sys
+
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "rate_design" / "ri" / "hp_rates"))
 
     from cairo.rates_tool.loads import _return_load, process_building_demand_by_period
     from rate_design.ri.hp_rates.patches import _vectorized_process_building_demand_by_period
 
     # Load the flat tariff used in run 1
-    tariff_path = Path(__file__).resolve().parent.parent / "rate_design/ri/hp_rates/config/tariffs/electric/rie_flat.json"
+    tariff_path = (
+        Path(__file__).resolve().parent.parent / "rate_design/ri/hp_rates/config/tariffs/electric/rie_flat.json"
+    )
     if not tariff_path.exists():
         pytest.skip("rie_flat.json not found; run `just create-flat-tariff` first")
 
     import json
+
     with tariff_path.open() as f:
         tariff_dict = json.load(f)
 
@@ -774,10 +777,18 @@ def test_vectorized_aggregation_matches_cairo(sample_filepaths):
     )
 
     # Check agg_load shape, index, columns, values
-    ref_sorted = ref_agg_load.sort_values(["bldg_id", "month", "period", "tier", "charge_type"]) \
-        .reset_index(drop=True) if "bldg_id" in ref_agg_load.columns \
-        else ref_agg_load.reset_index().sort_values(["bldg_id", "month", "period", "tier", "charge_type"]).reset_index(drop=True)
-    new_sorted = new_agg_load.reset_index().sort_values(["bldg_id", "month", "period", "tier", "charge_type"]).reset_index(drop=True)
+    ref_sorted = (
+        ref_agg_load.sort_values(["bldg_id", "month", "period", "tier", "charge_type"]).reset_index(drop=True)
+        if "bldg_id" in ref_agg_load.columns
+        else ref_agg_load.reset_index()
+        .sort_values(["bldg_id", "month", "period", "tier", "charge_type"])
+        .reset_index(drop=True)
+    )
+    new_sorted = (
+        new_agg_load.reset_index()
+        .sort_values(["bldg_id", "month", "period", "tier", "charge_type"])
+        .reset_index(drop=True)
+    )
 
     for col in ["grid_cons", "load_data"]:
         if col in ref_sorted.columns and col in new_sorted.columns:
@@ -856,6 +867,7 @@ Append to `patches.py`:
 # Phase 2: vectorized tariff aggregation
 # ---------------------------------------------------------------------------
 
+
 def _vectorized_process_building_demand_by_period(
     target_year: int,
     load_col_key: str,
@@ -887,9 +899,11 @@ def _vectorized_process_building_demand_by_period(
         method = _return_energy_charge_aggregation_method(tariff_dict)
         if method not in ("flat", "time-of-use"):
             import logging
+
             logging.getLogger("rates_analysis").warning(
                 "Vectorized aggregation: tariff %s has method %s, falling back to CAIRO",
-                tariff_key, method,
+                tariff_key,
+                method,
             )
             return _orig_pbdbp(
                 target_year=target_year,
@@ -941,27 +955,18 @@ def _vectorized_process_building_demand_by_period(
 
     # Aggregate energy charges: sum by (bldg_id, tariff, month, period, tier, charge_type)
     group_cols = ["bldg_id", "tariff", "month", "period", "tier", "charge_type"]
-    agg_energy = (
-        load_full
-        .groupby(group_cols)[avail_load_cols]
-        .sum()
-        .reset_index()
-    )
+    agg_energy = load_full.groupby(group_cols)[avail_load_cols].sum().reset_index()
 
     # Demand charges: monthly peak demand per period
     # For flat tariff: no demand charge (demand charge = 0 or NaN per CAIRO convention)
     # Check whether any tariff has demand charges
-    has_demand_charge = any(
-        tariff_dict.get("ur_dc_enable", 0) == 1
-        for tariff_dict in tariff_dicts.values()
-    )
+    has_demand_charge = any(tariff_dict.get("ur_dc_enable", 0) == 1 for tariff_dict in tariff_dicts.values())
 
     if has_demand_charge:
         # Peak demand: max grid_cons per (bldg_id, tariff, month, period)
         if "grid_cons" in load_full.columns:
             peak = (
-                load_full
-                .groupby(["bldg_id", "tariff", "month", "period"])["grid_cons"]
+                load_full.groupby(["bldg_id", "tariff", "month", "period"])["grid_cons"]
                 .max()
                 .reset_index()
                 .rename(columns={"grid_cons": "grid_cons"})
@@ -990,8 +995,17 @@ def _vectorized_process_building_demand_by_period(
     # matching CAIRO structure
     if "pv_generation" not in load_full.columns or load_full.get("pv_generation", pd.Series([0])).eq(0).all():
         agg_solar = pd.DataFrame(
-            columns=["bldg_id", "tariff", "month", "period", "tier",
-                     "net_exports", "self_cons", "pv_generation", "charge_type"]
+            columns=[
+                "bldg_id",
+                "tariff",
+                "month",
+                "period",
+                "tier",
+                "net_exports",
+                "self_cons",
+                "pv_generation",
+                "charge_type",
+            ]
         ).set_index("bldg_id")
         # CAIRO returns one solar row per building even when pv=0 — replicate structure
         # by building a zeros DataFrame with same groupby keys
@@ -1148,7 +1162,9 @@ def test_vectorized_billing_matches_cairo(sample_filepaths):
     from cairo.rates_tool.system_revenues import run_system_revenues
     from rate_design.ri.hp_rates.patches import _vectorized_run_system_revenues
 
-    tariff_path = Path(__file__).resolve().parent.parent / "rate_design/ri/hp_rates/config/tariffs/electric/rie_flat.json"
+    tariff_path = (
+        Path(__file__).resolve().parent.parent / "rate_design/ri/hp_rates/config/tariffs/electric/rie_flat.json"
+    )
     if not tariff_path.exists():
         pytest.skip("rie_flat.json not found")
     with tariff_path.open() as f:
@@ -1159,24 +1175,37 @@ def test_vectorized_billing_matches_cairo(sample_filepaths):
     tariff_map = pd.DataFrame({"bldg_id": bldg_ids, "tariff_key": "rie_flat"})
 
     raw = _return_load(
-        load_type="electricity", target_year=2025, building_stock_sample=bldg_ids,
-        load_filepath_key=sample_filepaths, force_tz="EST",
+        load_type="electricity",
+        target_year=2025,
+        building_stock_sample=bldg_ids,
+        load_filepath_key=sample_filepaths,
+        force_tz="EST",
     )
     agg_load, agg_solar = process_building_demand_by_period(
-        target_year=2025, load_col_key="total_fuel_electricity",
-        prototype_ids=bldg_ids, tariff_base=tariff_base,
-        tariff_map=tariff_map, prepassed_load=raw, solar_pv_compensation=None,
+        target_year=2025,
+        load_col_key="total_fuel_electricity",
+        prototype_ids=bldg_ids,
+        tariff_base=tariff_base,
+        tariff_map=tariff_map,
+        prepassed_load=raw,
+        solar_pv_compensation=None,
     )
 
     ref_bills = run_system_revenues(
-        aggregated_load=agg_load, aggregated_solar=agg_solar,
-        solar_compensation_df=None, prototype_ids=bldg_ids,
-        tariff_config=tariff_base, tariff_strategy=tariff_map,
+        aggregated_load=agg_load,
+        aggregated_solar=agg_solar,
+        solar_compensation_df=None,
+        prototype_ids=bldg_ids,
+        tariff_config=tariff_base,
+        tariff_strategy=tariff_map,
     )
     new_bills = _vectorized_run_system_revenues(
-        aggregated_load=agg_load, aggregated_solar=agg_solar,
-        solar_compensation_df=None, prototype_ids=bldg_ids,
-        tariff_config=tariff_base, tariff_strategy=tariff_map,
+        aggregated_load=agg_load,
+        aggregated_solar=agg_solar,
+        solar_compensation_df=None,
+        prototype_ids=bldg_ids,
+        tariff_config=tariff_base,
+        tariff_strategy=tariff_map,
     )
 
     pd.testing.assert_frame_equal(
@@ -1224,6 +1253,7 @@ The per-building bill calculation in `return_monthly_bills_year1`:
 # Phase 3: vectorized bill calculation
 # ---------------------------------------------------------------------------
 
+
 def _vectorized_run_system_revenues(
     aggregated_load: pd.DataFrame,
     aggregated_solar,
@@ -1250,9 +1280,11 @@ def _vectorized_run_system_revenues(
 
     # Check for features requiring fallback
     has_demand = any(td.get("ur_dc_enable", 0) == 1 for td in tariff_dicts.values())
-    has_solar = solar_compensation_df is not None and any(
-        v is not None for v in solar_compensation_df.values()
-    ) if isinstance(solar_compensation_df, dict) else solar_compensation_df is not None
+    has_solar = (
+        solar_compensation_df is not None and any(v is not None for v in solar_compensation_df.values())
+        if isinstance(solar_compensation_df, dict)
+        else solar_compensation_df is not None
+    )
 
     if has_demand or has_solar:
         return _orig_rsr(
@@ -1273,12 +1305,14 @@ def _vectorized_run_system_revenues(
         # Energy charge matrix: ur_ec_tou_mat is list of [period, tier, kWh_max, kWh_buy, kWh_sell, $/kWh]
         ec_mat = td.get("ur_ec_tou_mat", [])
         for row in ec_mat:
-            rate_rows.append({
-                "tariff": tariff_key,
-                "period": int(row[0]),
-                "tier": int(row[1]),
-                "energy_rate": float(row[5]),
-            })
+            rate_rows.append(
+                {
+                    "tariff": tariff_key,
+                    "period": int(row[0]),
+                    "tier": int(row[1]),
+                    "energy_rate": float(row[5]),
+                }
+            )
         # Fixed charge: ur_monthly_fixed_charge ($/month)
         fixed_rows = [
             {"tariff": tariff_key, "month": m + 1, "fixed_charge": float(td.get("ur_monthly_fixed_charge", 0.0))}
@@ -1304,10 +1338,7 @@ def _vectorized_run_system_revenues(
 
     # Monthly energy bills
     monthly_energy = (
-        energy.groupby(["bldg_id", "month"])["energy_cost"]
-        .sum()
-        .reset_index()
-        .rename(columns={"energy_cost": "bill"})
+        energy.groupby(["bldg_id", "month"])["energy_cost"].sum().reset_index().rename(columns={"energy_cost": "bill"})
     )
 
     # Add fixed charges

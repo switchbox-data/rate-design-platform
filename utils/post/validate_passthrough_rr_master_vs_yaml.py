@@ -25,8 +25,8 @@ from typing import TextIO
 import polars as pl
 import yaml
 
-from utils.file_io import get_aws_storage_options
 from utils import get_project_root
+from utils.file_io import get_aws_storage_options
 from utils.mid.compute_subclass_rr import parse_group_value_to_subclass
 from utils.mid.resolve_subclass_config import resolve_subclass_config
 
@@ -64,20 +64,12 @@ def _subclass_expr(group_col: str, gv_pairs: str) -> pl.Expr:
     gv = parse_group_value_to_subclass(gv_pairs)
     col = _resolve_group_col_for_master(group_col)
     if group_col == "has_hp":
-        return (
-            pl.when(pl.col(col).cast(pl.Boolean))
-            .then(pl.lit(gv["true"]))
-            .otherwise(pl.lit(gv["false"]))
-        )
+        return pl.when(pl.col(col).cast(pl.Boolean)).then(pl.lit(gv["true"])).otherwise(pl.lit(gv["false"]))
     raw = pl.col(col).cast(pl.String)
     expr: pl.Expr | None = None
     for raw_val, alias in gv.items():
         cond = raw == pl.lit(raw_val)
-        expr = (
-            pl.when(cond).then(pl.lit(alias))
-            if expr is None
-            else expr.when(cond).then(pl.lit(alias))
-        )
+        expr = pl.when(cond).then(pl.lit(alias)) if expr is None else expr.when(cond).then(pl.lit(alias))
     assert expr is not None
     return expr.otherwise(pl.lit("__unmapped__"))
 
@@ -101,12 +93,7 @@ def passthrough_totals_from_master(
         .with_columns(_subclass=sub)
         .group_by("_subclass")
         .agg(
-            (
-                pl.col("weight")
-                * (pl.col("elec_fixed_charge") + pl.col("elec_delivery_bill"))
-            )
-            .sum()
-            .alias("del_pass"),
+            (pl.col("weight") * (pl.col("elec_fixed_charge") + pl.col("elec_delivery_bill"))).sum().alias("del_pass"),
             (pl.col("weight") * pl.col("elec_supply_bill")).sum().alias("sup_pass"),
         )
         .collect()
@@ -164,9 +151,7 @@ def print_passthrough_master_vs_yaml(
     )
 
 
-def passthrough_values_match(
-    actual: float, expected: float, *, rel: float, abs_tol: float
-) -> bool:
+def passthrough_values_match(actual: float, expected: float, *, rel: float, abs_tol: float) -> bool:
     """True if ``actual`` is within the same tolerance as ``pytest.approx(expected, ...)``."""
     return abs(actual - expected) <= rel * abs(expected) + abs_tol
 
@@ -190,9 +175,7 @@ def assert_passthrough_yaml_matches_master(
     yaml_del: dict[str, float] = sr["delivery"]["passthrough"]
     yaml_sup: dict[str, float] = sr["supply"]["passthrough"]
 
-    del_m, sup_m = passthrough_totals_from_master(
-        lf_master, utility=utility, group_col=group_col, gv_pairs=gv_pairs
-    )
+    del_m, sup_m = passthrough_totals_from_master(lf_master, utility=utility, group_col=group_col, gv_pairs=gv_pairs)
     if print_comparison:
         print_passthrough_master_vs_yaml(
             utility=utility,
@@ -213,17 +196,13 @@ def assert_passthrough_yaml_matches_master(
         msg = f"{utility}: supply passthrough subclass keys differ: master={sorted(sup_m)} yaml={sorted(yaml_sup)}"
         raise AssertionError(msg)
     for k in yaml_del:
-        if not passthrough_values_match(
-            del_m[k], yaml_del[k], rel=rel, abs_tol=abs_tol
-        ):
+        if not passthrough_values_match(del_m[k], yaml_del[k], rel=rel, abs_tol=abs_tol):
             raise AssertionError(
                 f"{utility} delivery passthrough[{k!r}]: master={del_m[k]} yaml={yaml_del[k]} "
                 f"(rel={rel}, abs_tol={abs_tol})"
             )
     for k in yaml_sup:
-        if not passthrough_values_match(
-            sup_m[k], yaml_sup[k], rel=rel, abs_tol=abs_tol
-        ):
+        if not passthrough_values_match(sup_m[k], yaml_sup[k], rel=rel, abs_tol=abs_tol):
             raise AssertionError(
                 f"{utility} supply passthrough[{k!r}]: master={sup_m[k]} yaml={yaml_sup[k]} "
                 f"(rel={rel}, abs_tol={abs_tol})"
@@ -242,12 +221,8 @@ def main(argv: list[str] | None = None) -> int:
     default_scen = path_repo / "rate_design/hp_rates/ny/config/scenarios"
 
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument(
-        "--batch", default=DEFAULT_S3_MASTER_BATCH, help="Master-table batch name"
-    )
-    p.add_argument(
-        "--state", default="ny", help="Lowercase state folder under hp_rates"
-    )
+    p.add_argument("--batch", default=DEFAULT_S3_MASTER_BATCH, help="Master-table batch name")
+    p.add_argument("--state", default="ny", help="Lowercase state folder under hp_rates")
     p.add_argument(
         "--run-pair",
         default=DEFAULT_RUN_PAIR,
@@ -288,31 +263,24 @@ def main(argv: list[str] | None = None) -> int:
         default="both",
         help="Which YAML family to validate",
     )
-    p.add_argument(
-        "--quiet", action="store_true", help="Suppress per-utility comparison printout"
-    )
+    p.add_argument("--quiet", action="store_true", help="Suppress per-utility comparison printout")
     args = p.parse_args(argv)
 
     state_lower = args.state.lower().strip() or "ny"
     utilities = _parse_utilities(args.utilities)
-    lf = master_comb_bills_lazy(
-        state_lower=state_lower, batch=args.batch, run_pair=args.run_pair
-    )
+    lf = master_comb_bills_lazy(state_lower=state_lower, batch=args.batch, run_pair=args.run_pair)
 
     failed = 0
     jobs: list[tuple[str, Path, Path, int]] = []
     for u in utilities:
         scen = args.path_scenarios_dir / f"scenarios_{u}.yaml"
         if args.mode in ("both", "hp"):
-            jobs.append(
-                (u, args.path_rev_requirement_dir / f"{u}_hp_vs_nonhp.yaml", scen, 5)
-            )
+            jobs.append((u, args.path_rev_requirement_dir / f"{u}_hp_vs_nonhp.yaml", scen, 5))
         if args.mode in ("both", "elec-heat"):
             jobs.append(
                 (
                     u,
-                    args.path_rev_requirement_dir
-                    / f"{u}_elec_heat_vs_non_elec_heat.yaml",
+                    args.path_rev_requirement_dir / f"{u}_elec_heat_vs_non_elec_heat.yaml",
                     scen,
                     29,
                 )
@@ -340,7 +308,7 @@ def main(argv: list[str] | None = None) -> int:
         except AssertionError as exc:
             print(f"FAIL {utility} run_num={run_num}: {exc}", file=sys.stderr)
             failed += 1
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(f"ERROR {utility} run_num={run_num}: {exc}", file=sys.stderr)
             failed += 1
 

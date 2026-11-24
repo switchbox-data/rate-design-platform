@@ -108,9 +108,7 @@ def test_calculate_pop_weights_load_weighted():
     max_load_weight = peak_df.head(1)["w_sub_tx_and_dist"][0]
     min_load_weight = peak_df.tail(1)["w_sub_tx_and_dist"][0]
 
-    assert max_load_weight > min_load_weight, (
-        "Higher load hours should have higher weights"
-    )
+    assert max_load_weight > min_load_weight, "Higher load hours should have higher weights"
 
 
 def test_allocate_costs_to_hours():
@@ -125,9 +123,7 @@ def test_allocate_costs_to_hours():
     assert "mc_total_per_kwh" in result_df.columns
 
     non_peak_costs = result_df.filter(~pl.col("is_peak"))["mc_total_per_kwh"]
-    assert all(cost == 0 for cost in non_peak_costs), (
-        "Non-peak hours should have zero marginal cost"
-    )
+    assert all(cost == 0 for cost in non_peak_costs), "Non-peak hours should have zero marginal cost"
 
 
 def test_validation_1kw_constant_load():
@@ -210,9 +206,7 @@ def test_leap_year_handling():
     df = allocate_costs_to_hours(df, 18.0)
 
     total_cost = float(df["mc_total_per_kwh"].sum())
-    assert abs(total_cost - 18.0) < 0.001, (
-        f"Leap year validation failed: {total_cost} != 18.0"
-    )
+    assert abs(total_cost - 18.0) < 0.001, f"Leap year validation failed: {total_cost} != 18.0"
 
 
 def test_different_allocation_windows():
@@ -224,9 +218,7 @@ def test_different_allocation_windows():
         result_df = allocate_costs_to_hours(result_df, 18.0)
 
         total_cost = float(result_df["mc_total_per_kwh"].sum())
-        assert abs(total_cost - 18.0) < 0.001, (
-            f"Validation failed for window {n_hours}: {total_cost}"
-        )
+        assert abs(total_cost - 18.0) < 0.001, f"Validation failed for window {n_hours}: {total_cost}"
 
 
 def test_pop_timestamp_remap_preserves_allocation() -> None:
@@ -254,9 +246,7 @@ def test_pop_timestamp_remap_preserves_allocation() -> None:
     peak_remap = remapped.filter(pl.col("is_peak"))
     assert peak_remap.height == peak_orig.height
 
-    assert float(remapped["mc_total_per_kwh"].sum()) == pytest.approx(
-        float(df["mc_total_per_kwh"].sum())
-    )
+    assert float(remapped["mc_total_per_kwh"].sum()) == pytest.approx(float(df["mc_total_per_kwh"].sum()))
 
     def ordinals(frame: pl.DataFrame) -> list[tuple[int, int, int]]:
         ts = frame.filter(frame["is_peak"]).sort("timestamp")["timestamp"]

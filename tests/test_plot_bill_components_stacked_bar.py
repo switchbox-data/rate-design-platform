@@ -66,7 +66,7 @@ def test_plot_bill_components_stacked_fails_loudly_when_median_empty() -> None:
             "total": [35.0],
         }
     )
-    with pytest.raises(AssertionError, match="Expected 3 component rows.*got 0"):
+    with pytest.raises(AssertionError, match=r"Expected 3 component rows.*got 0"):
         _plot_bill_components_stacked(empty_median, one_row)
 
 
@@ -86,9 +86,7 @@ def test_assert_join_preserves_keys_fail_key_mismatch() -> None:
     left = pl.DataFrame({"bldg_id": [1, 2, 3], "month": ["Jan", "Jan", "Jan"]})
     right = pl.DataFrame({"bldg_id": [1, 2], "month": ["Jan", "Jan"]})
     joined = left.join(right, on=["bldg_id", "month"], how="inner")
-    with pytest.raises(
-        ValueError, match="Key mismatch before join.*left has 3.*right has 2"
-    ):
+    with pytest.raises(ValueError, match=r"Key mismatch before join.*left has 3.*right has 2"):
         _assert_join_preserves_keys(left, right, joined, ["bldg_id", "month"])
 
 
@@ -97,9 +95,7 @@ def test_assert_join_preserves_keys_fail_join_drops_rows() -> None:
     left = pl.DataFrame({"bldg_id": [1, 2], "month": ["Jan", "Jan"]})
     right = pl.DataFrame({"bldg_id": [1, 3], "month": ["Jan", "Jan"]})
     joined = left.join(right, on=["bldg_id", "month"], how="inner")
-    with pytest.raises(
-        ValueError, match="Inner join dropped rows.*left had 2.*join result has 1"
-    ):
+    with pytest.raises(ValueError, match=r"Inner join dropped rows.*left had 2.*join result has 1"):
         _assert_join_preserves_keys(left, right, joined, ["bldg_id", "month"])
 
 
@@ -120,20 +116,14 @@ def test_assert_weights_match_pass_within_tolerance() -> None:
             "weight_supply": [1.0 + 1e-10, 2.0 - 1e-10],
         }
     )
-    _assert_weights_match(
-        joined, left_weight="weight", right_weight="weight_supply", tolerance=1e-9
-    )
+    _assert_weights_match(joined, left_weight="weight", right_weight="weight_supply", tolerance=1e-9)
 
 
 def test_assert_weights_match_fail_differ() -> None:
     """When weight columns differ beyond tolerance, raises with message."""
     joined = pl.DataFrame({"weight": [1.0, 2.0], "weight_supply": [1.0, 3.0]})
-    with pytest.raises(
-        ValueError, match="Weight columns.*differ.*1 rows.*max \\|diff\\| = 1.0"
-    ):
-        _assert_weights_match(
-            joined, left_weight="weight", right_weight="weight_supply"
-        )
+    with pytest.raises(ValueError, match=r"Weight columns.*differ.*1 rows.*max \\|diff\\| = 1.0"):
+        _assert_weights_match(joined, left_weight="weight", right_weight="weight_supply")
 
 
 # --- _read_fixed_charge_from_tariff ---
@@ -142,9 +132,7 @@ def test_assert_weights_match_fail_differ() -> None:
 def test_read_fixed_charge_from_tariff_pass(tmp_path: Path) -> None:
     """Valid tariff JSON with fixedchargefirstmeter returns the value."""
     path = tmp_path / "tariff.json"
-    path.write_text(
-        json.dumps({"items": [{"fixedchargefirstmeter": 6.75, "label": "flat"}]})
-    )
+    path.write_text(json.dumps({"items": [{"fixedchargefirstmeter": 6.75, "label": "flat"}]}))
     assert _read_fixed_charge_from_tariff(str(path)) == 6.75
 
 
@@ -203,10 +191,7 @@ def test_join_bills_and_compute_components_run1_run2_fixture() -> None:
     assert (df["delivery_fixed"] == ANNUAL_FIXED).all()
 
     expected_volumetric = df["bill_level"] - ANNUAL_FIXED
-    assert (
-        cast(float, (df["delivery_volumetric"] - expected_volumetric).abs().max())
-        < 1e-9
-    )
+    assert cast(float, (df["delivery_volumetric"] - expected_volumetric).abs().max()) < 1e-9
 
     expected_total = df["supply"] + df["delivery_fixed"] + df["delivery_volumetric"]
     assert cast(float, (df["total"] - expected_total).abs().max()) < 1e-9
@@ -218,9 +203,7 @@ def test_join_bills_and_compute_components_run1_run2_fixture() -> None:
             pl.col("supply").sum().alias("supply_sum"),
             pl.col("total").sum().alias("total_sum"),
         )
-        joined = annual.select("bldg_id", "supply", "total").join(
-            summed, on="bldg_id", how="inner"
-        )
+        joined = annual.select("bldg_id", "supply", "total").join(summed, on="bldg_id", how="inner")
         assert cast(float, (joined["supply"] - joined["supply_sum"]).abs().max()) < 1e-6
         assert cast(float, (joined["total"] - joined["total_sum"]).abs().max()) < 1e-6
 
@@ -249,10 +232,7 @@ def test_join_bills_and_compute_components_run3_run4_fixture() -> None:
     assert cast(float, (df["supply"] - expected_supply).abs().max()) < 1e-9
     assert (df["delivery_fixed"] == ANNUAL_FIXED).all()
     expected_volumetric = df["bill_level"] - ANNUAL_FIXED
-    assert (
-        cast(float, (df["delivery_volumetric"] - expected_volumetric).abs().max())
-        < 1e-9
-    )
+    assert cast(float, (df["delivery_volumetric"] - expected_volumetric).abs().max()) < 1e-9
     expected_total = df["supply"] + df["delivery_fixed"] + df["delivery_volumetric"]
     assert cast(float, (df["total"] - expected_total).abs().max()) < 1e-9
     monthly = df.filter(pl.col("month") != "Annual")
@@ -262,8 +242,6 @@ def test_join_bills_and_compute_components_run3_run4_fixture() -> None:
             pl.col("supply").sum().alias("supply_sum"),
             pl.col("total").sum().alias("total_sum"),
         )
-        joined = annual.select("bldg_id", "supply", "total").join(
-            summed, on="bldg_id", how="inner"
-        )
+        joined = annual.select("bldg_id", "supply", "total").join(summed, on="bldg_id", how="inner")
         assert cast(float, (joined["supply"] - joined["supply_sum"]).abs().max()) < 1e-6
         assert cast(float, (joined["total"] - joined["total_sum"]).abs().max()) < 1e-6

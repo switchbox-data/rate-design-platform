@@ -63,9 +63,7 @@ def _load_states(input_dir: Path) -> tuple[dict[str, str], dict[str, str]]:
     return fips_map, name_map
 
 
-def _one_row(
-    state_code: str, state_fips: str, state_name: str, fy: int, data: dict
-) -> dict:
+def _one_row(state_code: str, state_fips: str, state_name: str, fy: int, data: dict) -> dict:
     """Build one row in canonical shape; API data is il/statedata response."""
     year = data.get("year")
     if isinstance(year, str):
@@ -171,9 +169,7 @@ def main() -> int:
         return 1
 
     state_code_to_fips, state_code_to_name = _load_states(input_dir)
-    fy_dirs = sorted(
-        d for d in input_dir.iterdir() if d.is_dir() and d.name.startswith("fy=")
-    )
+    fy_dirs = sorted(d for d in input_dir.iterdir() if d.is_dir() and d.name.startswith("fy="))
     if not fy_dirs:
         print("Error: No fy=<year> directories found under input.", file=sys.stderr)
         return 1
@@ -185,9 +181,7 @@ def main() -> int:
             fy = int(fy_str)
         except ValueError:
             continue
-        path = convert_year(
-            input_dir, output_dir, fy, state_code_to_fips, state_code_to_name
-        )
+        path = convert_year(input_dir, output_dir, fy, state_code_to_fips, state_code_to_name)
         if path:
             written.append(path)
 
@@ -199,9 +193,7 @@ def main() -> int:
 
 
 def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(
-        description="Convert HUD SMI JSON to AMI-aligned Parquet"
-    )
+    p = argparse.ArgumentParser(description="Convert HUD SMI JSON to AMI-aligned Parquet")
     p.add_argument(
         "--input",
         "-i",

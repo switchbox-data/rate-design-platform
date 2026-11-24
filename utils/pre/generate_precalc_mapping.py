@@ -59,9 +59,7 @@ def generate_default_precalc_mapping(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Generate precalc mapping from a tariff structure JSON file"
-    )
+    parser = argparse.ArgumentParser(description="Generate precalc mapping from a tariff structure JSON file")
     parser.add_argument(
         "--tariff-path",
         required=True,

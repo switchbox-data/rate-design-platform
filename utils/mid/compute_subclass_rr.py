@@ -110,15 +110,9 @@ MONTH_ABBREV_TO_NUM: dict[str, int] = {
 }
 NUM_TO_MONTH_ABBREV: dict[int, str] = {v: k for k, v in MONTH_ABBREV_TO_NUM.items()}
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_SCENARIO_CONFIG_PATH = (
-    PROJECT_ROOT / "rate_design/hp_rates/ri/config/scenarios.yaml"
-)
-DEFAULT_DIFFERENTIATED_YAML_PATH = (
-    PROJECT_ROOT / "rate_design/hp_rates/ri/config/rev_requirement/rie_hp_vs_nonhp.yaml"
-)
-DEFAULT_RIE_YAML_PATH = (
-    PROJECT_ROOT / "rate_design/hp_rates/ri/config/rev_requirement/rie.yaml"
-)
+DEFAULT_SCENARIO_CONFIG_PATH = PROJECT_ROOT / "rate_design/hp_rates/ri/config/scenarios.yaml"
+DEFAULT_DIFFERENTIATED_YAML_PATH = PROJECT_ROOT / "rate_design/hp_rates/ri/config/rev_requirement/rie_hp_vs_nonhp.yaml"
+DEFAULT_RIE_YAML_PATH = PROJECT_ROOT / "rate_design/hp_rates/ri/config/rev_requirement/rie.yaml"
 LOGGER = logging.getLogger(__name__)
 
 
@@ -128,20 +122,14 @@ def parse_group_value_to_subclass(raw: str) -> dict[str, str]:
     for pair in raw.split(","):
         pair = pair.strip()
         if "=" not in pair:
-            raise ValueError(
-                f"Invalid group-value-to-subclass pair {pair!r}; expected 'value=alias'"
-            )
+            raise ValueError(f"Invalid group-value-to-subclass pair {pair!r}; expected 'value=alias'")
         value, alias = pair.split("=", 1)
         value = value.strip()
         alias = alias.strip()
         if not value or not alias:
-            raise ValueError(
-                f"Empty key or value in group-value-to-subclass pair {pair!r}"
-            )
+            raise ValueError(f"Empty key or value in group-value-to-subclass pair {pair!r}")
         if value in result:
-            raise ValueError(
-                f"Duplicate group value {value!r} in group-value-to-subclass"
-            )
+            raise ValueError(f"Duplicate group value {value!r} in group-value-to-subclass")
         result[value] = alias
     if not result:
         raise ValueError("group-value-to-subclass must contain at least one mapping")
@@ -187,25 +175,16 @@ def _load_group_values(
         storage_options=storage_options,
     )
     schema = metadata.collect_schema().names()
-    group_col_candidates = (
-        [group_col, f"postprocess_group.{group_col}"]
-        if "." not in group_col
-        else [group_col]
-    )
+    group_col_candidates = [group_col, f"postprocess_group.{group_col}"] if "." not in group_col else [group_col]
     resolved_group_col = next((cn for cn in group_col_candidates if cn in schema), None)
     if resolved_group_col is None:
-        msg = (
-            f"Grouping column '{group_col}' not found in customer_metadata.csv. "
-            f"Tried: {group_col_candidates}"
-        )
+        msg = f"Grouping column '{group_col}' not found in customer_metadata.csv. Tried: {group_col_candidates}"
         raise ValueError(msg)
 
     return (
         metadata.select(
             pl.col(BLDG_ID_COL).cast(pl.Int64),
-            pl.col(resolved_group_col)
-            .cast(pl.String, strict=False)
-            .alias(GROUP_VALUE_COL),
+            pl.col(resolved_group_col).cast(pl.String, strict=False).alias(GROUP_VALUE_COL),
             pl.col(WEIGHT_COL).cast(pl.Float64).alias(WEIGHT_COL),
         )
         .with_columns(pl.col(GROUP_VALUE_COL).fill_null("Unknown"))
@@ -252,9 +231,7 @@ def _load_cross_subsidy(
 ) -> pl.LazyFrame:
     return (
         pl.scan_csv(
-            _csv_path(
-                run_dir, "cross_subsidization/cross_subsidization_BAT_values.csv"
-            ),
+            _csv_path(run_dir, "cross_subsidization/cross_subsidization_BAT_values.csv"),
             storage_options=storage_options,
         )
         .select(
@@ -281,16 +258,10 @@ def _extract_fixed_charge_from_urdb(
     tariff = json.loads(payload)
     items = tariff.get("items")
     if not isinstance(items, list) or not items:
-        raise ValueError(
-            "Base tariff JSON must contain a non-empty 'items' list: "
-            f"{base_tariff_json_path}"
-        )
+        raise ValueError(f"Base tariff JSON must contain a non-empty 'items' list: {base_tariff_json_path}")
     fixed_charge = items[0].get("fixedchargefirstmeter")
     if fixed_charge is None:
-        raise ValueError(
-            "Base tariff JSON is missing 'fixedchargefirstmeter': "
-            f"{base_tariff_json_path}"
-        )
+        raise ValueError(f"Base tariff JSON is missing 'fixedchargefirstmeter': {base_tariff_json_path}")
     return float(fixed_charge)
 
 
@@ -357,9 +328,7 @@ def _load_subclass_cross_subsidy_inputs(
         perf_counter() - t0,
     )
     if subclass_cross_subsidy.is_empty():
-        raise ValueError(
-            f"No customers with {group_col}={subclass_value!r} found in customer_metadata.csv."
-        )
+        raise ValueError(f"No customers with {group_col}={subclass_value!r} found in customer_metadata.csv.")
 
     nulls_cs = subclass_cross_subsidy.filter(pl.col("cross_subsidy").is_null()).height
     if nulls_cs:
@@ -369,9 +338,9 @@ def _load_subclass_cross_subsidy_inputs(
         raise ValueError(f"Missing sample weights for {nulls_weight} buildings.")
 
     total_cross_subsidy = float(
-        subclass_cross_subsidy.select(
-            (pl.col("cross_subsidy") * pl.col(WEIGHT_COL)).sum().alias("weighted_cs")
-        )["weighted_cs"][0]
+        subclass_cross_subsidy.select((pl.col("cross_subsidy") * pl.col(WEIGHT_COL)).sum().alias("weighted_cs"))[
+            "weighted_cs"
+        ][0]
     )
     return subclass_cross_subsidy, total_cross_subsidy
 
@@ -393,11 +362,7 @@ def _compute_annual_energy_revenue(
     annual_energy_rev_row = (
         _load_annual_target_bills(run_dir, ANNUAL_MONTH_VALUE, storage_options)
         .join(ids_weights.lazy(), on=BLDG_ID_COL, how="inner")
-        .with_columns(
-            ((pl.col("annual_bill") - 12.0 * fixed_charge) * pl.col(WEIGHT_COL)).alias(
-                "weighted_energy_rev"
-            )
-        )
+        .with_columns(((pl.col("annual_bill") - 12.0 * fixed_charge) * pl.col(WEIGHT_COL)).alias("weighted_energy_rev"))
         .select(pl.col("weighted_energy_rev").sum().alias("annual_energy_rev"))
         .collect()
     )
@@ -450,9 +415,7 @@ def compute_subclass_seasonal_discount_inputs(
         )
 
     resolved_winter_months = (
-        winter_months
-        if winter_months is not None
-        else tuple(DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS)
+        winter_months if winter_months is not None else tuple(DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS)
     )
 
     # --- Subclass metadata, weights, and cross-subsidy ---
@@ -505,13 +468,8 @@ def compute_subclass_seasonal_discount_inputs(
     seasonal_kwh = (
         loads.join(sub_weights.lazy(), on=BLDG_ID_COL, how="inner")
         .select(
-            pl.col("timestamp")
-            .cast(pl.String, strict=False)
-            .str.to_datetime(strict=False)
-            .alias("timestamp"),
-            grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL).alias(
-                "demand_kwh"
-            ),
+            pl.col("timestamp").cast(pl.String, strict=False).str.to_datetime(strict=False).alias("timestamp"),
+            grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL).alias("demand_kwh"),
             pl.col(WEIGHT_COL).cast(pl.Float64),
         )
         .with_columns(pl.col("timestamp").dt.month().alias("month_num"))
@@ -521,11 +479,7 @@ def compute_subclass_seasonal_discount_inputs(
         )
         .select(
             pl.col("weighted_kwh").sum().alias("annual_kwh"),
-            pl.when(pl.col("is_winter"))
-            .then(pl.col("weighted_kwh"))
-            .otherwise(0.0)
-            .sum()
-            .alias("winter_kwh"),
+            pl.when(pl.col("is_winter")).then(pl.col("weighted_kwh")).otherwise(0.0).sum().alias("winter_kwh"),
         )
         .collect(engine="streaming")
     )
@@ -541,13 +495,9 @@ def compute_subclass_seasonal_discount_inputs(
     summer_kwh = annual_kwh - winter_kwh
 
     if winter_kwh <= 0:
-        raise ValueError(
-            f"Winter kWh for {group_col}={subclass_value!r} is zero; cannot compute winter rate."
-        )
+        raise ValueError(f"Winter kWh for {group_col}={subclass_value!r} is zero; cannot compute winter rate.")
     if summer_kwh <= 0:
-        raise ValueError(
-            f"Summer kWh for {group_col}={subclass_value!r} is zero; cannot compute summer rate."
-        )
+        raise ValueError(f"Summer kWh for {group_col}={subclass_value!r} is zero; cannot compute summer rate.")
 
     # --- Derive effective seasonal rates ---
     # Equivalent flat rate = subclass annual energy revenue / subclass annual kWh.
@@ -687,9 +637,7 @@ def compute_subclass_flat_discount_inputs(
     kwh_agg = (
         loads.join(sub_weights.lazy(), on=BLDG_ID_COL, how="inner")
         .select(
-            grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL).alias(
-                "demand_kwh"
-            ),
+            grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL).alias("demand_kwh"),
             pl.col(WEIGHT_COL).cast(pl.Float64),
         )
         .with_columns(
@@ -707,9 +655,7 @@ def compute_subclass_flat_discount_inputs(
 
     annual_kwh = float(kwh_agg["annual_kwh"][0] or 0.0)
     if annual_kwh <= 0:
-        raise ValueError(
-            f"Annual kWh for {group_col}={subclass_value!r} is zero; cannot compute flat rate."
-        )
+        raise ValueError(f"Annual kWh for {group_col}={subclass_value!r} is zero; cannot compute flat rate.")
 
     # --- Derive fair flat rate ---
     equivalent_flat_rate = annual_energy_rev / annual_kwh
@@ -767,14 +713,10 @@ def compute_subclass_rr(
     group_values = _load_group_values(run_dir, group_col, storage_options)
     bills = _load_annual_target_bills(run_dir, annual_month, storage_options)
 
-    bat_select = [pl.col(BLDG_ID_COL).cast(pl.Int64)] + [
-        pl.col(col).cast(pl.Float64) for col in cross_subsidy_cols
-    ]
+    bat_select = [pl.col(BLDG_ID_COL).cast(pl.Int64)] + [pl.col(col).cast(pl.Float64) for col in cross_subsidy_cols]
     cross_sub_all = (
         pl.scan_csv(
-            _csv_path(
-                run_dir, "cross_subsidization/cross_subsidization_BAT_values.csv"
-            ),
+            _csv_path(run_dir, "cross_subsidization/cross_subsidization_BAT_values.csv"),
             storage_options=storage_options,
         )
         .select(bat_select)
@@ -783,9 +725,7 @@ def compute_subclass_rr(
     )
 
     joined = (
-        group_values.join(bills, on=BLDG_ID_COL, how="left")
-        .join(cross_sub_all, on=BLDG_ID_COL, how="left")
-        .collect()
+        group_values.join(bills, on=BLDG_ID_COL, how="left").join(cross_sub_all, on=BLDG_ID_COL, how="left").collect()
     )
     if joined.is_empty():
         msg = "No customers found in customer_metadata.csv."
@@ -793,10 +733,7 @@ def compute_subclass_rr(
 
     nulls_bills = joined.filter(pl.col("annual_bill").is_null()).height
     if nulls_bills:
-        msg = (
-            f"Missing annual target bills for {nulls_bills} buildings "
-            f"(month={annual_month})."
-        )
+        msg = f"Missing annual target bills for {nulls_bills} buildings (month={annual_month})."
         raise ValueError(msg)
 
     for col in cross_subsidy_cols:
@@ -814,9 +751,7 @@ def compute_subclass_rr(
     for col in cross_subsidy_cols:
         results[col] = (
             joined.with_columns(
-                (pl.col("annual_bill") * pl.col(WEIGHT_COL)).alias(
-                    "weighted_annual_bill"
-                ),
+                (pl.col("annual_bill") * pl.col(WEIGHT_COL)).alias("weighted_annual_bill"),
                 (pl.col(col) * pl.col(WEIGHT_COL)).alias("weighted_cross_subsidy"),
             )
             .group_by(GROUP_VALUE_COL)
@@ -824,11 +759,7 @@ def compute_subclass_rr(
                 pl.col("weighted_annual_bill").sum().alias("sum_bills"),
                 pl.col("weighted_cross_subsidy").sum().alias("sum_cross_subsidy"),
             )
-            .with_columns(
-                (pl.col("sum_bills") - pl.col("sum_cross_subsidy")).alias(
-                    "revenue_requirement"
-                )
-            )
+            .with_columns((pl.col("sum_bills") - pl.col("sum_cross_subsidy")).alias("revenue_requirement"))
             .sort(GROUP_VALUE_COL)
         )
 
@@ -866,9 +797,7 @@ def _load_bat_share_column(
     """Load one per-building allocator column from the BAT CSV."""
     return (
         pl.scan_csv(
-            _csv_path(
-                run_dir, "cross_subsidization/cross_subsidization_BAT_values.csv"
-            ),
+            _csv_path(run_dir, "cross_subsidization/cross_subsidization_BAT_values.csv"),
             storage_options=storage_options,
         )
         .select(
@@ -891,21 +820,13 @@ def _distribute_class_rr(
     Non-HP is the residual so the two subclass targets add back to ``total``
     exactly.
     """
-    weighted = joined.with_columns(
-        (pl.col(share_col) * pl.col(WEIGHT_COL)).alias("_wshare")
-    )
+    weighted = joined.with_columns((pl.col(share_col) * pl.col(WEIGHT_COL)).alias("_wshare"))
     total_share = float(weighted.select(pl.col("_wshare").sum()).item() or 0.0)
     if total_share <= 0:
-        msg = (
-            f"Supply allocation shares sum to {total_share}; cannot distribute "
-            f"class supply RR of {total}."
-        )
+        msg = f"Supply allocation shares sum to {total_share}; cannot distribute class supply RR of {total}."
         raise ValueError(msg)
     hp_share = float(
-        weighted.filter(pl.col(GROUP_VALUE_COL) == hp_group_value)
-        .select(pl.col("_wshare").sum())
-        .item()
-        or 0.0
+        weighted.filter(pl.col(GROUP_VALUE_COL) == hp_group_value).select(pl.col("_wshare").sum()).item() or 0.0
     )
     hp_rr = total * (hp_share / total_share)
     return {"hp": hp_rr, "non-hp": total - hp_rr}
@@ -954,18 +875,11 @@ def compute_candidate_tariff_subclass_rr(
     add back to the class pot.
     """
     if supply_method not in CANDIDATE_TARIFF_SUPPLY_METHODS:
-        msg = (
-            f"Unsupported supply_method={supply_method!r}. "
-            f"Choices: {CANDIDATE_TARIFF_SUPPLY_METHODS}"
-        )
+        msg = f"Unsupported supply_method={supply_method!r}. Choices: {CANDIDATE_TARIFF_SUPPLY_METHODS}"
         raise ValueError(msg)
 
-    group_values = _load_group_values(
-        candidate_tariff_run_dir, group_col, storage_options
-    )
-    delivery_bills = _load_annual_target_bills(
-        candidate_tariff_run_dir, annual_month, storage_options
-    )
+    group_values = _load_group_values(candidate_tariff_run_dir, group_col, storage_options)
+    delivery_bills = _load_annual_target_bills(candidate_tariff_run_dir, annual_month, storage_options)
 
     joined = group_values.join(delivery_bills, on=BLDG_ID_COL, how="left").collect()
     if joined.is_empty():
@@ -988,20 +902,12 @@ def compute_candidate_tariff_subclass_rr(
         )
         raise ValueError(msg)
 
-    hp_delivery_sum = float(
-        hp_rows.select((pl.col("annual_bill") * pl.col(WEIGHT_COL)).sum()).item()
-    )
+    hp_delivery_sum = float(hp_rows.select((pl.col("annual_bill") * pl.col(WEIGHT_COL)).sum()).item())
     delivery_rr = {"hp": hp_delivery_sum, "non-hp": total_delivery_rr - hp_delivery_sum}
 
     supply_rr: dict[str, float] | None = None
-    if (
-        candidate_tariff_supply_run_dir is not None
-        and total_delivery_and_supply_rr is None
-    ):
-        msg = (
-            "total_delivery_and_supply_rr is required when "
-            "candidate_tariff_supply_run_dir is provided."
-        )
+    if candidate_tariff_supply_run_dir is not None and total_delivery_and_supply_rr is None:
+        msg = "total_delivery_and_supply_rr is required when candidate_tariff_supply_run_dir is provided."
         raise ValueError(msg)
     if total_delivery_and_supply_rr is not None and not (
         supply_method == "passthrough" and candidate_tariff_supply_run_dir is None
@@ -1012,17 +918,10 @@ def compute_candidate_tariff_subclass_rr(
 
         if supply_method == "passthrough":
             if candidate_tariff_supply_run_dir is None:
-                msg = (
-                    "candidate_tariff_supply_run_dir is required when "
-                    "supply_method='passthrough'."
-                )
+                msg = "candidate_tariff_supply_run_dir is required when supply_method='passthrough'."
                 raise ValueError(msg)
-            alloc_delivery_bills = _load_annual_target_bills(
-                alloc_dir, annual_month, storage_options
-            )
-            total_bills = _load_annual_target_bills(
-                candidate_tariff_supply_run_dir, annual_month, storage_options
-            )
+            alloc_delivery_bills = _load_annual_target_bills(alloc_dir, annual_month, storage_options)
+            total_bills = _load_annual_target_bills(candidate_tariff_supply_run_dir, annual_month, storage_options)
             alloc_joined = (
                 alloc_groups.join(alloc_delivery_bills, on=BLDG_ID_COL, how="left")
                 .join(
@@ -1031,20 +930,14 @@ def compute_candidate_tariff_subclass_rr(
                     how="left",
                 )
                 .collect()
-                .with_columns(
-                    (pl.col("total_bill") - pl.col("annual_bill")).alias("share")
-                )
+                .with_columns((pl.col("total_bill") - pl.col("annual_bill")).alias("share"))
             )
         elif supply_method == "percustomer":
-            alloc_joined = alloc_groups.collect().with_columns(
-                pl.lit(1.0).alias("share")
-            )
+            alloc_joined = alloc_groups.collect().with_columns(pl.lit(1.0).alias("share"))
         else:
             bat_col = _SUPPLY_METHOD_BAT_SHARE_COL[supply_method]
             shares = _load_bat_share_column(alloc_dir, bat_col, storage_options)
-            alloc_joined = alloc_groups.join(
-                shares, on=BLDG_ID_COL, how="left"
-            ).collect()
+            alloc_joined = alloc_groups.join(shares, on=BLDG_ID_COL, how="left").collect()
             nulls = alloc_joined.filter(pl.col("share").is_null()).height
             if nulls:
                 msg = (
@@ -1054,9 +947,7 @@ def compute_candidate_tariff_subclass_rr(
                 )
                 raise ValueError(msg)
 
-        supply_rr = _distribute_class_rr(
-            alloc_joined, total_supply_rr, "share", hp_group_value
-        )
+        supply_rr = _distribute_class_rr(alloc_joined, total_supply_rr, "share", hp_group_value)
 
     return CandidateTariffRR(delivery=delivery_rr, supply=supply_rr)
 
@@ -1083,9 +974,7 @@ def _load_run_from_scenario_config(
         )
         raise ValueError(msg)
     if not isinstance(run, dict):
-        msg = (
-            f"Run {run_num} is not a mapping in scenario config: {scenario_config_path}"
-        )
+        msg = f"Run {run_num} is not a mapping in scenario config: {scenario_config_path}"
         raise ValueError(msg)
     return cast(dict[str, object], run)
 
@@ -1101,10 +990,7 @@ def _load_run_fields(
     run = _load_run_from_scenario_config(scenario_config_path, run_num)
     for field in ("state", "utility", "utility_revenue_requirement"):
         if field not in run:
-            raise KeyError(
-                f"Run {run_num} in {scenario_config_path} is missing "
-                f"required field '{field}'"
-            )
+            raise KeyError(f"Run {run_num} in {scenario_config_path} is missing required field '{field}'")
     state = str(run["state"]).upper()
     utility = str(run["utility"]).lower()
     raw_rr = run["utility_revenue_requirement"]
@@ -1118,8 +1004,7 @@ def _load_run_fields(
             revenue_requirement = float(rr_data["revenue_requirement"])
         else:
             raise KeyError(
-                f"RR YAML at {rr_path} is missing both "
-                "'total_delivery_revenue_requirement' and 'revenue_requirement'"
+                f"RR YAML at {rr_path} is missing both 'total_delivery_revenue_requirement' and 'revenue_requirement'"
             )
     else:
         revenue_requirement = float(cast(float | int | str, raw_rr))
@@ -1178,9 +1063,7 @@ def _write_revenue_requirement_yamls(
     for row in _first_del_breakdown.to_dicts():
         raw_val = str(row["subclass"])
         alias = gv_map.get(raw_val, raw_val)
-        passthrough_delivery[alias] = passthrough_delivery.get(alias, 0.0) + float(
-            row["sum_bills"]
-        )
+        passthrough_delivery[alias] = passthrough_delivery.get(alias, 0.0) + float(row["sum_bills"])
 
     for bat_col, delivery_breakdown in delivery_breakdowns.items():
         method_key = BAT_COL_TO_ALLOCATION_KEY.get(bat_col, bat_col)
@@ -1188,9 +1071,7 @@ def _write_revenue_requirement_yamls(
         for row in delivery_breakdown.to_dicts():
             raw_val = str(row["subclass"])
             alias = gv_map.get(raw_val, raw_val)
-            method_vals[alias] = method_vals.get(alias, 0.0) + float(
-                row["revenue_requirement"]
-            )
+            method_vals[alias] = method_vals.get(alias, 0.0) + float(row["revenue_requirement"])
         delivery_block[method_key] = method_vals
 
     delivery_block["passthrough"] = passthrough_delivery
@@ -1216,9 +1097,7 @@ def _write_revenue_requirement_yamls(
             alias = gv_map.get(raw_val, raw_val)
             tot_bills[alias] = tot_bills.get(alias, 0.0) + float(row["sum_bills"])
 
-        passthrough_supply = {
-            alias: tot_bills[alias] - del_bills[alias] for alias in del_bills
-        }
+        passthrough_supply = {alias: tot_bills[alias] - del_bills[alias] for alias in del_bills}
         supply_block["passthrough"] = passthrough_supply
 
         # BAT-adjusted supply for methods with clean subtraction
@@ -1231,19 +1110,13 @@ def _write_revenue_requirement_yamls(
             for row in delivery_breakdowns[bat_col].to_dicts():
                 raw_val = str(row["subclass"])
                 alias = gv_map.get(raw_val, raw_val)
-                del_rr[alias] = del_rr.get(alias, 0.0) + float(
-                    row["revenue_requirement"]
-                )
+                del_rr[alias] = del_rr.get(alias, 0.0) + float(row["revenue_requirement"])
             tot_rr: dict[str, float] = {}
             for row in total_breakdowns[bat_col].to_dicts():
                 raw_val = str(row["subclass"])
                 alias = gv_map.get(raw_val, raw_val)
-                tot_rr[alias] = tot_rr.get(alias, 0.0) + float(
-                    row["revenue_requirement"]
-                )
-            supply_block[method_key] = {
-                alias: tot_rr[alias] - del_rr[alias] for alias in del_rr
-            }
+                tot_rr[alias] = tot_rr.get(alias, 0.0) + float(row["revenue_requirement"])
+            supply_block[method_key] = {alias: tot_rr[alias] - del_rr[alias] for alias in del_rr}
 
     if candidate_tariff_supply_rr is not None:
         supply_block["candidate_tariff"] = dict(candidate_tariff_supply_rr)
@@ -1260,9 +1133,7 @@ def _write_revenue_requirement_yamls(
     if total_delivery_rr is not None:
         differentiated_data["total_delivery_revenue_requirement"] = total_delivery_rr
     if total_delivery_and_supply_rr is not None:
-        differentiated_data["total_delivery_and_supply_revenue_requirement"] = (
-            total_delivery_and_supply_rr
-        )
+        differentiated_data["total_delivery_and_supply_revenue_requirement"] = total_delivery_and_supply_rr
     differentiated_data["subclass_revenue_requirements"] = {
         "delivery": delivery_block,
         "supply": supply_block,
@@ -1313,9 +1184,7 @@ def _write_seasonal_inputs_csv(
 
 def main() -> None:
     load_dotenv()
-    parser = argparse.ArgumentParser(
-        description="Compute subclass revenue requirements from CAIRO outputs."
-    )
+    parser = argparse.ArgumentParser(description="Compute subclass revenue requirements from CAIRO outputs.")
     parser.add_argument(
         "--run-dir",
         required=True,
@@ -1347,10 +1216,7 @@ def main() -> None:
         "--scenario-config",
         type=Path,
         default=DEFAULT_SCENARIO_CONFIG_PATH,
-        help=(
-            "Path to scenario YAML used to read state, utility, and base "
-            "revenue requirement for the run."
-        ),
+        help=("Path to scenario YAML used to read state, utility, and base revenue requirement for the run."),
     )
     parser.add_argument(
         "--run-num",
@@ -1378,10 +1244,7 @@ def main() -> None:
         "--write-revenue-requirement-yamls",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help=(
-            "Whether to write differentiated/default revenue requirement YAML outputs "
-            "(default: true)."
-        ),
+        help=("Whether to write differentiated/default revenue requirement YAML outputs (default: true)."),
     )
     parser.add_argument(
         "--resstock-base",
@@ -1414,10 +1277,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--output-dir",
-        help=(
-            "Optional output directory for seasonal discount CSV. "
-            "If omitted, writes to --run-dir."
-        ),
+        help=("Optional output directory for seasonal discount CSV. If omitted, writes to --run-dir."),
     )
     parser.add_argument(
         "--periods-yaml",
@@ -1430,8 +1290,7 @@ def main() -> None:
     parser.add_argument(
         "--group-value-to-subclass",
         help=(
-            "Mapping of raw group values to subclass aliases, e.g. "
-            "'true=hp,false=non-hp'. Used for YAML output keys."
+            "Mapping of raw group values to subclass aliases, e.g. 'true=hp,false=non-hp'. Used for YAML output keys."
         ),
     )
     parser.add_argument(
@@ -1486,17 +1345,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    run_dir: S3Path | Path = (
-        S3Path(args.run_dir) if args.run_dir.startswith("s3://") else Path(args.run_dir)
-    )
-    output_dir: S3Path | Path | None = (
-        _resolve_path_or_s3(args.output_dir) if args.output_dir else None
-    )
+    run_dir: S3Path | Path = S3Path(args.run_dir) if args.run_dir.startswith("s3://") else Path(args.run_dir)
+    output_dir: S3Path | Path | None = _resolve_path_or_s3(args.output_dir) if args.output_dir else None
     storage_options = get_aws_storage_options() if isinstance(run_dir, S3Path) else None
 
-    cross_subsidy_cols = tuple(
-        c.strip() for c in args.cross_subsidy_col.split(",") if c.strip()
-    )
+    cross_subsidy_cols = tuple(c.strip() for c in args.cross_subsidy_col.split(",") if c.strip())
 
     delivery_breakdowns = compute_subclass_rr(
         run_dir=run_dir,
@@ -1527,9 +1380,7 @@ def main() -> None:
         with base_rr_path.open(encoding="utf-8") as f:
             base_rr_data = yaml.safe_load(f)
         total_delivery_rr = float(base_rr_data["total_delivery_revenue_requirement"])
-        total_delivery_and_supply_rr = float(
-            base_rr_data["total_delivery_and_supply_revenue_requirement"]
-        )
+        total_delivery_and_supply_rr = float(base_rr_data["total_delivery_and_supply_revenue_requirement"])
         overrides = _parse_resstock_overrides(base_rr_data)
         base_rr_customer_count = overrides.customer_count_override
         base_rr_kwh_scale_factor = overrides.kwh_scale_factor
@@ -1537,20 +1388,13 @@ def main() -> None:
     candidate_tariff_result: CandidateTariffRR | None = None
     if args.candidate_tariff_run_dir:
         if total_delivery_rr is None:
-            msg = (
-                "--candidate-tariff-run-dir requires --base-rr-yaml to supply "
-                "total_delivery_revenue_requirement."
-            )
+            msg = "--candidate-tariff-run-dir requires --base-rr-yaml to supply total_delivery_revenue_requirement."
             raise ValueError(msg)
         ct_run_dir = _resolve_path_or_s3(args.candidate_tariff_run_dir)
-        ct_storage_options = (
-            get_aws_storage_options() if isinstance(ct_run_dir, S3Path) else None
-        )
+        ct_storage_options = get_aws_storage_options() if isinstance(ct_run_dir, S3Path) else None
         ct_supply_run_dir: S3Path | Path | None = None
         if args.candidate_tariff_supply_run_dir:
-            ct_supply_run_dir = _resolve_path_or_s3(
-                args.candidate_tariff_supply_run_dir
-            )
+            ct_supply_run_dir = _resolve_path_or_s3(args.candidate_tariff_supply_run_dir)
         candidate_tariff_result = compute_candidate_tariff_subclass_rr(
             candidate_tariff_run_dir=ct_run_dir,
             total_delivery_rr=total_delivery_rr,
@@ -1561,23 +1405,16 @@ def main() -> None:
             annual_month=args.annual_month,
             storage_options=ct_storage_options,
         )
-        print(
-            f"Candidate-tariff subclass RR (from {ct_run_dir}): "
-            f"delivery={candidate_tariff_result.delivery}"
-        )
+        print(f"Candidate-tariff subclass RR (from {ct_run_dir}): delivery={candidate_tariff_result.delivery}")
         if candidate_tariff_result.supply is not None:
             print(f"Candidate-tariff supply RR: {candidate_tariff_result.supply}")
 
     total_breakdowns: dict[str, pl.DataFrame] | None = None
     if args.run_dir_supply:
         run_dir_supply: S3Path | Path = (
-            S3Path(args.run_dir_supply)
-            if args.run_dir_supply.startswith("s3://")
-            else Path(args.run_dir_supply)
+            S3Path(args.run_dir_supply) if args.run_dir_supply.startswith("s3://") else Path(args.run_dir_supply)
         )
-        storage_options_supply = (
-            get_aws_storage_options() if isinstance(run_dir_supply, S3Path) else None
-        )
+        storage_options_supply = get_aws_storage_options() if isinstance(run_dir_supply, S3Path) else None
         total_breakdowns = compute_subclass_rr(
             run_dir=run_dir_supply,
             group_col=args.group_col,
@@ -1614,9 +1451,7 @@ def main() -> None:
             ht_tot_by_sub: dict[str, float] = {}
             if ht_total is not None and bat_col in ht_total:
                 for row in ht_total[bat_col].to_dicts():
-                    ht_tot_by_sub[str(row["subclass"])] = float(
-                        row["revenue_requirement"]
-                    )
+                    ht_tot_by_sub[str(row["subclass"])] = float(row["revenue_requirement"])
             method_block: dict[str, dict[str, float]] = {}
             for row in ht_del_df.to_dicts():
                 sub = str(row["subclass"])
@@ -1633,9 +1468,7 @@ def main() -> None:
             for sub, vals in block.items():
                 print(f"  {sub}: {vals}")
     except (ValueError, KeyError) as exc:
-        LOGGER.info(
-            "Skipping heating_type_v2 breakdown (column may not exist): %s", exc
-        )
+        LOGGER.info("Skipping heating_type_v2 breakdown (column may not exist): %s", exc)
 
     if args.write_revenue_requirement_yamls:
         differentiated_yaml_path, default_yaml_path = _write_revenue_requirement_yamls(
@@ -1653,15 +1486,9 @@ def main() -> None:
             heating_type_breakdown=heating_type_breakdown,
             customer_count_override=base_rr_customer_count,
             kwh_scale_factor=base_rr_kwh_scale_factor,
-            candidate_tariff_rr=(
-                candidate_tariff_result.delivery
-                if candidate_tariff_result is not None
-                else None
-            ),
+            candidate_tariff_rr=(candidate_tariff_result.delivery if candidate_tariff_result is not None else None),
             candidate_tariff_supply_rr=(
-                candidate_tariff_result.supply
-                if candidate_tariff_result is not None
-                else None
+                candidate_tariff_result.supply if candidate_tariff_result is not None else None
             ),
         )
         print(f"Wrote differentiated YAML: {differentiated_yaml_path}")
@@ -1673,15 +1500,9 @@ def main() -> None:
             utility=run_utility,
             periods_yaml_path=args.periods_yaml,
         )
-        base_tariff_json_path = (
-            _resolve_path_or_s3(args.base_tariff_json)
-            if args.base_tariff_json
-            else None
-        )
+        base_tariff_json_path = _resolve_path_or_s3(args.base_tariff_json) if args.base_tariff_json else None
         # Use the single cross-subsidy column for seasonal discount (first col if multiple).
-        seasonal_cross_subsidy_col = (
-            cross_subsidy_cols[0] if cross_subsidy_cols else DEFAULT_BAT_METRIC
-        )
+        seasonal_cross_subsidy_col = cross_subsidy_cols[0] if cross_subsidy_cols else DEFAULT_BAT_METRIC
         seasonal_inputs = compute_subclass_seasonal_discount_inputs(
             run_dir=run_dir,
             resstock_base=args.resstock_base,

@@ -28,6 +28,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import contextlib
 import gc
 import subprocess
 import sys
@@ -36,7 +37,6 @@ from pathlib import Path
 import polars as pl
 import yaml
 
-from data.resstock.nrel import fetch_resstock_data
 from data.resstock.constants import (
     CONFIG_PATH,
     HEATING_TYPE_COLS,
@@ -45,24 +45,25 @@ from data.resstock.constants import (
     SB_CLONE_EXCLUDED_FILE_TYPES,
     VULNERABILITY_COLS,
 )
-from data.resstock.nrel.copy_resstock_data import clone_release
-from data.resstock.load_curve.aggregate_loads import (
-    process_upgrade,
+from data.resstock.load_curve.adjust_gas_usage import (
+    adjust_gas_usage_hourly_dir,
+    load_eia176_residential_kwh,
+    resstock_weighted_gas_kwh,
 )
 from data.resstock.load_curve.adjust_mf_electricity import (
     BUILDING_TYPE_RECS_COL,
     adjust_mf_electricity_parquet,
 )
-from data.resstock.load_curve.adjust_gas_usage import (
-    adjust_gas_usage_hourly_dir,
-    load_eia176_residential_kwh,
-    resstock_weighted_gas_kwh,
+from data.resstock.load_curve.aggregate_loads import (
+    process_upgrade,
 )
 from data.resstock.load_curve.approximate_non_hp_load import (
     _find_nearest_neighbors,
     _identify_non_hp_mf,
     _identify_other_fuel_types,
     update_load_curve_hourly,
+)
+from data.resstock.load_curve.approximate_non_hp_load import (
     update_metadata as update_non_hp_metadata,
 )
 from data.resstock.manifest import (
@@ -80,6 +81,9 @@ from data.resstock.metadata.add_vulnerability_columns import (
 from data.resstock.metadata.identify_heating_type import identify_heating_type
 from data.resstock.metadata.identify_hp_customers import identify_hp_customers
 from data.resstock.metadata.identify_natgas_connection import identify_natgas_connection
+from data.resstock.notify import notify_completed, notify_crashed, notify_failed
+from data.resstock.nrel import fetch_resstock_data
+from data.resstock.nrel.copy_resstock_data import clone_release
 from data.resstock.utility.assign_utility import (
     SUPPORTED_UTILITY_STATES,
     assign_utility,
@@ -93,19 +97,17 @@ from data.resstock.utils import (
     upload_manifest,
 )
 from data.resstock.validations import (
+    validate_gas_usage_inputs,
     validate_local_files,
     validate_metadata_columns,
     validate_metadata_output,
     validate_metadata_readable,
-    validate_gas_usage_inputs,
     validate_no_stale_aggregate_loads,
     validate_s3_objects,
     validate_utility_assignment_args,
 )
-from data.resstock.notify import notify_completed, notify_crashed, notify_failed
 from data.resstock.validations.real_world_checks import run_post_pipeline_checks
 from data.resstock.warnings import collect_run_warnings
-
 
 # ── Defaults from data/resstock/config.yaml ───────────────────────────────────
 
@@ -174,16 +176,8 @@ def _approximate_non_hp_load(
     for s in states:
         for upgrade in active_upgrades:
             loc = f"state={s} upgrade={upgrade}"
-            local_lc_dir = (
-                path_sb / "load_curve_hourly" / f"state={s}" / f"upgrade={upgrade}"
-            )
-            metadata_path = (
-                path_sb
-                / "metadata"
-                / f"state={s}"
-                / f"upgrade={upgrade}"
-                / "metadata-sb.parquet"
-            )
+            local_lc_dir = path_sb / "load_curve_hourly" / f"state={s}" / f"upgrade={upgrade}"
+            metadata_path = path_sb / "metadata" / f"state={s}" / f"upgrade={upgrade}" / "metadata-sb.parquet"
             if not metadata_path.exists():
                 print(
                     f"  WARNING: {metadata_path} not found, skipping {loc}.",
@@ -205,11 +199,7 @@ def _approximate_non_hp_load(
             # locally (defensive — in practice bsf keeps them in sync).
             local_bldg_ids: set[int] | None = None
             if sample > 0:
-                local_bldg_ids = {
-                    int(p.stem.split("-")[0])
-                    for p in local_lc_dir.iterdir()
-                    if p.suffix == ".parquet"
-                }
+                local_bldg_ids = {int(p.stem.split("-")[0]) for p in local_lc_dir.iterdir() if p.suffix == ".parquet"}
                 print(
                     f"    WARNING: --sample active — neighbor pool is limited to the "
                     f"{len(local_bldg_ids)} locally downloaded buildings. "
@@ -224,9 +214,7 @@ def _approximate_non_hp_load(
             non_hp_bldg_metadata = pl.concat(non_hp_parts).unique("bldg_id")
 
             if local_bldg_ids is not None:
-                non_hp_bldg_metadata = non_hp_bldg_metadata.filter(
-                    pl.col("bldg_id").is_in(list(local_bldg_ids))
-                )
+                non_hp_bldg_metadata = non_hp_bldg_metadata.filter(pl.col("bldg_id").is_in(list(local_bldg_ids)))
 
             n_targets = (non_hp_bldg_metadata.collect()).height
             if n_targets == 0:
@@ -257,8 +245,7 @@ def _approximate_non_hp_load(
                 )
             if n_no_neighbors:
                 print(
-                    f"    WARNING: {n_no_neighbors} target(s) found no neighbors "
-                    f"and will be skipped.",
+                    f"    WARNING: {n_no_neighbors} target(s) found no neighbors and will be skipped.",
                     flush=True,
                 )
 
@@ -329,16 +316,8 @@ def _adjust_mf_electricity(
     for s in states:
         for uid in active_upgrades:
             loc = f"state={s} upgrade={uid}"
-            metadata_path = (
-                path_sb
-                / "metadata"
-                / f"state={s}"
-                / f"upgrade={uid}"
-                / "metadata-sb.parquet"
-            )
-            lc_hourly_dir = (
-                path_sb / "load_curve_hourly" / f"state={s}" / f"upgrade={uid}"
-            )
+            metadata_path = path_sb / "metadata" / f"state={s}" / f"upgrade={uid}" / "metadata-sb.parquet"
+            lc_hourly_dir = path_sb / "load_curve_hourly" / f"state={s}" / f"upgrade={uid}"
             lca_dir = path_raw / "load_curve_annual" / f"state={s}" / f"upgrade={uid}"
 
             if not metadata_path.exists():
@@ -374,20 +353,12 @@ def _adjust_mf_electricity(
                     flush=True,
                 )
                 n_mf = (
-                    metadata.filter(
-                        pl.col(BUILDING_TYPE_RECS_COL).str.contains(
-                            "Multi-Family", literal=True
-                        )
-                    )
+                    metadata.filter(pl.col(BUILDING_TYPE_RECS_COL).str.contains("Multi-Family", literal=True))
                     .select(pl.len())
                     .collect()
                 ).item()
                 n_sf = (
-                    metadata.filter(
-                        pl.col(BUILDING_TYPE_RECS_COL).str.contains(
-                            "Single-Family", literal=True
-                        )
-                    )
+                    metadata.filter(pl.col(BUILDING_TYPE_RECS_COL).str.contains("Single-Family", literal=True))
                     .select(pl.len())
                     .collect()
                 ).item()
@@ -471,13 +442,10 @@ def _adjust_gas_usage(
 
         for uid in upgrade_ids:
             uid_padded = uid.zfill(2)
-            lc_hourly_dir = (
-                path_sb / "load_curve_hourly" / f"state={s}" / f"upgrade={uid_padded}"
-            )
+            lc_hourly_dir = path_sb / "load_curve_hourly" / f"state={s}" / f"upgrade={uid_padded}"
             if not lc_hourly_dir.exists():
                 print(
-                    f"  WARNING: {lc_hourly_dir} not found, skipping "
-                    f"state={s} upgrade={uid_padded}.",
+                    f"  WARNING: {lc_hourly_dir} not found, skipping state={s} upgrade={uid_padded}.",
                     flush=True,
                 )
                 continue
@@ -521,11 +489,7 @@ def _assign_utility(
     for s in states:
         loc = f"state={s}"
         metadata_path = (
-            path_sb
-            / "metadata"
-            / f"state={s}"
-            / f"upgrade={_UTILITY_ASSIGN_UPGRADE}"
-            / "metadata-sb.parquet"
+            path_sb / "metadata" / f"state={s}" / f"upgrade={_UTILITY_ASSIGN_UPGRADE}" / "metadata-sb.parquet"
         )
 
         out_dir = path_sb / "metadata_utility" / f"state={s}"
@@ -570,10 +534,7 @@ def _assign_utility(
             check=False,
         ).returncode
         if upload_rc != 0:
-            raise RuntimeError(
-                f"aws s3 cp failed (exit {upload_rc}): "
-                f"utility_assignment for {loc} → {s3_dest}"
-            )
+            raise RuntimeError(f"aws s3 cp failed (exit {upload_rc}): utility_assignment for {loc} → {s3_dest}")
 
         print(f"    Done: utility assignment complete for {loc}.", flush=True)
 
@@ -615,11 +576,7 @@ def _add_aggregate_loads(
         load_bsf_aggregation_map,
     )
 
-    outputs_label = " + ".join(
-        name
-        for name, flag in [("monthly", add_monthly), ("annual", add_annual)]
-        if flag
-    )
+    outputs_label = " + ".join(name for name, flag in [("monthly", add_monthly), ("annual", add_annual)] if flag)
     print(f"  Loading bsf aggregation rules for release '{release}'...", flush=True)
     rules = load_bsf_aggregation_map(release)
     annual_n = sum(1 for c in rules if is_annual_metric_column(c))
@@ -645,8 +602,7 @@ def _add_aggregate_loads(
 
             if not hourly_dir.exists():
                 print(
-                    f"  WARNING: Hourly directory not found, skipping {loc}: "
-                    f"{hourly_dir}",
+                    f"  WARNING: Hourly directory not found, skipping {loc}: {hourly_dir}",
                     flush=True,
                 )
                 continue
@@ -696,15 +652,11 @@ def _add_aggregate_loads(
                     check=False,
                 ).returncode
                 if upload_rc != 0:
-                    raise RuntimeError(
-                        f"aws s3 sync failed (exit {upload_rc}): "
-                        f"{file_type}/state={s}/ → {s3_dest}"
-                    )
+                    raise RuntimeError(f"aws s3 sync failed (exit {upload_rc}): {file_type}/state={s}/ → {s3_dest}")
                 print("    Done.", flush=True)
             else:
                 print(
-                    f"  WARNING: No {file_type} output directory for state={s} — "
-                    f"nothing to upload.",
+                    f"  WARNING: No {file_type} output directory for state={s} — nothing to upload.",
                     flush=True,
                 )
 
@@ -751,9 +703,7 @@ def _modify_metadata(
     if run_identify_heating_type:
         metadata = identify_heating_type(metadata=metadata, upgrade_id=upgrade_id)
     if run_identify_natgas_connection:
-        lca_dir = (
-            path_raw / "load_curve_annual" / f"state={state}" / f"upgrade={upgrade_id}"
-        )
+        lca_dir = path_raw / "load_curve_annual" / f"state={state}" / f"upgrade={upgrade_id}"
         if not lca_dir.exists():
             raise RuntimeError(
                 f"[state={state} upgrade={upgrade_id}] load_curve_annual not found "
@@ -761,14 +711,11 @@ def _modify_metadata(
                 f"Ensure 'load_curve_annual' is in --file-types so it is fetched."
             )
         load_curve_annual = pl.scan_parquet(str(lca_dir))
-        metadata = identify_natgas_connection(
-            metadata=metadata, load_curve_annual=load_curve_annual
-        )
+        metadata = identify_natgas_connection(metadata=metadata, load_curve_annual=load_curve_annual)
     if run_add_vulnerability_columns:
         if pums_base_dir is None or pums_survey is None or pums_year is None:
             raise ValueError(
-                "pums_base_dir, pums_survey, and pums_year are required "
-                "when --add-vulnerability-columns True."
+                "pums_base_dir, pums_survey, and pums_year are required when --add-vulnerability-columns True."
             )
         puma_conditional_probs = load_puma_conditional_probs(
             pums_base_dir=pums_base_dir,
@@ -805,10 +752,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--path-s3-gis-dir",
         default=_DEFAULT_S3_GIS_DIR,
         metavar="S3_URI",
-        help=(
-            "S3 directory containing utility polygon CSV files "
-            f"(default: {_DEFAULT_S3_GIS_DIR})."
-        ),
+        help=(f"S3 directory containing utility polygon CSV files (default: {_DEFAULT_S3_GIS_DIR})."),
     )
     parser.add_argument(
         "--path-s3-pums-dir",
@@ -883,10 +827,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=parse_bool,
         default=True,
         metavar="BOOL",
-        help=(
-            "Add heating-type columns to metadata (default: True). "
-            "Requires identify-hp-customers."
-        ),
+        help=("Add heating-type columns to metadata (default: True). Requires identify-hp-customers."),
     )
     parser.add_argument(
         "--identify-natgas-connection",
@@ -1092,9 +1033,7 @@ def main(argv: list[str] | None = None) -> None:
     s3_base_sb = f"{args.path_s3_dir.rstrip('/')}/{release_sb}"
 
     # File types that will actually appear in _sb (excludes raw-only types).
-    sb_file_types = [
-        ft for ft in args.file_types if ft not in SB_CLONE_EXCLUDED_FILE_TYPES
-    ]
+    sb_file_types = [ft for ft in args.file_types if ft not in SB_CLONE_EXCLUDED_FILE_TYPES]
 
     # ── Manifest: start a run record ──────────────────────────────────────────
     # Ensure _sb directory and manifest exist before any I/O so that even a
@@ -1113,10 +1052,7 @@ def main(argv: list[str] | None = None) -> None:
             "identify_natgas_connection": args.identify_natgas_connection,
             "add_vulnerability_columns": args.add_vulnerability_columns
             if args.add_vulnerability_columns is not None
-            else {
-                s: _resolve_state_flag(None, s, "add_vulnerability_columns")
-                for s in args.state
-            },
+            else {s: _resolve_state_flag(None, s, "add_vulnerability_columns") for s in args.state},
             "approximate_non_hp_load": args.approximate_non_hp_load,
             "adjust_mf_electricity": args.adjust_mf_electricity,
             "adjust_gas_usage": args.adjust_gas_usage,
@@ -1248,15 +1184,11 @@ def main(argv: list[str] | None = None) -> None:
         metadata_transforms_applied: list[str] = []
         print("Modifying metadata...", flush=True)
         for s in args.state:
-            add_vuln = _resolve_state_flag(
-                args.add_vulnerability_columns, s, "add_vulnerability_columns"
-            )
+            add_vuln = _resolve_state_flag(args.add_vulnerability_columns, s, "add_vulnerability_columns")
             for uid in args.upgrade_ids:
                 upgrade_id_padded = uid.zfill(2)
                 loc = f"state={s} upgrade={upgrade_id_padded}"
-                metadata_dir = (
-                    path_sb / "metadata" / f"state={s}" / f"upgrade={upgrade_id_padded}"
-                )
+                metadata_dir = path_sb / "metadata" / f"state={s}" / f"upgrade={upgrade_id_padded}"
                 input_path = metadata_dir / "metadata.parquet"
                 output_path = metadata_dir / "metadata-sb.parquet"
 
@@ -1324,14 +1256,10 @@ def main(argv: list[str] | None = None) -> None:
                 upsert_run(path_sb, run)
                 upload_manifest(path_sb, s3_base_sb)
             except Exception as exc:
-                run.setdefault("warnings", []).append(
-                    f"assign_utility S3 upload failed: {exc}"
-                )
+                run.setdefault("warnings", []).append(f"assign_utility S3 upload failed: {exc}")
                 upsert_run(path_sb, run)
-                try:
+                with contextlib.suppress(Exception):
                     upload_manifest(path_sb, s3_base_sb)
-                except Exception:
-                    pass
                 raise
             gc.collect()
 
@@ -1424,14 +1352,10 @@ def main(argv: list[str] | None = None) -> None:
                 upsert_run(path_sb, run)
                 upload_manifest(path_sb, s3_base_sb)
             except Exception as exc:
-                run.setdefault("warnings", []).append(
-                    f"add_aggregate_loads failed: {exc}"
-                )
+                run.setdefault("warnings", []).append(f"add_aggregate_loads failed: {exc}")
                 upsert_run(path_sb, run)
-                try:
+                with contextlib.suppress(Exception):
                     upload_manifest(path_sb, s3_base_sb)
-                except Exception:
-                    pass
                 raise
             gc.collect()
 
@@ -1451,10 +1375,8 @@ def main(argv: list[str] | None = None) -> None:
         except Exception as exc:
             run.setdefault("warnings", []).append(f"upload_raw S3 upload failed: {exc}")
             upsert_run(path_raw, run)
-            try:
+            with contextlib.suppress(Exception):
                 upload_manifest(path_raw, s3_base_raw)
-            except Exception:
-                pass
             raise
 
         print("Uploading modified sb ResStock data to S3...", flush=True)
@@ -1472,10 +1394,8 @@ def main(argv: list[str] | None = None) -> None:
         except Exception as exc:
             run.setdefault("warnings", []).append(f"upload_sb S3 upload failed: {exc}")
             upsert_run(path_sb, run)
-            try:
+            with contextlib.suppress(Exception):
                 upload_manifest(path_sb, s3_base_sb)
-            except Exception:
-                pass
             raise
 
         print("Validating S3 uploads...", flush=True)
@@ -1547,10 +1467,8 @@ def main(argv: list[str] | None = None) -> None:
         # Best-effort: record the failure in both manifests (creating directories
         # if needed so pre-flight failures are captured before bsf/clone run).
         for path in (path_raw, path_sb):
-            try:
+            with contextlib.suppress(Exception):
                 upsert_run(path, run)
-            except Exception:
-                pass
         notify_failed(run)
         sys.exit(1)
 

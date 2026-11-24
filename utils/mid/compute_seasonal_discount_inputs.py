@@ -108,10 +108,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--output-dir",
-        help=(
-            "Optional output directory for seasonal discount CSV. "
-            "If omitted, writes to --run-dir."
-        ),
+        help=("Optional output directory for seasonal discount CSV. If omitted, writes to --run-dir."),
     )
     args = parser.parse_args()
 
@@ -121,9 +118,7 @@ def main() -> None:
 
     storage_options = get_aws_storage_options() if isinstance(run_dir, S3Path) else None
     group_value_to_subclass = (
-        parse_group_value_to_subclass(args.group_value_to_subclass)
-        if args.group_value_to_subclass
-        else None
+        parse_group_value_to_subclass(args.group_value_to_subclass) if args.group_value_to_subclass else None
     )
     seasonal_inputs = compute_subclass_seasonal_discount_inputs(
         run_dir=run_dir,

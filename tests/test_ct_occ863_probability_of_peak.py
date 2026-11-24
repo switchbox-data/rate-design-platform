@@ -29,9 +29,7 @@ def _long_table_row(index: int) -> list[object]:
     return row
 
 
-def _matrix_block(
-    title: str, cells: dict[tuple[int, int], float]
-) -> list[list[object]]:
+def _matrix_block(title: str, cells: dict[tuple[int, int], float]) -> list[list[object]]:
     rows: list[list[object]] = []
     title_row = _long_table_row(1)
     title_row[16] = title
@@ -56,14 +54,8 @@ def _matrix_block(
     return rows
 
 
-def _page_3(
-    weekday: dict[tuple[int, int], float], weekend: dict[tuple[int, int], float]
-) -> pl.DataFrame:
-    rows = (
-        [_long_table_row(0)]
-        + _matrix_block(_WEEKDAY_TITLE, weekday)
-        + _matrix_block(_WEEKEND_TITLE, weekend)
-    )
+def _page_3(weekday: dict[tuple[int, int], float], weekend: dict[tuple[int, int], float]) -> pl.DataFrame:
+    rows = [_long_table_row(0), *_matrix_block(_WEEKDAY_TITLE, weekday), *_matrix_block(_WEEKEND_TITLE, weekend)]
     return pl.DataFrame([tuple(row) for row in rows], orient="row")
 
 
@@ -79,9 +71,7 @@ _WEEKEND_CELLS = {(7, 18): 0.25}
 
 
 def test_melts_both_matrices_as_fractions() -> None:
-    weekday, weekend = month_hour_probability_of_peak(
-        _page_3(_WEEKDAY_CELLS, _WEEKEND_CELLS)
-    )
+    weekday, weekend = month_hour_probability_of_peak(_page_3(_WEEKDAY_CELLS, _WEEKEND_CELLS))
     assert weekday.columns == ["month", "hour", "probability_of_peak"]
     assert weekday.height == 288
     assert weekend.height == 288
@@ -98,18 +88,12 @@ def test_rejects_matrices_that_do_not_sum_to_one() -> None:
 
 
 def test_attaches_day_counts_from_the_cost_page() -> None:
-    weekday, weekend = month_hour_probability_of_peak(
-        _page_3(_WEEKDAY_CELLS, _WEEKEND_CELLS)
-    )
+    weekday, weekend = month_hour_probability_of_peak(_page_3(_WEEKDAY_CELLS, _WEEKEND_CELLS))
     out = attach_day_counts(weekday, _cost_matrix(weekday, _WEEKDAY_DAYS), "weekday")
     assert out.columns == ["month", "hour", "num_days", "probability_of_peak"]
     assert out.filter(pl.col("month") == 7)["num_days"].unique().to_list() == [21]
-    out_weekend = attach_day_counts(
-        weekend, _cost_matrix(weekend, _WEEKEND_DAYS), "weekend"
-    )
-    assert out_weekend.filter(pl.col("month") == 11)["num_days"].unique().to_list() == [
-        12
-    ]
+    out_weekend = attach_day_counts(weekend, _cost_matrix(weekend, _WEEKEND_DAYS), "weekend")
+    assert out_weekend.filter(pl.col("month") == 11)["num_days"].unique().to_list() == [12]
 
 
 def test_rejects_day_counts_that_do_not_explain_the_cost() -> None:

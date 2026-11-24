@@ -15,7 +15,7 @@ echo
 # Install prek
 echo "📦 Installing prek"
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/j178/prek/releases/download/v0.2.11/prek-installer.sh | sh
+  https://github.com/j178/prek/releases/download/v0.5.10/prek-installer.sh | sh
 echo
 
 # Add prek to PATH for this session

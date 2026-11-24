@@ -174,11 +174,7 @@ def parse_intermediate(path: Path) -> list[Row]:
         peak_date, he, rto_mw = rto_by_rank[rank]
         rows.append(Row(summer, rank, peak_date, he, "RTO", rto_mw, **fields))
         for zone in sorted(zone_mw):
-            rows.append(
-                Row(
-                    summer, rank, peak_date, he, zone, zone_mw[zone][rank - 1], **fields
-                )
-            )
+            rows.append(Row(summer, rank, peak_date, he, zone, zone_mw[zone][rank - 1], **fields))
     return rows
 
 
@@ -205,9 +201,7 @@ def write_csv(rows: list[Row], path: Path) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Convert 5CP markdown intermediates to fivecp_peaks.csv."
-    )
+    parser = argparse.ArgumentParser(description="Convert 5CP markdown intermediates to fivecp_peaks.csv.")
     parser.add_argument("--path-sources", type=Path, required=True)
     parser.add_argument("--path-csv", type=Path, required=True)
     args = parser.parse_args()

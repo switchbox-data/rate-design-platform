@@ -174,13 +174,9 @@ def combine_marginal_costs(
         if len(total_bulk) == len(dist_mc):
             try:
                 target_year = int(total_bulk.index[0].year)
-                dist_index = pd.DatetimeIndex(
-                    [ts.replace(year=target_year) for ts in dist_mc.index]
-                )
+                dist_index = pd.DatetimeIndex([ts.replace(year=target_year) for ts in dist_mc.index])
                 dist_index = (
-                    dist_index.tz_localize(bulk_tz)
-                    if dist_index.tz is None
-                    else dist_index.tz_convert(bulk_tz)
+                    dist_index.tz_localize(bulk_tz) if dist_index.tz is None else dist_index.tz_convert(bulk_tz)
                 )
                 dist_mc = pd.Series(
                     dist_mc.values,
@@ -207,17 +203,11 @@ def combine_marginal_costs(
             if len(total_bulk) == len(btx):
                 try:
                     target_year = int(total_bulk.index[0].year)
-                    btx_index = pd.DatetimeIndex(
-                        [ts.replace(year=target_year) for ts in btx.index]
-                    )
+                    btx_index = pd.DatetimeIndex([ts.replace(year=target_year) for ts in btx.index])
                     btx_index = (
-                        btx_index.tz_localize(bulk_tz)
-                        if btx_index.tz is None
-                        else btx_index.tz_convert(bulk_tz)
+                        btx_index.tz_localize(bulk_tz) if btx_index.tz is None else btx_index.tz_convert(bulk_tz)
                     )
-                    btx = pd.Series(
-                        btx.values, index=btx_index, name=btx.name
-                    ).sort_index()
+                    btx = pd.Series(btx.values, index=btx_index, name=btx.name).sort_index()
                 except ValueError:
                     btx = pd.Series(btx.values, index=total_bulk.index, name=btx.name)
             if not total_bulk.index.equals(btx.index):
@@ -227,8 +217,7 @@ def combine_marginal_costs(
     combined = pd.concat(parts, axis=1).dropna(how="any")
     if combined.empty:
         raise ValueError(
-            "Unable to align bulk and dist+sub-tx marginal costs: no overlapping "
-            "timestamps after index alignment."
+            "Unable to align bulk and dist+sub-tx marginal costs: no overlapping timestamps after index alignment."
         )
 
     total: pd.Series = combined.sum(axis=1)
@@ -260,16 +249,8 @@ def compute_tou_fit_metric(
     peak_load = hourly_load[is_peak].sum()
     offpeak_load = hourly_load[~is_peak].sum()
 
-    peak_avg = (
-        (combined_mc[is_peak] * hourly_load[is_peak]).sum() / peak_load
-        if peak_load > 0
-        else 0.0
-    )
-    offpeak_avg = (
-        (combined_mc[~is_peak] * hourly_load[~is_peak]).sum() / offpeak_load
-        if offpeak_load > 0
-        else 0.0
-    )
+    peak_avg = (combined_mc[is_peak] * hourly_load[is_peak]).sum() / peak_load if peak_load > 0 else 0.0
+    offpeak_avg = (combined_mc[~is_peak] * hourly_load[~is_peak]).sum() / offpeak_load if offpeak_load > 0 else 0.0
 
     period_rate = np.where(is_peak, peak_avg, offpeak_avg)
     residuals = (combined_mc.values - period_rate) ** 2 * hourly_load.values

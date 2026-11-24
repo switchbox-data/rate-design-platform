@@ -319,9 +319,7 @@ def _detect_periods_from_multi_rate_monthly(
             cur_months.append(month)
         else:
             rates_dict = {lb: rate_vectors[lb][all_month_keys[0]] for lb in labels}
-            ref_mk = next(
-                k for k in all_month_keys if _month_key_to_int(k) == cur_months[0]
-            )
+            ref_mk = next(k for k in all_month_keys if _month_key_to_int(k) == cur_months[0])
             rates_dict = {lb: rate_vectors[lb][ref_mk] for lb in labels}
             periods.append((cur_months, rates_dict))
             cur_months = [month]
@@ -435,7 +433,7 @@ def _build_seasonal_tiered_tariff(
 
     # Build per-tier monthly rate vectors for period detection
     tier_vectors: dict[str, dict[str, float]] = {}
-    for tier_idx, (upper_limit, season_rates) in enumerate(tiers):
+    for tier_idx, (_upper_limit, season_rates) in enumerate(tiers):
         month_rates: dict[str, float] = {}
         for mk in sorted(topup_rates.keys() | supply_rates.keys()):
             month = _month_key_to_int(mk)
@@ -490,16 +488,13 @@ def _build_seasonal_tou_tariff(
 
     peak_hours: set[int] = set()
     weekdays_only = False
-    on_peak_name = next(
-        (t for t in tou_names if "off" not in t and "peak" in t), None
-    ) or next((t for t in tou_names if "off" not in t), tou_names[-1])
+    on_peak_name = next((t for t in tou_names if "off" not in t and "peak" in t), None) or next(
+        (t for t in tou_names if "off" not in t), tou_names[-1]
+    )
     if on_peak_name in tou_periods_def:
         tou_spec = tou_periods_def[on_peak_name]
         fh, th = tou_spec["from_hour"], tou_spec["to_hour"]
-        if fh < th:
-            peak_hours = set(range(fh, th))
-        else:
-            peak_hours = set(range(fh, 24)) | set(range(0, th))
+        peak_hours = set(range(fh, th)) if fh < th else set(range(fh, 24)) | set(range(0, th))
         weekdays_only = tou_spec.get("weekdays_only", False)
 
     # Assign period indices: iterate seasons then TOU periods
@@ -559,11 +554,7 @@ def _build_seasonal_tou_tariff(
         return delivery_tariff, delivery_tariff
 
     # Check if supply varies monthly — if so, we need per-month periods
-    all_month_keys = (
-        sorted(next(iter(supply_slot_monthly.values())).keys())
-        if supply_slot_monthly
-        else []
-    )
+    all_month_keys = sorted(next(iter(supply_slot_monthly.values())).keys()) if supply_slot_monthly else []
 
     # Build combined rate vectors per slot per month
     combined_vectors: dict[str, dict[str, float]] = {}
@@ -599,9 +590,7 @@ def _build_seasonal_tou_tariff(
             for t in tou_names:
                 sk = f"{s}_{t}"
                 rate = rates_dict[sk]
-                supply_rate_structure.append(
-                    [{"rate": round(rate, 6), "adj": 0.0, "unit": "kWh"}]
-                )
+                supply_rate_structure.append([{"rate": round(rate, 6), "adj": 0.0, "unit": "kWh"}])
                 slot_period_map[sk] = period_idx
                 period_idx += 1
         for m in months:
@@ -661,9 +650,7 @@ def process_utility(
 
     rate_structure = already.get("rate_structure", "flat")
 
-    fixed_charge = _extract_fixed_charge_avg(already) + _extract_fixed_charge_avg(
-        add_drr
-    )
+    fixed_charge = _extract_fixed_charge_avg(already) + _extract_fixed_charge_avg(add_drr)
     log.info(
         "%s: rate_structure=%s, fixed_charge=$%.2f/mo",
         utility,
@@ -672,21 +659,13 @@ def process_utility(
     )
 
     if rate_structure == "flat":
-        delivery, supply = _build_flat_tariff(
-            utility, already, add_drr, add_srr, fixed_charge
-        )
+        delivery, supply = _build_flat_tariff(utility, already, add_drr, add_srr, fixed_charge)
     elif rate_structure == "seasonal_tiered":
-        delivery, supply = _build_seasonal_tiered_tariff(
-            utility, already, add_drr, add_srr, fixed_charge
-        )
+        delivery, supply = _build_seasonal_tiered_tariff(utility, already, add_drr, add_srr, fixed_charge)
     elif rate_structure == "seasonal_tou":
-        delivery, supply = _build_seasonal_tou_tariff(
-            utility, already, add_drr, add_srr, fixed_charge
-        )
+        delivery, supply = _build_seasonal_tou_tariff(utility, already, add_drr, add_srr, fixed_charge)
     else:
-        log.error(
-            "%s: unsupported rate_structure '%s' — skipping", utility, rate_structure
-        )
+        log.error("%s: unsupported rate_structure '%s' — skipping", utility, rate_structure)
         return
 
     delivery_path = output_dir / f"{utility}_default.json"
@@ -711,9 +690,7 @@ def process_utility(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Generate default-structure URDB v7 tariffs from monthly_rates YAML"
-    )
+    parser = argparse.ArgumentParser(description="Generate default-structure URDB v7 tariffs from monthly_rates YAML")
     parser.add_argument(
         "--monthly-rates-dir",
         type=Path,
@@ -737,9 +714,7 @@ def main() -> None:
     pattern = f"*_monthly_rates_{args.year}.yaml"
     mr_files = sorted(args.monthly_rates_dir.glob(pattern))
     if not mr_files:
-        raise FileNotFoundError(
-            f"No files matching {pattern} in {args.monthly_rates_dir}"
-        )
+        raise FileNotFoundError(f"No files matching {pattern} in {args.monthly_rates_dir}")
 
     suffix = f"_monthly_rates_{args.year}.yaml"
     utilities = [f.name.removesuffix(suffix) for f in mr_files]
@@ -747,7 +722,7 @@ def main() -> None:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    for utility, mr_path in zip(utilities, mr_files):
+    for utility, mr_path in zip(utilities, mr_files, strict=False):
         process_utility(utility, mr_path, args.output_dir)
 
     log.info("Done — wrote default-structure tariffs for %d utilities", len(utilities))

@@ -52,15 +52,11 @@ SCHEMA = {
 
 def _reject_just_placeholders(val: str) -> None:
     if "{{" in val or "}}" in val:
-        print(
-            f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr
-        )
+        print(f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr)
         sys.exit(1)
 
 
-def _fetch_year_raw(
-    iso: NYISO, year: int, *, max_month: int = 12
-) -> pd.DataFrame | None:
+def _fetch_year_raw(iso: NYISO, year: int, *, max_month: int = 12) -> pd.DataFrame | None:
     """Try the latest available month's report for the year, walking backwards."""
     for m in range(max_month, 0, -1):
         date = cast(pd.Timestamp, pd.Timestamp(year=year, month=m, day=1))
@@ -94,17 +90,13 @@ def _reshape_to_polars(raw: pd.DataFrame, year: int) -> pl.DataFrame:
                     "price_per_kw_month": float(price),
                 }
             )
-    return pl.DataFrame(records, schema=SCHEMA).sort(
-        "month", "locality", "auction_type"
-    )
+    return pl.DataFrame(records, schema=SCHEMA).sort("month", "locality", "auction_type")
 
 
 def _write_partitioned(df: pl.DataFrame, output_dir: Path) -> int:
     """Write one data.parquet per (year, month) partition. Returns files written."""
     files_written = 0
-    for (year_val, month_val), group in df.group_by(
-        ["year", "month"], maintain_order=True
-    ):
+    for (year_val, month_val), group in df.group_by(["year", "month"], maintain_order=True):
         part_dir = output_dir / f"year={year_val}" / f"month={month_val}"
         part_dir.mkdir(parents=True, exist_ok=True)
         path = part_dir / "data.parquet"
@@ -117,12 +109,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Fetch NYISO ICAP clearing prices via gridstatus → parquet",
     )
-    parser.add_argument(
-        "--start", type=int, required=True, help="First year to fetch (e.g. 2014)"
-    )
-    parser.add_argument(
-        "--end", type=int, required=True, help="Last year to fetch (e.g. 2025)"
-    )
+    parser.add_argument("--start", type=int, required=True, help="First year to fetch (e.g. 2014)")
+    parser.add_argument("--end", type=int, required=True, help="Last year to fetch (e.g. 2025)")
     parser.add_argument(
         "--path-local-parquet",
         type=str,

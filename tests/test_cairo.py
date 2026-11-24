@@ -2,10 +2,9 @@
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
-
-import numpy as np
 
 from utils.cairo import (
     FLEX_SHIFT_MIN_PERIOD_ABS_KWH,
@@ -128,24 +127,10 @@ def test_runtime_demand_response_shifts_only_tou_customers() -> None:
         shifted.loc[2, "electricity_net"],
         check_names=False,
     )
-    assert shifted.loc[1, "electricity_net"].sum() == pytest.approx(
-        raw.loc[1, "electricity_net"].sum()
-    )
-    periods = assign_hourly_periods(pd.DatetimeIndex(raw.loc[1].index), tariff).rename(
-        "energy_period"
-    )
-    before = (
-        raw.loc[1]
-        .assign(energy_period=periods.values)
-        .groupby("energy_period")["electricity_net"]
-        .sum()
-    )
-    after = (
-        shifted.loc[1]
-        .assign(energy_period=periods.values)
-        .groupby("energy_period")["electricity_net"]
-        .sum()
-    )
+    assert shifted.loc[1, "electricity_net"].sum() == pytest.approx(raw.loc[1, "electricity_net"].sum())
+    periods = assign_hourly_periods(pd.DatetimeIndex(raw.loc[1].index), tariff).rename("energy_period")
+    before = raw.loc[1].assign(energy_period=periods.values).groupby("energy_period")["electricity_net"].sum()
+    after = shifted.loc[1].assign(energy_period=periods.values).groupby("energy_period")["electricity_net"].sum()
     assert after.loc[1] < before.loc[1]
     assert not tracker.empty
 
@@ -166,9 +151,7 @@ def test_runtime_demand_response_infers_seasonal_wrapper() -> None:
         season_specs=None,
     )
 
-    assert shifted["electricity_net"].sum() == pytest.approx(
-        raw["electricity_net"].sum()
-    )
+    assert shifted["electricity_net"].sum() == pytest.approx(raw["electricity_net"].sum())
     assert not tracker.empty
     assert any(col.startswith("season_1_period_") for col in tracker.columns)
     assert any(col.startswith("season_2_period_") for col in tracker.columns)
@@ -188,7 +171,7 @@ def test_flex_shift_near_zero_period_net_does_not_explode_hourly_values() -> Non
         index=pd.Index([0, 1], name="energy_period"),
         name="rate",
     )
-    shifted, hourly_shift, tracker = process_residential_hourly_demand_response_shift(
+    shifted, hourly_shift, _tracker = process_residential_hourly_demand_response_shift(
         hourly,
         period_rate,
         demand_elasticity=-0.1,

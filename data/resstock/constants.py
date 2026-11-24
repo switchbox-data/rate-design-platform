@@ -125,7 +125,7 @@ def _get_config_value(key: str) -> str:
 if __name__ == "__main__":
     import sys
 
-    if len(sys.argv) != 2:  # noqa: PLR2004
+    if len(sys.argv) != 2:
         print(
             "Usage: uv run python -m data.resstock.constants <key>",
             file=sys.stderr,

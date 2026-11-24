@@ -56,9 +56,7 @@ SCHEMA = pl.Schema(
 
 def _reject_just_placeholders(val: str) -> None:
     if "{{" in val or "}}" in val:
-        print(
-            f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr
-        )
+        print(f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -183,9 +181,7 @@ def _parse_csv(text: str, cp: str, ara_number: int) -> list[dict[str, object]]:
     return records
 
 
-def _fetch_and_parse(
-    cp: str, ara_number: int, output_dir: Path
-) -> tuple[str, int, int]:
+def _fetch_and_parse(cp: str, ara_number: int, output_dir: Path) -> tuple[str, int, int]:
     """Fetch, parse, and write one CP/ARA partition. Returns (label, rows, skipped)."""
     label = f"CP {cp} ARA{ara_number}"
     part_dir = output_dir / f"cp={cp}" / f"ara_number={ara_number}"
@@ -245,9 +241,7 @@ def main() -> None:
     cps = _cp_range(args.start_cp, args.end_cp)
     tasks = [(cp, ara) for cp in cps for ara in ARA_NUMBERS]
 
-    print(
-        f"Fetching ARA data for {len(cps)} CPs × {len(ARA_NUMBERS)} ARAs = {len(tasks)} tasks"
-    )
+    print(f"Fetching ARA data for {len(cps)} CPs × {len(ARA_NUMBERS)} ARAs = {len(tasks)} tasks")
     print(f"Workers: {args.workers}")
     print(f"Output: {output_dir}\n")
 
@@ -257,10 +251,7 @@ def main() -> None:
     total_empty = 0
 
     with ThreadPoolExecutor(max_workers=args.workers) as executor:
-        futures = {
-            executor.submit(_fetch_and_parse, cp, ara, output_dir): (cp, ara)
-            for cp, ara in tasks
-        }
+        futures = {executor.submit(_fetch_and_parse, cp, ara, output_dir): (cp, ara) for cp, ara in tasks}
         for future in as_completed(futures):
             label, rows, skipped = future.result()
             if skipped:

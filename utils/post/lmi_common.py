@@ -30,7 +30,7 @@ def load_fpl_guidelines(year: int) -> dict[str, int]:
     with path.open() as f:
         data = yaml.safe_load(f)
     if not isinstance(data, dict):
-        raise ValueError(f"FPL guidelines invalid in {path}")  # noqa: TRY004
+        raise ValueError(f"FPL guidelines invalid in {path}")
     entry = data.get(year) or data.get(str(year))
     if entry is None:
         raise ValueError(f"FPL guidelines not found for year {year} in {path}")
@@ -61,9 +61,7 @@ def inflate_income_expr(income_col: str, ratio: float) -> pl.Expr:
     return pl.col(income_col) * pl.lit(ratio)
 
 
-def load_cpi_ratio(
-    cpi_s3_path: str, inflation_year: int, opts: dict[str, str]
-) -> float:
+def load_cpi_ratio(cpi_s3_path: str, inflation_year: int, opts: dict[str, str]) -> float:
     """Load CPI parquet (year, value), return ratio for inflating income from 2019 to *inflation_year*."""
     cpi_df = (
         pl.scan_parquet(cpi_s3_path, storage_options=opts)
@@ -73,20 +71,13 @@ def load_cpi_ratio(
     cpi_2019 = cpi_df.filter(pl.col("year") == RESSTOCK_INCOME_DOLLAR_YEAR)
     cpi_target = cpi_df.filter(pl.col("year") == inflation_year)
     if cpi_2019.is_empty() or cpi_target.is_empty():
-        raise ValueError(
-            f"CPI data must contain {RESSTOCK_INCOME_DOLLAR_YEAR} and {inflation_year}"
-        )
+        raise ValueError(f"CPI data must contain {RESSTOCK_INCOME_DOLLAR_YEAR} and {inflation_year}")
     return float(cpi_target["value"][0]) / float(cpi_2019["value"][0])
 
 
 def parse_occupants_expr(occupants_col: str) -> pl.Expr:
     """Parse in.occupants string to int; treat '10+' as 10."""
-    return (
-        pl.col(occupants_col)
-        .str.replace_all("10+", "10", literal=True)
-        .cast(pl.Int64)
-        .clip(1, OCCUPANTS_CAP)
-    )
+    return pl.col(occupants_col).str.replace_all("10+", "10", literal=True).cast(pl.Int64).clip(1, OCCUPANTS_CAP)
 
 
 def load_ri_lidr_config() -> dict:
@@ -99,10 +90,7 @@ def load_ri_lidr_config() -> dict:
         config = yaml.safe_load(f)
     for section in ("electric", "gas"):
         if section not in config or "tiers" not in config[section]:
-            raise ValueError(
-                f"ri_lidr_plus.yaml missing '{section}.tiers'; "
-                f"expected 'electric' and 'gas' sub-sections"
-            )
+            raise ValueError(f"ri_lidr_plus.yaml missing '{section}.tiers'; expected 'electric' and 'gas' sub-sections")
     return config
 
 
@@ -179,13 +167,9 @@ def select_participants_weighted(
     Returns a DataFrame with bldg_id and participates (bool) for joining back to pipeline.
     """
     if rate >= 1.0:
-        return eligible_df.select(pl.col(bldg_id_col)).with_columns(
-            pl.lit(True).alias("participates")
-        )
+        return eligible_df.select(pl.col(bldg_id_col)).with_columns(pl.lit(True).alias("participates"))
     if rate <= 0.0:
-        return eligible_df.select(pl.col(bldg_id_col)).with_columns(
-            pl.lit(False).alias("participates")
-        )
+        return eligible_df.select(pl.col(bldg_id_col)).with_columns(pl.lit(False).alias("participates"))
     n = max(1, int(eligible_df.height * rate + 0.5))
     n = min(n, eligible_df.height)
     # Weighted sampling without replacement so exactly n unique participants are selected
@@ -220,7 +204,7 @@ def load_md_ohep_config(
     with path.open() as f:
         config = yaml.safe_load(f)
     if not isinstance(config, dict):
-        raise ValueError(f"MD OHEP config invalid in {path}")  # noqa: TRY004
+        raise ValueError(f"MD OHEP config invalid in {path}")
     required = {
         "program_year",
         "fpl_guideline_year",
@@ -234,9 +218,7 @@ def load_md_ohep_config(
     return config
 
 
-def assign_md_ohep_level_expr(
-    fpl_pct_col: str, config: dict[str, Any] | None = None
-) -> pl.Expr:
+def assign_md_ohep_level_expr(fpl_pct_col: str, config: dict[str, Any] | None = None) -> pl.Expr:
     """Assign modeled OHEP Poverty Level 1-5 from FPL%; 0 means unmodeled.
 
     The published labels use whole-number ranges (for example, 26-50% FPL).
@@ -250,9 +232,7 @@ def assign_md_ohep_level_expr(
         config = load_md_ohep_config()
     fpl = pl.col(fpl_pct_col)
     expr = pl.lit(0, dtype=pl.Int32)
-    for tier in sorted(
-        config["poverty_levels"], key=lambda item: item["level"], reverse=True
-    ):
+    for tier in sorted(config["poverty_levels"], key=lambda item: item["level"], reverse=True):
         lower = float(tier["fpl_lower_bound"])
         upper = float(tier["fpl_upper_bound"])
         lower_match = fpl >= lower if tier["fpl_lower_inclusive"] else fpl > lower
@@ -265,31 +245,21 @@ def assign_md_ohep_level_expr(
     return expr
 
 
-def assign_md_eusp_kwh_band_expr(
-    annual_kwh_col: str, config: dict[str, Any] | None = None
-) -> pl.Expr:
+def assign_md_eusp_kwh_band_expr(annual_kwh_col: str, config: dict[str, Any] | None = None) -> pl.Expr:
     """Assign EUSP annual-electric-consumption band 1-4; 0 means invalid."""
     if config is None:
         config = load_md_ohep_config()
     annual_kwh = pl.col(annual_kwh_col)
     expr = pl.lit(0, dtype=pl.Int32)
-    for band in sorted(
-        config["eusp"]["kwh_bands"], key=lambda item: item["band"], reverse=True
-    ):
+    for band in sorted(config["eusp"]["kwh_bands"], key=lambda item: item["band"], reverse=True):
         lower = float(band["lower_bound_kwh"])
-        lower_match = (
-            annual_kwh >= lower if band["lower_inclusive"] else annual_kwh > lower
-        )
+        lower_match = annual_kwh >= lower if band["lower_inclusive"] else annual_kwh > lower
         upper = band["upper_bound_kwh"]
         if upper is None:
             upper_match = pl.lit(True)
         else:
             upper_value = float(upper)
-            upper_match = (
-                annual_kwh <= upper_value
-                if band["upper_inclusive"]
-                else annual_kwh < upper_value
-            )
+            upper_match = annual_kwh <= upper_value if band["upper_inclusive"] else annual_kwh < upper_value
         expr = (
             pl.when(annual_kwh.is_not_null() & lower_match & upper_match)
             .then(pl.lit(int(band["band"]), dtype=pl.Int32))
@@ -352,7 +322,7 @@ def load_md_bge_proposed_lim_config() -> dict[str, Any]:
     with path.open() as f:
         config = yaml.safe_load(f)
     if not isinstance(config, dict):
-        raise ValueError(f"BGE proposed LIM config invalid in {path}")  # noqa: TRY004
+        raise ValueError(f"BGE proposed LIM config invalid in {path}")
     required = {"utility", "filing_date", "status", "electric", "gas"}
     missing = sorted(required - config.keys())
     if missing:
@@ -368,12 +338,8 @@ def get_md_bge_proposed_lim_rates_df(
     """Flatten BGE's proposed electric and gas LIM rates by OHEP level."""
     if config is None:
         config = load_md_bge_proposed_lim_config()
-    electric_by_level = {
-        int(row["ohep_poverty_level"]): row for row in config["electric"]["rates"]
-    }
-    gas_by_level = {
-        int(row["ohep_poverty_level"]): row for row in config["gas"]["rates"]
-    }
+    electric_by_level = {int(row["ohep_poverty_level"]): row for row in config["electric"]["rates"]}
+    gas_by_level = {int(row["ohep_poverty_level"]): row for row in config["gas"]["rates"]}
     levels = sorted(electric_by_level)
     if levels != sorted(gas_by_level):
         raise ValueError("BGE proposed electric and gas LIM levels do not match")
@@ -381,12 +347,8 @@ def get_md_bge_proposed_lim_rates_df(
         [
             {
                 "ohep_poverty_level": level,
-                "bge_proposed_lim_electric_heat_rate": float(
-                    electric_by_level[level]["electric_heat"]
-                ),
-                "bge_proposed_lim_non_electric_heat_rate": float(
-                    electric_by_level[level]["non_electric_heat"]
-                ),
+                "bge_proposed_lim_electric_heat_rate": float(electric_by_level[level]["electric_heat"]),
+                "bge_proposed_lim_non_electric_heat_rate": float(electric_by_level[level]["non_electric_heat"]),
                 "bge_proposed_lim_gas_rate": float(gas_by_level[level]["rate"]),
             }
             for level in levels
@@ -411,7 +373,7 @@ def load_ct_lidr_config(config_name: str = "ct_lidr.yaml") -> dict[str, Any]:
     with path.open() as f:
         config = yaml.safe_load(f)
     if not isinstance(config, dict):
-        raise ValueError(f"CT LIDR config invalid in {path}")  # noqa: TRY004
+        raise ValueError(f"CT LIDR config invalid in {path}")
     required = {"tiers", "usage_cap_kwh", "smi"}
     missing = sorted(required - config.keys())
     if missing:
@@ -421,9 +383,7 @@ def load_ct_lidr_config(config_name: str = "ct_lidr.yaml") -> dict[str, Any]:
         raise ValueError(f"CT LIDR config missing smi.by_household_size in {path}")
     sizes = {int(k) for k in smi["by_household_size"]}
     if sizes != set(range(1, 9)):
-        raise ValueError(
-            f"CT LIDR smi.by_household_size must have keys 1-8, got {sorted(sizes)} in {path}"
-        )
+        raise ValueError(f"CT LIDR smi.by_household_size must have keys 1-8, got {sorted(sizes)} in {path}")
     return config
 
 
@@ -472,17 +432,9 @@ def assign_ct_lidr_tier_expr(
     # SMI-bound tier(s) are the base assignment; FPL-bound tiers (applied
     # next, most-generous-last) override it for any lower-income household.
     for t in sorted(smi_tiers, key=lambda t: t["smi_upper_bound"], reverse=True):
-        expr = (
-            pl.when(smi <= t["smi_upper_bound"])
-            .then(pl.lit(int(t["tier"]), dtype=pl.Int32))
-            .otherwise(expr)
-        )
+        expr = pl.when(smi <= t["smi_upper_bound"]).then(pl.lit(int(t["tier"]), dtype=pl.Int32)).otherwise(expr)
     for t in sorted(fpl_tiers, key=lambda t: t["fpl_upper_bound"], reverse=True):
-        expr = (
-            pl.when(fpl <= t["fpl_upper_bound"])
-            .then(pl.lit(int(t["tier"]), dtype=pl.Int32))
-            .otherwise(expr)
-        )
+        expr = pl.when(fpl <= t["fpl_upper_bound"]).then(pl.lit(int(t["tier"]), dtype=pl.Int32)).otherwise(expr)
     return expr
 
 
@@ -541,18 +493,10 @@ def get_ny_eap_credits_df(config: dict[str, Any] | None = None) -> pl.DataFrame:
                 {
                     "utility": util_name,
                     "tier": t["tier"],
-                    "elec_heat": float(t["elec_heat"])
-                    if t["elec_heat"] is not None
-                    else None,
-                    "elec_nonheat": float(t["elec_nonheat"])
-                    if t["elec_nonheat"] is not None
-                    else None,
-                    "gas_heat": float(t["gas_heat"])
-                    if t["gas_heat"] is not None
-                    else None,
-                    "gas_nonheat": float(t["gas_nonheat"])
-                    if t["gas_nonheat"] is not None
-                    else None,
+                    "elec_heat": float(t["elec_heat"]) if t["elec_heat"] is not None else None,
+                    "elec_nonheat": float(t["elec_nonheat"]) if t["elec_nonheat"] is not None else None,
+                    "gas_heat": float(t["gas_heat"]) if t["gas_heat"] is not None else None,
+                    "gas_nonheat": float(t["gas_nonheat"]) if t["gas_nonheat"] is not None else None,
                 }
             )
     return pl.DataFrame(rows).with_columns(pl.col("tier").cast(pl.Int64))
@@ -640,13 +584,10 @@ def get_ami_threshold_for_utility(
 
     path = f"{s3_base}/fy={fy}/data.parquet"
     df = pl.read_parquet(path, storage_options=storage_options)
-    matched = df.filter(
-        (pl.col("state_fips") == state_fips) & (pl.col("county_fips") == county_fips)
-    )
+    matched = df.filter((pl.col("state_fips") == state_fips) & (pl.col("county_fips") == county_fips))
     if matched.is_empty():
         raise ValueError(
-            f"No AMI data for state_fips={state_fips}, county_fips={county_fips} "
-            f"(utility={utility}) at {path}"
+            f"No AMI data for state_fips={state_fips}, county_fips={county_fips} (utility={utility}) at {path}"
         )
     if matched.height > 1:
         raise ValueError(
@@ -708,9 +649,7 @@ def assign_ny_tier_expr(
     smi = pl.col(smi_pct_col)
     eeap = pl.col(ami_pct_col) if ami_pct_col else smi
     vuln = pl.col(is_vulnerable_col).fill_null(False)
-    deliverable_fuel = pl.col(heats_with_oil_col).fill_null(False) | pl.col(
-        heats_with_propane_col
-    ).fill_null(False)
+    deliverable_fuel = pl.col(heats_with_oil_col).fill_null(False) | pl.col(heats_with_propane_col).fill_null(False)
 
     return (
         # Tier 3: ≤130% FPL AND vulnerable AND utility-heated (not deliverable fuel)

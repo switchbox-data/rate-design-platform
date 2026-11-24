@@ -30,8 +30,8 @@ from utils.post.delivered_fuel_bills import (
 )
 from utils.post.io import (
     ANNUAL_MONTH,
-    BLDG_ID,
     BILL_LEVEL,
+    BLDG_ID,
     path_or_s3,
     scan,
     scan_load_curves_for_utility,
@@ -67,9 +67,7 @@ def _apply_population_filter(df: pl.DataFrame, filter_name: str) -> pl.DataFrame
             | (pl.col("heats_with_propane") == True)  # noqa: E712
         )
     if filter_name == "electric_resistance":
-        return df.filter(
-            pl.col("postprocess_group.heating_type") == "electrical_resistance"
-        )
+        return df.filter(pl.col("postprocess_group.heating_type") == "electrical_resistance")
     raise ValueError(f"Unknown filter: {filter_name}. Use one of {FILTER_OPTIONS}")
 
 
@@ -93,18 +91,12 @@ def _compute_bill_deltas(
     filter_name: str,
 ) -> pl.DataFrame:
     """Collect bills, add delivered fuel, compute delta, join metadata, filter, return DataFrame."""
-    topped_u00 = add_delivered_fuel_bills(
-        comb_bills_u00, load_curve_monthly_u00, monthly_prices
-    )
-    topped_u02 = add_delivered_fuel_bills(
-        comb_bills_u02, load_curve_monthly_u02, monthly_prices
-    )
+    topped_u00 = add_delivered_fuel_bills(comb_bills_u00, load_curve_monthly_u00, monthly_prices)
+    topped_u02 = add_delivered_fuel_bills(comb_bills_u02, load_curve_monthly_u02, monthly_prices)
 
     annual_u00 = (
         topped_u00.filter(pl.col("month") == ANNUAL_MONTH)
-        .select(
-            pl.col(BLDG_ID), pl.col("weight"), pl.col(BILL_LEVEL).alias("bill_before")
-        )
+        .select(pl.col(BLDG_ID), pl.col("weight"), pl.col(BILL_LEVEL).alias("bill_before"))
         .collect()
     )
     annual_u02 = (
@@ -122,9 +114,7 @@ def _compute_bill_deltas(
     filtered = _apply_population_filter(with_meta, filter_name)
 
     df = filtered.select(pl.col("delta"), pl.col("weight"))
-    assert not df.is_empty(), (
-        f"No rows after applying filter '{filter_name}'. Check metadata and run outputs."
-    )
+    assert not df.is_empty(), f"No rows after applying filter '{filter_name}'. Check metadata and run outputs."
     return df
 
 
@@ -132,9 +122,7 @@ def _plot_bill_change_histogram(df: pl.DataFrame) -> ggplot:
     """Build weighted histogram of annual bill change from a delta+weight DataFrame."""
     binned = (
         df.with_columns(
-            ((pl.col("delta") / BIN_WIDTH).floor() * BIN_WIDTH + BIN_WIDTH / 2).alias(
-                "bin_center"
-            ),
+            ((pl.col("delta") / BIN_WIDTH).floor() * BIN_WIDTH + BIN_WIDTH / 2).alias("bin_center"),
         )
         .with_columns(
             pl.when(pl.col("bin_center") <= -1000)
@@ -151,34 +139,18 @@ def _plot_bill_change_histogram(df: pl.DataFrame) -> ggplot:
     )
 
     total_weight = float(df["weight"].sum())
-    pct_savings_gt1k = (
-        float(df.filter(pl.col("delta") < -1000)["weight"].sum()) / total_weight * 100
-    )
+    pct_savings_gt1k = float(df.filter(pl.col("delta") < -1000)["weight"].sum()) / total_weight * 100
     pct_savings_0_1k = (
-        float(
-            df.filter((pl.col("delta") >= -1000) & (pl.col("delta") < 0))[
-                "weight"
-            ].sum()
-        )
-        / total_weight
-        * 100
+        float(df.filter((pl.col("delta") >= -1000) & (pl.col("delta") < 0))["weight"].sum()) / total_weight * 100
     )
     pct_losses_0_1k = (
-        float(
-            df.filter((pl.col("delta") >= 0) & (pl.col("delta") < 1000))["weight"].sum()
-        )
-        / total_weight
-        * 100
+        float(df.filter((pl.col("delta") >= 0) & (pl.col("delta") < 1000))["weight"].sum()) / total_weight * 100
     )
-    pct_losses_gt1k = (
-        float(df.filter(pl.col("delta") >= 1000)["weight"].sum()) / total_weight * 100
-    )
+    pct_losses_gt1k = float(df.filter(pl.col("delta") >= 1000)["weight"].sum()) / total_weight * 100
 
     quadrant_dtype = pl.Enum(QUADRANT_ORDER)
     plot_df = binned.with_columns(pl.col("quadrant").cast(quadrant_dtype))
-    max_weight: float = (
-        cast(float, plot_df["weight_sum"].max()) if not plot_df.is_empty() else 0.0
-    )
+    max_weight: float = cast(float, plot_df["weight_sum"].max()) if not plot_df.is_empty() else 0.0
     y_annot = max_weight * 1.05
 
     return (
@@ -301,9 +273,7 @@ def main() -> None:
     metadata = scan(args.path_metadata, "parquet").collect()
 
     def scan_monthly(upgrade: str) -> pl.LazyFrame:
-        return scan_load_curves_for_utility(
-            args.path_resstock_release, args.state, upgrade, args.utility, "monthly"
-        )
+        return scan_load_curves_for_utility(args.path_resstock_release, args.state, upgrade, args.utility, "monthly")
 
     df = _compute_bill_deltas(
         comb_bills_u00=scan(str(path_or_s3(args.run_dir_before) / COMB_BILLS_CSV)),

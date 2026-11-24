@@ -74,9 +74,7 @@ def collect_run_warnings(
             "'load_curve_hourly' to --file-types if you want non-HP load curves approximated."
         )
 
-    if approximate_non_hp_load and not any(
-        u.zfill(2) in approx_upgrades for u in upgrade_ids
-    ):
+    if approximate_non_hp_load and not any(u.zfill(2) in approx_upgrades for u in upgrade_ids):
         _warn(
             f"--approximate-non-hp-load is enabled but none of the requested upgrade IDs "
             f"are in approx_upgrade_ids {approx_upgrades}. The approximation step will "
@@ -90,9 +88,7 @@ def collect_run_warnings(
             "'load_curve_hourly' to --file-types if you want MF non-HVAC electricity adjusted."
         )
 
-    if adjust_mf_electricity and not any(
-        u.zfill(2) in mf_adj_upgrades for u in upgrade_ids
-    ):
+    if adjust_mf_electricity and not any(u.zfill(2) in mf_adj_upgrades for u in upgrade_ids):
         _warn(
             f"--adjust-mf-electricity is enabled but none of the requested upgrade IDs "
             f"are in mf_adj_upgrade_ids {mf_adj_upgrades}. The MF electricity adjustment "
@@ -105,10 +101,7 @@ def collect_run_warnings(
             "--file-types. The gas usage adjustment step will be skipped."
         )
 
-    if adjust_gas_usage and (
-        "load_curve_annual" not in file_types
-        or "00" not in [u.zfill(2) for u in upgrade_ids]
-    ):
+    if adjust_gas_usage and ("load_curve_annual" not in file_types or "00" not in [u.zfill(2) for u in upgrade_ids]):
         _warn(
             "--adjust-gas-usage is enabled but this run does not fetch the raw "
             "upgrade-00 load_curve_annual (needs 0 in --upgrade-ids and "

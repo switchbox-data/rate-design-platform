@@ -135,8 +135,7 @@ def prepare_projects_for_derivation(path_projects: Path) -> pl.DataFrame:
     invalid = df.filter(pl.col("delta_mw").is_null() | (pl.col("delta_mw") <= 0))
     for row in invalid.iter_rows(named=True):
         warnings.warn(
-            f"Missing or non-positive delta_mw for {row['project']} "
-            f"({row['scenario']}); dropping row.",
+            f"Missing or non-positive delta_mw for {row['project']} ({row['scenario']}); dropping row.",
             stacklevel=2,
         )
 
@@ -145,9 +144,7 @@ def prepare_projects_for_derivation(path_projects: Path) -> pl.DataFrame:
     print(f"  Remaining for derivation:       {len(df)} rows")
 
     df = df.with_columns(
-        pl.col("scenario")
-        .replace_strict(SCENARIO_CONSTRAINT_GROUP_MAP)
-        .alias("constraint_group"),
+        pl.col("scenario").replace_strict(SCENARIO_CONSTRAINT_GROUP_MAP).alias("constraint_group"),
         pl.col("receiving_localities")
         .map_elements(
             lambda raw: nested_localities_to_str(parse_nested_localities(str(raw))),
@@ -156,14 +153,8 @@ def prepare_projects_for_derivation(path_projects: Path) -> pl.DataFrame:
         .alias("nested_localities_str"),
     )
 
-    print(
-        f"\n  Unique nested localities: "
-        f"{sorted(df['nested_localities_str'].unique().to_list())}"
-    )
-    print(
-        f"  Unique constraint groups: "
-        f"{sorted(df['constraint_group'].unique().to_list())}"
-    )
+    print(f"\n  Unique nested localities: {sorted(df['nested_localities_str'].unique().to_list())}")
+    print(f"  Unique constraint groups: {sorted(df['constraint_group'].unique().to_list())}")
     return df
 
 
@@ -186,9 +177,7 @@ def compute_constraint_group_secant_vavg(df: pl.DataFrame) -> pl.DataFrame:
     """Compute constraint-group values using cumulative secants."""
     results: list[dict[str, object]] = []
 
-    for (nested_localities_str, constraint_group), group_df in df.group_by(
-        "nested_localities_str", "constraint_group"
-    ):
+    for (nested_localities_str, constraint_group), group_df in df.group_by("nested_localities_str", "constraint_group"):
         group_df = group_df.sort("delta_mw")
         delta_mws: list[float] = group_df["delta_mw"].to_list()
         benefits: list[float] = group_df["mean_benefit_m_yr"].to_list()
@@ -197,8 +186,7 @@ def compute_constraint_group_secant_vavg(df: pl.DataFrame) -> pl.DataFrame:
 
         if n < 2:
             warnings.warn(
-                f"Only {n} project(s) for {nested_localities_str}/{constraint_group}: "
-                "secant curve is a single point.",
+                f"Only {n} project(s) for {nested_localities_str}/{constraint_group}: secant curve is a single point.",
                 stacklevel=2,
             )
 
@@ -220,9 +208,7 @@ def compute_constraint_group_secant_vavg(df: pl.DataFrame) -> pl.DataFrame:
                 "v_constraint_group_kw_yr": round(v_constraint_group, 2),
                 "n_points": n,
                 "project_list": "|".join(projects),
-                "tightest_nested_locality": select_tightest_nested_locality(
-                    locality_tokens
-                ),
+                "tightest_nested_locality": select_tightest_nested_locality(locality_tokens),
             }
         )
 
@@ -249,9 +235,7 @@ def annotate_constraint_group_paying_localities(
     return constraint_group_df.with_columns(
         pl.col("nested_localities_str")
         .map_elements(
-            lambda localities: "|".join(
-                paying_localities_for_nested_localities_str(str(localities))
-            ),
+            lambda localities: "|".join(paying_localities_for_nested_localities_str(str(localities))),
             return_dtype=pl.String,
         )
         .alias("paying_localities")
@@ -280,9 +264,7 @@ def assign_constraint_groups_to_paying_localities(
         nested_localities_str = str(row["nested_localities_str"])
         constraint_group = str(row["constraint_group"])
         value = float(row["v_constraint_group_kw_yr"])
-        paying_localities = paying_localities_for_nested_localities_str(
-            nested_localities_str
-        )
+        paying_localities = paying_localities_for_nested_localities_str(nested_localities_str)
 
         if not paying_localities:
             warnings.warn(
@@ -297,10 +279,7 @@ def assign_constraint_groups_to_paying_localities(
             if locality in locality_contributions:
                 locality_contributions[locality].append(value)
 
-        print(
-            f"  {nested_localities_str}/{constraint_group}: "
-            f"v=${value:.2f}/kW-yr -> pays to {paying_localities}"
-        )
+        print(f"  {nested_localities_str}/{constraint_group}: v=${value:.2f}/kW-yr -> pays to {paying_localities}")
 
     return locality_contributions
 
@@ -327,10 +306,7 @@ def compute_paying_locality_vavg(
             )
         v_avg = round(sum(values) / len(values), 2)
         results.append({"gen_capacity_zone": locality, "v_avg_kw_yr": v_avg})
-        print(
-            f"  {locality}: mean of [{', '.join(f'${v:.2f}' for v in values)}] "
-            f"= ${v_avg:.2f}/kW-yr"
-        )
+        print(f"  {locality}: mean of [{', '.join(f'${v:.2f}' for v in values)}] = ${v_avg:.2f}/kW-yr")
 
     return pl.DataFrame(results)
 
@@ -339,9 +315,7 @@ def compute_paying_locality_vavg(
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Derive NY bulk transmission values per gen_capacity_zone."
-    )
+    parser = argparse.ArgumentParser(description="Derive NY bulk transmission values per gen_capacity_zone.")
     parser.add_argument(
         "--path-projects-csv",
         type=str,
@@ -392,22 +366,12 @@ def main() -> None:
     constraint_group_df = annotate_constraint_group_paying_localities(
         compute_constraint_group_secant_vavg(collapsed_df)
     )
-    zone_df = compute_paying_locality_vavg(
-        assign_constraint_groups_to_paying_localities(constraint_group_df)
-    )
+    zone_df = compute_paying_locality_vavg(assign_constraint_groups_to_paying_localities(constraint_group_df))
 
-    lhv_val = float(
-        zone_df.filter(pl.col("gen_capacity_zone") == "LHV")["v_avg_kw_yr"][0]
-    )
-    nyc_val = float(
-        zone_df.filter(pl.col("gen_capacity_zone") == "NYC")["v_avg_kw_yr"][0]
-    )
-    ros_val = float(
-        zone_df.filter(pl.col("gen_capacity_zone") == "ROS")["v_avg_kw_yr"][0]
-    )
-    assert lhv_val < nyc_val, (
-        f"Expected LHV < NYC ordering, got LHV={lhv_val:.2f}, NYC={nyc_val:.2f}"
-    )
+    lhv_val = float(zone_df.filter(pl.col("gen_capacity_zone") == "LHV")["v_avg_kw_yr"][0])
+    nyc_val = float(zone_df.filter(pl.col("gen_capacity_zone") == "NYC")["v_avg_kw_yr"][0])
+    ros_val = float(zone_df.filter(pl.col("gen_capacity_zone") == "ROS")["v_avg_kw_yr"][0])
+    assert lhv_val < nyc_val, f"Expected LHV < NYC ordering, got LHV={lhv_val:.2f}, NYC={nyc_val:.2f}"
     assert ros_val > 0, f"ROS v_avg must be positive, got {ros_val:.2f}"
 
     path_output.parent.mkdir(parents=True, exist_ok=True)
@@ -417,10 +381,7 @@ def main() -> None:
     print(f"\n✓ Wrote {len(zone_df)} zone rows to {path_output}")
 
     constraint_group_df.write_csv(path_constraint_groups)
-    print(
-        f"✓ Wrote {len(constraint_group_df)} constraint-group rows to "
-        f"{path_constraint_groups}"
-    )
+    print(f"✓ Wrote {len(constraint_group_df)} constraint-group rows to {path_constraint_groups}")
 
     legacy_families_path = path_constraint_groups.parent / "ny_bulk_tx_families.csv"
     if legacy_families_path.exists() and legacy_families_path != path_constraint_groups:

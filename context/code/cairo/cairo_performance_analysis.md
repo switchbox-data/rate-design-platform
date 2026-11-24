@@ -78,6 +78,7 @@ Add one line before any CAIRO call:
 
 ```python
 import dask
+
 dask.config.set(scheduler="processes", num_workers=settings.process_workers)
 ```
 
@@ -115,8 +116,8 @@ multiplied across all buildings and all call sites.
 In `_add_datetime_indicators` (loads.py:1580-1587):
 
 ```python
-load_df["month"] = load_df["time"].dt.month       # int64 by default
-load_df["hour"] = load_df["time"].dt.hour          # int64 by default
+load_df["month"] = load_df["time"].dt.month  # int64 by default
+load_df["hour"] = load_df["time"].dt.hour  # int64 by default
 load_df["day_type"] = load_df["time"].dt.weekday < 5
 load_df["day_type"] = load_df["day_type"].map({True: "weekday", False: "weekend"})
 ```
@@ -150,6 +151,7 @@ dataset API to read them all at once:
 
 ```python
 import pyarrow.dataset as ds
+
 dataset = ds.dataset(list(load_file_paths.values()), format="parquet")
 table = dataset.to_table(columns=needed_cols)
 bldg_load = table.to_pandas()

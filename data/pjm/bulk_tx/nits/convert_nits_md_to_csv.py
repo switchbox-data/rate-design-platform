@@ -82,9 +82,7 @@ _SOURCE_RE = re.compile(
 _YEAR_RE = re.compile(r"^\*\*Calendar year:\*\*\s*(\d{4})\s*$", re.MULTILINE)
 
 # Matches section headings: "## Jan 2025 rates" or "## Jun 2024 rates"
-_SECTION_RE = re.compile(
-    r"^##\s+(Jan|Jun)\s+\d{4}\s+rates", re.MULTILINE | re.IGNORECASE
-)
+_SECTION_RE = re.compile(r"^##\s+(Jan|Jun)\s+\d{4}\s+rates", re.MULTILINE | re.IGNORECASE)
 
 
 @dataclass
@@ -135,8 +133,7 @@ def parse_intermediate(path: Path) -> list[Row]:
     source_urls = _SOURCE_RE.findall(text)
     if len(source_urls) != 2:
         raise ValueError(
-            f"{path.name}: expected exactly 2 source URLs (Jan + Jun), "
-            f"found {len(source_urls)}: {source_urls}"
+            f"{path.name}: expected exactly 2 source URLs (Jan + Jun), found {len(source_urls)}: {source_urls}"
         )
     jan_source_url, jun_source_url = source_urls
 
@@ -149,8 +146,7 @@ def parse_intermediate(path: Path) -> list[Row]:
 
     if len(sections) != 2:
         raise ValueError(
-            f"{path.name}: expected 2 rate sections (## Jan ... rates, ## Jun ... rates), "
-            f"found {len(sections)}"
+            f"{path.name}: expected 2 rate sections (## Jan ... rates, ## Jun ... rates), found {len(sections)}"
         )
 
     all_rows: list[Row] = []
@@ -203,9 +199,7 @@ def write_csv(rows: list[Row], path: Path) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Convert NITS markdown intermediates to nits_rates.csv."
-    )
+    parser = argparse.ArgumentParser(description="Convert NITS markdown intermediates to nits_rates.csv.")
     parser.add_argument("--path-sources", type=Path, required=True)
     parser.add_argument("--path-csv", type=Path, required=True)
     args = parser.parse_args()

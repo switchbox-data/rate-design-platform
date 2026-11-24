@@ -19,7 +19,6 @@ from utils.post.gas_bills import (
 )
 from utils.post.io import ANNUAL_MONTH, BLDG_ID
 
-
 # ---------------------------------------------------------------------------
 # Tariff fixtures
 # ---------------------------------------------------------------------------
@@ -60,7 +59,7 @@ def _make_null_tariff() -> dict:
 
 def _make_flat_tariff(rate: float = 0.08, fixed: float = 15.0) -> dict:
     """Single-tier flat rate for all months (RI-style)."""
-    schedule_map = {m: 0 for m in range(12)}
+    schedule_map = dict.fromkeys(range(12), 0)
     return _make_tiered_tariff(
         fixed=fixed,
         periods=[[{"rate": rate, "unit": "kWh"}]],
@@ -120,11 +119,7 @@ def flat_tariff() -> dict[str, dict]:
 
 def _make_load_curves(bldg_ids: list[int], monthly_kwh: float) -> pl.LazyFrame:
     """Build a synthetic load_curve_monthly LazyFrame (12 rows per building)."""
-    rows = [
-        {BLDG_ID: bid, "month": m, GAS_CONSUMPTION_COL: monthly_kwh}
-        for bid in bldg_ids
-        for m in range(1, 13)
-    ]
+    rows = [{BLDG_ID: bid, "month": m, GAS_CONSUMPTION_COL: monthly_kwh} for bid in bldg_ids for m in range(1, 13)]
     return pl.DataFrame(
         rows,
         schema={
@@ -148,9 +143,7 @@ class TestBuildRateTable:
         assert rt.height == 2 * 12 + 1 * 12
 
         # Check winter month (Jan=1) for two_tier
-        jan = rt.filter(
-            (pl.col("tariff_key") == "two_tier") & (pl.col("month") == 1)
-        ).sort("tier")
+        jan = rt.filter((pl.col("tariff_key") == "two_tier") & (pl.col("month") == 1)).sort("tier")
         assert jan.height == 2
         assert jan["tier_floor_kwh"][0] == 0.0
         assert jan["tier_ceiling_kwh"][0] == 100.0
@@ -161,9 +154,7 @@ class TestBuildRateTable:
 
     def test_summer_period(self, two_tier_tariff: dict[str, dict]) -> None:
         rt = build_rate_table(two_tier_tariff)
-        jun = rt.filter(
-            (pl.col("tariff_key") == "two_tier") & (pl.col("month") == 6)
-        ).sort("tier")
+        jun = rt.filter((pl.col("tariff_key") == "two_tier") & (pl.col("month") == 6)).sort("tier")
         assert jun["rate_per_kwh"][0] == pytest.approx(0.04)
         assert jun["rate_per_kwh"][1] == pytest.approx(0.08)
 
@@ -177,9 +168,7 @@ class TestBuildRateTable:
 class TestBuildFixedChargeTable:
     def test_values(self, two_tier_tariff: dict[str, dict]) -> None:
         fc = build_fixed_charge_table(two_tier_tariff)
-        fc_dict = {
-            r["tariff_key"]: r["gas_fixed_charge"] for r in fc.iter_rows(named=True)
-        }
+        fc_dict = {r["tariff_key"]: r["gas_fixed_charge"] for r in fc.iter_rows(named=True)}
         assert fc_dict["two_tier"] == pytest.approx(20.0)
         assert fc_dict["null_gas_tariff"] == pytest.approx(0.0)
 
@@ -248,9 +237,7 @@ class TestComputeGasBills:
         assert (result["gas_fixed_charge"] == 0.0).all()
         assert (result["gas_volumetric_bill"] == 0.0).all()
 
-    def test_consumption_below_first_tier(
-        self, two_tier_tariff: dict[str, dict]
-    ) -> None:
+    def test_consumption_below_first_tier(self, two_tier_tariff: dict[str, dict]) -> None:
         """50 kWh/month in winter: all in tier 1 at $0.05 = $2.50."""
         rt = build_rate_table(two_tier_tariff)
         fc = build_fixed_charge_table(two_tier_tariff)
@@ -277,9 +264,7 @@ class TestComputeGasBills:
         assert result.height == 26  # 2 buildings * 13 rows
 
         # Building 1 has real bills
-        b1_annual = result.filter(
-            (pl.col(BLDG_ID) == 1) & (pl.col("month") == ANNUAL_MONTH)
-        )
+        b1_annual = result.filter((pl.col(BLDG_ID) == 1) & (pl.col("month") == ANNUAL_MONTH))
         assert b1_annual["gas_total_bill"][0] > 0
 
         # Building 2 has zero bills

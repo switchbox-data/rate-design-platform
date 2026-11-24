@@ -174,16 +174,10 @@ def parse_row(text: str, current_category: str) -> dict | None:
     if after_tokens:
         idx = 0
         # Voltages: expect up to 2 voltage tokens (may be dash placeholders)
-        if idx < len(after_tokens) and (
-            VOLTAGE_RE.match(after_tokens[idx])
-            or after_tokens[idx] in ("-", "---", "–")
-        ):
+        if idx < len(after_tokens) and (VOLTAGE_RE.match(after_tokens[idx]) or after_tokens[idx] in ("-", "---", "–")):
             voltage_op = after_tokens[idx]
             idx += 1
-        if idx < len(after_tokens) and (
-            VOLTAGE_RE.match(after_tokens[idx])
-            or after_tokens[idx] in ("-", "---", "–")
-        ):
+        if idx < len(after_tokens) and (VOLTAGE_RE.match(after_tokens[idx]) or after_tokens[idx] in ("-", "---", "–")):
             voltage_design = after_tokens[idx]
             idx += 1
 
@@ -192,13 +186,8 @@ def parse_row(text: str, current_category: str) -> dict | None:
         # actually a thermal rating, not a circuit count.
         if idx < len(after_tokens):
             circ = after_tokens[idx]
-            next_is_unit = idx + 1 < len(after_tokens) and after_tokens[
-                idx + 1
-            ].upper() in ("MVA", "MW", "MVAR")
-            if circ in ("N/A", "-", "---"):
-                num_circuits = circ
-                idx += 1
-            elif circ.isdigit() and not next_is_unit:
+            next_is_unit = idx + 1 < len(after_tokens) and after_tokens[idx + 1].upper() in ("MVA", "MW", "MVAR")
+            if circ in ("N/A", "-", "---") or (circ.isdigit() and not next_is_unit):
                 num_circuits = circ
                 idx += 1
 
@@ -243,10 +232,7 @@ def parse_row(text: str, current_category: str) -> dict | None:
     thermal_notes = "; ".join(filter(None, [ts_notes, tw_notes]))
 
     # Season normalization
-    if season_raw in ("In-Service", "In-service"):
-        in_service_season = "In-Service"
-    else:
-        in_service_season = season_raw
+    in_service_season = "In-Service" if season_raw in ("In-Service", "In-service") else season_raw
 
     return {
         "category": current_category,
@@ -258,12 +244,8 @@ def parse_row(text: str, current_category: str) -> dict | None:
         "line_length_miles_notes": line_length_notes,
         "in_service_season": in_service_season,
         "in_service_year": year,
-        "voltage_operating_kv": ""
-        if voltage_op in ("-", "---", "–")
-        else voltage_op.replace("kV", ""),
-        "voltage_design_kv": ""
-        if voltage_design in ("-", "---", "–")
-        else voltage_design.replace("kV", ""),
+        "voltage_operating_kv": "" if voltage_op in ("-", "---", "–") else voltage_op.replace("kV", ""),
+        "voltage_design_kv": "" if voltage_design in ("-", "---", "–") else voltage_design.replace("kV", ""),
         "num_circuits": num_circuits,
         "project_includes_circuits": project_includes_circuits,
         "num_circuits_notes": circuits_notes,
@@ -417,10 +399,7 @@ def extract_table_vii(md_path: Path) -> list[dict]:
         stripped = line.strip()
 
         # Detect table boundaries
-        if (
-            "Untitled table on page 15" in stripped
-            or "Untitled table on page 16" in stripped
-        ):
+        if "Untitled table on page 15" in stripped or "Untitled table on page 16" in stripped:
             page_match = re.search(r"page (\d+)", stripped)
             if page_match:
                 page = int(page_match.group(1))
@@ -437,7 +416,7 @@ def extract_table_vii(md_path: Path) -> list[dict]:
         if not stripped.startswith("|"):
             continue
         cell = stripped.lstrip("|").rstrip("|").strip()
-        if not cell or cell.startswith("-") and not any(c.isalpha() for c in cell):
+        if not cell or (cell.startswith("-") and not any(c.isalpha() for c in cell)):
             continue
         if "Project Queue Position" in cell or "Operating Design" in cell:
             continue
@@ -464,9 +443,7 @@ def extract_table_vii(md_path: Path) -> list[dict]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Extract Table VII from NYISO Gold Book markdown."
-    )
+    parser = argparse.ArgumentParser(description="Extract Table VII from NYISO Gold Book markdown.")
     parser.add_argument(
         "--path-gold-book-md",
         type=Path,

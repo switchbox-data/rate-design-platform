@@ -111,9 +111,7 @@ def test_aggregate_utility_load_multiple_zones():
     expected_load_b = 1000.0 * (ord("B") - ord("A") + 1)
     expected_total = expected_load_a + expected_load_b
 
-    assert all(utility_df["load_mw"] == expected_total), (
-        f"Expected {expected_total}, got {utility_df['load_mw'][0]}"
-    )
+    assert all(utility_df["load_mw"] == expected_total), f"Expected {expected_total}, got {utility_df['load_mw'][0]}"
 
 
 def test_aggregate_utility_load_sorted_by_timestamp():
@@ -137,15 +135,11 @@ def test_aggregate_utility_load_no_missing_hours():
 
     # Check for 8760 hours (or 8784 for leap year)
     expected_hours = 8760
-    assert len(utility_df) == expected_hours, (
-        f"Expected {expected_hours} hours, got {len(utility_df)}"
-    )
+    assert len(utility_df) == expected_hours, f"Expected {expected_hours} hours, got {len(utility_df)}"
 
     # Check that there are no duplicate timestamps
     n_unique = utility_df["timestamp"].n_unique()
-    assert n_unique == len(utility_df), (
-        f"Found duplicate timestamps: {n_unique} unique out of {len(utility_df)}"
-    )
+    assert n_unique == len(utility_df), f"Found duplicate timestamps: {n_unique} unique out of {len(utility_df)}"
 
 
 def test_zone_coverage():
@@ -156,9 +150,7 @@ def test_zone_coverage():
 
     expected_covered = ["A", "B", "C", "D", "E", "F", "G", "H", "J", "K"]
     for zone in expected_covered:
-        assert zone in covered_zones, (
-            f"Zone {zone} should be covered by at least one utility"
-        )
+        assert zone in covered_zones, f"Zone {zone} should be covered by at least one utility"
 
 
 def test_eia_zones_match_zone_mapping():
@@ -176,9 +168,7 @@ def test_eia_zones_match_zone_mapping():
     zone_mapping_zones: dict[str, set[str]] = {}
     for utility in zone_mapping_df["utility"].unique().to_list():
         utility_rows = zone_mapping_df.filter(pl.col("utility") == utility)
-        zone_mapping_zones[utility] = set(
-            utility_rows["load_zone_letter"].unique().to_list()
-        )
+        zone_mapping_zones[utility] = set(utility_rows["load_zone_letter"].unique().to_list())
 
     # Every NY utility in EIA config must appear in zone mapping and vice versa
     eia_utilities = set(eia_mapping.keys())
@@ -186,19 +176,13 @@ def test_eia_zones_match_zone_mapping():
 
     missing_in_zm = eia_utilities - zm_utilities
     missing_in_eia = zm_utilities - eia_utilities
-    assert not missing_in_zm, (
-        f"Utilities in EIA config but missing from zone mapping: {missing_in_zm}"
-    )
-    assert not missing_in_eia, (
-        f"Utilities in zone mapping but missing from EIA config: {missing_in_eia}"
-    )
+    assert not missing_in_zm, f"Utilities in EIA config but missing from zone mapping: {missing_in_zm}"
+    assert not missing_in_eia, f"Utilities in zone mapping but missing from EIA config: {missing_in_eia}"
 
     # For each utility, zones must match exactly
     for utility in sorted(eia_utilities):
         eia_zones = set(eia_mapping[utility])
         zm_zones = zone_mapping_zones[utility]
         assert eia_zones == zm_zones, (
-            f"Zone mismatch for {utility}: "
-            f"EIA config has {sorted(eia_zones)}, "
-            f"zone mapping has {sorted(zm_zones)}"
+            f"Zone mismatch for {utility}: EIA config has {sorted(eia_zones)}, zone mapping has {sorted(zm_zones)}"
         )

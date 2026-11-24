@@ -79,7 +79,7 @@ class TestResstockMonthlyBudget:
     def test_full_year(self):
         month_list = _months_in_range("2025-01", "2025-12")
         rates = {f"2025-{m:02d}": 0.10 for m in range(1, 13)}
-        kwh = {m: 100.0 for m in range(1, 13)}
+        kwh = dict.fromkeys(range(1, 13), 100.0)
         result = _resstock_monthly_budget(rates, month_list, kwh)
         assert result == pytest.approx(0.10 * 100.0 * 12)
 
@@ -102,9 +102,7 @@ class TestResstockMonthlyBudget:
         assert resstock_budget > eia_budget
 
 
-def _make_monthly_rates_yaml(
-    path: Path, charges: dict, start: str = "2025-01", end: str = "2025-12"
-) -> None:
+def _make_monthly_rates_yaml(path: Path, charges: dict, start: str = "2025-01", end: str = "2025-12") -> None:
     data = {
         "start_month": start,
         "end_month": end,
@@ -198,9 +196,7 @@ class TestCLIEIAMode:
 
         charge_entry = out["delivery_top_ups"]["charge_a"]
         assert charge_entry["budget_method"] == "eia"
-        assert charge_entry["total_budget"] == pytest.approx(
-            0.05 * 5_000_000.0, rel=1e-4
-        )
+        assert charge_entry["total_budget"] == pytest.approx(0.05 * 5_000_000.0, rel=1e-4)
 
 
 class TestCLIResstockMode:
@@ -232,8 +228,7 @@ class TestCLIResstockMode:
                 {
                     "bldg_id": [bldg_id] * 12,
                     "month": list(range(1, 13)),
-                    "out.electricity.total.energy_consumption": [100.0 + bldg_id * 0.1]
-                    * 12,
+                    "out.electricity.total.energy_consumption": [100.0 + bldg_id * 0.1] * 12,
                 }
             ).write_parquet(loads_dir / f"{bldg_id}-0.parquet")
 
@@ -333,7 +328,4 @@ class TestCLIResstockMode:
             text=True,
         )
         assert result.returncode != 0
-        assert (
-            "path-resstock-release" in result.stderr.lower()
-            or "required" in result.stderr.lower()
-        )
+        assert "path-resstock-release" in result.stderr.lower() or "required" in result.stderr.lower()

@@ -68,9 +68,7 @@ def observations_to_annual_df(observations: list[dict]) -> pl.DataFrame:
     return annual
 
 
-def build_filename(
-    series_id: str, start_year: int, end_year: int, download_date: date
-) -> str:
+def build_filename(series_id: str, start_year: int, end_year: int, download_date: date) -> str:
     """Return filename: <series_lower>_<start>_<end>_<YYYYMMDD>.parquet."""
     series_lower = series_id.lower()
     yyyymmdd = download_date.strftime("%Y%m%d")
@@ -115,18 +113,12 @@ def main() -> None:
     if not api_key:
         raise SystemExit("FRED_API_KEY environment variable is not set")
 
-    observations = fetch_observations(
-        api_key, args.series, args.start_year, args.end_year
-    )
+    observations = fetch_observations(api_key, args.series, args.start_year, args.end_year)
     annual_df = observations_to_annual_df(observations)
     download_date = date.today()
-    filename = build_filename(
-        args.series, args.start_year, args.end_year, download_date
-    )
+    filename = build_filename(args.series, args.start_year, args.end_year, download_date)
 
-    print(
-        f"Fetched {len(observations)} monthly observations -> {len(annual_df)} annual rows"
-    )
+    print(f"Fetched {len(observations)} monthly observations -> {len(annual_df)} annual rows")
     print(f"Series: {args.series}")
 
     if args.output is not None:

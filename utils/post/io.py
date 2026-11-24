@@ -58,12 +58,7 @@ def scan_load_curves_for_utility(
     meta_path = f"{base}/metadata_utility/state={state}/utility_assignment.parquet"
 
     bldg_ids: list[int] = (
-        (
-            pl.scan_parquet(meta_path)
-            .filter(pl.col("sb.electric_utility") == utility)
-            .select(BLDG_ID)
-            .collect()
-        )
+        (pl.scan_parquet(meta_path).filter(pl.col("sb.electric_utility") == utility).select(BLDG_ID).collect())
         .to_series()
         .to_list()
     )

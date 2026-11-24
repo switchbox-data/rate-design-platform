@@ -11,12 +11,12 @@ Usage:
 
 from __future__ import annotations
 
-from utils.numeric import as_float
-
 import sys
 from pathlib import Path
 
 import polars as pl
+
+from utils.numeric import as_float
 
 EXPECTED_SCHEMA = {
     "year": pl.Int16,
@@ -90,18 +90,12 @@ def check_schema(df: pl.DataFrame, result: ValidationResult) -> None:
 
 
 def check_no_nulls(df: pl.DataFrame, result: ValidationResult) -> None:
-    null_cols = [
-        col
-        for col in REQUIRED_NO_NULL_COLS
-        if col in df.columns and df[col].null_count() > 0
-    ]
+    null_cols = [col for col in REQUIRED_NO_NULL_COLS if col in df.columns and df[col].null_count() > 0]
     if null_cols:
         for col in null_cols:
             result.error("Nulls", f"{col}: {df[col].null_count()} nulls")
     else:
-        result.passed(
-            "Nulls", f"zero nulls in {len(REQUIRED_NO_NULL_COLS)} required columns"
-        )
+        result.passed("Nulls", f"zero nulls in {len(REQUIRED_NO_NULL_COLS)} required columns")
 
 
 def check_no_duplicates(df: pl.DataFrame, result: ValidationResult) -> None:
@@ -140,9 +134,7 @@ def check_price_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
             f"max ${pmax:.4f} exceeds ${PRICE_CEILING:.0f}/kW-mo ceiling — verify",
         )
     else:
-        result.passed(
-            "Price range", f"${pmin:.4f}–${pmax:.4f}/kW-mo (mean ${pmean:.4f})"
-        )
+        result.passed("Price range", f"${pmin:.4f}–${pmax:.4f}/kW-mo (mean ${pmean:.4f})")
 
 
 def check_zone_ids(df: pl.DataFrame, result: ValidationResult) -> None:
@@ -173,9 +165,7 @@ def check_price_summary_by_zone(df: pl.DataFrame, result: ValidationResult) -> N
     lines = []
     for row in summary.iter_rows(named=True):
         lines.append(
-            f"{row['capacity_zone_name']}: "
-            f"${row['min']:.4f}–${row['max']:.4f} "
-            f"(mean ${row['mean']:.4f}, n={row['n']})"
+            f"{row['capacity_zone_name']}: ${row['min']:.4f}–${row['max']:.4f} (mean ${row['mean']:.4f}, n={row['n']})"
         )
     result.passed("Price summary by zone", "; ".join(lines))
 
@@ -188,8 +178,7 @@ def check_year_month_coverage(df: pl.DataFrame, result: ValidationResult) -> Non
     last = coverage.row(-1)
     result.passed(
         "Year/month coverage",
-        f"{n_months} months from {first[0]}-{first[1]:02d} to {last[0]}-{last[1]:02d} "
-        f"across {len(years)} years",
+        f"{n_months} months from {first[0]}-{first[1]:02d} to {last[0]}-{last[1]:02d} across {len(years)} years",
     )
 
     # Check for gaps within the covered range
@@ -208,9 +197,7 @@ def check_year_month_coverage(df: pl.DataFrame, result: ValidationResult) -> Non
     if missing:
         gap_strs = [f"{y}-{m:02d}" for y, m in missing[:10]]
         suffix = f" (and {len(missing) - 10} more)" if len(missing) > 10 else ""
-        result.warn(
-            "Coverage gaps", f"{len(missing)} missing months: {gap_strs}{suffix}"
-        )
+        result.warn("Coverage gaps", f"{len(missing)} missing months: {gap_strs}{suffix}")
     else:
         result.passed("Coverage gaps", "no gaps in covered range")
 

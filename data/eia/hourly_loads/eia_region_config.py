@@ -119,9 +119,7 @@ def get_state_config(state: str) -> StateConfig:
     """Return normalized state configuration."""
     state_upper = state.upper()
     if state_upper not in STATE_CONFIGS:
-        raise ValueError(
-            f"Unsupported state: {state}. Supported values: {', '.join(sorted(STATE_CONFIGS.keys()))}"
-        )
+        raise ValueError(f"Unsupported state: {state}. Supported values: {', '.join(sorted(STATE_CONFIGS.keys()))}")
     return STATE_CONFIGS[state_upper]
 
 

@@ -56,9 +56,7 @@ def load_baseline_reference_monthly(
     A segment holds exactly one upgrade, so a mismatch means the table was
     built from a different stage than ``bill_change_baseline`` declares.
     """
-    root = baseline_ref_root(
-        state_lower=state_lower, output_batch=output_batch, segment=segment
-    )
+    root = baseline_ref_root(state_lower=state_lower, output_batch=output_batch, segment=segment)
     lf = pl.scan_parquet(
         root,
         hive_partitioning=True,

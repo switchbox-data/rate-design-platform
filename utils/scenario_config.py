@@ -53,14 +53,10 @@ def get_residential_customer_count_from_utility_stats(
             "Check path_electric_utility_stats and utility in the scenario YAML."
         )
     if df.height > 1:
-        raise ValueError(
-            f"Expected one row for utility_code={utility!r} in {path_str}, got {df.height}"
-        )
+        raise ValueError(f"Expected one row for utility_code={utility!r} in {path_str}, got {df.height}")
     value = df.item(0, 0)
     if value is None:
-        raise ValueError(
-            f"residential_customers is null for utility_code={utility!r} in {path_str}"
-        )
+        raise ValueError(f"residential_customers is null for utility_code={utility!r} in {path_str}")
     return int(value)
 
 
@@ -92,14 +88,10 @@ def get_residential_sales_revenue_from_utility_stats(
             "Check path_electric_utility_stats and utility in the scenario YAML."
         )
     if df.height > 1:
-        raise ValueError(
-            f"Expected one row for utility_code={utility!r} in {path_str}, got {df.height}"
-        )
+        raise ValueError(f"Expected one row for utility_code={utility!r} in {path_str}, got {df.height}")
     value = df.item(0, 0)
     if value is None:
-        raise ValueError(
-            f"residential_sales_revenue is null for utility_code={utility!r} in {path_str}"
-        )
+        raise ValueError(f"residential_sales_revenue is null for utility_code={utility!r} in {path_str}")
     return float(value)
 
 
@@ -126,11 +118,7 @@ def get_residential_sales_kwh_from_utility_stats(
     lf = (
         pl.scan_parquet(path_str, storage_options=opts)
         .filter(pl.col("utility_code") == utility)
-        .select(
-            (pl.col("residential_sales_mwh") * MWH_TO_KWH).alias(
-                "residential_sales_kwh"
-            )
-        )
+        .select((pl.col("residential_sales_mwh") * MWH_TO_KWH).alias("residential_sales_kwh"))
     )
     df = lf.collect()
     if df.height == 0:
@@ -139,14 +127,10 @@ def get_residential_sales_kwh_from_utility_stats(
             "Check path_electric_utility_stats and utility in the scenario YAML."
         )
     if df.height > 1:
-        raise ValueError(
-            f"Expected one row for utility_code={utility!r} in {path_str}, got {df.height}"
-        )
+        raise ValueError(f"Expected one row for utility_code={utility!r} in {path_str}, got {df.height}")
     value = df.item(0, 0)
     if value is None:
-        raise ValueError(
-            f"residential_sales_mwh is null for utility_code={utility!r} in {path_str}"
-        )
+        raise ValueError(f"residential_sales_mwh is null for utility_code={utility!r} in {path_str}")
     return float(value)
 
 
@@ -221,8 +205,7 @@ def _parse_subclass_revenue_requirement(
     delivery_rr = delivery_block[residual_allocation_delivery]
 
     alias_to_tariff_key = {
-        alias: _resolve_path(str(path_str), base_dir).stem
-        for alias, path_str in raw_path_tariffs_electric.items()
+        alias: _resolve_path(str(path_str), base_dir).stem for alias, path_str in raw_path_tariffs_electric.items()
     }
 
     result: dict[str, float] = {}
@@ -235,17 +218,13 @@ def _parse_subclass_revenue_requirement(
             )
         result[tariff_key] = _parse_float(
             amount,
-            f"subclass_revenue_requirements.delivery"
-            f".{residual_allocation_delivery}.{alias_str}",
+            f"subclass_revenue_requirements.delivery.{residual_allocation_delivery}.{alias_str}",
         )
 
     if add_supply:
         supply_block = raw_subclass.get("supply")
         if not isinstance(supply_block, dict) or not supply_block:
-            raise ValueError(
-                "subclass_revenue_requirements must have a 'supply' block "
-                "when add_supply=True"
-            )
+            raise ValueError("subclass_revenue_requirements must have a 'supply' block when add_supply=True")
         if residual_allocation_supply not in supply_block:
             available = sorted(supply_block.keys())
             raise ValueError(
@@ -262,13 +241,10 @@ def _parse_subclass_revenue_requirement(
                     f"path_tariffs_electric (available: {sorted(alias_to_tariff_key)})"
                 )
             if tariff_key not in result:
-                raise ValueError(
-                    f"Subclass {alias_str!r} in supply but not in delivery"
-                )
+                raise ValueError(f"Subclass {alias_str!r} in supply but not in delivery")
             result[tariff_key] += _parse_float(
                 amount,
-                f"subclass_revenue_requirements.supply"
-                f".{residual_allocation_supply}.{alias_str}",
+                f"subclass_revenue_requirements.supply.{residual_allocation_supply}.{alias_str}",
             )
 
     return result
@@ -297,42 +273,27 @@ def _parse_utility_revenue_requirement(
     """
     if not isinstance(value, str):
         raise ValueError(
-            "utility_revenue_requirement must be a YAML path string "
-            f"(.yaml/.yml), got {type(value).__name__}"
+            f"utility_revenue_requirement must be a YAML path string (.yaml/.yml), got {type(value).__name__}"
         )
     raw = value.strip()
     if raw == "":
         raise ValueError("Missing required field: utility_revenue_requirement")
     if not (raw.endswith(".yaml") or raw.endswith(".yml")):
-        raise ValueError(
-            "utility_revenue_requirement must be a YAML file path "
-            f"(.yaml/.yml), got {value!r}"
-        )
+        raise ValueError(f"utility_revenue_requirement must be a YAML file path (.yaml/.yml), got {value!r}")
 
     path = _resolve_path(raw, base_dir)
     with path.open(encoding="utf-8") as f:
         rr_data = yaml.safe_load(f)
     if not isinstance(rr_data, dict):
-        raise ValueError(
-            "Revenue requirement YAML must be a mapping; "
-            f"got {type(rr_data).__name__} in {path}"
-        )
+        raise ValueError(f"Revenue requirement YAML must be a mapping; got {type(rr_data).__name__} in {path}")
 
-    rr_key = (
-        "total_delivery_and_supply_revenue_requirement"
-        if add_supply
-        else "total_delivery_revenue_requirement"
-    )
+    rr_key = "total_delivery_and_supply_revenue_requirement" if add_supply else "total_delivery_revenue_requirement"
 
     if rr_key not in rr_data:
         if "revenue_requirement" in rr_data:
-            rr_total = _parse_float(
-                rr_data["revenue_requirement"], "revenue_requirement"
-            )
+            rr_total = _parse_float(rr_data["revenue_requirement"], "revenue_requirement")
         else:
-            raise ValueError(
-                f"{path} must contain '{rr_key}' (or 'revenue_requirement')."
-            )
+            raise ValueError(f"{path} must contain '{rr_key}' (or 'revenue_requirement').")
     else:
         rr_total = _parse_float(rr_data[rr_key], rr_key)
 
@@ -351,10 +312,7 @@ def _parse_utility_revenue_requirement(
                 "(or 'percustomer') to the scenario YAML."
             )
         if "subclass_revenue_requirements" not in rr_data:
-            raise ValueError(
-                f"run_includes_subclasses is true but {path} has no "
-                "'subclass_revenue_requirements'."
-            )
+            raise ValueError(f"run_includes_subclasses is true but {path} has no 'subclass_revenue_requirements'.")
         subclass_rr = _parse_subclass_revenue_requirement(
             rr_data,
             raw_path_tariffs_electric,
@@ -400,15 +358,11 @@ def _parse_resstock_overrides(rr_data: dict[str, Any]) -> ResstockOverrides:
     """
     customer_count_override: float | None = None
     if "test_year_customer_count" in rr_data:
-        customer_count_override = _parse_float(
-            rr_data["test_year_customer_count"], "test_year_customer_count"
-        )
+        customer_count_override = _parse_float(rr_data["test_year_customer_count"], "test_year_customer_count")
 
     kwh_scale_factor: float | None = None
     if "resstock_kwh_scale_factor" in rr_data:
-        kwh_scale_factor = _parse_float(
-            rr_data["resstock_kwh_scale_factor"], "resstock_kwh_scale_factor"
-        )
+        kwh_scale_factor = _parse_float(rr_data["resstock_kwh_scale_factor"], "resstock_kwh_scale_factor")
 
     return ResstockOverrides(customer_count_override, kwh_scale_factor)
 
@@ -427,23 +381,15 @@ def _parse_path_tariffs(
     tariff_key in the map must have an entry, and every path must appear in the map.
     """
     if not isinstance(value, dict):
-        raise ValueError(
-            f"path_tariffs_{label} must be a dict of key -> path; got {type(value).__name__}"
-        )
+        raise ValueError(f"path_tariffs_{label} must be a dict of key -> path; got {type(value).__name__}")
     path_tariffs = {}
     for item in value.values():
         if not isinstance(item, str):
-            raise ValueError(
-                f"path_tariffs_{label} dict values must be path strings; "
-                f"got {type(item).__name__}"
-            )
+            raise ValueError(f"path_tariffs_{label} dict values must be path strings; got {type(item).__name__}")
         path = _resolve_path(item, base_dir)
         key = path.stem
         if key in path_tariffs:
-            raise ValueError(
-                f"path_tariffs_{label}: duplicate key '{key}' from paths "
-                f"{path_tariffs[key]} and {path}"
-            )
+            raise ValueError(f"path_tariffs_{label}: duplicate key '{key}' from paths {path_tariffs[key]} and {path}")
         path_tariffs[key] = path
 
     map_keys = _tariff_map_keys(path_tariff_map)
@@ -457,8 +403,7 @@ def _parse_path_tariffs(
         )
     if only_in_list:
         raise ValueError(
-            f"path_tariffs_{label} includes file(s) not referenced in {label} "
-            f"tariff map: {sorted(only_in_list)}"
+            f"path_tariffs_{label} includes file(s) not referenced in {label} tariff map: {sorted(only_in_list)}"
         )
     return path_tariffs
 
@@ -480,9 +425,7 @@ def _parse_path_tariffs_gas(
         )
     path_dir = _resolve_path(value, base_dir)
     if not path_dir.is_dir():
-        raise ValueError(
-            f"path_tariffs_gas is a directory path but not a directory: {path_dir}"
-        )
+        raise ValueError(f"path_tariffs_gas is a directory path but not a directory: {path_dir}")
     map_keys = _tariff_map_keys(path_tariff_map)
     path_tariffs = {k: path_dir / f"{k}.json" for k in map_keys}
     missing = [k for k, p in path_tariffs.items() if not p.is_file()]
@@ -499,9 +442,7 @@ def _tariff_map_keys(path_tariff_map: Path) -> set[str]:
     """Return the set of tariff_key values in a tariff map CSV (electric or gas)."""
     df = pl.read_csv(path_tariff_map)
     if "tariff_key" not in df.columns:
-        raise ValueError(
-            f"Tariff map {path_tariff_map} must have a 'tariff_key' column"
-        )
+        raise ValueError(f"Tariff map {path_tariff_map} must have a 'tariff_key' column")
     return set(df["tariff_key"].unique().to_list())
 
 
@@ -535,9 +476,7 @@ def _parse_float(value: object, field_name: str) -> float:
 def _parse_bool(value: object, field_name: str) -> bool:
     if isinstance(value, bool):
         return value
-    raise ValueError(
-        f"Invalid boolean for {field_name}: {value!r}. Use unquoted YAML true/false."
-    )
+    raise ValueError(f"Invalid boolean for {field_name}: {value!r}. Use unquoted YAML true/false.")
 
 
 def resolve_subclass_rr_for_validation(

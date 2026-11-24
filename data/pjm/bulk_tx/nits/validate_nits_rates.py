@@ -57,9 +57,7 @@ def validate(path_csv: str) -> tuple[bool, list[str]]:
 
         dates = sorted(year_df["effective_date"].unique().to_list())
         if len(dates) != 2:
-            msgs.append(
-                f"WARN: year {year} has {len(dates)} effective date(s), expected 2 (Jan+Jun): {dates}"
-            )
+            msgs.append(f"WARN: year {year} has {len(dates)} effective date(s), expected 2 (Jan+Jun): {dates}")
 
         for row in year_df.iter_rows(named=True):
             rate_mw = float(row["nits_rate_mw_yr"])
@@ -74,8 +72,7 @@ def validate(path_csv: str) -> tuple[bool, list[str]]:
             expected_kw = round(rate_mw / 1000, 2)
             if abs(rate_kw - expected_kw) > 0.01:
                 msgs.append(
-                    f"FAIL: {zone} {eff} kW rate mismatch: "
-                    f"got {rate_kw}, expected {expected_kw} (= {rate_mw}/1000)"
+                    f"FAIL: {zone} {eff} kW rate mismatch: got {rate_kw}, expected {expected_kw} (= {rate_mw}/1000)"
                 )
                 ok = False
 

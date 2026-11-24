@@ -24,9 +24,8 @@ from typing import cast
 
 import pandas as pd
 import polars as pl
-from gridstatus import NYISO
-
 from fetch_icap_clearing_prices import SCHEMA
+from gridstatus import NYISO
 
 PARTITION_RE = re.compile(r"year=(\d{4})/month=(\d{1,2})")
 
@@ -61,9 +60,7 @@ def _last_complete_month() -> tuple[int, int]:
     return (today.year, today.month - 1)
 
 
-def _months_in_range(
-    start: tuple[int, int], end: tuple[int, int]
-) -> list[tuple[int, int]]:
+def _months_in_range(start: tuple[int, int], end: tuple[int, int]) -> list[tuple[int, int]]:
     months: list[tuple[int, int]] = []
     current = start
     while current <= end:
@@ -103,9 +100,7 @@ def _fetch_single_month(iso: NYISO, year: int, month: int) -> pl.DataFrame | Non
             )
     if not records:
         return None
-    return pl.DataFrame(records, schema=SCHEMA).sort(
-        "month", "locality", "auction_type"
-    )
+    return pl.DataFrame(records, schema=SCHEMA).sort("month", "locality", "auction_type")
 
 
 def main() -> int:
@@ -131,9 +126,7 @@ def main() -> int:
 
     partitions = _list_s3_partitions(args.path_s3_parquet)
     if not partitions:
-        print(
-            "No partitions on S3. Use `just fetch` for initial load.", file=sys.stderr
-        )
+        print("No partitions on S3. Use `just fetch` for initial load.", file=sys.stderr)
         return 1
 
     latest = max(partitions)

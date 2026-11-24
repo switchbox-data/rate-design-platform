@@ -19,9 +19,7 @@ from utils.data_prep.marginal_costs.convert_ct_occ863_system_load import (
 
 def _year_hours(year: int) -> pl.Series:
     n_hours = 8784 if year % 4 == 0 else 8760
-    end = pl.select(
-        pl.lit(f"{year}-01-01").str.to_datetime() + pl.duration(hours=n_hours - 1)
-    ).item()
+    end = pl.select(pl.lit(f"{year}-01-01").str.to_datetime() + pl.duration(hours=n_hours - 1)).item()
     return pl.datetime_range(
         pl.select(pl.lit(f"{year}-01-01").str.to_datetime()).item(),
         end,
@@ -30,9 +28,7 @@ def _year_hours(year: int) -> pl.Series:
     )
 
 
-def _page2(
-    years: list[int], *, drift_first_of_second_year: bool = False
-) -> pl.DataFrame:
+def _page2(years: list[int], *, drift_first_of_second_year: bool = False) -> pl.DataFrame:
     frames = [pl.DataFrame({"DateTime": _year_hours(year)}) for year in years]
     raw = pl.concat(frames).with_columns(
         (1000.0 + (pl.int_range(pl.len()) % 24)).alias("Actual Load"),
@@ -74,12 +70,8 @@ def _page1_sheet() -> pl.DataFrame:
 
 
 def test_rounds_a_timestamp_that_excel_stored_just_before_the_hour() -> None:
-    load = hourly_system_load(
-        _page2([2022, 2023, 2024, 2025], drift_first_of_second_year=True)
-    )
-    new_year = load.filter(
-        pl.col("timestamp").dt.strftime("%Y-%m-%d %H") == "2023-01-01 00"
-    )
+    load = hourly_system_load(_page2([2022, 2023, 2024, 2025], drift_first_of_second_year=True))
+    new_year = load.filter(pl.col("timestamp").dt.strftime("%Y-%m-%d %H") == "2023-01-01 00")
     assert new_year.height == 1
     assert load["timestamp"].n_unique() == load.height
 
@@ -89,16 +81,9 @@ def test_keeps_the_leap_day_and_names_the_load_column_in_mw() -> None:
     assert load.columns == ["timestamp", "load_mw"]
     # Same unit as the rate-class files and the ISO-NE loads, so joins need no cast.
     assert load.schema["timestamp"] == pl.Datetime("us")
-    counts = dict(
-        load.with_columns(pl.col("timestamp").dt.year().alias("year"))
-        .group_by("year")
-        .len()
-        .iter_rows()
-    )
+    counts = dict(load.with_columns(pl.col("timestamp").dt.year().alias("year")).group_by("year").len().iter_rows())
     assert counts == {2022: 8760, 2023: 8760, 2024: 8784, 2025: 8760}
-    leap = load.filter(
-        pl.col("timestamp").dt.strftime("%Y-%m-%d %H") == "2024-02-29 00"
-    )
+    leap = load.filter(pl.col("timestamp").dt.strftime("%Y-%m-%d %H") == "2024-02-29 00")
     assert leap.height == 1
 
 

@@ -72,9 +72,7 @@ def _write_cairo_outputs(
     # cross_subsidization/cross_subsidization_BAT_values.csv
     bat_dir = run_dir / "cross_subsidization"
     bat_dir.mkdir(parents=True, exist_ok=True)
-    bat = pl.DataFrame(
-        {"bldg_id": bldg_ids, "customer_level_economic_burden": economic_burdens}
-    )
+    bat = pl.DataFrame({"bldg_id": bldg_ids, "customer_level_economic_burden": economic_burdens})
     bat.write_csv(bat_dir / "cross_subsidization_BAT_values.csv")
 
     # billing_kwh_annual.parquet
@@ -89,9 +87,7 @@ def _write_cairo_outputs(
             for i, v in enumerate(vals):
                 ts = start + datetime.timedelta(hours=i)
                 rows.append({"bldg_id": bid, "timestamp": ts, "grid_cons_kwh": v})
-        kwh_8760 = pl.DataFrame(rows).with_columns(
-            pl.col("timestamp").cast(pl.Datetime("us"))
-        )
+        kwh_8760 = pl.DataFrame(rows).with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
         kwh_8760.write_parquet(run_dir / "billing_kwh_8760.parquet")
 
 
@@ -215,20 +211,12 @@ class TestComputeSeasonalKwh:
             kwh = 2.0 if month in winter_months else 1.0
             rows.append({"bldg_id": 1, "timestamp": ts, "grid_cons_kwh": kwh})
 
-        kwh_8760 = pl.DataFrame(rows).with_columns(
-            pl.col("timestamp").cast(pl.Datetime("us"))
-        )
+        kwh_8760 = pl.DataFrame(rows).with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
         kwh_8760.write_parquet(run_dir / "billing_kwh_8760.parquet")
 
-        avg_winter, avg_summer = _compute_seasonal_kwh(
-            run_dir, bldg_ids, weights_df, winter_months
-        )
+        avg_winter, avg_summer = _compute_seasonal_kwh(run_dir, bldg_ids, weights_df, winter_months)
 
-        winter_hours = sum(
-            1
-            for h in range(8760)
-            if (start + datetime.timedelta(hours=h)).month in winter_months
-        )
+        winter_hours = sum(1 for h in range(8760) if (start + datetime.timedelta(hours=h)).month in winter_months)
         summer_hours = 8760 - winter_hours
 
         assert avg_winter == pytest.approx(2.0 * winter_hours)
@@ -272,16 +260,10 @@ class TestIcosSeasonalFormula:
         avg_kwh_summer = 600.0
         avg_kwh_winter = 1100.0
 
-        r_winter = (
-            r_base * avg_kwh_before + avg_delta_mc - r_base * avg_kwh_summer
-        ) / avg_kwh_winter
+        r_winter = (r_base * avg_kwh_before + avg_delta_mc - r_base * avg_kwh_summer) / avg_kwh_winter
         r_summer = r_base
 
-        overpayment = (
-            r_summer * avg_kwh_summer
-            + r_winter * avg_kwh_winter
-            - (r_base * avg_kwh_before + avg_delta_mc)
-        )
+        overpayment = r_summer * avg_kwh_summer + r_winter * avg_kwh_winter - (r_base * avg_kwh_before + avg_delta_mc)
         assert overpayment == pytest.approx(0.0, abs=1e-10)
 
 
@@ -315,9 +297,7 @@ def _make_pipeline_config(
     )
 
     periods_yaml = periods_dir / "test_util.yaml"
-    periods_yaml.write_text(
-        "winter_months: [11, 12, 1, 2, 3]\nsummer_months: [4, 5, 6, 7, 8, 9, 10]\n"
-    )
+    periods_yaml.write_text("winter_months: [11, 12, 1, 2, 3]\nsummer_months: [4, 5, 6, 7, 8, 9, 10]\n")
 
     run_defaults = MagicMock()
     run_defaults.periods_yaml = "periods/test_util.yaml"

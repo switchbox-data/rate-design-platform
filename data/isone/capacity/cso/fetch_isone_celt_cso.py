@@ -14,12 +14,12 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import urllib.request
 from pathlib import Path
 
 import openpyxl
 import openpyxl.worksheet.worksheet
 import polars as pl
-import urllib.request
 
 CELT_URLS: dict[int, str] = {
     2025: "https://www.iso-ne.com/static-assets/documents/100023/2025_celt.xlsx",
@@ -289,11 +289,7 @@ def main() -> int:
         print("ERROR: path contains uninterpolated Just variable", file=sys.stderr)
         return 1
 
-    years = (
-        sorted(CELT_URLS.keys())
-        if args.all
-        else [int(y) for y in args.celt_years.split(",")]
-    )
+    years = sorted(CELT_URLS.keys()) if args.all else [int(y) for y in args.celt_years.split(",")]
     unknown = [y for y in years if y not in CELT_URLS]
     if unknown:
         print(f"ERROR: unknown CELT years: {unknown}", file=sys.stderr)

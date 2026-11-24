@@ -96,13 +96,8 @@ def test_assign_md_eusp_kwh_band_boundaries() -> None:
 
 def test_meap_source_matrix_cells() -> None:
     benefits = get_md_meap_benefits_df()
-    l1_gas = benefits.filter(
-        (pl.col("ohep_poverty_level") == 1) & (pl.col("primary_heating_fuel") == "gas")
-    )
-    l5_oil = benefits.filter(
-        (pl.col("ohep_poverty_level") == 5)
-        & (pl.col("primary_heating_fuel") == "oil_kerosene")
-    )
+    l1_gas = benefits.filter((pl.col("ohep_poverty_level") == 1) & (pl.col("primary_heating_fuel") == "gas"))
+    l5_oil = benefits.filter((pl.col("ohep_poverty_level") == 5) & (pl.col("primary_heating_fuel") == "oil_kerosene"))
     assert l1_gas["meap_annual_benefit"].item() == 550.0
     assert l5_oil["meap_annual_benefit"].item() == 650.0
     assert benefits.height == 25
@@ -116,9 +111,7 @@ def test_eusp_source_matrix_cells() -> None:
         & (pl.col("eusp_kwh_band") == 4)
     )
     l5_gas_band1 = benefits.filter(
-        (pl.col("ohep_poverty_level") == 5)
-        & (pl.col("primary_heating_fuel") == "gas")
-        & (pl.col("eusp_kwh_band") == 1)
+        (pl.col("ohep_poverty_level") == 5) & (pl.col("primary_heating_fuel") == "gas") & (pl.col("eusp_kwh_band") == 1)
     )
     assert l1_electric_band4["eusp_annual_benefit"].item() == 1000.0
     assert l5_gas_band1["eusp_annual_benefit"].item() == 175.0
@@ -199,10 +192,7 @@ def _make_enriched_master(
                 "gas_total_bill": monthly_gas * multiplier,
                 "oil_total_bill": monthly_oil * multiplier,
                 "propane_total_bill": monthly_propane * multiplier,
-                "energy_total_bill": (
-                    monthly_elec + monthly_gas + monthly_oil + monthly_propane
-                )
-                * multiplier,
+                "energy_total_bill": (monthly_elec + monthly_gas + monthly_oil + monthly_propane) * multiplier,
                 "primary_heating_fuel": fuel,
                 "meap_annual_benefit": meap,
                 "eusp_annual_benefit": eusp,
@@ -256,12 +246,8 @@ def test_meap_and_eusp_can_be_toggled_independently() -> None:
         keep_component_columns=True,
         include_eusp=False,
     )
-    assert eusp_only.filter(pl.col("month") == "Annual")[
-        "elec_total_bill_lmi_100"
-    ].item() == pytest.approx(1400.0)
-    assert meap_only.filter(pl.col("month") == "Annual")[
-        "elec_total_bill_lmi_100"
-    ].item() == pytest.approx(2300.0)
+    assert eusp_only.filter(pl.col("month") == "Annual")["elec_total_bill_lmi_100"].item() == pytest.approx(1400.0)
+    assert meap_only.filter(pl.col("month") == "Annual")["elec_total_bill_lmi_100"].item() == pytest.approx(2300.0)
     assert eusp_only["meap_annual_credit_100"].sum() == 0.0
     assert meap_only["eusp_annual_credit_100"].sum() == 0.0
 
@@ -298,10 +284,7 @@ def test_credit_exceeds_annual_bill_zeros_all_months() -> None:
     )
     result = _apply_md_ohep_benefits(master, 100, keep_component_columns=False)
     assert result["elec_total_bill_lmi_100"].min() == 0.0
-    assert (
-        result.filter(pl.col("month") == "Annual")["elec_total_bill_lmi_100"].item()
-        == 0.0
-    )
+    assert result.filter(pl.col("month") == "Annual")["elec_total_bill_lmi_100"].item() == 0.0
 
 
 def test_proportional_allocation_preserves_full_grant() -> None:
@@ -367,9 +350,7 @@ def test_proportional_allocation_preserves_full_grant() -> None:
     for i, month in enumerate(MONTHS[:-1]):
         row = result.filter(pl.col("month") == month)
         expected = months_bills[i] * fraction
-        assert row["elec_total_bill_lmi_100"].item() == pytest.approx(
-            expected, abs=1e-6
-        )
+        assert row["elec_total_bill_lmi_100"].item() == pytest.approx(expected, abs=1e-6)
 
     _validate_md_ohep(result, 100, 1.0)
 
@@ -387,13 +368,8 @@ def test_nonparticipant_bills_are_unchanged() -> None:
         participates=False,
     )
     result = _apply_md_ohep_benefits(master, 0, keep_component_columns=True)
-    assert (
-        result["elec_total_bill_lmi_0"].to_list() == result["elec_total_bill"].to_list()
-    )
-    assert (
-        result["propane_total_bill_lmi_0"].to_list()
-        == result["propane_total_bill"].to_list()
-    )
+    assert result["elec_total_bill_lmi_0"].to_list() == result["elec_total_bill"].to_list()
+    assert result["propane_total_bill_lmi_0"].to_list() == result["propane_total_bill"].to_list()
     assert result["meap_annual_credit_0"].sum() == 0.0
     assert result["eusp_annual_credit_0"].sum() == 0.0
 
@@ -446,19 +422,12 @@ def test_bge_proposed_lim_applies_volumetric_credits_after_ohep() -> None:
     monthly = result.filter(pl.col("month") == "Jan")
     annual = result.filter(pl.col("month") == "Annual")
 
-    assert monthly["elec_total_bill_lmi_100"].item() == pytest.approx(
-        50.0 - 100.0 * 0.08372
-    )
+    assert monthly["elec_total_bill_lmi_100"].item() == pytest.approx(50.0 - 100.0 * 0.08372)
     assert monthly["gas_total_bill_lmi_100"].item() == pytest.approx(10.0 - 0.5768)
-    assert annual["bge_proposed_lim_electric_credit_100"].item() == pytest.approx(
-        12 * 100.0 * 0.08372
-    )
-    assert annual["bge_proposed_lim_gas_credit_100"].item() == pytest.approx(
-        12 * 0.5768
-    )
+    assert annual["bge_proposed_lim_electric_credit_100"].item() == pytest.approx(12 * 100.0 * 0.08372)
+    assert annual["bge_proposed_lim_gas_credit_100"].item() == pytest.approx(12 * 0.5768)
     assert annual["energy_total_bill_lmi_100"].item() == pytest.approx(
-        annual["elec_total_bill_lmi_100"].item()
-        + annual["gas_total_bill_lmi_100"].item()
+        annual["elec_total_bill_lmi_100"].item() + annual["gas_total_bill_lmi_100"].item()
     )
     assert annual["applied_bge_proposed_lim_electric_100"].item() is True
     assert annual["applied_bge_proposed_lim_gas_100"].item() is True

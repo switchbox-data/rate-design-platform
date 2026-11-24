@@ -48,9 +48,7 @@ def test_identify_heating_type():
         test_output_metadata_df = test_output_metadata.collect()
         assert "postprocess_group.heating_type" in test_output_metadata_df.columns
         if upgrade_id == "00":
-            assert test_output_metadata_df[
-                "postprocess_group.heating_type"
-            ].to_list() == [
+            assert test_output_metadata_df["postprocess_group.heating_type"].to_list() == [
                 "heat_pump",
                 "heat_pump",
                 "electrical_resistance",
@@ -63,9 +61,7 @@ def test_identify_heating_type():
                 "fossil_fuel",
             ]
         else:
-            assert test_output_metadata_df[
-                "postprocess_group.heating_type"
-            ].to_list() == [
+            assert test_output_metadata_df["postprocess_group.heating_type"].to_list() == [
                 "heat_pump",
                 "heat_pump",
                 "heat_pump",

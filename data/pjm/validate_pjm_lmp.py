@@ -88,22 +88,16 @@ def validate_zone_lmp(
 
     ts_col = "datetime_beginning_ept"
     if ts_col not in zone_df.columns:
-        return False, [
-            f"FAIL  Column '{ts_col}' not found. Available columns: {zone_df.columns}"
-        ]
+        return False, [f"FAIL  Column '{ts_col}' not found. Available columns: {zone_df.columns}"]
 
     # Parse if still string.
     if zone_df.schema[ts_col] == pl.String:
-        zone_df = zone_df.with_columns(
-            pl.col(ts_col).str.to_datetime(strict=False).alias(ts_col)
-        )
+        zone_df = zone_df.with_columns(pl.col(ts_col).str.to_datetime(strict=False).alias(ts_col))
 
     # Strip timezone if present so naive-vs-aware doesn't break joins.
     col_dtype = zone_df.schema[ts_col]
     if hasattr(col_dtype, "time_zone") and col_dtype.time_zone is not None:
-        zone_df = zone_df.with_columns(
-            pl.col(ts_col).dt.replace_time_zone(None).alias(ts_col)
-        )
+        zone_df = zone_df.with_columns(pl.col(ts_col).dt.replace_time_zone(None).alias(ts_col))
 
     zone_df = zone_df.with_columns(pl.col(ts_col).cast(pl.Datetime("us")).alias(ts_col))
 
@@ -126,9 +120,7 @@ def validate_zone_lmp(
         ok = False
         msgs.append(f"FAIL  {dup_count:,} duplicate hour(s) in zone={zone}")
     elif dup_count > 0:
-        msgs.append(
-            f"  ok  {dup_count} duplicate hour(s) (expected from DST fall-back)"
-        )
+        msgs.append(f"  ok  {dup_count} duplicate hour(s) (expected from DST fall-back)")
     else:
         msgs.append("  ok  No duplicate hours")
 
@@ -141,15 +133,9 @@ def validate_zone_lmp(
     if n_missing > _DST_TOLERANCE_HOURS:
         ok = False
         pct = n_missing / n_expected * 100
-        msgs.append(
-            f"FAIL  {n_missing:,} of {n_expected:,} expected hours missing "
-            f"({pct:.2f}%) in zone={zone}"
-        )
+        msgs.append(f"FAIL  {n_missing:,} of {n_expected:,} expected hours missing ({pct:.2f}%) in zone={zone}")
     elif n_missing > 0:
-        msgs.append(
-            f"  ok  {n_missing} hour(s) missing (within DST tolerance "
-            f"of {_DST_TOLERANCE_HOURS})"
-        )
+        msgs.append(f"  ok  {n_missing} hour(s) missing (within DST tolerance of {_DST_TOLERANCE_HOURS})")
     else:
         msgs.append(f"  ok  All {n_expected:,} expected hours present")
 
@@ -158,9 +144,7 @@ def validate_zone_lmp(
         sorted_missing = missing.sort(ts_col)
         sample = sorted_missing.head(20)[ts_col].to_list()
         sample_str = "\n              ".join(str(t) for t in sample)
-        suffix = (
-            f"\n              ... and {n_missing - 20} more" if n_missing > 20 else ""
-        )
+        suffix = f"\n              ... and {n_missing - 20} more" if n_missing > 20 else ""
         msgs.append(f"      missing: {sample_str}{suffix}")
 
     # --- Null prices ---
@@ -198,9 +182,7 @@ def validate_zone_lmp(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Validate PJM LMP parquet data for hourly completeness."
-    )
+    parser = argparse.ArgumentParser(description="Validate PJM LMP parquet data for hourly completeness.")
     parser.add_argument(
         "path_parquet",
         type=Path,

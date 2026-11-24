@@ -53,9 +53,7 @@ def test_apply_prototype_sample_negative_raises() -> None:
 def test_apply_prototype_sample_exceeds_raises() -> None:
     """When sample_size exceeds number of prototype IDs, raise ValueError."""
     ids = [1, 2, 3, 4, 5]
-    with pytest.raises(
-        ValueError, match="sample_size 10 exceeds number of prototype IDs \\(5\\)"
-    ):
+    with pytest.raises(ValueError, match="sample_size 10 exceeds number of prototype IDs \\(5\\)"):
         apply_prototype_sample(ids, 10)
 
 

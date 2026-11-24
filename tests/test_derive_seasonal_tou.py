@@ -21,7 +21,7 @@ def test_derive_seasonal_tou_rejects_flat_or_inverted_ratio() -> None:
     dist_mc = pd.Series([0.0] * len(idx), index=idx, name="dist_mc")
     hourly_load = pd.Series([10.0] * len(idx), index=idx, name="load")
 
-    with pytest.raises(ValueError, match="must be > 1.0"):
+    with pytest.raises(ValueError, match=r"must be > 1.0"):
         derive_seasonal_tou(
             bulk_marginal_costs=bulk_mc,
             dist_and_sub_tx_marginal_costs=dist_mc,

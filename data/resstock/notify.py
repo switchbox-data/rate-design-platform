@@ -15,7 +15,7 @@ import os
 import re
 import socket
 from collections.abc import Iterable, Mapping, Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -100,7 +100,7 @@ def _duration(run: Mapping[str, Any], end_key: str) -> str | None:
     try:
         start = datetime.fromisoformat(run["started_at"])
         end_raw = run.get(end_key)
-        end = datetime.fromisoformat(end_raw) if end_raw else datetime.now(timezone.utc)
+        end = datetime.fromisoformat(end_raw) if end_raw else datetime.now(UTC)
     except (KeyError, TypeError, ValueError):
         return None
     minutes = int((end - start).total_seconds() // 60)
@@ -128,17 +128,13 @@ def _step_details(run: Mapping[str, Any], name: str) -> Mapping[str, Any] | None
     return None
 
 
-def format_completed(
-    run: Mapping[str, Any], real_world_warnings: Sequence[str] = ()
-) -> str:
+def format_completed(run: Mapping[str, Any], real_world_warnings: Sequence[str] = ()) -> str:
     """Summary of a completed run, led by the real-world check warnings."""
     icon = ":warning:" if real_world_warnings else ":white_check_mark:"
     lines = [
         f"{icon} *ResStock pipeline completed* — {_run_scope(run)}",
         _footer(run, "completed_at"),
-        *_real_world_lines(
-            _step_details(run, "real_world_checks"), real_world_warnings
-        ),
+        *_real_world_lines(_step_details(run, "real_world_checks"), real_world_warnings),
     ]
     return "\n".join(lines)
 
@@ -158,9 +154,7 @@ def format_real_world_checks(
     return "\n".join(lines)
 
 
-def _real_world_lines(
-    details: Mapping[str, Any] | None, real_world_warnings: Sequence[str]
-) -> list[str]:
+def _real_world_lines(details: Mapping[str, Any] | None, real_world_warnings: Sequence[str]) -> list[str]:
     lines: list[str] = []
     if details is None:
         lines.append("Real-world checks: not run.")
@@ -183,9 +177,7 @@ def _real_world_lines(
         lines.extend(f"Notebook: `{nb}`" for nb in notebooks)
     if details and details.get("reports"):
         lines.append("")
-        lines.extend(
-            f"Report ({state}): `{path}`" for state, path in details["reports"].items()
-        )
+        lines.extend(f"Report ({state}): `{path}`" for state, path in details["reports"].items())
     return lines
 
 
@@ -213,9 +205,7 @@ def format_crashed(run: Mapping[str, Any]) -> str:
     )
 
 
-def notify_completed(
-    run: Mapping[str, Any], real_world_warnings: Sequence[str] = ()
-) -> bool:
+def notify_completed(run: Mapping[str, Any], real_world_warnings: Sequence[str] = ()) -> bool:
     if not should_notify(run):
         return False
     return post_slack(format_completed(run, real_world_warnings))
@@ -246,16 +236,12 @@ def notify_crashed(runs: Iterable[Mapping[str, Any]]) -> int:
 
 def _main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument(
-        "--test", action="store_true", help="Post a test message to the webhook."
-    )
+    parser.add_argument("--test", action="store_true", help="Post a test message to the webhook.")
     args = parser.parse_args(argv)
     if not args.test:
         parser.print_help()
         return
-    ok = post_slack(
-        f":wave: Test message from the ResStock pipeline on `{socket.gethostname()}`."
-    )
+    ok = post_slack(f":wave: Test message from the ResStock pipeline on `{socket.gethostname()}`.")
     print("Posted." if ok else "Not posted.")
     raise SystemExit(0 if ok else 1)
 

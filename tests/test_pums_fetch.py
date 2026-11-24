@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from data.census.pums.convert_pums_csv_to_parquet import PUMS_STATE_CODES
 
 

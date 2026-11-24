@@ -68,9 +68,7 @@ def _last_complete_month() -> tuple[int, int]:
     return (today.year, today.month - 1)
 
 
-def _months_in_range(
-    start: tuple[int, int], end: tuple[int, int]
-) -> list[tuple[int, int]]:
+def _months_in_range(start: tuple[int, int], end: tuple[int, int]) -> list[tuple[int, int]]:
     months: list[tuple[int, int]] = []
     current = start
     while current <= end:

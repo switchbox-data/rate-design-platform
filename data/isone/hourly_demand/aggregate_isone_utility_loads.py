@@ -47,10 +47,7 @@ def load_zone_mapping(path: str) -> pl.DataFrame:
 
     Required columns: ``utility``, ``iso_zone``.
     """
-    if path.startswith("s3://"):
-        df = pl.read_csv(io.BytesIO(S3Path(path).read_bytes()))
-    else:
-        df = pl.read_csv(path)
+    df = pl.read_csv(io.BytesIO(S3Path(path).read_bytes())) if path.startswith("s3://") else pl.read_csv(path)
     required = {"utility", "iso_zone"}
     missing = required - set(df.columns)
     if missing:
@@ -115,17 +112,12 @@ def load_zone_data(zone_base: str, year: int, zones: list[str]) -> pl.DataFrame:
     if missing:
         for item in missing:
             print(f"  {item}")
-        raise ValueError(
-            f"Incomplete data: {len(missing)} missing partition(s). "
-            f"All 12 months required for {year}."
-        )
+        raise ValueError(f"Incomplete data: {len(missing)} missing partition(s). All 12 months required for {year}.")
 
     return collected.rename({"interval_start_et": "timestamp"})
 
 
-def aggregate_utility_load(
-    zone_df: pl.DataFrame, utility_name: str, zones: list[str]
-) -> pl.DataFrame:
+def aggregate_utility_load(zone_df: pl.DataFrame, utility_name: str, zones: list[str]) -> pl.DataFrame:
     """Sum zone loads for a single utility by timestamp.
 
     For single-zone utilities (e.g. rie → RI) this is a 1:1 relabel.
@@ -151,9 +143,7 @@ def aggregate_utility_load(
     )
 
 
-def write_utility_loads_local(
-    utility_df: pl.DataFrame, utility_base: str, utility_name: str
-) -> None:
+def write_utility_loads_local(utility_df: pl.DataFrame, utility_base: str, utility_name: str) -> None:
     """Write utility load Hive parquet locally.
 
     Layout: ``utility={slug}/year=YYYY/month=MM/data.parquet`` (Eastern
@@ -173,14 +163,10 @@ def write_utility_loads_local(
         pl.col("timestamp").dt.month().alias("month"),
     )
     base = Path(utility_base)
-    for (utility, year, month), part_df in output_df.partition_by(
-        ["utility", "year", "month"], as_dict=True
-    ).items():
+    for (utility, year, month), part_df in output_df.partition_by(["utility", "year", "month"], as_dict=True).items():
         part_dir = base / f"utility={utility}" / f"year={year}" / f"month={month:02d}"
         part_dir.mkdir(parents=True, exist_ok=True)
-        part_df.select("timestamp", "load_mw").write_parquet(
-            part_dir / "data.parquet", compression="zstd"
-        )
+        part_df.select("timestamp", "load_mw").write_parquet(part_dir / "data.parquet", compression="zstd")
     print(f"  Wrote utility={utility_name} partitions under {base}")
 
 
@@ -195,9 +181,7 @@ def expected_hours_in_year(year: int) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Aggregate ISO-NE zone loads to utility-level profiles."
-    )
+    parser = argparse.ArgumentParser(description="Aggregate ISO-NE zone loads to utility-level profiles.")
     parser.add_argument("--year", type=int, required=True, help="Calendar year.")
     parser.add_argument(
         "--utility",
@@ -238,9 +222,7 @@ def main() -> None:
         valid = ", ".join(sorted(utility_zone_map.keys()))
         parser.error(f"Invalid --utility '{args.utility}'. Valid: all, {valid}")
 
-    utilities_to_process = (
-        sorted(utility_zone_map.keys()) if selected == "all" else [selected]
-    )
+    utilities_to_process = sorted(utility_zone_map.keys()) if selected == "all" else [selected]
 
     all_zones_needed: set[str] = set()
     for u in utilities_to_process:

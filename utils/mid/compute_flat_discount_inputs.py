@@ -40,10 +40,7 @@ def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     parser = argparse.ArgumentParser(
-        description=(
-            "Compute a fair flat volumetric rate for a customer subclass from run "
-            "outputs and ResStock loads."
-        )
+        description=("Compute a fair flat volumetric rate for a customer subclass from run outputs and ResStock loads.")
     )
     parser.add_argument(
         "--run-dir",
@@ -109,10 +106,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--output-dir",
-        help=(
-            "Optional output directory for flat discount CSV. "
-            "If omitted, writes to --run-dir."
-        ),
+        help=("Optional output directory for flat discount CSV. If omitted, writes to --run-dir."),
     )
     args = parser.parse_args()
 
@@ -122,9 +116,7 @@ def main() -> None:
 
     storage_options = get_aws_storage_options() if isinstance(run_dir, S3Path) else None
     group_value_to_subclass = (
-        parse_group_value_to_subclass(args.group_value_to_subclass)
-        if args.group_value_to_subclass
-        else None
+        parse_group_value_to_subclass(args.group_value_to_subclass) if args.group_value_to_subclass else None
     )
     flat_inputs = compute_subclass_flat_discount_inputs(
         run_dir=run_dir,

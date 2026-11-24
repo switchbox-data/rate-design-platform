@@ -45,9 +45,7 @@ def _extract_flat_rate(row: dict[str, Any]) -> float:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Create a flat-discount tariff JSON from flat discount input metrics."
-    )
+    parser = argparse.ArgumentParser(description="Create a flat-discount tariff JSON from flat discount input metrics.")
     parser.add_argument(
         "--base-tariff-json",
         required=True,

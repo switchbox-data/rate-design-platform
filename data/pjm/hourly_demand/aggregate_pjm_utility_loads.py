@@ -44,10 +44,7 @@ from data.pjm.hourly_demand.validate_pjm_demand_parquet import expected_hours_in
 
 def load_zone_mapping(path: str) -> pl.DataFrame:
     """Load the PJM utility-zone crosswalk CSV (local or S3)."""
-    if path.startswith("s3://"):
-        df = pl.read_csv(io.BytesIO(S3Path(path).read_bytes()))
-    else:
-        df = pl.read_csv(path)
+    df = pl.read_csv(io.BytesIO(S3Path(path).read_bytes())) if path.startswith("s3://") else pl.read_csv(path)
 
     required = {"utility", "dataminer_zone"}
     missing = required - set(df.columns)
@@ -59,9 +56,7 @@ def load_zone_mapping(path: str) -> pl.DataFrame:
 def get_utility_zone_mapping(mapping_df: pl.DataFrame) -> dict[str, list[str]]:
     """Extract utility -> sorted unique list of Data Miner zone codes."""
     result: dict[str, list[str]] = {}
-    for row in (
-        mapping_df.select("utility", "dataminer_zone").unique().iter_rows(named=True)
-    ):
+    for row in mapping_df.select("utility", "dataminer_zone").unique().iter_rows(named=True):
         result.setdefault(str(row["utility"]), []).append(str(row["dataminer_zone"]))
     return {u: sorted(set(z)) for u, z in result.items()}
 
@@ -101,27 +96,18 @@ def interpolate_flagged_zone_hours(zone_df: pl.DataFrame) -> pl.DataFrame:
     if flagged.height:
         print(f"  Interpolating {flagged.height} flagged zone-hour(s):")
         for r in flagged.select("zone", "timestamp", "load_mw").iter_rows(named=True):
-            print(
-                f"    {r['zone']} {r['timestamp']}: raw {r['load_mw']:.1f} MW -> interpolated"
-            )
+            print(f"    {r['zone']} {r['timestamp']}: raw {r['load_mw']:.1f} MW -> interpolated")
 
     return (
         zone_df.sort("zone", "timestamp")
-        .with_columns(
-            pl.when(pl.col("value_flag"))
-            .then(None)
-            .otherwise(pl.col("load_mw"))
-            .alias("load_mw")
-        )
+        .with_columns(pl.when(pl.col("value_flag")).then(None).otherwise(pl.col("load_mw")).alias("load_mw"))
         .with_columns(pl.col("load_mw").interpolate().over("zone"))
         .with_columns(pl.col("load_mw").fill_null(strategy="forward").over("zone"))
         .with_columns(pl.col("load_mw").fill_null(strategy="backward").over("zone"))
     )
 
 
-def aggregate_utility_load(
-    zone_df: pl.DataFrame, utility_name: str, zones: list[str]
-) -> pl.DataFrame:
+def aggregate_utility_load(zone_df: pl.DataFrame, utility_name: str, zones: list[str]) -> pl.DataFrame:
     """Sum zone loads for a single utility by timestamp.
 
     Carries an ``interpolated`` flag forward: a utility-hour is marked
@@ -132,11 +118,7 @@ def aggregate_utility_load(
     if utility_data.is_empty():
         raise ValueError(f"No data found for utility {utility_name} zones {zones}")
 
-    interpolated_flag = (
-        pl.col("value_flag").any()
-        if "value_flag" in utility_data.columns
-        else pl.lit(False)  # noqa: FBT003
-    )
+    interpolated_flag = pl.col("value_flag").any() if "value_flag" in utility_data.columns else pl.lit(False)
     return (
         utility_data.group_by("timestamp")
         .agg(
@@ -149,9 +131,7 @@ def aggregate_utility_load(
     )
 
 
-def write_utility_loads_local(
-    utility_df: pl.DataFrame, utility_base: str, utility_name: str
-) -> None:
+def write_utility_loads_local(utility_df: pl.DataFrame, utility_base: str, utility_name: str) -> None:
     """Write utility load Hive parquet.
 
     Layout: utility={slug}/year=YYYY/month=MM/data.parquet (Eastern wall-clock
@@ -166,9 +146,7 @@ def write_utility_loads_local(
         pl.col("timestamp").dt.month().alias("month"),
     )
     base = Path(utility_base)
-    for (utility, year, month), part_df in output_df.partition_by(
-        ["utility", "year", "month"], as_dict=True
-    ).items():
+    for (utility, year, month), part_df in output_df.partition_by(["utility", "year", "month"], as_dict=True).items():
         part_dir = base / f"utility={utility}" / f"year={year}" / f"month={month:02d}"
         part_dir.mkdir(parents=True, exist_ok=True)
         part_df.select("timestamp", "load_mw", "interpolated").write_parquet(
@@ -178,9 +156,7 @@ def write_utility_loads_local(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Aggregate PJM zone loads to utility-level profiles."
-    )
+    parser = argparse.ArgumentParser(description="Aggregate PJM zone loads to utility-level profiles.")
     parser.add_argument("--year", type=int, required=True, help="Calendar year.")
     parser.add_argument(
         "--utility",
@@ -221,9 +197,7 @@ def main() -> None:
         valid = ", ".join(sorted(utility_zone_map.keys()))
         parser.error(f"Invalid --utility '{args.utility}'. Valid: all, {valid}")
 
-    utilities_to_process = (
-        sorted(utility_zone_map.keys()) if selected == "all" else [selected]
-    )
+    utilities_to_process = sorted(utility_zone_map.keys()) if selected == "all" else [selected]
 
     all_zones_needed: set[str] = set()
     for u in utilities_to_process:

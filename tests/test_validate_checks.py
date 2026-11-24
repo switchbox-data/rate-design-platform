@@ -240,9 +240,7 @@ def test_seasonal_check_skips_monthly_tariff() -> None:
     tariff_config = {
         "cenhud_non_electric_heating": {
             "ur_ec_sched_weekday": _monthly_schedule(),
-            "ur_ec_tou_mat": [
-                [i + 1, 1, 1e38, 0, 0.05 + i * 0.005, 0.0, 0] for i in range(12)
-            ],
+            "ur_ec_tou_mat": [[i + 1, 1, 1e38, 0, 0.05 + i * 0.005, 0.0, 0] for i in range(12)],
         }
     }
 
@@ -251,9 +249,7 @@ def test_seasonal_check_skips_monthly_tariff() -> None:
     assert result.status == "PASS"
 
 
-def test_flex_subclass_revenue_expectations_require_nonhp_neutral_and_hp_negative() -> (
-    None
-):
+def test_flex_subclass_revenue_expectations_require_nonhp_neutral_and_hp_negative() -> None:
     bills = pl.DataFrame(
         {
             "bldg_id": [1, 2],
@@ -275,9 +271,7 @@ def test_flex_subclass_revenue_expectations_require_nonhp_neutral_and_hp_negativ
         }
     }
 
-    result = check_flex_subclass_revenue_expectations(
-        bills, metadata, subclass_rr, cost_scope="delivery"
-    )
+    result = check_flex_subclass_revenue_expectations(bills, metadata, subclass_rr, cost_scope="delivery")
 
     assert result.status == "PASS"
 
@@ -304,9 +298,7 @@ def test_flex_subclass_revenue_expectations_fail_when_hp_exceeds_baseline() -> N
         }
     }
 
-    result = check_flex_subclass_revenue_expectations(
-        bills, metadata, subclass_rr, cost_scope="delivery"
-    )
+    result = check_flex_subclass_revenue_expectations(bills, metadata, subclass_rr, cost_scope="delivery")
 
     assert result.status == "FAIL"
     assert "hp should not exceed baseline RR" in result.message
@@ -335,9 +327,7 @@ def test_hp_subclass_revenue_lower_with_flex_passes_when_hp_revenue_drops() -> N
         }
     ).lazy()
 
-    result = check_hp_subclass_revenue_lower_with_flex(
-        bills_noflex, bills_flex, metadata, metadata, 9, 13
-    )
+    result = check_hp_subclass_revenue_lower_with_flex(bills_noflex, bills_flex, metadata, metadata, 9, 13)
 
     assert result.status == "PASS"
 
@@ -365,9 +355,7 @@ def test_hp_subclass_revenue_lower_with_flex_fails_when_hp_revenue_rises() -> No
         }
     ).lazy()
 
-    result = check_hp_subclass_revenue_lower_with_flex(
-        bills_noflex, bills_flex, metadata, metadata, 9, 13
-    )
+    result = check_hp_subclass_revenue_lower_with_flex(bills_noflex, bills_flex, metadata, metadata, 9, 13)
 
     assert result.status == "FAIL"
 
@@ -394,9 +382,7 @@ def test_flex_subclass_revenue_expectations_fail_when_hp_subclass_missing() -> N
         }
     }
 
-    result = check_flex_subclass_revenue_expectations(
-        bills, metadata, subclass_rr, cost_scope="delivery"
-    )
+    result = check_flex_subclass_revenue_expectations(bills, metadata, subclass_rr, cost_scope="delivery")
 
     assert result.status == "FAIL"
     assert "missing subclasses hp" in result.message
@@ -411,9 +397,7 @@ def test_bat_near_zero_downgraded_to_warn_for_mixed_alloc() -> None:
     from utils.post.validate.__main__ import _maybe_downgrade_bat_near_zero
     from utils.post.validate.checks import CheckResult
 
-    failing = CheckResult(
-        name="bat_near_zero", status="FAIL", message="EPMC BAT — hp: $+500.0"
-    )
+    failing = CheckResult(name="bat_near_zero", status="FAIL", message="EPMC BAT — hp: $+500.0")
 
     result = _maybe_downgrade_bat_near_zero(
         failing,
@@ -432,9 +416,7 @@ def test_bat_near_zero_not_downgraded_when_same_alloc() -> None:
     from utils.post.validate.__main__ import _maybe_downgrade_bat_near_zero
     from utils.post.validate.checks import CheckResult
 
-    failing = CheckResult(
-        name="bat_near_zero", status="FAIL", message="EPMC BAT — hp: $+500.0"
-    )
+    failing = CheckResult(name="bat_near_zero", status="FAIL", message="EPMC BAT — hp: $+500.0")
 
     result = _maybe_downgrade_bat_near_zero(
         failing,
@@ -450,9 +432,7 @@ def test_bat_near_zero_not_downgraded_for_delivery_only_run() -> None:
     from utils.post.validate.__main__ import _maybe_downgrade_bat_near_zero
     from utils.post.validate.checks import CheckResult
 
-    failing = CheckResult(
-        name="bat_near_zero", status="FAIL", message="EPMC BAT — hp: $+500.0"
-    )
+    failing = CheckResult(name="bat_near_zero", status="FAIL", message="EPMC BAT — hp: $+500.0")
 
     result = _maybe_downgrade_bat_near_zero(
         failing,
@@ -468,9 +448,7 @@ def test_bat_near_zero_pass_unchanged_for_mixed_alloc() -> None:
     from utils.post.validate.__main__ import _maybe_downgrade_bat_near_zero
     from utils.post.validate.checks import CheckResult
 
-    passing = CheckResult(
-        name="bat_near_zero", status="PASS", message="EPMC BAT — all near zero"
-    )
+    passing = CheckResult(name="bat_near_zero", status="PASS", message="EPMC BAT — all near zero")
 
     result = _maybe_downgrade_bat_near_zero(
         passing,

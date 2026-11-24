@@ -155,8 +155,7 @@ def load_utility_load_profile(
     df = collected
     if df.is_empty():
         raise FileNotFoundError(
-            f"Utility load profile not found for "
-            f"utility={utility}, year={year_load} under {s3_base}"
+            f"Utility load profile not found for utility={utility}, year={year_load} under {s3_base}"
         )
 
     print(f"Loaded {len(df):,} hourly load records for {utility} (year {year_load})")
@@ -180,19 +179,14 @@ def load_utility_load_file(
     Returns:
         DataFrame with at least timestamp and load_mw.
     """
-    if path.startswith("s3://"):
-        lf = pl.scan_parquet(path, storage_options=storage_options)
-    else:
-        lf = pl.scan_parquet(path)
+    lf = pl.scan_parquet(path, storage_options=storage_options) if path.startswith("s3://") else pl.scan_parquet(path)
     collected = lf.collect()
     if not isinstance(collected, pl.DataFrame):
         raise TypeError("Expected DataFrame from utility load file collect()")
     df = collected
     missing = {"timestamp", "load_mw"} - set(df.columns)
     if missing:
-        raise ValueError(
-            f"Utility load file {path} is missing columns: {sorted(missing)}"
-        )
+        raise ValueError(f"Utility load file {path} is missing columns: {sorted(missing)}")
     if df.is_empty():
         raise FileNotFoundError(f"Utility load file is empty: {path}")
     print(f"Loaded {len(df):,} hourly load records from {path}")
@@ -212,21 +206,15 @@ def resolve_utility_load(
     and MD use. The single file is the CT OCC-863 system load.
     """
     if path_utility_load and utility_load_s3_base:
-        raise ValueError(
-            "Pass either --path-utility-load or --utility-load-s3-base, not both."
-        )
+        raise ValueError("Pass either --path-utility-load or --utility-load-s3-base, not both.")
     if path_utility_load:
         return load_utility_load_file(path_utility_load, storage_options)
     if utility_load_s3_base:
-        return load_utility_load_profile(
-            utility_load_s3_base, year_load, utility, storage_options
-        )
+        return load_utility_load_profile(utility_load_s3_base, year_load, utility, storage_options)
     raise ValueError("Pass --path-utility-load or --utility-load-s3-base.")
 
 
-def normalize_load_to_cairo_8760(
-    load_df: pl.DataFrame, utility: str, year_load: int
-) -> pl.DataFrame:
+def normalize_load_to_cairo_8760(load_df: pl.DataFrame, utility: str, year_load: int) -> pl.DataFrame:
     """Normalize utility load profile to Cairo-compatible 8760 hours.
 
     Cairo leap-year handling drops Dec 31 when Feb 29 is present to keep 8760 rows.
@@ -255,10 +243,7 @@ def normalize_load_to_cairo_8760(
     ts_dtype = df.schema["timestamp"]
     if isinstance(ts_dtype, pl.Datetime) and ts_dtype.time_zone is not None:
         df = df.with_columns(
-            pl.col("timestamp")
-            .dt.convert_time_zone("America/New_York")
-            .dt.replace_time_zone(None)
-            .alias("timestamp")
+            pl.col("timestamp").dt.convert_time_zone("America/New_York").dt.replace_time_zone(None).alias("timestamp")
         )
 
     # The expected 8760 index is datetime[us]. A load file in another unit
@@ -272,27 +257,16 @@ def normalize_load_to_cairo_8760(
 
     # Cairo leap-year rule: if Feb 29 exists, drop Dec 31.
     has_feb29 = df.select(
-        ((pl.col("timestamp").dt.month() == 2) & (pl.col("timestamp").dt.day() == 29))
-        .any()
-        .alias("has_feb29")
+        ((pl.col("timestamp").dt.month() == 2) & (pl.col("timestamp").dt.day() == 29)).any().alias("has_feb29")
     ).item()
     if has_feb29:
-        print(
-            "  Leap-year pattern detected (Feb 29 present); dropping Dec 31 to match Cairo."
-        )
-        df = df.filter(
-            ~(
-                (pl.col("timestamp").dt.month() == 12)
-                & (pl.col("timestamp").dt.day() == 31)
-            )
-        )
+        print("  Leap-year pattern detected (Feb 29 present); dropping Dec 31 to match Cairo.")
+        df = df.filter(~((pl.col("timestamp").dt.month() == 12) & (pl.col("timestamp").dt.day() == 31)))
 
     # Collapse duplicate wall-clock timestamps (e.g., DST fallback) using mean load.
     duplicate_count = df.height - df.select(pl.col("timestamp").n_unique()).item()
     if duplicate_count > 0:
-        print(
-            f"  Collapsing {duplicate_count} duplicate timestamp row(s) with mean load."
-        )
+        print(f"  Collapsing {duplicate_count} duplicate timestamp row(s) with mean load.")
     agg_exprs = [pl.col("load_mw").mean().alias("load_mw")]
     if "utility" in df.columns:
         agg_exprs.append(pl.col("utility").first().alias("utility"))
@@ -308,18 +282,14 @@ def normalize_load_to_cairo_8760(
         cur += timedelta(hours=1)
     if has_feb29:
         expected = [t for t in expected if not (t.month == 12 and t.day == 31)]
-    expected_df = pl.DataFrame({"timestamp": expected}).with_columns(
-        pl.col("timestamp").cast(pl.Datetime("us"))
-    )
+    expected_df = pl.DataFrame({"timestamp": expected}).with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
 
     # Reindex and fill any missing hours.
     df = expected_df.join(df, on="timestamp", how="left").sort("timestamp")
     missing_before_fill = df.filter(pl.col("load_mw").is_null()).height
     if missing_before_fill > 0:
         print(f"  Filling {missing_before_fill} missing hour(s) via interpolation.")
-    df = df.with_columns(
-        pl.col("load_mw").interpolate().forward_fill().backward_fill().alias("load_mw")
-    )
+    df = df.with_columns(pl.col("load_mw").interpolate().forward_fill().backward_fill().alias("load_mw"))
     if "utility" in df.columns:
         df = df.with_columns(pl.col("utility").fill_null(utility).alias("utility"))
     else:
@@ -327,9 +297,7 @@ def normalize_load_to_cairo_8760(
 
     # Final hard checks.
     if df.height != 8760:
-        raise ValueError(
-            f"Cairo 8760 normalization failed: expected 8760 rows, got {df.height}"
-        )
+        raise ValueError(f"Cairo 8760 normalization failed: expected 8760 rows, got {df.height}")
     if df.select(pl.col("timestamp").n_unique()).item() != 8760:
         raise ValueError("Cairo 8760 normalization failed: timestamps are not unique")
     if df.filter(pl.col("load_mw").is_null()).height > 0:
@@ -358,9 +326,7 @@ def load_marginal_cost_table(mc_table_path: str) -> pl.DataFrame:
     # Strip leading/trailing whitespace from column names and string values
     # to guard against accidental spaces in hand-edited CSVs.
     df = df.rename({c: c.strip() for c in df.columns})
-    df = df.with_columns(
-        [pl.col(c).str.strip_chars() for c in df.columns if df[c].dtype == pl.String]
-    )
+    df = df.with_columns([pl.col(c).str.strip_chars() for c in df.columns if df[c].dtype == pl.String])
 
     print(f"Loaded marginal cost table with {len(df)} rows")
     return df
@@ -388,17 +354,14 @@ def _voltage_from_table_paths(path_weekday: str, path_weekend: str) -> str:
     }
     if len(found) != 1:
         raise ValueError(
-            "Cannot tell the voltage from the month-hour table names "
-            f"({path_weekday}, {path_weekend}); pass --voltage."
+            f"Cannot tell the voltage from the month-hour table names ({path_weekday}, {path_weekend}); pass --voltage."
         )
     return found.pop()
 
 
 def _source_or_warn(args: argparse.Namespace) -> str | None:
     if not args.source:
-        print(
-            "⚠️  No --source citation passed; the manifest entry records source: null."
-        )
+        print("⚠️  No --source citation passed; the manifest entry records source: null.")
     return args.source
 
 
@@ -503,17 +466,13 @@ def inflate_annual_mc(
     if dollar_year == target_dollar_year:
         print(f"\n  MC already in {target_dollar_year} dollars — no inflation applied")
         return ResolvedAnnualMc(as_filed, as_filed, dollar_year, 1.0)
-    cpi_factor = load_cpi_inflation_factor(
-        cpi_s3_base, dollar_year, target_dollar_year, storage_options
-    )
+    cpi_factor = load_cpi_inflation_factor(cpi_s3_base, dollar_year, target_dollar_year, storage_options)
     allocated = as_filed * cpi_factor
     print(f"  Inflated MC: ${as_filed:.2f} → ${allocated:.2f}/kW-yr")
     return ResolvedAnnualMc(as_filed, allocated, dollar_year, cpi_factor)
 
 
-def month_hour_costs_from_probability(
-    probability: pl.DataFrame, annual_kw_yr: float, *, label: str
-) -> pl.DataFrame:
+def month_hour_costs_from_probability(probability: pl.DataFrame, annual_kw_yr: float, *, label: str) -> pl.DataFrame:
     """Month-hour ``$/kWh`` from an annual ``$/kW-yr`` and a probability of peak.
 
     The OCC-863 Attachment 2 recipe. Pages 1 and 2 compute each month-hour as
@@ -531,31 +490,20 @@ def month_hour_costs_from_probability(
     if missing:
         raise ValueError(f"{label} probability table is missing {sorted(missing)}")
     if annual_kw_yr <= 0:
-        raise ValueError(
-            f"{label}: annual $/kW-yr must be positive, got {annual_kw_yr}"
-        )
+        raise ValueError(f"{label}: annual $/kW-yr must be positive, got {annual_kw_yr}")
     rates = probability.select(sorted(required))
     n_unique = rates.select("month", "hour").n_unique()
     if rates.height != 12 * 24 or n_unique != rates.height:
-        raise ValueError(
-            f"{label} probability table must have 288 unique month-hour rows"
-        )
+        raise ValueError(f"{label} probability table must have 288 unique month-hour rows")
     if rates.filter(pl.col("num_days") <= 0).height:
         raise ValueError(f"{label} probability table has a non-positive day count")
-    out_of_range = rates.filter(
-        (pl.col("probability_of_peak") < 0) | (pl.col("probability_of_peak") > 1)
-    )
+    out_of_range = rates.filter((pl.col("probability_of_peak") < 0) | (pl.col("probability_of_peak") > 1))
     if out_of_range.height:
-        raise ValueError(
-            f"{label} probability_of_peak is outside 0–1: "
-            f"{out_of_range.select('month', 'hour').rows()}"
-        )
+        raise ValueError(f"{label} probability_of_peak is outside 0–1: {out_of_range.select('month', 'hour').rows()}")
     return rates.select(
         "month",
         "hour",
-        (annual_kw_yr * pl.col("probability_of_peak") / pl.col("num_days")).alias(
-            "mc_total_per_kwh"
-        ),
+        (annual_kw_yr * pl.col("probability_of_peak") / pl.col("num_days")).alias("mc_total_per_kwh"),
     )
 
 
@@ -571,9 +519,7 @@ def scale_8760_to_annual(
     total = float(df[value_col].sum())
     if total == 0.0:
         if target_kw_yr != 0.0:
-            raise ValueError(
-                f"cannot scale {value_col} to ${target_kw_yr}/kW-yr: the 8760 sums to 0"
-            )
+            raise ValueError(f"cannot scale {value_col} to ${target_kw_yr}/kW-yr: the 8760 sums to 0")
         return df, 1.0
     factor = target_kw_yr / total
     return df.with_columns((pl.col(value_col) * factor).alias(value_col)), factor
@@ -600,9 +546,7 @@ def load_cpi_inflation_factor(
         Inflation factor (CPI_to / CPI_from)
     """
     cpi_glob = cpi_s3_base.rstrip("/") + "/*.parquet"
-    collected = pl.scan_parquet(
-        cpi_glob, storage_options=storage_options, include_file_paths="path"
-    ).collect()
+    collected = pl.scan_parquet(cpi_glob, storage_options=storage_options, include_file_paths="path").collect()
     if not isinstance(collected, pl.DataFrame):
         raise TypeError("Expected DataFrame from CPI collect()")
     # The prefix holds full-history snapshots. Overlapping years would otherwise
@@ -610,9 +554,7 @@ def load_cpi_inflation_factor(
     vintage = pl.col("path").str.extract(r"(\d{8})\.parquet$").cast(pl.Int64)
     latest_vintage = collected.select(vintage.max()).item()
     if latest_vintage is None:
-        raise ValueError(
-            f"CPI parquet names under {cpi_s3_base} have no YYYYMMDD before .parquet"
-        )
+        raise ValueError(f"CPI parquet names under {cpi_s3_base} have no YYYYMMDD before .parquet")
     cpi_df = collected.filter(vintage == latest_vintage)
 
     years_needed = {from_year, to_year}
@@ -656,15 +598,10 @@ def calculate_pop_weights(load_df: pl.DataFrame, n_hours: int = 100) -> pl.DataF
     print("\nPeak Hour Identification:")
     print(f"  Top {n_hours} hours sum: {sum_top:.2f} MW")
 
-    result_df = load_df.with_columns(
-        pl.col("timestamp").is_in(top_indices.implode()).alias("is_peak")
-    )
+    result_df = load_df.with_columns(pl.col("timestamp").is_in(top_indices.implode()).alias("is_peak"))
 
     result_df = result_df.with_columns(
-        pl.when(pl.col("is_peak"))
-        .then(pl.col("load_mw") / sum_top)
-        .otherwise(0.0)
-        .alias("w_sub_tx_and_dist")
+        pl.when(pl.col("is_peak")).then(pl.col("load_mw") / sum_top).otherwise(0.0).alias("w_sub_tx_and_dist")
     )
 
     sum_w = float(result_df["w_sub_tx_and_dist"].sum())
@@ -691,11 +628,7 @@ def allocate_costs_to_hours(
     Returns:
         DataFrame with added column: mc_total_per_kwh
     """
-    return load_df.with_columns(
-        (pl.lit(mc_sub_tx_and_dist) * pl.col("w_sub_tx_and_dist")).alias(
-            "mc_total_per_kwh"
-        )
-    )
+    return load_df.with_columns((pl.lit(mc_sub_tx_and_dist) * pl.col("w_sub_tx_and_dist")).alias("mc_total_per_kwh"))
 
 
 def validate_allocation(
@@ -720,9 +653,7 @@ def validate_allocation(
         "expected_total": mc_sub_tx_and_dist,
         "actual_total": total_cost,
         "total_error": abs(total_cost - mc_sub_tx_and_dist),
-        "total_error_pct": abs(total_cost - mc_sub_tx_and_dist)
-        / mc_sub_tx_and_dist
-        * 100
+        "total_error_pct": abs(total_cost - mc_sub_tx_and_dist) / mc_sub_tx_and_dist * 100
         if mc_sub_tx_and_dist > 0
         else 0,
     }
@@ -732,9 +663,7 @@ def validate_allocation(
     print("=" * 60)
     print(f"  Expected: ${validation_results['expected_total']:.4f}/kW-yr")
     print(f"  Actual:   ${validation_results['actual_total']:.4f}/kW-yr")
-    print(
-        f"  Error:    ${validation_results['total_error']:.4f} ({validation_results['total_error_pct']:.4f}%)"
-    )
+    print(f"  Error:    ${validation_results['total_error']:.4f} ({validation_results['total_error_pct']:.4f}%)")
 
     tolerance = 0.01
     if validation_results["total_error_pct"] > tolerance:
@@ -791,9 +720,7 @@ def expand_month_hour_mc_to_8760(
             f"calendar_year {calendar_year} and year {year} must both be leap "
             "years or both not; otherwise rows after February shift by a day"
         )
-    clock = build_cairo_8760_timestamps(calendar_year).with_columns(
-        pl.col("timestamp").cast(pl.Datetime("us"))
-    )
+    clock = build_cairo_8760_timestamps(calendar_year).with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
     holidays = _us_federal_holidays(calendar_year) if include_holidays else set()
     clock = clock.with_columns(
         pl.col("timestamp").dt.month().alias("month"),
@@ -802,12 +729,8 @@ def expand_month_hour_mc_to_8760(
         (pl.col("timestamp").dt.weekday() >= 6).alias("is_weekend"),
         pl.col("timestamp").dt.date().is_in(sorted(holidays)).alias("is_holiday"),
     )
-    weekday_rates = _month_hour_rates(weekday, "weekday").rename(
-        {"mc_total_per_kwh": "weekday_mc"}
-    )
-    weekend_rates = _month_hour_rates(weekend, "weekend").rename(
-        {"mc_total_per_kwh": "weekend_mc"}
-    )
+    weekday_rates = _month_hour_rates(weekday, "weekday").rename({"mc_total_per_kwh": "weekday_mc"})
+    weekend_rates = _month_hour_rates(weekend, "weekend").rename({"mc_total_per_kwh": "weekend_mc"})
     joined = clock.join(weekday_rates, on=["month", "hour"], how="left").join(
         weekend_rates, on=["month", "hour"], how="left"
     )
@@ -820,9 +743,7 @@ def expand_month_hour_mc_to_8760(
     if expanded["mc_total_per_kwh"].null_count() != 0:
         raise ValueError(f"month-hour lookup missed hours in {calendar_year}")
     expanded = expanded.sort("timestamp").with_columns(
-        build_cairo_8760_timestamps(year)["timestamp"]
-        .cast(pl.Datetime("us"))
-        .alias("timestamp")
+        build_cairo_8760_timestamps(year)["timestamp"].cast(pl.Datetime("us")).alias("timestamp")
     )
     return expanded.select(
         "timestamp",
@@ -866,10 +787,7 @@ def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
         first = date(year, month, 1)
         shift = (weekday - first.weekday()) % 7
         return first + timedelta(days=shift + 7 * (n - 1))
-    if month == 12:
-        last = date(year, 12, 31)
-    else:
-        last = date(year, month + 1, 1) - timedelta(days=1)
+    last = date(year, 12, 31) if month == 12 else date(year, month + 1, 1) - timedelta(days=1)
     return last - timedelta(days=(last.weekday() - weekday) % 7)
 
 
@@ -889,9 +807,7 @@ def _month_hour_rates(frame: pl.DataFrame, label: str) -> pl.DataFrame:
     rates = frame.select("month", "hour", "mc_total_per_kwh")
     n_unique = rates.select("month", "hour").n_unique()
     if rates.height != 12 * 24 or n_unique != rates.height:
-        raise ValueError(
-            f"{label} month-hour table must have 288 unique month-hour rows"
-        )
+        raise ValueError(f"{label} month-hour table must have 288 unique month-hour rows")
     return rates
 
 
@@ -937,15 +853,11 @@ def save_allocated_costs(
 
     # Final validation: must have exactly 8760 rows with unique timestamps
     if output_df.height != 8760:
-        raise ValueError(
-            f"Expected 8760 rows before writing, got {output_df.height} rows. "
-            f"Check normalization logic."
-        )
+        raise ValueError(f"Expected 8760 rows before writing, got {output_df.height} rows. Check normalization logic.")
     n_unique = output_df.select(pl.col("timestamp").n_unique()).item()
     if n_unique != 8760:
         raise ValueError(
-            f"Expected 8760 unique timestamps before writing, got {n_unique}. "
-            f"Data contains duplicate timestamps."
+            f"Expected 8760 unique timestamps before writing, got {n_unique}. Data contains duplicate timestamps."
         )
 
     s3_base = s3_base.rstrip("/") + "/"
@@ -967,12 +879,7 @@ def save_allocated_costs(
     print(f"\n✓ Saved allocated costs to {output_path}")
     record_mc_write(output_path, spec, output_df, "mc_total_per_kwh")
     if path_local_base:
-        path_local = (
-            Path(path_local_base)
-            / f"utility={utility}"
-            / f"year={year}"
-            / "data.parquet"
-        )
+        path_local = Path(path_local_base) / f"utility={utility}" / f"year={year}" / "data.parquet"
         path_local.parent.mkdir(parents=True, exist_ok=True)
         output_df.write_parquet(path_local)
         print(f"✓ Saved local copy to {path_local}")
@@ -985,8 +892,7 @@ def main():
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(
         description=(
-            "Build an hourly dist + sub-tx marginal cost 8760 by PoP allocation "
-            "or (CT) Eversource month-hour lookup"
+            "Build an hourly dist + sub-tx marginal cost 8760 by PoP allocation or (CT) Eversource month-hour lookup"
         )
     )
     parser.add_argument(
@@ -1094,10 +1000,7 @@ def main():
         "--cpi-s3-base",
         type=str,
         default="s3://data.sb/fred/cpi/",
-        help=(
-            "Base S3 path for CPIAUCSL annual parquets "
-            "(default: s3://data.sb/fred/cpi/)"
-        ),
+        help=("Base S3 path for CPIAUCSL annual parquets (default: s3://data.sb/fred/cpi/)"),
     )
     parser.add_argument(
         "--upload",
@@ -1155,10 +1058,7 @@ def main():
         "--source",
         type=str,
         default=None,
-        help=(
-            "Citation recorded in the manifest, e.g. 'PURA Docket 26-05-10, "
-            "MCOS-2 Table 3, secondary'."
-        ),
+        help=("Citation recorded in the manifest, e.g. 'PURA Docket 26-05-10, MCOS-2 Table 3, secondary'."),
     )
     parser.add_argument(
         "--path-local-output-base",
@@ -1179,9 +1079,7 @@ def main():
         _run_pop_allocation(args, storage_options)
 
 
-def _run_pop_allocation(
-    args: argparse.Namespace, storage_options: dict[str, str]
-) -> None:
+def _run_pop_allocation(args: argparse.Namespace, storage_options: dict[str, str]) -> None:
     """PoP-allocate the MC table's $/kW-yr over the top load hours, then save."""
     if not args.mc_table_path:
         raise ValueError("--method pop needs --mc-table-path")
@@ -1189,9 +1087,7 @@ def _run_pop_allocation(
 
     output_year = args.year
     load_year = args.load_year if args.load_year else output_year
-    target_dollar_year = (
-        args.target_dollar_year if args.target_dollar_year else output_year
-    )
+    target_dollar_year = args.target_dollar_year if args.target_dollar_year else output_year
     output_s3_base = output_base_for_load_year(
         args.output_s3_base,
         output_year,
@@ -1266,9 +1162,7 @@ def _run_pop_allocation(
         else:
             load_input = input_partition(
                 "load",
-                partition_file_path(
-                    args.utility_load_s3_base, args.utility, load_year, ""
-                ),
+                partition_file_path(args.utility_load_s3_base, args.utility, load_year, ""),
             )
         inputs = [load_input, input_file("mc_table", args.mc_table_path)]
         if resolved.cpi_factor != 1.0:
@@ -1317,9 +1211,7 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
     if args.state != "CT":
         raise ValueError("--method month_hour is only defined for CT")
     if not (args.path_weekday_mc and args.path_weekend_mc):
-        raise ValueError(
-            "--method month_hour needs --path-weekday-mc and --path-weekend-mc"
-        )
+        raise ValueError("--method month_hour needs --path-weekday-mc and --path-weekend-mc")
     if not args.mc_table_path:
         raise ValueError("--method month_hour needs --mc-table-path")
     validate_mc_table_path(args.mc_table_path)
@@ -1327,9 +1219,7 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
     calendar_year = args.calendar_year or year
     output_s3_base = args.output_s3_base
     path_local_base = args.path_local_output_base
-    voltage = args.voltage or _voltage_from_table_paths(
-        args.path_weekday_mc, args.path_weekend_mc
-    )
+    voltage = args.voltage or _voltage_from_table_paths(args.path_weekday_mc, args.path_weekend_mc)
 
     print("=" * 60)
     print("EVERSOURCE MONTH-HOUR MARGINAL COST → 8760")
@@ -1411,11 +1301,7 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
                 input_file("weekday_table", args.path_weekday_mc),
                 input_file("weekend_holiday_table", args.path_weekend_mc),
                 input_file("mc_table", args.mc_table_path),
-                *(
-                    [input_partition("cpi", args.cpi_s3_base)]
-                    if resolved.cpi_factor != 1.0
-                    else []
-                ),
+                *([input_partition("cpi", args.cpi_s3_base)] if resolved.cpi_factor != 1.0 else []),
             ],
         )
         save_allocated_costs(

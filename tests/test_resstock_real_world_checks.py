@@ -139,19 +139,13 @@ def test_meter_band_inside_and_outside():
         "gas_dwellings": 250.0,
         "n_buildings": 10_000,
     }
-    inside = rw._meter_band_result(
-        scope="statewide", release="r", row=row, eia_customers=150.0, cfg=cfg
-    )
+    inside = rw._meter_band_result(scope="statewide", release="r", row=row, eia_customers=150.0, cfg=cfg)
     assert inside.status == "ok"
     assert inside.diff == 0.0
     assert "about 20%" in (inside.note or "")
-    within_slack = rw._meter_band_result(
-        scope="statewide", release="r", row=row, eia_customers=95.0, cfg=cfg
-    )
+    within_slack = rw._meter_band_result(scope="statewide", release="r", row=row, eia_customers=95.0, cfg=cfg)
     assert within_slack.status == "ok"
-    below = rw._meter_band_result(
-        scope="statewide", release="r", row=row, eia_customers=80.0, cfg=cfg
-    )
+    below = rw._meter_band_result(scope="statewide", release="r", row=row, eia_customers=80.0, cfg=cfg)
     assert below.status == "warn"
     assert below.diff == pytest.approx(-20.0)
 
@@ -213,10 +207,7 @@ def test_check_electricity_statewide_and_utility_rules():
     )
     # z = 0 turns off the sampling-noise widening so the base tolerances apply.
     cfg = RealWorldCheckConfig(sampling_noise_z=0)
-    results = {
-        (r.check, r.scope, r.release): r
-        for r in rw.check_electricity(inputs, eia861, cfg)
-    }
+    results = {(r.check, r.scope, r.release): r for r in rw.check_electricity(inputs, eia861, cfg)}
 
     statewide = results[("electric_customers_statewide", "statewide", "raw_sb")]
     assert statewide.benchmark_value == 6_000.0
@@ -257,11 +248,7 @@ def test_per_utility_tolerance_widens_for_few_buildings():
         }
     )
     results = rw.check_electricity(inputs, eia861, RealWorldCheckConfig())
-    big_kwh = next(
-        r
-        for r in results
-        if r.check == "electric_kwh_utility" and r.scope == "utility=big"
-    )
+    big_kwh = next(r for r in results if r.check == "electric_kwh_utility" and r.scope == "utility=big")
     # 4 buildings: tolerance max(20%, 2 / sqrt(4)) = 100%, so +25% is noise.
     assert big_kwh.n_buildings == 4
     assert big_kwh.tolerance == pytest.approx(100.0)
@@ -271,13 +258,9 @@ def test_per_utility_tolerance_widens_for_few_buildings():
 
 def test_raw_electricity_is_context_only():
     inputs = _elec_inputs()
-    eia861 = pl.DataFrame(
-        {"utility_code": ["big"], "eia_kwh": [1.0], "eia_customers": [6_000.0]}
-    )
+    eia861 = pl.DataFrame({"utility_code": ["big"], "eia_kwh": [1.0], "eia_customers": [6_000.0]})
     results = rw.check_electricity(inputs, eia861, RealWorldCheckConfig())
-    raw = next(
-        r for r in results if r.check == "electric_kwh_statewide" and r.release == "raw"
-    )
+    raw = next(r for r in results if r.check == "electric_kwh_statewide" and r.release == "raw")
     assert raw.diff is not None and raw.diff > 100
     assert raw.status == "ok"
 
@@ -287,12 +270,7 @@ def test_raw_electricity_is_context_only():
 
 def _gas_inputs() -> ReleaseInputs:
     metadata = _metadata([{"bldg_id": i, "weight": 10_000.0} for i in (1, 2)])
-    annual_raw = _annual(
-        [
-            {"bldg_id": i, ANNUAL_GAS: 1_000.0, GAS.format("heating"): 1_000.0}
-            for i in (1, 2)
-        ]
-    )
+    annual_raw = _annual([{"bldg_id": i, ANNUAL_GAS: 1_000.0, GAS.format("heating"): 1_000.0} for i in (1, 2)])
     annual_sb = annual_raw.with_columns(pl.col(ANNUAL_GAS) * 2)
     assignment = pl.DataFrame(
         {
@@ -351,9 +329,7 @@ def test_gas_shares_use_mapped_utilities_only():
     inputs = _gas_inputs()
     assert inputs.annual_sb is not None and inputs.utility_assignment is not None
     # An unmapped ResStock utility and an unmapped EIA operator, each large.
-    metadata = pl.concat(
-        [inputs.metadata_sb, _metadata([{"bldg_id": 3, "weight": 10_000.0}])]
-    )
+    metadata = pl.concat([inputs.metadata_sb, _metadata([{"bldg_id": 3, "weight": 10_000.0}])])
     annual_sb = pl.concat(
         [
             inputs.annual_sb,
@@ -364,9 +340,7 @@ def test_gas_shares_use_mapped_utilities_only():
     assignment = pl.concat(
         [
             inputs.utility_assignment,
-            pl.DataFrame(
-                {"bldg_id": [3], "sb.electric_utility": ["e"], "sb.gas_utility": ["g3"]}
-            ),
+            pl.DataFrame({"bldg_id": [3], "sb.electric_utility": ["e"], "sb.gas_utility": ["g3"]}),
         ]
     )
     eia = pl.concat(
@@ -389,14 +363,8 @@ def test_gas_shares_use_mapped_utilities_only():
         annual_sb=annual_sb,
         utility_assignment=assignment,
     )
-    results = rw.check_gas(
-        inputs, eia, {"op1": "g1", "op2": "g2"}, RealWorldCheckConfig()
-    )
-    g1 = next(
-        r
-        for r in results
-        if r.check == "gas_share_utility_pp" and r.scope == "utility=g1"
-    )
+    results = rw.check_gas(inputs, eia, {"op1": "g1", "op2": "g2"}, RealWorldCheckConfig())
+    g1 = next(r for r in results if r.check == "gas_share_utility_pp" and r.scope == "utility=g1")
     assert g1.resstock_value == pytest.approx(50.0)
     assert g1.benchmark_value == pytest.approx(50.0)
     assert not any(r.scope == "utility=g3" for r in results)
@@ -541,11 +509,7 @@ def test_check_gas_uses_manifest_over_inference(tmp_path: Path):
     )
     inputs = replace(_gas_inputs(), base_sb=str(tmp_path))
     cfg = RealWorldCheckConfig()
-    statewide = next(
-        r
-        for r in rw.check_gas(inputs, _eia176(), None, cfg)
-        if r.check == "gas_kwh_statewide"
-    )
+    statewide = next(r for r in rw.check_gas(inputs, _eia176(), None, cfg) if r.check == "gas_kwh_statewide")
     assert statewide.tolerance == cfg.gas_kwh_statewide_unscaled_pct
     assert "clone" in (statewide.note or "")
 
@@ -573,9 +537,7 @@ def test_hp_approximation_share_and_unclassified():
         ]
     )
     inputs = replace_inputs(approx_metadata={"02": (sb, raw)})
-    results = {
-        r.check: r for r in rw.check_hp_approximation(inputs, RealWorldCheckConfig())
-    }
+    results = {r.check: r for r in rw.check_hp_approximation(inputs, RealWorldCheckConfig())}
     assert results["hp_approx_share"].resstock_value == pytest.approx(50.0)
     assert results["hp_approx_share"].status == "warn"
     assert results["hp_approx_unclassified"].resstock_value == 1.0
@@ -590,9 +552,7 @@ def replace_inputs(**changes) -> ReleaseInputs:
 
 
 def test_vintage_resstock_maps_known_and_drops_unknown():
-    df = pl.DataFrame(
-        {"v": ["<1940", "1940s", "1950s", "2010s", None, "", "unknown", "2000s"]}
-    )
+    df = pl.DataFrame({"v": ["<1940", "1940s", "1950s", "2010s", None, "", "unknown", "2000s"]})
     out = df.select(rw.vintage_resstock(pl.col("v")).alias("b"))
     assert out["b"].to_list() == [
         "Before 1950",
@@ -628,9 +588,7 @@ def test_acs_category_mappings():
 
 
 def test_acs_master_metered_share():
-    pums = pl.DataFrame(
-        {"gasfp": ["1", "4", "4", "3", "2"], "wgtp": [10, 20, 10, 100, 0]}
-    )
+    pums = pl.DataFrame({"gasfp": ["1", "4", "4", "3", "2"], "wgtp": [10, 20, 10, 100, 0]})
     assert rw.acs_master_metered_share(pums) == pytest.approx(25.0)
 
 
@@ -735,9 +693,7 @@ def test_check_acs_excludes_unmapped_vintages():
         }
     )
     results = rw.check_acs(inputs, pums, RealWorldCheckConfig())
-    year = next(
-        r for r in results if r.check == "acs_year_built_pp" and "1960-79" in r.scope
-    )
+    year = next(r for r in results if r.check == "acs_year_built_pp" and "1960-79" in r.scope)
     # The unmapped building is out of the denominator, so 1970s is 100%.
     assert year.resstock_value == pytest.approx(100.0)
     assert year.n_buildings == 2
@@ -788,9 +744,7 @@ def test_config_yaml_tolerances_are_valid():
 
 def test_ignore_marks_warning_ignored():
     inputs = _elec_inputs()
-    eia861 = pl.DataFrame(
-        {"utility_code": ["big"], "eia_kwh": [1.0], "eia_customers": [100_000.0]}
-    )
+    eia861 = pl.DataFrame({"utility_code": ["big"], "eia_kwh": [1.0], "eia_customers": [100_000.0]})
     cfg = RealWorldCheckConfig(ignore=("electric_customers_statewide",))
     results = rw.run_real_world_checks(
         inputs=inputs,
@@ -825,9 +779,7 @@ def test_runner_turns_failures_into_skipped_results():
     assert all(r.status == "skipped" for r in failed)
 
 
-def _post_pipeline(
-    tmp_path: Path, upgrade_ids: list[str], sample: int
-) -> rw.PostPipelineChecks:
+def _post_pipeline(tmp_path: Path, upgrade_ids: list[str], sample: int) -> rw.PostPipelineChecks:
     return rw.run_post_pipeline_checks(
         states=["XX"],
         upgrade_ids=upgrade_ids,

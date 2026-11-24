@@ -29,8 +29,8 @@ from plotnine import (
 
 from utils.post.io import (
     ANNUAL_MONTH,
-    BLDG_ID,
     BILL_LEVEL,
+    BLDG_ID,
     scan,
 )
 
@@ -90,9 +90,7 @@ def _read_fixed_charge_from_tariff(path_tariff_json: str) -> float:
         raise ValueError(f"Tariff JSON has no 'items': {path_tariff_json}")
     first = items[0]
     if "fixedchargefirstmeter" not in first:
-        raise ValueError(
-            f"Tariff JSON items[0] has no 'fixedchargefirstmeter': {path_tariff_json}"
-        )
+        raise ValueError(f"Tariff JSON items[0] has no 'fixedchargefirstmeter': {path_tariff_json}")
     return float(first["fixedchargefirstmeter"])
 
 
@@ -153,9 +151,7 @@ def _median_customer_components(
     Collects each bill LazyFrame once (inside _join_bills_and_compute_components).
     Metadata is already materialized; no additional reads.
     """
-    components = _join_bills_and_compute_components(
-        delivery_bills, supply_bills, annual_fixed_delivery
-    )
+    components = _join_bills_and_compute_components(delivery_bills, supply_bills, annual_fixed_delivery)
     annual = components.filter(pl.col("month") == ANNUAL_MONTH)
 
     meta_cols = metadata.select(pl.col(BLDG_ID), pl.col(HEATING_TYPE_COL))
@@ -169,9 +165,7 @@ def _median_customer_components(
         pl.col("delivery_fixed"),
         pl.col("total"),
     )
-    assert not fossil.is_empty(), (
-        "No fossil-fuel-heated buildings in metadata after join."
-    )
+    assert not fossil.is_empty(), "No fossil-fuel-heated buildings in metadata after join."
     return _weighted_median_row(fossil, sort_col="total", weight_col="weight")
 
 
@@ -228,18 +222,14 @@ def _plot_bill_components_stacked(
     plot_df = long.with_columns(
         pl.col("scenario").cast(scenario_dtype),
         pl.col("component").cast(component_dtype),
-        pl.col("value")
-        .map_elements(lambda v: f"${v:,.0f}", return_dtype=pl.String)
-        .alias("label"),
+        pl.col("value").map_elements(lambda v: f"${v:,.0f}", return_dtype=pl.String).alias("label"),
     )
 
     totals = (
         plot_df.group_by("scenario")
         .agg(pl.col("value").sum())
         .with_columns(
-            pl.col("value")
-            .map_elements(lambda v: f"${v:,.0f}", return_dtype=pl.String)
-            .alias("label"),
+            pl.col("value").map_elements(lambda v: f"${v:,.0f}", return_dtype=pl.String).alias("label"),
         )
     )
 

@@ -38,6 +38,8 @@ apt-get update
 
 # Install system dependencies (do not install awscli from apt - it's v1; we install AWS CLI v2 below)
 # librsvg2-bin provides rsvg-convert for Pandoc/Quarto DOCX (SVG figure conversion).
+# libreoffice-writer (headless soffice) renders Word output to PDF so reports2 can check
+# per-section headers and page numbers; fonts-liberation gives it Times New Roman metrics.
 apt-get install -y \
   python3.13 \
   python3.13-dev \
@@ -50,6 +52,8 @@ apt-get install -y \
   e2fsprogs \
   gh \
   librsvg2-bin \
+  libreoffice-writer \
+  fonts-liberation \
   zsh
 
 # Install Google Chrome (Ubuntu 22.04's chromium-browser is a snap stub that

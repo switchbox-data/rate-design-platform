@@ -6,9 +6,7 @@ from rate_design.hp_rates.pipeline_config import QUARTET_KINDS, ScenarioConfig
 from rate_design.hp_rates.run_pipeline import _partition_scenarios
 
 
-def _scenario(
-    name: str, quartet: str, *, depends_on: list[str] | None = None
-) -> ScenarioConfig:
+def _scenario(name: str, quartet: str, *, depends_on: list[str] | None = None) -> ScenarioConfig:
     return ScenarioConfig(
         name=name,
         quartet=quartet,

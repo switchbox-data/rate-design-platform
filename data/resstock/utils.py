@@ -64,10 +64,7 @@ def get_excluded_gas_utilities(
     configs = load_state_configs(path)
     if state is not None:
         if state not in configs:
-            raise KeyError(
-                f"State {state!r} not found in state_configs.yaml "
-                f"(known: {sorted(configs)})"
-            )
+            raise KeyError(f"State {state!r} not found in state_configs.yaml (known: {sorted(configs)})")
         state_codes = [state]
     else:
         state_codes = list(configs)
@@ -97,9 +94,7 @@ def resolve_upgrade_ids(
         chosen[state] = tuple(str(upgrade_id) for upgrade_id in raw)
     lists = set(chosen.values())
     if len(lists) != 1:
-        detail = ", ".join(
-            f"{state}={' '.join(upgrade_ids)}" for state, upgrade_ids in chosen.items()
-        )
+        detail = ", ".join(f"{state}={' '.join(upgrade_ids)}" for state, upgrade_ids in chosen.items())
         raise ValueError(
             "States in this run have different upgrade_ids ("
             f"{detail}). Pass --upgrade-ids to use one list for the whole run."
@@ -156,14 +151,9 @@ def upload(
             combo_idx += 1
             local_path = local_base / file_type / f"state={s}"
             s3_path = f"{s3_base}/{file_type}/state={s}/"
-            n_files = (
-                sum(1 for _ in local_path.rglob("*") if _.is_file())
-                if local_path.is_dir()
-                else 0
-            )
+            n_files = sum(1 for _ in local_path.rglob("*") if _.is_file()) if local_path.is_dir() else 0
             print(
-                f"  [{combo_idx}/{total_combos}] Uploading {file_type}/state={s} "
-                f"({n_files:,} files) → {s3_path}",
+                f"  [{combo_idx}/{total_combos}] Uploading {file_type}/state={s} ({n_files:,} files) → {s3_path}",
                 flush=True,
             )
             result = subprocess.run(
@@ -171,10 +161,7 @@ def upload(
                 check=False,
             )
             if result.returncode != 0:
-                msg = (
-                    f"aws s3 sync failed (exit {result.returncode}): "
-                    f"{file_type}/state={s} → {s3_path}"
-                )
+                msg = f"aws s3 sync failed (exit {result.returncode}): {file_type}/state={s} → {s3_path}"
                 print(f"    ERROR: {msg}", flush=True)
                 failures.append(msg)
             else:
@@ -182,8 +169,7 @@ def upload(
 
     if failures:
         raise RuntimeError(
-            f"upload() failed for {len(failures)} combination(s):\n"
-            + "\n".join(f"  - {f}" for f in failures)
+            f"upload() failed for {len(failures)} combination(s):\n" + "\n".join(f"  - {f}" for f in failures)
         )
 
 
@@ -220,8 +206,7 @@ def select_puma_and_heating_fuel_metadata(metadata: pl.LazyFrame) -> pl.LazyFram
     """
     if "has_natgas_connection" not in metadata.collect_schema().names():
         raise ValueError(
-            "Missing required column 'has_natgas_connection'. "
-            "Run identify_natgas_connection first to add this column."
+            "Missing required column 'has_natgas_connection'. Run identify_natgas_connection first to add this column."
         )
 
     return metadata.select(

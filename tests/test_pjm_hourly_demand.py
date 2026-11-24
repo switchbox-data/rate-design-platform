@@ -39,10 +39,7 @@ UTC = ZoneInfo("UTC")
 
 def test_ept_date_filter_format():
     """Filter string uses unpadded M-D-YYYY with 00:00..23:59 bounds."""
-    assert (
-        dataminer.ept_date_filter(date(2025, 1, 5), date(2025, 3, 9))
-        == "1-5-2025 00:00 to 3-9-2025 23:59"
-    )
+    assert dataminer.ept_date_filter(date(2025, 1, 5), date(2025, 3, 9)) == "1-5-2025 00:00 to 3-9-2025 23:59"
 
 
 def test_split_date_range_standard_single_chunk():
@@ -226,14 +223,10 @@ def test_interpolate_flagged_zone_hours():
 
 
 def test_aggregate_utility_load_sums_zones_by_timestamp():
-    ts = pl.datetime_range(
-        datetime(2025, 1, 1), datetime(2025, 1, 1, 2), interval="1h", eager=True
-    )
+    ts = pl.datetime_range(datetime(2025, 1, 1), datetime(2025, 1, 1, 2), interval="1h", eager=True)
     zone_df = pl.concat(
         [
-            pl.DataFrame(
-                {"timestamp": ts, "zone": "PEP", "load_mw": [10.0, 20.0, 30.0]}
-            ),
+            pl.DataFrame({"timestamp": ts, "zone": "PEP", "load_mw": [10.0, 20.0, 30.0]}),
             pl.DataFrame({"timestamp": ts, "zone": "BC", "load_mw": [1.0, 2.0, 3.0]}),
         ]
     )
@@ -251,9 +244,7 @@ def test_aggregate_utility_load_sums_zones_by_timestamp():
 
 def test_aggregate_utility_load_propagates_interpolated_flag():
     """A utility-hour is marked interpolated when any constituent zone-hour was."""
-    ts = pl.datetime_range(
-        datetime(2025, 1, 1), datetime(2025, 1, 1, 2), interval="1h", eager=True
-    )
+    ts = pl.datetime_range(datetime(2025, 1, 1), datetime(2025, 1, 1, 2), interval="1h", eager=True)
     zone_df = pl.concat(
         [
             pl.DataFrame(
@@ -294,9 +285,7 @@ def _full_year_zone_df(year: int, zone: str, load: float = 5000.0) -> pl.DataFra
     """Build a complete tz-aware Eastern year for one zone (DST-correct hours)."""
     start = datetime(year, 1, 1, tzinfo=ET).astimezone(UTC)
     end = datetime(year + 1, 1, 1, tzinfo=ET).astimezone(UTC)
-    utc_hours = pl.datetime_range(
-        start, end, interval="1h", closed="left", eager=True, time_zone="UTC"
-    )
+    utc_hours = pl.datetime_range(start, end, interval="1h", closed="left", eager=True, time_zone="UTC")
     df = pl.DataFrame({"timestamp": utc_hours}).with_columns(
         pl.col("timestamp").dt.convert_time_zone("America/New_York")
     )
@@ -319,12 +308,7 @@ def test_validate_zone_loads_wrong_count_fails():
 
 def test_validate_zone_loads_negative_fails():
     df = _full_year_zone_df(2025, "BC")
-    df = df.with_columns(
-        pl.when(pl.int_range(pl.len()) == 0)
-        .then(-1.0)
-        .otherwise(pl.col("load_mw"))
-        .alias("load_mw")
-    )
+    df = df.with_columns(pl.when(pl.int_range(pl.len()) == 0).then(-1.0).otherwise(pl.col("load_mw")).alias("load_mw"))
     ok, msgs = validate_zone_loads(df, ["BC"], 2025)
     assert not ok
     assert any("negative" in m for m in msgs)

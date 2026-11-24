@@ -121,14 +121,10 @@ def recompute_tou_precalc_mapping(
         shifted_load_raw: Pre-aggregated hourly demand
             (weight x kWh summed across buildings, indexed by time).
     """
-    combined_mc_raw = combine_marginal_costs(
-        bulk_marginal_costs, dist_and_sub_tx_marginal_costs
-    )
+    combined_mc_raw = combine_marginal_costs(bulk_marginal_costs, dist_and_sub_tx_marginal_costs)
 
     mc_index = pd.DatetimeIndex(combined_mc_raw.index)
-    combined_mc = pd.Series(
-        combined_mc_raw.values, index=mc_index, name="total_mc_per_kwh"
-    )
+    combined_mc = pd.Series(combined_mc_raw.values, index=mc_index, name="total_mc_per_kwh")
     shifted_load = pd.Series(
         shifted_load_raw.values[: len(mc_index)],
         index=mc_index,
@@ -180,13 +176,10 @@ def recompute_tou_precalc_mapping(
 
         total_load_all = float(shifted_load.sum())
         raw_weighted = sum(
-            new_season_rates[spec.season.name]
-            * float(shifted_load[season_mask(mc_index, spec.season)].sum())
+            new_season_rates[spec.season.name] * float(shifted_load[season_mask(mc_index, spec.season)].sum())
             for spec in specs
         )
-        scale = (
-            avg_base_rate * total_load_all / raw_weighted if raw_weighted != 0 else 1.0
-        )
+        scale = avg_base_rate * total_load_all / raw_weighted if raw_weighted != 0 else 1.0
         new_season_rates = {k: v * scale for k, v in new_season_rates.items()}
 
         new_rates: list[float] = []
@@ -204,8 +197,7 @@ def recompute_tou_precalc_mapping(
             updated.loc[period_mask, "rel_value"] = round(rate / min_rate, 4)
 
         log.info(
-            ".... Recomputed TOU precalc mapping for %s: "
-            "ratios=%s, rates=%s, rel_values=%s",
+            ".... Recomputed TOU precalc mapping for %s: ratios=%s, rates=%s, rel_values=%s",
             tou_key,
             {k: round(v, 4) for k, v in new_ratios.items()},
             [round(r, 6) for r in new_rates],
@@ -275,9 +267,7 @@ def apply_demand_flex(
     recomputed revenue requirement, and marginal cost outputs.
     """
     # Identify which tariffs are diurnal TOU
-    tou_tariff_keys = [
-        key for key, path in path_tariffs_electric.items() if is_diurnal_tou(path)
-    ]
+    tou_tariff_keys = [key for key, path in path_tariffs_electric.items() if is_diurnal_tou(path)]
     if not tou_tariff_keys:
         raise ValueError(
             f"elasticity={elasticity} (demand flex enabled) but no "
@@ -291,13 +281,8 @@ def apply_demand_flex(
         tou_tariff_keys,
     )
 
-    if (
-        "bldg_id" not in tariff_map_df.columns
-        or "tariff_key" not in tariff_map_df.columns
-    ):
-        raise ValueError(
-            "Electric tariff map must include 'bldg_id' and 'tariff_key' columns"
-        )
+    if "bldg_id" not in tariff_map_df.columns or "tariff_key" not in tariff_map_df.columns:
+        raise ValueError("Electric tariff map must include 'bldg_id' and 'tariff_key' columns")
 
     # -- Phase 1a: freeze residual from original loads --
     # Run the RR decomposition exactly as we would without demand flex:
@@ -325,8 +310,7 @@ def apply_demand_flex(
     total_mc_orig = float(costs_by_type_orig["Total Marginal Costs ($)"])
     frozen_residual: float = float(full_rr_orig) - total_mc_orig
     log.info(
-        ".... Frozen residual from original loads: $%.2f "
-        "(full_RR_orig=$%.2f, MC_original=$%.2f)",
+        ".... Frozen residual from original loads: $%.2f (full_RR_orig=$%.2f, MC_original=$%.2f)",
         frozen_residual,
         float(full_rr_orig),
         total_mc_orig,
@@ -398,10 +382,7 @@ def apply_demand_flex(
             season_specs=season_specs,
             inplace=True,
         )
-        if elasticity_tracker.empty:
-            elasticity_tracker = tracker
-        else:
-            elasticity_tracker = pd.concat([elasticity_tracker, tracker], axis=0)
+        elasticity_tracker = tracker if elasticity_tracker.empty else pd.concat([elasticity_tracker, tracker], axis=0)
 
     # -- Phase 1.75: recompute TOU peak/off-peak cost-causation ratios --
     # The TOU ratio (peak rate / off-peak rate) was derived from the original
@@ -420,13 +401,9 @@ def apply_demand_flex(
         # load them specifically for this step; otherwise fall back to the scenario's
         # already-loaded bulk_marginal_costs (correct for supply runs).
         tou_bulk_mc = bulk_marginal_costs
-        if (
-            path_tou_supply_energy_mc is not None
-            and path_tou_supply_capacity_mc is not None
-        ):
+        if path_tou_supply_energy_mc is not None and path_tou_supply_capacity_mc is not None:
             log.info(
-                ".... Phase 1.75: loading real supply MC for TOU recalibration "
-                "(energy=%s, capacity=%s)",
+                ".... Phase 1.75: loading real supply MC for TOU recalibration (energy=%s, capacity=%s)",
                 path_tou_supply_energy_mc,
                 path_tou_supply_capacity_mc,
             )
@@ -507,20 +484,14 @@ def apply_demand_flex(
         # original load DataFrame alive.
         mc_prices = marginal_system_prices["Total Marginal Costs ($/kWh)"]
         for tou_key in tou_tariff_keys:
-            tou_bldg_ids_k = set(
-                tariff_map_df[tariff_map_df["tariff_key"] == tou_key]["bldg_id"]
-                .astype(int)
-                .tolist()
-            )
+            tou_bldg_ids_k = set(tariff_map_df[tariff_map_df["tariff_key"] == tou_key]["bldg_id"].astype(int).tolist())
             sys_load_orig = orig_sys_loads[tou_key]
             sys_load_aligned = pd.Series(
                 sys_load_orig.values[: len(mc_prices)],
                 index=pd.DatetimeIndex(mc_prices.index),
             )
             mc_orig_k = float((mc_prices * sys_load_aligned).sum())
-            mc_shifted_k = _compute_tou_subclass_mc(
-                effective_load_elec, tou_bldg_ids_k, customer_metadata, mc_prices
-            )
+            mc_shifted_k = _compute_tou_subclass_mc(effective_load_elec, tou_bldg_ids_k, customer_metadata, mc_prices)
             mc_delta_by_tou_tariff[tou_key] = mc_shifted_k - mc_orig_k
             log.info(
                 ".... Subclass MC delta for %s: $%.2f  (orig=$%.2f → shifted=$%.2f)",

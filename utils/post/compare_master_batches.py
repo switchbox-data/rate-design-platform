@@ -47,8 +47,7 @@ def _master_paths(
     run_supply: int,
 ) -> tuple[str, str]:
     root = (
-        f"{path_output_base.rstrip('/')}/hp_rates/{state_lower}/"
-        f"all_utilities/{batch}/run_{run_delivery}+{run_supply}/"
+        f"{path_output_base.rstrip('/')}/hp_rates/{state_lower}/all_utilities/{batch}/run_{run_delivery}+{run_supply}/"
     )
     return f"{root}{COMB_REL}/", f"{root}{BAT_REL}/"
 
@@ -108,9 +107,7 @@ def _is_exact_dtype(dt: pl.DataType) -> bool:
         return True
     if isinstance(dt, pl.Categorical):
         return True
-    if dt.is_temporal():
-        return True
-    return False
+    return bool(dt.is_temporal())
 
 
 def _is_float_dtype(dt: pl.DataType) -> bool:
@@ -130,13 +127,8 @@ def _compare_column(
         if left.dtype.is_numeric() and right.dtype.is_numeric():
             left_f = left.cast(pl.Float64)
             right_f = right.cast(pl.Float64)
-            return _compare_float_series(
-                col=col, left=left_f, right=right_f, abs_tol=abs_tol, rel_tol=rel_tol
-            )
-        return (
-            f"Column {col!r}: dtype mismatch {left.dtype} vs {right.dtype} "
-            "(cannot compare)"
-        )
+            return _compare_float_series(col=col, left=left_f, right=right_f, abs_tol=abs_tol, rel_tol=rel_tol)
+        return f"Column {col!r}: dtype mismatch {left.dtype} vs {right.dtype} (cannot compare)"
 
     one_null = left.is_null() ^ right.is_null()
     if bool(one_null.any()):
@@ -185,8 +177,7 @@ def _compare_float_series(
         n = int(bad.sum())
         max_diff = float(np.nanmax(diff))
         return (
-            f"Column {col!r}: {n} rows exceed tol (abs_tol={abs_tol}, "
-            f"rel_tol={rel_tol}), max_abs_diff={max_diff:.6e}"
+            f"Column {col!r}: {n} rows exceed tol (abs_tol={abs_tol}, rel_tol={rel_tol}), max_abs_diff={max_diff:.6e}"
         )
     return None
 
@@ -203,9 +194,7 @@ def compare_frames(
 ) -> list[str]:
     """Inner-join on ``join_keys`` and compare shared non-key columns."""
     errors: list[str] = []
-    missing_keys = [
-        k for k in join_keys if k not in left.columns or k not in right.columns
-    ]
+    missing_keys = [k for k in join_keys if k not in left.columns or k not in right.columns]
     if missing_keys:
         return [
             f"[{utility} {label}] join keys missing in frame(s): {missing_keys} "
@@ -216,20 +205,15 @@ def compare_frames(
     right_n = right.select(join_keys).n_unique()
     if left_n != left.height:
         errors.append(
-            f"[{utility} {label}] left frame has duplicate keys "
-            f"({left.height} rows, {left_n} unique key tuples)"
+            f"[{utility} {label}] left frame has duplicate keys ({left.height} rows, {left_n} unique key tuples)"
         )
     if right_n != right.height:
         errors.append(
-            f"[{utility} {label}] right frame has duplicate keys "
-            f"({right.height} rows, {right_n} unique key tuples)"
+            f"[{utility} {label}] right frame has duplicate keys ({right.height} rows, {right_n} unique key tuples)"
         )
 
     if left.height != right.height:
-        errors.append(
-            f"[{utility} {label}] row count differs before join: "
-            f"{left.height} vs {right.height}"
-        )
+        errors.append(f"[{utility} {label}] row count differs before join: {left.height} vs {right.height}")
 
     common = sorted(
         (set(left.columns) & set(right.columns)) - set(join_keys),

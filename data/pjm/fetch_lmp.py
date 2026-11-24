@@ -55,7 +55,7 @@ from __future__ import annotations
 import argparse
 import os
 import time
-from datetime import date, timedelta
+from datetime import UTC, date, timedelta
 from pathlib import Path
 
 import polars as pl
@@ -84,9 +84,7 @@ def _zone_map_for_state(state: str) -> dict[str, str]:
     crosswalk schema and vocabulary.
     """
     df = build_zone_mapping().filter(pl.col("state") == state)
-    return dict(
-        zip(df["utility"].to_list(), df["fivecp_zone_label"].to_list(), strict=True)
-    )
+    return dict(zip(df["utility"].to_list(), df["fivecp_zone_label"].to_list(), strict=True))
 
 
 def _pnode_id_for_zone_code(zone_code: str) -> int | None:
@@ -132,10 +130,7 @@ def _load_api_key(api_key: str | None) -> str:
     load_dotenv(dotenv_path=project_root / ".env")
     key = os.getenv("PJM_API_PRIMARY_KEY")
     if not key:
-        raise ValueError(
-            "PJM_API_PRIMARY_KEY not set. Add it to the project .env file "
-            "or pass api_key= explicitly."
-        )
+        raise ValueError("PJM_API_PRIMARY_KEY not set. Add it to the project .env file or pass api_key= explicitly.")
     return key
 
 
@@ -146,9 +141,9 @@ def _archive_cutoff() -> date:
     before this are archive; dates on or after are standard.  We compute in
     UTC to match PJM's server-side logic.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    today_utc = datetime.now(timezone.utc).date()
+    today_utc = datetime.now(UTC).date()
     return today_utc - timedelta(days=_ARCHIVE_CUTOFF_DAYS)
 
 
@@ -205,15 +200,11 @@ def _fetch_page(
     last_exc: Exception | None = None
     for attempt in range(1, _MAX_RETRIES + 1):
         try:
-            resp = session.get(
-                url, headers=headers, params=params, timeout=_REQUEST_TIMEOUT
-            )
+            resp = session.get(url, headers=headers, params=params, timeout=_REQUEST_TIMEOUT)
         except requests.exceptions.ReadTimeout as exc:
             last_exc = exc
             wait = 30 * attempt
-            print(
-                f"  Read timeout on attempt {attempt}/{_MAX_RETRIES} — waiting {wait}s before retry"
-            )
+            print(f"  Read timeout on attempt {attempt}/{_MAX_RETRIES} — waiting {wait}s before retry")
             time.sleep(wait)
             continue
 
@@ -226,9 +217,7 @@ def _fetch_page(
         if resp.status_code >= 500:
             last_exc = requests.exceptions.HTTPError(response=resp)
             wait = 30 * attempt
-            print(
-                f"  Server error {resp.status_code} on attempt {attempt}/{_MAX_RETRIES} — waiting {wait}s"
-            )
+            print(f"  Server error {resp.status_code} on attempt {attempt}/{_MAX_RETRIES} — waiting {wait}s")
             time.sleep(wait)
             continue
 
@@ -240,8 +229,7 @@ def _fetch_page(
             msg = body.get("message", "")
             errors = body.get("errors", [])
             spans_boundary = "spans over archived and standard" in msg or any(
-                "spans over archived and standard"
-                in (e.get("message", "") if isinstance(e, dict) else str(e))
+                "spans over archived and standard" in (e.get("message", "") if isinstance(e, dict) else str(e))
                 for e in errors
             )
             if spans_boundary:
@@ -281,15 +269,10 @@ def _parse_utc_string_to_naive(df: pl.DataFrame, col: str) -> pl.DataFrame:
     """
     sample = df[col].drop_nulls().head(1).to_list()
     for fmt in _TS_FORMATS:
-        parsed = df.with_columns(
-            pl.col(col).str.to_datetime(fmt, strict=False).alias(col)
-        )
+        parsed = df.with_columns(pl.col(col).str.to_datetime(fmt, strict=False).alias(col))
         if parsed[col].null_count() < parsed.height:
             return parsed
-    raise ValueError(
-        f"Could not parse timestamp column '{col}' with any known format. "
-        f"Sample value: {sample}"
-    )
+    raise ValueError(f"Could not parse timestamp column '{col}' with any known format. Sample value: {sample}")
 
 
 def _attach_timezone_to_ts_columns(df: pl.DataFrame) -> pl.DataFrame:
@@ -321,16 +304,12 @@ def _attach_timezone_to_ts_columns(df: pl.DataFrame) -> pl.DataFrame:
         df = _parse_utc_string_to_naive(df, "datetime_beginning_utc")
     utc_dtype = df.schema.get("datetime_beginning_utc")
     if isinstance(utc_dtype, pl.Datetime) and utc_dtype.time_zone != "UTC":
-        df = df.with_columns(
-            pl.col("datetime_beginning_utc").dt.replace_time_zone("UTC")
-        )
+        df = df.with_columns(pl.col("datetime_beginning_utc").dt.replace_time_zone("UTC"))
 
     # Step 2 — derive EPT from UTC (tz-aware America/New_York).
     # This overwrites whatever raw EPT string/naive value the API returned.
     df = df.with_columns(
-        pl.col("datetime_beginning_utc")
-        .dt.convert_time_zone("America/New_York")
-        .alias("datetime_beginning_ept")
+        pl.col("datetime_beginning_utc").dt.convert_time_zone("America/New_York").alias("datetime_beginning_ept")
     )
 
     return df
@@ -428,10 +407,7 @@ def fetch_rt_lmps_for_zone(
         This handles off-by-one uncertainty in the cutoff date.
         """
         is_archive = chunk_start < cutoff
-        date_str = (
-            f"{chunk_start.strftime('%-m-%-d-%Y')} 00:00 to "
-            f"{chunk_end.strftime('%-m-%-d-%Y')} 23:59"
-        )
+        date_str = f"{chunk_start.strftime('%-m-%-d-%Y')} 00:00 to {chunk_end.strftime('%-m-%-d-%Y')} 23:59"
 
         base_params: dict[str, str | int] = {
             "datetime_beginning_ept": date_str,
@@ -473,11 +449,7 @@ def fetch_rt_lmps_for_zone(
                 if use_server_filter:
                     # Server already restricted to this pnode_id; spot-check that
                     # returned pnode_name matches the expected zone label.
-                    wrong = {
-                        r.get("pnode_name")
-                        for r in rows
-                        if r.get("pnode_name") != zone_code
-                    }
+                    wrong = {r.get("pnode_name") for r in rows if r.get("pnode_name") != zone_code}
                     if wrong:
                         raise ValueError(
                             f"pnode_id={pnode_id} returned unexpected pnode_name "
@@ -489,9 +461,7 @@ def fetch_rt_lmps_for_zone(
                 chunk_rows.extend(rows)
 
                 fetched_so_far = start_row + page_size - 1
-                print(
-                    f"    rows {start_row}–{fetched_so_far} of {total}, kept {len(rows)}"
-                )
+                print(f"    rows {start_row}–{fetched_so_far} of {total}, kept {len(rows)}")
 
                 if fetched_so_far >= total:
                     break
@@ -505,7 +475,7 @@ def fetch_rt_lmps_for_zone(
                     f"PJM boundary error on a single-day chunk ({chunk_start}). "
                     "This is unexpected — the archive cutoff may have changed "
                     "mid-request. Try running again."
-                )
+                ) from None
             mid = chunk_start + (chunk_end - chunk_start) // 2
             print(
                 f"  ↳ boundary error — bisecting at {mid} and retrying "
@@ -539,7 +509,7 @@ def fetch_rt_lmps_for_zone(
         # the last EPT hour of Dec 31 (≈ 04:00–05:00 UTC Jan 1) to the next
         # year's partition.
         .with_columns(pl.col("datetime_beginning_ept").dt.year().alias("year"))
-        .select(_OUTPUT_COLS + ["year"])
+        .select([*_OUTPUT_COLS, "year"])
         .sort("zone", "datetime_beginning_utc")
     )
 
@@ -600,16 +570,14 @@ def extract_md_zone_lmps(
         zone_map = _zone_map_for_state("md")
     pjm_zone_codes = list(zone_map.values())
 
-    filtered = df.filter(
-        (pl.col("type") == "ZONE") & pl.col("pnode_name").is_in(pjm_zone_codes)
-    )
+    filtered = df.filter((pl.col("type") == "ZONE") & pl.col("pnode_name").is_in(pjm_zone_codes))
 
     filtered = _attach_timezone_to_ts_columns(filtered)
 
     result = (
         filtered.with_columns(pl.col("pnode_name").alias("zone"))
         .with_columns(pl.col("datetime_beginning_ept").dt.year().alias("year"))
-        .select(_OUTPUT_COLS + ["year"])
+        .select([*_OUTPUT_COLS, "year"])
         .sort("zone", "datetime_beginning_utc")
     )
 
@@ -662,9 +630,7 @@ def upload_to_s3(
         s3_base:  Base S3 prefix (e.g. ``s3://data.sb/pjm/lmp/real_time/zones``).
         dry_run:  If True, print paths without writing.
     """
-    write_hive_partitioned_parquet_to_s3(
-        df, s3_base, partition_cols=["zone", "year"], dry_run=dry_run
-    )
+    write_hive_partitioned_parquet_to_s3(df, s3_base, partition_cols=["zone", "year"], dry_run=dry_run)
 
 
 # ---------------------------------------------------------------------------
@@ -683,9 +649,7 @@ def _cmd_fetch_api(args: argparse.Namespace) -> None:
         cutoff = _archive_cutoff()
         for zone_code in zones:
             chunks = _split_date_range(start, end)
-            print(
-                f"\nzone={zone_code}: {len(chunks)} chunk(s) — no API calls in dry-run"
-            )
+            print(f"\nzone={zone_code}: {len(chunks)} chunk(s) — no API calls in dry-run")
             for chunk_start, chunk_end in chunks:
                 kind = "archive" if chunk_start < cutoff else "standard"
                 days = (chunk_end - chunk_start).days + 1
@@ -704,9 +668,7 @@ def _cmd_fetch_api(args: argparse.Namespace) -> None:
             page_delay_seconds=args.page_delay,
         )
         if lmps.is_empty():
-            raise SystemExit(
-                f"\nERROR: no data returned for zone={zone_code}. Stopping."
-            )
+            raise SystemExit(f"\nERROR: no data returned for zone={zone_code}. Stopping.")
 
         # Save locally first so data isn't lost if validation or upload fails.
         local_path = local_dir / f"{zone_code}_{start}_{end}.parquet"

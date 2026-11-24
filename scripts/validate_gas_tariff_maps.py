@@ -33,10 +33,7 @@ def expected_tariff_key_expr() -> pl.Expr:
     gas_utility_col = pl.col("sb.gas_utility")
 
     return (
-        pl.when(
-            (gas_utility_col == "coned")
-            & building_type_column.str.contains("Single-Family", literal=True)
-        )
+        pl.when((gas_utility_col == "coned") & building_type_column.str.contains("Single-Family", literal=True))
         .then(pl.concat_str([gas_utility_col, pl.lit("_sf")]))
         .when(
             (gas_utility_col == "coned")
@@ -44,10 +41,7 @@ def expected_tariff_key_expr() -> pl.Expr:
             & stories_column.str.contains("4+", literal=True)
         )
         .then(pl.concat_str([gas_utility_col, pl.lit("_mf_highrise")]))
-        .when(
-            (gas_utility_col == "coned")
-            & building_type_column.str.contains("Multi-Family", literal=True)
-        )
+        .when((gas_utility_col == "coned") & building_type_column.str.contains("Multi-Family", literal=True))
         .then(pl.concat_str([gas_utility_col, pl.lit("_mf_lowrise")]))
         .when(
             (gas_utility_col == "kedny")
@@ -61,10 +55,7 @@ def expected_tariff_key_expr() -> pl.Expr:
             & heats_with_natgas_column.eq(False)
         )
         .then(pl.concat_str([gas_utility_col, pl.lit("_sf_nonheating")]))
-        .when(
-            (gas_utility_col == "kedny")
-            & building_type_column.str.contains("Multi-Family", literal=True)
-        )
+        .when((gas_utility_col == "kedny") & building_type_column.str.contains("Multi-Family", literal=True))
         .then(pl.concat_str([gas_utility_col, pl.lit("_mf_heating")]))
         .when(
             (gas_utility_col == "kedli")
@@ -126,12 +117,10 @@ def path_metadata(state: str) -> str:
 
 def load_joined(state: str) -> pl.DataFrame:
     """Load utility assignment + metadata joined on bldg_id; columns needed for expected_tariff_key."""
-    ua = pl.scan_parquet(
-        path_utility_assignment(state), storage_options=STORAGE_OPTIONS
-    ).select("bldg_id", "sb.electric_utility", "sb.gas_utility")
-    meta = pl.scan_parquet(
-        path_metadata(state), storage_options=STORAGE_OPTIONS
-    ).select(
+    ua = pl.scan_parquet(path_utility_assignment(state), storage_options=STORAGE_OPTIONS).select(
+        "bldg_id", "sb.electric_utility", "sb.gas_utility"
+    )
+    meta = pl.scan_parquet(path_metadata(state), storage_options=STORAGE_OPTIONS).select(
         "bldg_id",
         "heats_with_natgas",
         "in.geometry_building_type_recs",
@@ -147,9 +136,9 @@ def validate_one(
     joined: pl.DataFrame,
 ) -> bool:
     """Validate one gas tariff map CSV. Returns True if all checks pass."""
-    electric_bldgs = joined.filter(
-        pl.col("sb.electric_utility") == electric_utility
-    ).select("bldg_id", "expected_tariff_key")
+    electric_bldgs = joined.filter(pl.col("sb.electric_utility") == electric_utility).select(
+        "bldg_id", "expected_tariff_key"
+    )
     expected_ids = set(electric_bldgs["bldg_id"].to_list())
 
     if not path_csv.exists():
@@ -163,9 +152,7 @@ def validate_one(
     extra = map_ids - expected_ids
     ok_coverage = len(missing) == 0 and len(extra) == 0
 
-    print(
-        f"  Coverage: expected {len(expected_ids)} bldg_ids in map, got {len(map_ids)}"
-    )
+    print(f"  Coverage: expected {len(expected_ids)} bldg_ids in map, got {len(map_ids)}")
     if missing:
         print(f"    FAIL: {len(missing)} missing (sample: {list(missing)[:3]})")
     if extra:
@@ -181,13 +168,9 @@ def validate_one(
 
     if n_mismatch > 0:
         print(f"  Correctness: FAIL — {n_mismatch} rows with wrong tariff_key")
-        print(
-            mismatches.select("bldg_id", "tariff_key", "expected_tariff_key").head(10)
-        )
+        print(mismatches.select("bldg_id", "tariff_key", "expected_tariff_key").head(10))
     else:
-        print(
-            "  Correctness: OK — all tariff_key match expected (gas_utility + heating/geometry rules)"
-        )
+        print("  Correctness: OK — all tariff_key match expected (gas_utility + heating/geometry rules)")
 
     return ok_coverage and ok_correct
 

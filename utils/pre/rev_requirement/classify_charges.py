@@ -415,9 +415,7 @@ _NAME_RULES: list[tuple[re.Pattern[str], str, str, str]] = [
     ),
     # --- add_to_drr: DER credit recovery ---
     (
-        re.compile(
-            r"VDER|DER Cost Recovery|Distributed Energy Resources Cost Recovery", re.I
-        ),
+        re.compile(r"VDER|DER Cost Recovery|Distributed Energy Resources Cost Recovery", re.I),
         "add_to_drr",
         "VDER / DER Cost Recovery",
         "DER credit recovery",
@@ -545,17 +543,13 @@ _NAME_RULES: list[tuple[re.Pattern[str], str, str, str]] = [
     ),
     # --- exclude_eligibility: eligibility-gated / optional ($0 for default customer) ---
     (
-        re.compile(
-            r"Customer Benefit Contribution|Costumer Benefit Contribution", re.I
-        ),
+        re.compile(r"Customer Benefit Contribution|Costumer Benefit Contribution", re.I),
         "exclude_eligibility",
         "CBC (solar only)",
         "Eligibility / optional",
     ),
     (
-        re.compile(
-            r"Low[\s-]Income|Income Eligible|Enhanced Energy Affordability", re.I
-        ),
+        re.compile(r"Low[\s-]Income|Income Eligible|Enhanced Energy Affordability", re.I),
         "exclude_eligibility",
         "Low-income discounts",
         "Eligibility",
@@ -629,8 +623,7 @@ def _classify_nimo_mfc(
             "exclude_zonal",
             mc,
             mt,
-            "MFC electricSupply VRK duplicates supply commodity rates; "
-            "excluding to avoid double-count",
+            "MFC electricSupply VRK duplicates supply commodity rates; excluding to avoid double-count",
         )
 
     # MFC entries whose VRK matches CES Supply → exclude_zonal (VRK overlap)
@@ -639,8 +632,7 @@ def _classify_nimo_mfc(
             "exclude_zonal",
             mc,
             mt,
-            "MFC CES Supply VRK duplicates CES Supply base rate; "
-            "excluding to avoid double-count",
+            "MFC CES Supply VRK duplicates CES Supply base rate; excluding to avoid double-count",
         )
 
     # MFC entries whose VRK matches ESR → zonal handling
@@ -767,9 +759,7 @@ def classify_charges(utility: str, input_path: Path, output_path: Path) -> None:
             unclassified.append((rate_id, (entry.get("rate_name") or "").strip()))
 
     if unclassified:
-        logging.warning(
-            "%d entries could not be classified for %s:", len(unclassified), utility
-        )
+        logging.warning("%d entries could not be classified for %s:", len(unclassified), utility)
         for rate_id, name in unclassified:
             logging.warning("  %s: %s", rate_id, name)
 
@@ -795,11 +785,7 @@ def classify_charges(utility: str, input_path: Path, output_path: Path) -> None:
             season_name = (entry["season"].get("name") or "").lower()
         tou_type = ""
         if entry.get("time_of_use") and isinstance(entry["time_of_use"], dict):
-            tou_type = (
-                entry["time_of_use"].get("type")
-                or entry["time_of_use"].get("name")
-                or ""
-            ).lower()
+            tou_type = (entry["time_of_use"].get("type") or entry["time_of_use"].get("name") or "").lower()
         key = (
             (entry.get("rate_name") or "").strip(),
             decision,
@@ -844,12 +830,8 @@ def classify_charges(utility: str, input_path: Path, output_path: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--utility", required=True, help="Utility key (e.g. coned)")
-    parser.add_argument(
-        "--input", required=True, type=Path, help="Path to *_discovered.json"
-    )
-    parser.add_argument(
-        "--output", required=True, type=Path, help="Path to write charge_decisions.json"
-    )
+    parser.add_argument("--input", required=True, type=Path, help="Path to *_discovered.json")
+    parser.add_argument("--output", required=True, type=Path, help="Path to write charge_decisions.json")
     args = parser.parse_args()
 
     if not args.input.exists():

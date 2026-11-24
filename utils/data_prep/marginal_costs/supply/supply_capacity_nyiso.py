@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import polars as pl
 
-from utils.numeric import as_float
 from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
     normalize_load_to_cairo_8760,
 )
@@ -12,6 +11,7 @@ from utils.data_prep.marginal_costs.supply_utils import (
     load_zone_loads,
     remap_year_if_needed,
 )
+from utils.numeric import as_float
 
 N_PEAK_HOURS_PER_MONTH = 8
 
@@ -41,9 +41,7 @@ ICAP_RAW_TO_NESTED_LOCALITY = {
     "NYC": "NYC",
     "LI": "LI",
 }
-NESTED_LOCALITY_TO_ICAP_RAW = {
-    nested: raw for raw, nested in ICAP_RAW_TO_NESTED_LOCALITY.items()
-}
+NESTED_LOCALITY_TO_ICAP_RAW = {nested: raw for raw, nested in ICAP_RAW_TO_NESTED_LOCALITY.items()}
 
 # Partitioned localities used when applying utility splits to prices.
 GEN_CAPACITY_ZONE_TO_PARTITIONED_LOCALITY = {
@@ -84,21 +82,14 @@ def load_icap_spot_prices(
 
     collected = collected.with_columns(
         pl.col("month").cast(pl.Int32),
-        pl.col("locality")
-        .cast(pl.Utf8)
-        .replace_strict(ICAP_RAW_TO_NESTED_LOCALITY)
-        .alias("locality"),
+        pl.col("locality").cast(pl.Utf8).replace_strict(ICAP_RAW_TO_NESTED_LOCALITY).alias("locality"),
     )
     if collected.is_empty():
-        raise FileNotFoundError(
-            f"No ICAP Spot data found for localities={raw_localities}, year={year} under {base}"
-        )
+        raise FileNotFoundError(f"No ICAP Spot data found for localities={raw_localities}, year={year} under {base}")
 
     locs_found = sorted(collected["locality"].unique().to_list())
     months_found = sorted(collected["month"].unique().to_list())
-    print(
-        f"Loaded ICAP Spot prices: {len(collected)} rows, localities={locs_found}, months={months_found}"
-    )
+    print(f"Loaded ICAP Spot prices: {len(collected)} rows, localities={locs_found}, months={months_found}")
     return collected
 
 
@@ -124,14 +115,9 @@ def _resolve_locality_weights(
     if locality_weights.is_empty():
         raise ValueError(f"No locality weights found for {purpose}")
 
-    invalid = sorted(
-        set(locality_weights["locality"].to_list()) - set(valid_localities)
-    )
+    invalid = sorted(set(locality_weights["locality"].to_list()) - set(valid_localities))
     if invalid:
-        raise ValueError(
-            f"Unknown localities for {purpose}: {invalid}. "
-            f"Expected {sorted(valid_localities)}."
-        )
+        raise ValueError(f"Unknown localities for {purpose}: {invalid}. Expected {sorted(valid_localities)}.")
     return locality_weights
 
 
@@ -157,19 +143,13 @@ def compute_weighted_icap_prices(
     result = (
         icap_df.join(locality_weights, on="locality", how="inner")
         .group_by("month")
-        .agg(
-            (pl.col("price_per_kw_month") * pl.col("capacity_weight"))
-            .sum()
-            .alias("icap_price_per_kw_month")
-        )
+        .agg((pl.col("price_per_kw_month") * pl.col("capacity_weight")).sum().alias("icap_price_per_kw_month"))
         .sort("month")
     )
 
     if result.height != 12:
         months_found = sorted(result["month"].to_list())
-        raise ValueError(
-            f"Expected 12 months of ICAP prices, got {result.height}: {months_found}"
-        )
+        raise ValueError(f"Expected 12 months of ICAP prices, got {result.height}: {months_found}")
 
     total_annual = result["icap_price_per_kw_month"].sum()
     print(f"  Annual ICAP total: ${total_annual:.2f}/kW-yr (sum of 12 monthly prices)")
@@ -185,8 +165,7 @@ def build_locality_load_profiles(
     for raw_name in icap_locality_names:
         if raw_name not in ICAP_RAW_TO_NESTED_LOCALITY:
             raise ValueError(
-                f"Unknown ICAP locality name: {raw_name!r}. "
-                f"Expected one of {sorted(ICAP_RAW_TO_NESTED_LOCALITY)}."
+                f"Unknown ICAP locality name: {raw_name!r}. Expected one of {sorted(ICAP_RAW_TO_NESTED_LOCALITY)}."
             )
         nested = ICAP_RAW_TO_NESTED_LOCALITY[raw_name]
         if nested in profiles:
@@ -208,9 +187,7 @@ def build_locality_load_profiles(
     return profiles
 
 
-def zone_names_for_localities(
-    localities: list[str], locality_zone_map: dict[str, list[str]]
-) -> list[str]:
+def zone_names_for_localities(localities: list[str], locality_zone_map: dict[str, list[str]]) -> list[str]:
     """Return sorted unique zone names covered by the given localities."""
     return sorted({z for loc in localities for z in locality_zone_map[loc]})
 
@@ -221,9 +198,7 @@ def allocate_icap_to_hours(
     n_peak_hours: int = N_PEAK_HOURS_PER_MONTH,
 ) -> pl.DataFrame:
     """Allocate monthly ICAP $/kW-month to hourly $/kW via threshold exceedance."""
-    load_with_month = utility_load_df.with_columns(
-        pl.col("timestamp").dt.month().cast(pl.Int32).alias("month")
-    )
+    load_with_month = utility_load_df.with_columns(pl.col("timestamp").dt.month().cast(pl.Int32).alias("month"))
     all_months: list[pl.DataFrame] = []
 
     for month_num in range(1, 13):
@@ -248,9 +223,7 @@ def allocate_icap_to_hours(
         below = month_load.filter(pl.col("load_mw") < load_nth)["load_mw"]
         threshold = as_float(below.max()) if not below.is_empty() else 0.0
 
-        month_result = top_n.with_columns(
-            (pl.col("load_mw") - threshold).alias("exceedance")
-        )
+        month_result = top_n.with_columns((pl.col("load_mw") - threshold).alias("exceedance"))
         total_exceedance = float(month_result["exceedance"].sum())
         if total_exceedance <= 0:
             raise ValueError(
@@ -259,16 +232,12 @@ def allocate_icap_to_hours(
             )
 
         month_result = month_result.with_columns(
-            (pl.col("exceedance") / total_exceedance * icap_price).alias(
-                "capacity_cost_per_kw"
-            )
+            (pl.col("exceedance") / total_exceedance * icap_price).alias("capacity_cost_per_kw")
         )
 
         weight_sum = float((month_result["exceedance"] / total_exceedance).sum())
         if abs(weight_sum - 1.0) > 1e-6:
-            raise ValueError(
-                f"Month {month_num}: weights sum to {weight_sum:.6f}, expected 1.0"
-            )
+            raise ValueError(f"Month {month_num}: weights sum to {weight_sum:.6f}, expected 1.0")
 
         n_nonzero = month_result.filter(pl.col("capacity_cost_per_kw") > 0).height
         print(
@@ -299,8 +268,7 @@ def compute_components(
 
         if icap_locality_raw not in ICAP_RAW_TO_NESTED_LOCALITY:
             raise ValueError(
-                f"Unknown icap_locality {icap_locality_raw!r}. "
-                f"Expected one of {sorted(ICAP_RAW_TO_NESTED_LOCALITY)}."
+                f"Unknown icap_locality {icap_locality_raw!r}. Expected one of {sorted(ICAP_RAW_TO_NESTED_LOCALITY)}."
             )
         nested_locality = ICAP_RAW_TO_NESTED_LOCALITY[icap_locality_raw]
 
@@ -309,14 +277,11 @@ def compute_components(
                 f"Unknown gen_capacity_zone {gen_capacity_zone!r}. "
                 f"Expected one of {sorted(GEN_CAPACITY_ZONE_TO_PARTITIONED_LOCALITY)}."
             )
-        partitioned_locality = GEN_CAPACITY_ZONE_TO_PARTITIONED_LOCALITY[
-            gen_capacity_zone
-        ]
+        partitioned_locality = GEN_CAPACITY_ZONE_TO_PARTITIONED_LOCALITY[gen_capacity_zone]
 
         if nested_locality not in locality_profiles:
             raise ValueError(
-                f"No load profile for nested locality {nested_locality!r}. "
-                f"Available: {sorted(locality_profiles)}"
+                f"No load profile for nested locality {nested_locality!r}. Available: {sorted(locality_profiles)}"
             )
         load_profile = locality_profiles[nested_locality]
 
@@ -328,9 +293,7 @@ def compute_components(
             )
         component_prices = component_icap.select(
             pl.col("month"),
-            (pl.col("price_per_kw_month") * capacity_weight).alias(
-                "icap_price_per_kw_month"
-            ),
+            (pl.col("price_per_kw_month") * capacity_weight).alias("icap_price_per_kw_month"),
         )
 
         print(
@@ -340,9 +303,7 @@ def compute_components(
             f"partitioned={partitioned_locality!r}, "
             f"weight={capacity_weight:.4f}"
         )
-        component_frames.append(
-            allocate_icap_to_hours(load_profile, component_prices, n_peak_hours)
-        )
+        component_frames.append(allocate_icap_to_hours(load_profile, component_prices, n_peak_hours))
 
     if not component_frames:
         raise ValueError("No ICAP locality components found for utility")
@@ -392,31 +353,20 @@ def compute_supply_capacity_mc(
     capacity_load_year: int | None = None,
 ) -> pl.DataFrame:
     """Compute hourly utility-level supply capacity MC from ICAP Spot data."""
-    capacity_load_year = (
-        price_year if capacity_load_year is None else capacity_load_year
-    )
+    capacity_load_year = price_year if capacity_load_year is None else capacity_load_year
 
-    utility_icap_rows = utility_mapping.select(
-        "icap_locality", "gen_capacity_zone", "capacity_weight"
-    ).unique()
+    utility_icap_rows = utility_mapping.select("icap_locality", "gen_capacity_zone", "capacity_weight").unique()
     print(f"  Utility ICAP rows:\n{utility_icap_rows}")
 
     partitioned_localities = sorted(
-        {
-            GEN_CAPACITY_ZONE_TO_PARTITIONED_LOCALITY[z]
-            for z in utility_icap_rows["gen_capacity_zone"].to_list()
-        }
+        {GEN_CAPACITY_ZONE_TO_PARTITIONED_LOCALITY[z] for z in utility_icap_rows["gen_capacity_zone"].to_list()}
     )
     print(f"  Loading ICAP prices for partitioned localities: {partitioned_localities}")
 
-    icap_df = load_icap_spot_prices(
-        icap_s3_base, partitioned_localities, price_year, storage_options
-    )
+    icap_df = load_icap_spot_prices(icap_s3_base, partitioned_localities, price_year, storage_options)
 
     icap_locality_names = utility_icap_rows["icap_locality"].to_list()
-    nested_localities = sorted(
-        {ICAP_RAW_TO_NESTED_LOCALITY[raw] for raw in icap_locality_names}
-    )
+    nested_localities = sorted({ICAP_RAW_TO_NESTED_LOCALITY[raw] for raw in icap_locality_names})
     zones_needed = zone_names_for_localities(nested_localities, NESTED_LOCALITY_ZONES)
     print(
         f"\n  Building locality load profiles for year {capacity_load_year}..."
@@ -433,8 +383,7 @@ def compute_supply_capacity_mc(
     raw_profiles = build_locality_load_profiles(icap_locality_names, zone_loads_df)
 
     locality_profiles = {
-        loc: normalize_load_to_cairo_8760(profile, utility, capacity_load_year)
-        for loc, profile in raw_profiles.items()
+        loc: normalize_load_to_cairo_8760(profile, utility, capacity_load_year) for loc, profile in raw_profiles.items()
     }
 
     print("\n  Computing capacity MC (component-by-component):")
@@ -446,15 +395,11 @@ def compute_supply_capacity_mc(
     )
 
     price_locality_weights = get_partitioned_price_locality_weights(utility_mapping)
-    icap_prices_for_validation = compute_weighted_icap_prices(
-        icap_df, price_locality_weights
-    )
+    icap_prices_for_validation = compute_weighted_icap_prices(icap_df, price_locality_weights)
     validate_allocation(capacity_df, icap_prices_for_validation)
 
     if capacity_load_year != price_year:
-        print(
-            f"\n  Remapping capacity timestamps: {capacity_load_year} -> {price_year}"
-        )
+        print(f"\n  Remapping capacity timestamps: {capacity_load_year} -> {price_year}")
         capacity_df = remap_year_if_needed(
             capacity_df,
             "timestamp",

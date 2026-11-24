@@ -14,9 +14,7 @@ def test_filter_config_by_tariff_keys_selects_exact_key() -> None:
         "pepco": {"pepco": "default"},
     }
 
-    assert filter_config_by_tariff_keys(config, {"bge_rd"}) == {
-        "bge": {"bge_rd": 3350180}
-    }
+    assert filter_config_by_tariff_keys(config, {"bge_rd"}) == {"bge": {"bge_rd": 3350180}}
 
 
 def test_filter_config_by_tariff_keys_rejects_unknown_key() -> None:

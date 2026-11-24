@@ -63,9 +63,7 @@ def test_load_fpl_guidelines() -> None:
 def test_fpl_threshold_expr() -> None:
     df = pl.DataFrame({"occupants_num": [1, 2, 4]})
     base, inc = 15060, 5380
-    out = df.with_columns(
-        fpl_threshold_expr("occupants_num", base, inc).alias("thresh")
-    )
+    out = df.with_columns(fpl_threshold_expr("occupants_num", base, inc).alias("thresh"))
     assert out["thresh"].to_list() == [15060, 15060 + 5380, 15060 + 3 * 5380]
 
 
@@ -86,11 +84,7 @@ def test_participation_uniform_expr() -> None:
             "eligible": [True] * 50 + [False] * 50,
         }
     )
-    out = df.with_columns(
-        participation_uniform_expr("bldg_id", 0.5, 42, pl.col("eligible")).alias(
-            "participates"
-        )
-    )
+    out = df.with_columns(participation_uniform_expr("bldg_id", 0.5, 42, pl.col("eligible")).alias("participates"))
     # Only eligible can participate; ~50% of eligible
     part = out.filter(pl.col("participates"))
     assert part.height <= 50
@@ -106,9 +100,7 @@ def test_select_participants_weighted() -> None:
             "weight": [1 / 30, 1 / 60, 1 / 90, 1 / 120, 1 / 150],
         }
     )
-    out = select_participants_weighted(
-        eligible_df, rate=0.4, seed=42, weight_col="weight"
-    )
+    out = select_participants_weighted(eligible_df, rate=0.4, seed=42, weight_col="weight")
     assert "participates" in out.columns
     assert out["participates"].sum() >= 1
     assert out["participates"].sum() <= 3
@@ -159,12 +151,9 @@ def test_gas_tier_zeroed_without_gas_service() -> None:
         .then(pl.col("gas_tier_raw"))
         .otherwise(pl.lit(0))
         .alias("gas_lmi_tier"),
-        (
-            pl.when(pl.col("sb.gas_utility").is_not_null())
-            .then(pl.col("gas_tier_raw"))
-            .otherwise(pl.lit(0))
-            >= 1
-        ).alias("is_lmi_gas"),
+        (pl.when(pl.col("sb.gas_utility").is_not_null()).then(pl.col("gas_tier_raw")).otherwise(pl.lit(0)) >= 1).alias(
+            "is_lmi_gas"
+        ),
     )
 
     # Raw assignment would give tiers 2, 1, 0 — but masking must zero them all
@@ -188,12 +177,9 @@ def test_gas_tier_preserved_with_gas_service() -> None:
         .then(pl.col("gas_tier_raw"))
         .otherwise(pl.lit(0))
         .alias("gas_lmi_tier"),
-        (
-            pl.when(pl.col("sb.gas_utility").is_not_null())
-            .then(pl.col("gas_tier_raw"))
-            .otherwise(pl.lit(0))
-            >= 1
-        ).alias("is_lmi_gas"),
+        (pl.when(pl.col("sb.gas_utility").is_not_null()).then(pl.col("gas_tier_raw")).otherwise(pl.lit(0)) >= 1).alias(
+            "is_lmi_gas"
+        ),
     )
 
     # <= 138% FPL -> tier 2 (30%), 138-185% FPL -> tier 1 (25%), > 185% -> 0

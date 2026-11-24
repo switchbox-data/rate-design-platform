@@ -12,13 +12,14 @@ Usage:
 
 from __future__ import annotations
 
-from utils.numeric import as_int
-
+import itertools
 import sys
 from datetime import date, timedelta
 from pathlib import Path
 
 import polars as pl
+
+from utils.numeric import as_int
 
 EXPECTED_COLUMNS = [
     "summer_year",
@@ -148,15 +149,10 @@ def check_no_nulls(df: pl.DataFrame, result: ValidationResult) -> None:
 
 def check_source_urls(df: pl.DataFrame, result: ValidationResult) -> None:
     """Every row must carry a well-formed pjm.com citation."""
-    bad = df.filter(
-        ~pl.col("source_url").str.starts_with("https://www.pjm.com/")
-        | pl.col("source_url").is_null()
-    )
+    bad = df.filter(~pl.col("source_url").str.starts_with("https://www.pjm.com/") | pl.col("source_url").is_null())
     if bad.height:
         sample = bad.select("summer_year", "zone", "source_url").head(3).to_dicts()
-        result.error(
-            "Source URLs", f"{bad.height} non-pjm.com/empty source_url, e.g. {sample}"
-        )
+        result.error("Source URLs", f"{bad.height} non-pjm.com/empty source_url, e.g. {sample}")
     else:
         result.passed("Source URLs", "all rows cite a pjm.com source_url")
 
@@ -166,9 +162,7 @@ def check_uniqueness(df: pl.DataFrame, result: ValidationResult) -> None:
     n_total = df.height
     n_unique = df.select(keys).unique().height
     if n_unique != n_total:
-        result.error(
-            "Uniqueness", f"{n_total - n_unique} duplicate (summer, rank, zone) rows"
-        )
+        result.error("Uniqueness", f"{n_total - n_unique} duplicate (summer, rank, zone) rows")
     else:
         result.passed(
             "Uniqueness",
@@ -187,8 +181,7 @@ def check_summer_coverage(df: pl.DataFrame, result: ValidationResult) -> None:
     if not missing and not extra:
         result.passed(
             "Summer coverage",
-            f"all {len(EXPECTED_SUMMERS)} summers present "
-            f"({min(EXPECTED_SUMMERS)}-{max(EXPECTED_SUMMERS)})",
+            f"all {len(EXPECTED_SUMMERS)} summers present ({min(EXPECTED_SUMMERS)}-{max(EXPECTED_SUMMERS)})",
         )
 
 
@@ -299,8 +292,7 @@ def check_hour_ending(df: pl.DataFrame, result: ValidationResult) -> None:
     elif hmin < HOUR_PLAUSIBLE_MIN or hmax > HOUR_PLAUSIBLE_MAX:
         result.warn(
             "Hour ending",
-            f"hours outside plausible {HOUR_PLAUSIBLE_MIN}-{HOUR_PLAUSIBLE_MAX} "
-            f"afternoon band: min {hmin}, max {hmax}",
+            f"hours outside plausible {HOUR_PLAUSIBLE_MIN}-{HOUR_PLAUSIBLE_MAX} afternoon band: min {hmin}, max {hmax}",
         )
     else:
         result.passed("Hour ending", f"all hours within HE {hmin}-{hmax} EPT")
@@ -311,15 +303,13 @@ def check_rto_descending(df: pl.DataFrame, result: ValidationResult) -> None:
     rto = df.filter(pl.col("zone") == "RTO").sort("summer_year", "rank")
     for (summer,), group in rto.group_by("summer_year", maintain_order=True):
         mws = group.sort("rank")["mw_unrestricted"].to_list()
-        if any(a <= b for a, b in zip(mws, mws[1:])):
+        if any(a <= b for a, b in itertools.pairwise(mws)):
             errors.append(f"summer {summer}: RTO MW not strictly descending: {mws}")
     if errors:
         for e in errors:
             result.error("RTO descending", e)
     else:
-        result.passed(
-            "RTO descending", "RTO MW strictly descending by rank in every summer"
-        )
+        result.passed("RTO descending", "RTO MW strictly descending by rank in every summer")
 
 
 def check_zonal_sum(df: pl.DataFrame, result: ValidationResult) -> None:
@@ -330,18 +320,11 @@ def check_zonal_sum(df: pl.DataFrame, result: ValidationResult) -> None:
     warns: list[str] = []
     for (summer, rank), group in zonal.group_by("summer_year", "rank"):
         zone_sum = float(group["mw_unrestricted"].sum())
-        rto_row = df.filter(
-            (pl.col("summer_year") == summer)
-            & (pl.col("rank") == rank)
-            & (pl.col("zone") == "RTO")
-        )
+        rto_row = df.filter((pl.col("summer_year") == summer) & (pl.col("rank") == rank) & (pl.col("zone") == "RTO"))
         rto_mw = float(rto_row["mw_unrestricted"][0])
         rel_err = abs(zone_sum - rto_mw) / rto_mw
         if rel_err > ZONAL_SUM_TOLERANCE:
-            warns.append(
-                f"summer {summer} rank {rank}: zones sum {zone_sum:,.1f} vs "
-                f"RTO {rto_mw:,.1f} ({rel_err:.2%})"
-            )
+            warns.append(f"summer {summer} rank {rank}: zones sum {zone_sum:,.1f} vs RTO {rto_mw:,.1f} ({rel_err:.2%})")
     if warns:
         for w in warns:
             result.warn("Zonal sum", w)
@@ -356,20 +339,13 @@ def check_zonal_sum(df: pl.DataFrame, result: ValidationResult) -> None:
 def check_cross_check_values(df: pl.DataFrame, result: ValidationResult) -> None:
     errors: list[str] = []
     for (summer, rank, zone), expected_mw in CROSS_CHECK_VALUES.items():
-        row = df.filter(
-            (pl.col("summer_year") == summer)
-            & (pl.col("rank") == rank)
-            & (pl.col("zone") == zone)
-        )
+        row = df.filter((pl.col("summer_year") == summer) & (pl.col("rank") == rank) & (pl.col("zone") == zone))
         if row.height == 0:
             errors.append(f"summer {summer} rank {rank} zone {zone}: row not found")
             continue
         actual = float(row["mw_unrestricted"][0])
         if abs(actual - expected_mw) > 0.05:
-            errors.append(
-                f"summer {summer} rank {rank} zone {zone}: "
-                f"expected {expected_mw:,.1f}, got {actual:,.1f}"
-            )
+            errors.append(f"summer {summer} rank {rank} zone {zone}: expected {expected_mw:,.1f}, got {actual:,.1f}")
     if errors:
         for e in errors:
             result.error("Cross-check", e)

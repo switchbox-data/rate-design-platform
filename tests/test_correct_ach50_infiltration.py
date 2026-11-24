@@ -99,11 +99,7 @@ def test_on_line_house_matches_voucher() -> None:
             )
         ]
     )
-    regs = {
-        ("Electric Resistance", "elec_heating"): WLSResult(
-            intercept=intercept, slope=slope, r_squared=1.0, n=10
-        )
-    }
+    regs = {("Electric Resistance", "elec_heating"): WLSResult(intercept=intercept, slope=slope, r_squared=1.0, n=10)}
     corr = _compute_correction_fractions(table, regs, ctx)[1][0]
     assert corr.frac == pytest.approx(voucher)
     assert corr.frac == pytest.approx(0.25)
@@ -129,11 +125,7 @@ def test_below_line_house_not_zeroed() -> None:
             )
         ]
     )
-    regs = {
-        ("Electric Resistance", "elec_heating"): WLSResult(
-            intercept=intercept, slope=slope, r_squared=1.0, n=10
-        )
-    }
+    regs = {("Electric Resistance", "elec_heating"): WLSResult(intercept=intercept, slope=slope, r_squared=1.0, n=10)}
     corr = _compute_correction_fractions(table, regs, ctx)[1][0]
     assert voucher_raw > 1.0
     assert 0.0 < corr.frac < 1.0
@@ -155,11 +147,7 @@ def test_negative_delta_increases_load_and_clips() -> None:
             )
         ]
     )
-    regs = {
-        ("Electric Resistance", "elec_heating"): WLSResult(
-            intercept=intercept, slope=slope, r_squared=1.0, n=10
-        )
-    }
+    regs = {("Electric Resistance", "elec_heating"): WLSResult(intercept=intercept, slope=slope, r_squared=1.0, n=10)}
     corr = _compute_correction_fractions(table, regs, ctx)[1][0]
     pred_rs = intercept + slope * ach50_rs  # 3.0
     pred_chan = intercept + slope * ach50_chan  # 4.0
@@ -184,11 +172,7 @@ def test_negative_delta_clips_at_lower_bound() -> None:
             )
         ]
     )
-    regs = {
-        ("Electric Resistance", "elec_heating"): WLSResult(
-            intercept=intercept, slope=slope, r_squared=1.0, n=10
-        )
-    }
+    regs = {("Electric Resistance", "elec_heating"): WLSResult(intercept=intercept, slope=slope, r_squared=1.0, n=10)}
     corr = _compute_correction_fractions(table, regs, ctx)[1][0]
     assert corr.frac == pytest.approx(-0.5)
 
@@ -208,11 +192,7 @@ def test_pred_rs_nonpositive_leaves_uncorrected() -> None:
             )
         ]
     )
-    regs = {
-        ("Electric Resistance", "elec_heating"): WLSResult(
-            intercept=intercept, slope=slope, r_squared=1.0, n=10
-        )
-    }
+    regs = {("Electric Resistance", "elec_heating"): WLSResult(intercept=intercept, slope=slope, r_squared=1.0, n=10)}
     corr = _compute_correction_fractions(table, regs, ctx)[1][0]
     assert corr.frac == 0.0
 
@@ -255,9 +235,7 @@ def test_cooling_and_gas_use_same_formula() -> None:
         ("Electric Resistance", "elec_cooling"): cool_reg,
         ("Electric Resistance", "gas_heating"): gas_reg,
     }
-    corrs = {
-        c.enduse_name: c for c in _compute_correction_fractions(table, regs, ctx)[1]
-    }
+    corrs = {c.enduse_name: c for c in _compute_correction_fractions(table, regs, ctx)[1]}
 
     def expected(reg: WLSResult) -> float:
         pred_rs = reg.intercept + reg.slope * ach50_rs
@@ -302,25 +280,18 @@ def test_apply_corrections_to_annual_scales_and_recomputes_total() -> None:
             enduse_groups=[_heating_eu()],
         )
     }
-    out = _apply_corrections_to_annual(
-        annual, corrections, {1: "Electric Resistance"}, group_lookup
-    )
+    out = _apply_corrections_to_annual(annual, corrections, {1: "Electric Resistance"}, group_lookup)
     assert out[heating][0] == pytest.approx(300.0)
     assert out[other][0] == pytest.approx(100.0)
     assert out[total][0] == pytest.approx(400.0)
 
 
 def test_production_ach_release_name() -> None:
-    assert (
-        _production_ach_release("res_2024_amy2018_2_sb") == "res_2024_amy2018_2_sb_ach"
-    )
+    assert _production_ach_release("res_2024_amy2018_2_sb") == "res_2024_amy2018_2_sb_ach"
 
 
 def test_report_yaml_name_uses_output_suffix() -> None:
-    assert (
-        _report_yaml_name("res_2024_amy2018_2_sb_ach_ratio", "01")
-        == "ach50_correction_report_ach_ratio_u01.yaml"
-    )
+    assert _report_yaml_name("res_2024_amy2018_2_sb_ach_ratio", "01") == "ach50_correction_report_ach_ratio_u01.yaml"
 
 
 def test_run_correction_refuses_production_ach_release(tmp_path) -> None:

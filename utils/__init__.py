@@ -39,7 +39,5 @@ def get_project_root() -> Path:
         cwd=Path.cwd(),
     )
     if result.returncode != 0:
-        raise RuntimeError(
-            "Could not find project root (run from inside the git repository)"
-        )
+        raise RuntimeError("Could not find project root (run from inside the git repository)")
     return Path(result.stdout.strip()).resolve()

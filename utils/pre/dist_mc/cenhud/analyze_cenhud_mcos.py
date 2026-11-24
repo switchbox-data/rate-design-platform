@@ -52,7 +52,6 @@ import openpyxl
 import openpyxl.worksheet.worksheet
 import polars as pl
 
-
 # ── Study parameters ─────────────────────────────────────────────────────────
 
 YEARS = list(range(2026, 2036))  # 2026 through 2035
@@ -396,9 +395,7 @@ def print_report(
     print(f"  System peak (2024 actual):  {system_peak_mw:,.0f} MW")
     print(f"  Study period:               {YEARS[0]}–{YEARS[-1]} ({N_YEARS} years)")
     print("  Workbook escalation:        None (flat nominal)")
-    print(
-        f"  Applied escalation:         {GDP_DEFLATOR_RATE * 100:.1f}%/yr GDP deflator (base {BASE_YEAR})"
-    )
+    print(f"  Applied escalation:         {GDP_DEFLATOR_RATE * 100:.1f}%/yr GDP deflator (base {BASE_YEAR})")
     print(f"  Total projects:             {len(projects)}")
 
     # Per-cost-center summary
@@ -438,16 +435,11 @@ def print_report(
             continue
         ours_lev = levelized(cum_dil[cc])
         wb_lev = sum(diluted_table[cc]) / len(diluted_table[cc])
-        print(
-            f"  {BUCKET_LABELS[cc]:40s}  ${ours_lev:7.2f}/kW-yr  ${wb_lev:7.2f}/kW-yr"
-        )
+        print(f"  {BUCKET_LABELS[cc]:40s}  ${ours_lev:7.2f}/kW-yr  ${wb_lev:7.2f}/kW-yr")
     if "total" in diluted_table:
         ours_total = levelized(cum_dil["total"])
         wb_total = sum(diluted_table["total"]) / len(diluted_table["total"])
-        print(
-            f"  {BUCKET_LABELS['total']:40s}  ${ours_total:7.2f}/kW-yr"
-            f"  ${wb_total:7.2f}/kW-yr"
-        )
+        print(f"  {BUCKET_LABELS['total']:40s}  ${ours_total:7.2f}/kW-yr  ${wb_total:7.2f}/kW-yr")
 
     print("\n  Note: Workbook Table 1 ('areas with projects') uses peak-share-based")
     print("  aggregation; our undiluted variant uses project capacity. Values differ")

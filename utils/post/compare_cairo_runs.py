@@ -25,14 +25,14 @@ Usage::
 
 from __future__ import annotations
 
-from utils.numeric import as_float
-
 import argparse
 import json
 import sys
 from dataclasses import dataclass
+
 import polars as pl
 
+from utils.numeric import as_float
 from utils.post.validate.load import _s3_get_bytes, _s3_join
 
 # Artifacts to compare: (short_name, relative_path, join_keys)
@@ -146,9 +146,7 @@ def compare_artifact(
             error="Challenger missing but baseline exists",
         )
 
-    available_keys = [
-        k for k in join_keys if k in df_base.columns and k in df_chal.columns
-    ]
+    available_keys = [k for k in join_keys if k in df_base.columns and k in df_chal.columns]
     if not available_keys:
         return ComparisonResult(
             artifact=artifact_name,
@@ -163,9 +161,7 @@ def compare_artifact(
             error=f"No join keys found in both DataFrames (tried {join_keys})",
         )
 
-    shared_cols = [
-        c for c in df_base.columns if c in df_chal.columns and c not in available_keys
-    ]
+    shared_cols = [c for c in df_base.columns if c in df_chal.columns and c not in available_keys]
     num_cols = _numeric_cols(df_base.select(shared_cols), exclude=[])
 
     joined = df_base.join(
@@ -187,9 +183,7 @@ def compare_artifact(
         chal_vals = joined[col_chal].cast(pl.Float64).fill_null(0.0)
 
         abs_diff = (base_vals - chal_vals).abs()
-        denom = base_vals.abs().zip_with(
-            base_vals.abs() > 0, pl.Series([1.0] * joined.height)
-        )
+        denom = base_vals.abs().zip_with(base_vals.abs() > 0, pl.Series([1.0] * joined.height))
         rel_diff = abs_diff / denom
 
         max_abs = abs_diff.max()
@@ -310,9 +304,7 @@ def print_results(results: list[ComparisonResult]) -> bool:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Compare two CAIRO run directories for numerical equivalence."
-    )
+    parser = argparse.ArgumentParser(description="Compare two CAIRO run directories for numerical equivalence.")
     parser.add_argument(
         "--baseline",
         required=True,

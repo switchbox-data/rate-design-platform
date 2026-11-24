@@ -25,7 +25,7 @@ from __future__ import annotations
 import os
 import time
 from collections.abc import Callable
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import polars as pl
@@ -52,10 +52,7 @@ def load_api_key(api_key: str | None = None) -> str:
     load_dotenv(dotenv_path=project_root / ".env")
     key = os.getenv("PJM_API_PRIMARY_KEY")
     if not key:
-        raise ValueError(
-            "PJM_API_PRIMARY_KEY not set. Add it to the project .env file "
-            "or pass api_key= explicitly."
-        )
+        raise ValueError("PJM_API_PRIMARY_KEY not set. Add it to the project .env file or pass api_key= explicitly.")
     return key
 
 
@@ -66,7 +63,7 @@ def archive_cutoff() -> date:
     this are archive; dates on or after are standard. Computed in UTC to match
     PJM's server-side logic.
     """
-    today_utc = datetime.now(timezone.utc).date()
+    today_utc = datetime.now(UTC).date()
     return today_utc - timedelta(days=ARCHIVE_CUTOFF_DAYS)
 
 
@@ -127,15 +124,10 @@ def parse_ts_column(df: pl.DataFrame, col: str) -> pl.DataFrame:
         return df
     sample = df[col].drop_nulls().head(1).to_list()
     for fmt in _TS_FORMATS:
-        parsed = df.with_columns(
-            pl.col(col).str.to_datetime(fmt, strict=False).alias(col)
-        )
+        parsed = df.with_columns(pl.col(col).str.to_datetime(fmt, strict=False).alias(col))
         if parsed[col].null_count() < parsed.height:
             return parsed
-    raise ValueError(
-        f"Could not parse timestamp column '{col}' with any known format. "
-        f"Sample value: {sample}"
-    )
+    raise ValueError(f"Could not parse timestamp column '{col}' with any known format. Sample value: {sample}")
 
 
 def fetch_page(
@@ -157,16 +149,11 @@ def fetch_page(
     last_exc: Exception | None = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            resp = session.get(
-                url, headers=headers, params=params, timeout=REQUEST_TIMEOUT
-            )
+            resp = session.get(url, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
         except requests.exceptions.ReadTimeout as exc:
             last_exc = exc
             wait = 30 * attempt
-            print(
-                f"  Read timeout on attempt {attempt}/{MAX_RETRIES} "
-                f"— waiting {wait}s before retry"
-            )
+            print(f"  Read timeout on attempt {attempt}/{MAX_RETRIES} — waiting {wait}s before retry")
             time.sleep(wait)
             continue
 
@@ -179,10 +166,7 @@ def fetch_page(
         if resp.status_code >= 500:
             last_exc = requests.exceptions.HTTPError(response=resp)
             wait = 30 * attempt
-            print(
-                f"  Server error {resp.status_code} on attempt "
-                f"{attempt}/{MAX_RETRIES} — waiting {wait}s"
-            )
+            print(f"  Server error {resp.status_code} on attempt {attempt}/{MAX_RETRIES} — waiting {wait}s")
             time.sleep(wait)
             continue
 
@@ -194,8 +178,7 @@ def fetch_page(
             msg = body.get("message", "")
             errors = body.get("errors", [])
             spans_boundary = "spans over archived and standard" in msg or any(
-                "spans over archived and standard"
-                in (e.get("message", "") if isinstance(e, dict) else str(e))
+                "spans over archived and standard" in (e.get("message", "") if isinstance(e, dict) else str(e))
                 for e in errors
             )
             if spans_boundary:
@@ -237,18 +220,12 @@ def fetch_date_range(
     session = requests.Session()
     all_rows: list[dict] = []
 
-    print(
-        f"Fetching {feed} {start} -> {end} ({len(chunks)} chunk(s); "
-        f"archive cutoff {cutoff})"
-    )
+    print(f"Fetching {feed} {start} -> {end} ({len(chunks)} chunk(s); archive cutoff {cutoff})")
 
     def _fetch_chunk(chunk_start: date, chunk_end: date) -> list[dict]:
         is_archive = chunk_start < cutoff
         base_params = build_params(chunk_start, chunk_end, is_archive)
-        print(
-            f"  chunk {chunk_start} -> {chunk_end} "
-            f"({'archive' if is_archive else 'standard'})"
-        )
+        print(f"  chunk {chunk_start} -> {chunk_end} ({'archive' if is_archive else 'standard'})")
 
         chunk_rows: list[dict] = []
         start_row = 1

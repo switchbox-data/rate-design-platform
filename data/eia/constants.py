@@ -13,24 +13,16 @@ from __future__ import annotations
 # See https://github.com/catalyst-cooperative/pudl/releases
 PUDL_STABLE_VERSION: str = "v2026.2.0"
 
-_PUDL_S3_BASE: str = (
-    f"https://s3.us-west-2.amazonaws.com/pudl.catalyst.coop/{PUDL_STABLE_VERSION}"
-)
+_PUDL_S3_BASE: str = f"https://s3.us-west-2.amazonaws.com/pudl.catalyst.coop/{PUDL_STABLE_VERSION}"
 
 PUDL_YEARLY_SALES_URL: str = f"{_PUDL_S3_BASE}/core_eia861__yearly_sales.parquet"
 
-PUDL_SERVICE_TERRITORY_URL: str = (
-    f"{_PUDL_S3_BASE}/core_eia861__yearly_service_territory.parquet"
-)
+PUDL_SERVICE_TERRITORY_URL: str = f"{_PUDL_S3_BASE}/core_eia861__yearly_service_territory.parquet"
 
-PUDL_EIA176_BY_CONSUMER_URL: str = (
-    f"{_PUDL_S3_BASE}/core_eia176__yearly_gas_disposition_by_consumer.parquet"
-)
+PUDL_EIA176_BY_CONSUMER_URL: str = f"{_PUDL_S3_BASE}/core_eia176__yearly_gas_disposition_by_consumer.parquet"
 """EIA-176 deliveries by operator, customer class, and revenue class (Mcf, consumers)."""
 
-PUDL_EIA176_DISPOSITION_URL: str = (
-    f"{_PUDL_S3_BASE}/core_eia176__yearly_gas_disposition.parquet"
-)
+PUDL_EIA176_DISPOSITION_URL: str = f"{_PUDL_S3_BASE}/core_eia176__yearly_gas_disposition.parquet"
 """EIA-176 disposition by operator, including delivered-gas heat content (MMBtu/Mcf)."""
 
 # ── Our S3 outputs ────────────────────────────────────────────────────────────

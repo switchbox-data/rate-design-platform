@@ -8,11 +8,13 @@ import subprocess
 from io import StringIO
 from pathlib import Path
 
-import pytest
 import polars as pl
+import pytest
 
 # Must match PUDL_STABLE_VERSION in data/eia/861/fetch_electric_utility_stat_parquets.py
-CORE_EIA861_YEARLY_SALES_URL = "https://s3.us-west-2.amazonaws.com/pudl.catalyst.coop/v2026.2.0/core_eia861__yearly_sales.parquet"
+CORE_EIA861_YEARLY_SALES_URL = (
+    "https://s3.us-west-2.amazonaws.com/pudl.catalyst.coop/v2026.2.0/core_eia861__yearly_sales.parquet"
+)
 
 REQUIRED_COLUMNS = frozenset(
     {
@@ -61,13 +63,7 @@ def test_eia861_yearly_sales_customer_class_values(
     Uses exact set equality: fails if the dataset has extra classes (unaccounted for)
     or is missing any expected class.
     """
-    classes = (
-        eia861_yearly_sales_df.select("customer_class")
-        .unique()
-        .to_series()
-        .cast(pl.Utf8)
-        .to_list()
-    )
+    classes = eia861_yearly_sales_df.select("customer_class").unique().to_series().cast(pl.Utf8).to_list()
     actual = frozenset(classes)
     assert actual == EXPECTED_CUSTOMER_CLASSES, (
         f"customer_class values changed: expected {EXPECTED_CUSTOMER_CLASSES}, got {actual}"
@@ -78,13 +74,9 @@ def test_eia861_yearly_sales_has_investor_owned_data_for_sample_state(
     eia861_yearly_sales_df: pl.DataFrame,
 ):
     """At least one state (NY) has Investor Owned rows with all customer classes."""
-    df = eia861_yearly_sales_df.filter(pl.col("state") == "NY").filter(
-        pl.col("entity_type") == "Investor Owned"
-    )
+    df = eia861_yearly_sales_df.filter(pl.col("state") == "NY").filter(pl.col("entity_type") == "Investor Owned")
     assert df.height > 0, "No NY Investor Owned rows in dataset"
-    classes_in_data = (
-        df.select("customer_class").unique().to_series().cast(pl.Utf8).to_list()
-    )
+    classes_in_data = df.select("customer_class").unique().to_series().cast(pl.Utf8).to_list()
     assert frozenset(classes_in_data) == EXPECTED_CUSTOMER_CLASSES, (
         f"NY IOU data missing some customer classes: got {set(classes_in_data)}"
     )
@@ -162,6 +154,4 @@ def test_ny_csv_has_expected_schema_and_2024_data():
     for eia_id in known_eia_ids:
         row = ny_2024.filter(pl.col("utility_id_eia") == eia_id)
         assert not row.is_empty(), f"EIA ID {eia_id} missing from NY 2024 output"
-        assert row["total_sales_mwh"][0] > 0, (
-            f"EIA ID {eia_id} has non-positive total_sales_mwh for 2024"
-        )
+        assert row["total_sales_mwh"][0] > 0, f"EIA ID {eia_id} has non-positive total_sales_mwh for 2024"

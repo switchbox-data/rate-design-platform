@@ -51,12 +51,8 @@ def test_tou_and_seasonal_discount_use_same_partition() -> None:
         winter_months=winter_months,
     )
     schedule = seasonal["items"][0]["energyweekdayschedule"]
-    winter_months_from_tariff = {
-        month_idx + 1 for month_idx, hours in enumerate(schedule) if hours[0] == 1
-    }
-    summer_months_from_tariff = {
-        month_idx + 1 for month_idx, hours in enumerate(schedule) if hours[0] == 0
-    }
+    winter_months_from_tariff = {month_idx + 1 for month_idx, hours in enumerate(schedule) if hours[0] == 1}
+    summer_months_from_tariff = {month_idx + 1 for month_idx, hours in enumerate(schedule) if hours[0] == 0}
 
     assert winter_months_from_tariff == set(winter.months)
     assert summer_months_from_tariff == set(summer.months)

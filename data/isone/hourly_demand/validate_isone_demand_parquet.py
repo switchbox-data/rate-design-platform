@@ -11,14 +11,14 @@ Usage:
 
 from __future__ import annotations
 
-from utils.numeric import as_float
-
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import polars as pl
+
+from utils.numeric import as_float
 
 EXPECTED_ZONES = {"ME", "NH", "VT", "CT", "RI", "SEMA", "WCMA", "NEMA"}
 
@@ -83,9 +83,7 @@ def check_schema(df: pl.DataFrame, result: ValidationResult) -> None:
 
 
 def check_no_nulls(df: pl.DataFrame, result: ValidationResult) -> None:
-    null_cols = [
-        col for col in EXPECTED_SCHEMA if col in df.columns and df[col].null_count() > 0
-    ]
+    null_cols = [col for col in EXPECTED_SCHEMA if col in df.columns and df[col].null_count() > 0]
     if null_cols:
         for col in null_cols:
             result.error("Nulls", f"{col}: {df[col].null_count()} nulls")
@@ -107,18 +105,13 @@ def check_all_zones(df: pl.DataFrame, result: ValidationResult) -> None:
 
 def check_uniqueness(df: pl.DataFrame, result: ValidationResult) -> None:
     """interval_start_et must be unique within each zone."""
-    dupes = (
-        df.group_by("zone", "interval_start_et")
-        .agg(pl.len().alias("n"))
-        .filter(pl.col("n") > 1)
-    )
+    dupes = df.group_by("zone", "interval_start_et").agg(pl.len().alias("n")).filter(pl.col("n") > 1)
     if dupes.height > 0:
         n_dupes = dupes.height
         sample = dupes.head(3)
         result.error(
             "Uniqueness",
-            f"{n_dupes} duplicate (zone, timestamp) pairs; sample: "
-            + str(sample.to_dicts()),
+            f"{n_dupes} duplicate (zone, timestamp) pairs; sample: " + str(sample.to_dicts()),
         )
     else:
         result.passed("Uniqueness", "interval_start_et unique within each zone")
@@ -130,20 +123,13 @@ def check_hours_per_month(df: pl.DataFrame, result: ValidationResult) -> None:
         pl.col("interval_start_et").dt.year().alias("_year"),
         pl.col("interval_start_et").dt.month().alias("_month"),
     )
-    counts = (
-        df_with_ym.group_by("zone", "_year", "_month")
-        .agg(pl.len().alias("n"))
-        .sort("zone", "_year", "_month")
-    )
+    counts = df_with_ym.group_by("zone", "_year", "_month").agg(pl.len().alias("n")).sort("zone", "_year", "_month")
 
     mismatches: list[str] = []
     for row in counts.iter_rows(named=True):
         expected = _expected_hours_in_month(row["_year"], row["_month"])
         if row["n"] != expected:
-            mismatches.append(
-                f"{row['zone']} {row['_year']}-{row['_month']:02d}: "
-                f"got {row['n']}, expected {expected}"
-            )
+            mismatches.append(f"{row['zone']} {row['_year']}-{row['_month']:02d}: got {row['n']}, expected {expected}")
 
     if mismatches:
         for m in mismatches[:10]:
@@ -197,10 +183,7 @@ def check_load_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
     )
     lines = []
     for row in summary.iter_rows(named=True):
-        lines.append(
-            f"{row['zone']}: {row['min']:.1f}–{row['max']:.1f} MW "
-            f"(mean {row['mean']:.1f})"
-        )
+        lines.append(f"{row['zone']}: {row['min']:.1f}–{row['max']:.1f} MW (mean {row['mean']:.1f})")
     result.passed("Load summary by zone", "; ".join(lines))
 
 
@@ -269,9 +252,7 @@ def print_report(result: ValidationResult) -> None:
 def main() -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Validate ISO-NE hourly demand parquet."
-    )
+    parser = argparse.ArgumentParser(description="Validate ISO-NE hourly demand parquet.")
     parser.add_argument(
         "--path-local-zones",
         type=Path,

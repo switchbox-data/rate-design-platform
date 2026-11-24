@@ -96,9 +96,7 @@ def load_fca_prices(
     filtered = df.filter(pl.col("resource_status") == "all")
     n_all = filtered.height
     n_total = df.height
-    print(
-        f"Loaded FCA prices: {n_all} 'all' rows (of {n_total} total) from {fca_s3_path}"
-    )
+    print(f"Loaded FCA prices: {n_all} 'all' rows (of {n_total} total) from {fca_s3_path}")
     return filtered
 
 
@@ -133,9 +131,7 @@ def _get_fca_price_for_ccp(
     ccp_start = date(ccp_start_year, 6, 1)
 
     def _lookup(zone_id: int) -> pl.DataFrame:
-        return fca_df.filter(
-            (pl.col("ccp_start") == ccp_start) & (pl.col("capacity_zone_id") == zone_id)
-        )
+        return fca_df.filter((pl.col("ccp_start") == ccp_start) & (pl.col("capacity_zone_id") == zone_id))
 
     rows = _lookup(primary_zone_id)
     if not rows.is_empty():
@@ -152,7 +148,7 @@ def _get_fca_price_for_ccp(
         f"No FCA price found for CCP starting {ccp_start} with zone_id={primary_zone_id} "
         f"or fallback zone_id={fallback_zone_id}. "
         f"Available (ccp_start, zone_id) pairs: "
-        f"{sorted(set(zip(fca_df['ccp_start'].to_list(), fca_df['capacity_zone_id'].to_list())))}"
+        f"{sorted(set(zip(fca_df['ccp_start'].to_list(), fca_df['capacity_zone_id'].to_list(), strict=False)))}"
     )
 
 
@@ -189,16 +185,12 @@ def resolve_fca_price_for_calendar_year(
     # CCP1: the commitment period that runs Jun (year-1) to May (year)
     # covers Jan–May of calendar_year → 5 months
     months1 = 5
-    price1, zone1 = _get_fca_price_for_ccp(
-        fca_df, calendar_year - 1, capacity_zone_id, fallback_zone_id
-    )
+    price1, zone1 = _get_fca_price_for_ccp(fca_df, calendar_year - 1, capacity_zone_id, fallback_zone_id)
 
     # CCP2: the commitment period that runs Jun (year) to May (year+1)
     # covers Jun–Dec of calendar_year → 7 months
     months2 = 7
-    price2, zone2 = _get_fca_price_for_ccp(
-        fca_df, calendar_year, capacity_zone_id, fallback_zone_id
-    )
+    price2, zone2 = _get_fca_price_for_ccp(fca_df, calendar_year, capacity_zone_id, fallback_zone_id)
 
     capacity_cost_kw_year = price1 * months1 + price2 * months2
 
@@ -245,21 +237,13 @@ def _load_single_zone(
         .collect()
     )
     if not isinstance(raw, pl.DataFrame) or raw.is_empty():
-        raise FileNotFoundError(
-            f"No ISO-NE zone load data found for zone={zone!r}, year={year} under {base}"
-        )
+        raise FileNotFoundError(f"No ISO-NE zone load data found for zone={zone!r}, year={year} under {base}")
 
-    raw = strip_tz_if_needed(raw, "interval_start_et").rename(
-        {"interval_start_et": "timestamp"}
-    )
+    raw = strip_tz_if_needed(raw, "interval_start_et").rename({"interval_start_et": "timestamp"})
 
     # Validate months
     months_present = (
-        raw.with_columns(pl.col("timestamp").dt.month().alias("month"))
-        .select("month")
-        .unique()
-        .to_series()
-        .to_list()
+        raw.with_columns(pl.col("timestamp").dt.month().alias("month")).select("month").unique().to_series().to_list()
     )
     missing_months = sorted(set(range(1, 13)) - set(months_present))
     if missing_months:
@@ -272,9 +256,7 @@ def _load_single_zone(
     deduped = raw.group_by("timestamp").agg(pl.col("load_mw").mean()).sort("timestamp")
     n_raw, n_deduped = raw.height, deduped.height
     if n_raw != n_deduped:
-        print(
-            f"    {zone}: DST fall-back — {n_raw - n_deduped} duplicate timestamp(s) averaged"
-        )
+        print(f"    {zone}: DST fall-back — {n_raw - n_deduped} duplicate timestamp(s) averaged")
 
     zone_8760 = (
         ref_8760.join(deduped, on="timestamp", how="left")
@@ -330,9 +312,7 @@ def load_isone_zone_loads(
                     on="timestamp",
                     how="left",
                 )
-                .with_columns(
-                    (pl.col("load_mw") + pl.col("_load_other")).alias("load_mw")
-                )
+                .with_columns((pl.col("load_mw") + pl.col("_load_other")).alias("load_mw"))
                 .select("timestamp", "load_mw")
             )
 
@@ -404,16 +384,12 @@ def validate_fca_allocation(
     """
     actual_annual = float(capacity_df["capacity_cost_per_kw"].sum())
     error = abs(actual_annual - capacity_cost_kw_year)
-    error_pct = (
-        (error / capacity_cost_kw_year * 100) if capacity_cost_kw_year > 0 else 0.0
-    )
+    error_pct = (error / capacity_cost_kw_year * 100) if capacity_cost_kw_year > 0 else 0.0
 
     print("\n" + "=" * 60)
     print("VALIDATION: 1 kW Constant Load -> FCA Recovery")
     print("=" * 60)
-    print(
-        f"  Expected (annual FCA cost):             ${capacity_cost_kw_year:.4f}/kW-yr"
-    )
+    print(f"  Expected (annual FCA cost):             ${capacity_cost_kw_year:.4f}/kW-yr")
     print(f"  Actual (sum of hourly allocations):     ${actual_annual:.4f}/kW-yr")
     print(f"  Error: ${error:.6f} ({error_pct:.6f}%)")
 
@@ -524,9 +500,7 @@ def compute_isone_supply_capacity_mc(
     if capacity_load_year != year:
         print(f"\n  Remapping load timestamps: {capacity_load_year} → {year}")
         offset = f"{year - capacity_load_year}y"
-        load_df = load_df.with_columns(
-            pl.col("timestamp").dt.offset_by(offset).alias("timestamp")
-        )
+        load_df = load_df.with_columns(pl.col("timestamp").dt.offset_by(offset).alias("timestamp"))
 
     # 5. Allocate FCA cost to top-N annual peak hours
     print("\n── FCA Exceedance Allocation ──")
@@ -547,18 +521,13 @@ def compute_isone_supply_capacity_mc(
         .with_columns(pl.col("capacity_cost_per_kw").fill_null(0.0))
         .sort("timestamp")
     )
-    print(
-        f"  Expanded from {peak_hours_df.height} peak hours to {capacity_df.height} hours"
-    )
+    print(f"  Expanded from {peak_hours_df.height} peak hours to {capacity_df.height} hours")
 
     # Final check: ensure no duplicate timestamps and correct row count
     n_rows = capacity_df.height
     n_unique = capacity_df.select(pl.col("timestamp").n_unique()).item()
     if n_rows != 8760:
-        raise ValueError(
-            f"Capacity MC DataFrame has {n_rows} rows, expected 8760. "
-            f"Check timestamp expansion logic."
-        )
+        raise ValueError(f"Capacity MC DataFrame has {n_rows} rows, expected 8760. Check timestamp expansion logic.")
     if n_rows != n_unique:
         raise ValueError(
             f"Capacity MC DataFrame has {n_rows} rows but only {n_unique} unique timestamps. "

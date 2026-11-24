@@ -20,8 +20,6 @@ Usage:
 
 from __future__ import annotations
 
-from utils.numeric import as_float
-
 import argparse
 import sys
 from datetime import datetime, timedelta
@@ -29,6 +27,8 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import polars as pl
+
+from utils.numeric import as_float
 
 ET = ZoneInfo("America/New_York")
 UTC = ZoneInfo("UTC")
@@ -56,9 +56,7 @@ def expected_hours_in_year(year: int) -> int:
     return int((end - start).total_seconds() // 3600)
 
 
-def validate_zone_loads(
-    df: pl.DataFrame, zones: list[str], year: int
-) -> tuple[bool, list[str]]:
+def validate_zone_loads(df: pl.DataFrame, zones: list[str], year: int) -> tuple[bool, list[str]]:
     """In-memory validation of a (timestamp, zone, load_mw) frame for one year.
 
     Hard-fails (``ok=False``) on missing zones, wrong hour counts, nulls,
@@ -116,10 +114,7 @@ def validate_zone_loads(
         peak = as_float(zdf["load_mw"].max())
         sanity = PEAK_SANITY.get(zone)
         if sanity is not None and not (sanity[0] <= peak <= sanity[1]):
-            msgs.append(
-                f"WARN {zone}: peak {peak:.0f} MW outside expected "
-                f"[{sanity[0]:.0f}, {sanity[1]:.0f}]"
-            )
+            msgs.append(f"WARN {zone}: peak {peak:.0f} MW outside expected [{sanity[0]:.0f}, {sanity[1]:.0f}]")
         else:
             msgs.append(f"ok   {zone}: {n} hours, peak {peak:.0f} MW")
 
@@ -127,9 +122,7 @@ def validate_zone_loads(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Validate PJM zonal hourly demand parquet."
-    )
+    parser = argparse.ArgumentParser(description="Validate PJM zonal hourly demand parquet.")
     parser.add_argument(
         "--path-local-zones",
         type=Path,
@@ -166,9 +159,7 @@ def main() -> int:
         if col not in df.columns:
             schema_errors.append(f"missing column {col}")
         elif df.schema[col] != expected_type:
-            schema_errors.append(
-                f"{col}: expected {expected_type}, got {df.schema[col]}"
-            )
+            schema_errors.append(f"{col}: expected {expected_type}, got {df.schema[col]}")
     if schema_errors:
         for e in schema_errors:
             print(f"  FAIL  Schema  {e}")

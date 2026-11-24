@@ -36,7 +36,7 @@ def normalize_winter_months(
             raise ValueError("winter_months must be provided")
         winter_months = list(default_winter_months)
 
-    normalized = sorted(set(int(month) for month in winter_months))
+    normalized = sorted({int(month) for month in winter_months})
     if not normalized:
         raise ValueError("winter_months must not be empty")
     if any(month < 1 or month > 12 for month in normalized):
@@ -68,15 +68,7 @@ def resolve_winter_summer_months(
 
 def get_utility_periods_yaml_path(project_root: Path, state: str, utility: str) -> Path:
     """Return `<project_root>/rate_design/hp_rates/<state>/config/periods/<utility>.yaml`."""
-    return (
-        project_root
-        / "rate_design"
-        / "hp_rates"
-        / state.lower()
-        / "config"
-        / "periods"
-        / f"{utility.lower()}.yaml"
-    )
+    return project_root / "rate_design" / "hp_rates" / state.lower() / "config" / "periods" / f"{utility.lower()}.yaml"
 
 
 def _load_periods_yaml(periods_yaml_path: Path) -> dict[str, Any]:
@@ -85,9 +77,7 @@ def _load_periods_yaml(periods_yaml_path: Path) -> dict[str, Any]:
     if data is None:
         return {}
     if not isinstance(data, dict):
-        raise ValueError(
-            f"Invalid periods YAML at {periods_yaml_path}: expected top-level mapping"
-        )
+        raise ValueError(f"Invalid periods YAML at {periods_yaml_path}: expected top-level mapping")
     return data
 
 
@@ -105,9 +95,7 @@ def load_winter_months_from_periods(
             default_winter_months=default_winter_months,
         )
     if not isinstance(raw, list):
-        raise ValueError(
-            f"Invalid `winter_months` in {periods_yaml_path}: expected list[int]"
-        )
+        raise ValueError(f"Invalid `winter_months` in {periods_yaml_path}: expected list[int]")
     return normalize_winter_months(cast(list[int], raw))
 
 
@@ -124,11 +112,7 @@ def load_tou_window_hours_from_periods(
     try:
         window = int(raw)
     except (TypeError, ValueError) as exc:
-        raise ValueError(
-            f"Invalid `tou_window_hours` in {periods_yaml_path}: expected integer"
-        ) from exc
+        raise ValueError(f"Invalid `tou_window_hours` in {periods_yaml_path}: expected integer") from exc
     if window < 1 or window > 23:
-        raise ValueError(
-            f"Invalid `tou_window_hours` in {periods_yaml_path}: expected 1..23"
-        )
+        raise ValueError(f"Invalid `tou_window_hours` in {periods_yaml_path}: expected 1..23")
     return window

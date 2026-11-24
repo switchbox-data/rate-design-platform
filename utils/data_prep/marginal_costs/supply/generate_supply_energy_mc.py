@@ -6,7 +6,6 @@ import argparse
 
 from dotenv import load_dotenv
 
-from utils.file_io import get_aws_storage_options
 from utils.data_prep.marginal_costs.mc_manifest import require_published_code
 from utils.data_prep.marginal_costs.supply.supply_energy import (
     compute_isone_supply_energy_mc,
@@ -34,14 +33,12 @@ from utils.data_prep.marginal_costs.supply_utils import (
     save_component_output,
     save_zero_energy_mc,
 )
+from utils.file_io import get_aws_storage_options
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Generate utility-level supply energy marginal costs from "
-            "NYISO LBMP or ISO-NE LMP."
-        )
+        description=("Generate utility-level supply energy marginal costs from NYISO LBMP or ISO-NE LMP.")
     )
     parser.add_argument(
         "--iso",
@@ -151,28 +148,23 @@ def main() -> None:
     if iso == "nyiso":
         if utility not in VALID_UTILITIES:
             raise SystemExit(
-                f"Error: utility {utility!r} is not valid for NYISO. "
-                f"Valid choices: {sorted(VALID_UTILITIES)}"
+                f"Error: utility {utility!r} is not valid for NYISO. Valid choices: {sorted(VALID_UTILITIES)}"
             )
         output_s3_base = args.output_s3_base or DEFAULT_OUTPUT_S3_BASE
     elif iso == "isone":
         if utility not in VALID_ISONE_UTILITIES:
             raise SystemExit(
-                f"Error: utility {utility!r} is not valid for ISO-NE. "
-                f"Valid choices: {sorted(VALID_ISONE_UTILITIES)}"
+                f"Error: utility {utility!r} is not valid for ISO-NE. Valid choices: {sorted(VALID_ISONE_UTILITIES)}"
             )
         output_s3_base = args.output_s3_base or DEFAULT_ISONE_OUTPUT_S3_BASE
     elif iso == "pjm":  # pjm
         if utility not in VALID_PJM_UTILITIES:
             raise SystemExit(
-                f"Error: utility {utility!r} is not valid for PJM. "
-                f"Valid choices: {sorted(VALID_PJM_UTILITIES)}"
+                f"Error: utility {utility!r} is not valid for PJM. Valid choices: {sorted(VALID_PJM_UTILITIES)}"
             )
         output_s3_base = args.output_s3_base or DEFAULT_PJM_OUTPUT_S3_BASE
     else:
-        raise SystemExit(
-            f"Error: invalid ISO {iso!r}. Valid choices: ['nyiso', 'isone', 'pjm']"
-        )
+        raise SystemExit(f"Error: invalid ISO {iso!r}. Valid choices: ['nyiso', 'isone', 'pjm']")
 
     print("=" * 60)
     print(f"SUPPLY ENERGY MARGINAL COST GENERATION ({iso.upper()})")
@@ -204,10 +196,7 @@ def main() -> None:
     elif iso == "isone":
         zone = args.zone or ISONE_UTILITY_ZONES.get(utility)
         if zone is None:
-            raise SystemExit(
-                f"Error: no zone mapping found for utility {utility!r}. "
-                "Provide --zone explicitly."
-            )
+            raise SystemExit(f"Error: no zone mapping found for utility {utility!r}. Provide --zone explicitly.")
         lmp_s3_base = args.lmp_s3_base or DEFAULT_ISONE_LMP_S3_BASE
         print(f"  Zone:                 {zone}")
         print("=" * 60)
@@ -222,10 +211,7 @@ def main() -> None:
     elif iso == "pjm":  # pjm
         zone = args.zone or PJM_UTILITY_ZONES.get(utility)
         if zone is None:
-            raise SystemExit(
-                f"Error: no zone mapping found for utility {utility!r}. "
-                "Provide --zone explicitly."
-            )
+            raise SystemExit(f"Error: no zone mapping found for utility {utility!r}. Provide --zone explicitly.")
         lmp_s3_base = args.lmp_s3_base or DEFAULT_PJM_LMP_S3_BASE
         print(f"  Zone:                 {zone}")
         print("=" * 60)
@@ -238,9 +224,7 @@ def main() -> None:
             lmp_s3_base=lmp_s3_base,
         )
     else:
-        raise SystemExit(
-            f"Error: invalid ISO {iso!r}. Valid choices: ['nyiso', 'isone', 'pjm']"
-        )
+        raise SystemExit(f"Error: invalid ISO {iso!r}. Valid choices: ['nyiso', 'isone', 'pjm']")
 
     energy_output = prepare_component_output(
         df=energy_df,

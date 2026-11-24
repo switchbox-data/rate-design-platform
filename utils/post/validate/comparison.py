@@ -57,8 +57,7 @@ def resolve_ny_hp_only_vs_electrified_pairs(
     return [
         family
         for family in _FAMILIES
-        if set(family.hp_only_runs).issubset(available)
-        and set(family.electrified_runs).issubset(available)
+        if set(family.hp_only_runs).issubset(available) and set(family.electrified_runs).issubset(available)
     ]
 
 
@@ -110,13 +109,9 @@ def _check_role_directionality(
             if hp_sign == elec_sign:
                 continue
             if hp_sign == 0 or elec_sign == 0:
-                warnings.append(
-                    f"{role} {metric} touches zero ({hp_val:+.3f} vs {elec_val:+.3f})"
-                )
+                warnings.append(f"{role} {metric} touches zero ({hp_val:+.3f} vs {elec_val:+.3f})")
             else:
-                failures.append(
-                    f"{role} {metric} flips sign ({hp_val:+.3f} vs {elec_val:+.3f})"
-                )
+                failures.append(f"{role} {metric} flips sign ({hp_val:+.3f} vs {elec_val:+.3f})")
 
     status = "PASS"
     if failures:
@@ -152,12 +147,7 @@ def _check_gap_directionality(
     hp_other_row = metric_frame_hp.filter(pl.col("subclass") == hp_other)
     elec_focus_row = metric_frame_elec.filter(pl.col("subclass") == elec_focus)
     elec_other_row = metric_frame_elec.filter(pl.col("subclass") == elec_other)
-    if (
-        hp_focus_row.is_empty()
-        or hp_other_row.is_empty()
-        or elec_focus_row.is_empty()
-        or elec_other_row.is_empty()
-    ):
+    if hp_focus_row.is_empty() or hp_other_row.is_empty() or elec_focus_row.is_empty() or elec_other_row.is_empty():
         return CheckResult(
             name=f"{subject}_gap_directionality",
             status="FAIL",
@@ -187,13 +177,9 @@ def _check_gap_directionality(
         if hp_sign == elec_sign:
             continue
         if hp_sign == 0 or elec_sign == 0:
-            warnings.append(
-                f"{metric} gap touches zero ({hp_gap:+.3f} vs {elec_gap:+.3f})"
-            )
+            warnings.append(f"{metric} gap touches zero ({hp_gap:+.3f} vs {elec_gap:+.3f})")
         else:
-            failures.append(
-                f"{metric} gap flips sign ({hp_gap:+.3f} vs {elec_gap:+.3f})"
-            )
+            failures.append(f"{metric} gap flips sign ({hp_gap:+.3f} vs {elec_gap:+.3f})")
 
     status = "PASS"
     if failures:
@@ -225,8 +211,7 @@ def _subclass_rr_summary(
     resolved = resolve_subclass_rr_for_validation(
         rr_raw,
         config.cost_scope,
-        residual_allocation_delivery=config.residual_allocation_delivery
-        or "percustomer",
+        residual_allocation_delivery=config.residual_allocation_delivery or "percustomer",
         residual_allocation_supply=config.residual_allocation_supply or "passthrough",
     )
     key = "total" if config.cost_scope == "delivery+supply" else "delivery"
@@ -263,9 +248,7 @@ def _summarize_tariff_run(
         tariff_key = _tariff_key_for_alias(config, alias)
         if tariff_key is None:
             continue
-        entry = tariff_config.get(tariff_key) or tariff_config.get(
-            f"{tariff_key}_calibrated"
-        )
+        entry = tariff_config.get(tariff_key) or tariff_config.get(f"{tariff_key}_calibrated")
         if entry is None:
             continue
         tou_rows = entry.get("ur_ec_tou_mat", [])
@@ -277,9 +260,7 @@ def _summarize_tariff_run(
                 "subclass": alias,
                 "mean_rate_per_kwh": sum(rates) / len(rates) if rates else float("nan"),
                 "max_rate_per_kwh": max(rates) if rates else float("nan"),
-                "fixed_charge_per_month": float(
-                    entry.get("ur_monthly_fixed_charge", 0.0)
-                ),
+                "fixed_charge_per_month": float(entry.get("ur_monthly_fixed_charge", 0.0)),
             }
         )
     return pl.DataFrame(rows)
@@ -376,16 +357,10 @@ def run_ny_hp_only_vs_electrified_comparison(
             bat_frames.extend([hp_bat, elec_bat])
 
             # Use the operative BAT metric for the allocation method.
-            operative_bat = bat_col_for_allocation(
-                configs[hp_run].residual_allocation_delivery
-            )
+            operative_bat = bat_col_for_allocation(configs[hp_run].residual_allocation_delivery)
             operative_wavg = f"{operative_bat}_wavg"
             bat_metric_candidates = (operative_wavg, "BAT_vol_wavg", "BAT_peak_wavg")
-            bat_metrics = [
-                m
-                for m in bat_metric_candidates
-                if m in hp_bat.columns and m in elec_bat.columns
-            ]
+            bat_metrics = [m for m in bat_metric_candidates if m in hp_bat.columns and m in elec_bat.columns]
 
             results.append(
                 _check_role_directionality(
@@ -415,9 +390,9 @@ def run_ny_hp_only_vs_electrified_comparison(
             hp_rr = _subclass_rr_summary(state, utility, configs[hp_run]).with_columns(
                 pl.lit("hp_only").alias("scenario_family")
             )
-            elec_rr = _subclass_rr_summary(
-                state, utility, configs[elec_run]
-            ).with_columns(pl.lit("electrified").alias("scenario_family"))
+            elec_rr = _subclass_rr_summary(state, utility, configs[elec_run]).with_columns(
+                pl.lit("electrified").alias("scenario_family")
+            )
             rr_frames.extend([hp_rr, elec_rr])
             results.append(
                 _check_gap_directionality(
@@ -555,21 +530,13 @@ def run_ny_hp_only_vs_electrified_comparison(
             )
 
         if bat_frames:
-            pl.concat(bat_frames, how="diagonal").write_csv(
-                family_dir / "bat_comparison.csv"
-            )
+            pl.concat(bat_frames, how="diagonal").write_csv(family_dir / "bat_comparison.csv")
         if rr_frames:
-            pl.concat(rr_frames, how="diagonal").write_csv(
-                family_dir / "revenue_requirement_comparison.csv"
-            )
+            pl.concat(rr_frames, how="diagonal").write_csv(family_dir / "revenue_requirement_comparison.csv")
         if tariff_frames:
-            pl.concat(tariff_frames, how="diagonal").write_csv(
-                family_dir / "tariff_comparison.csv"
-            )
+            pl.concat(tariff_frames, how="diagonal").write_csv(family_dir / "tariff_comparison.csv")
         if bill_delta_frames:
-            pl.concat(bill_delta_frames, how="diagonal").write_csv(
-                family_dir / "bill_delta_comparison.csv"
-            )
+            pl.concat(bill_delta_frames, how="diagonal").write_csv(family_dir / "bill_delta_comparison.csv")
 
     if results:
         pl.DataFrame(

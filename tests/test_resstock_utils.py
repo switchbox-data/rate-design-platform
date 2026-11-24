@@ -44,15 +44,17 @@ def test_upload_raises_on_single_failure(tmp_path: Path) -> None:
     """RuntimeError is raised when aws s3 sync returns non-zero for one combo."""
     (tmp_path / "rel" / "metadata" / "state=MD").mkdir(parents=True)
 
-    with patch("subprocess.run", return_value=_sync_result(1)) as mock_run:
-        with pytest.raises(RuntimeError, match="1 combination"):
-            upload(
-                state=["MD"],
-                file_types=["metadata"],
-                release="rel",
-                path_output_dir=tmp_path,
-                path_s3_dir="s3://data.sb/nrel/resstock",
-            )
+    with (
+        patch("subprocess.run", return_value=_sync_result(1)) as mock_run,
+        pytest.raises(RuntimeError, match="1 combination"),
+    ):
+        upload(
+            state=["MD"],
+            file_types=["metadata"],
+            release="rel",
+            path_output_dir=tmp_path,
+            path_s3_dir="s3://data.sb/nrel/resstock",
+        )
     assert mock_run.call_count == 1
 
 
@@ -62,15 +64,14 @@ def test_upload_raises_listing_all_failures(tmp_path: Path) -> None:
         (tmp_path / "rel" / ft / "state=MD").mkdir(parents=True)
 
     # Both combos fail
-    with patch("subprocess.run", return_value=_sync_result(1)):
-        with pytest.raises(RuntimeError) as exc_info:
-            upload(
-                state=["MD"],
-                file_types=["metadata", "load_curve_hourly"],
-                release="rel",
-                path_output_dir=tmp_path,
-                path_s3_dir="s3://data.sb/nrel/resstock",
-            )
+    with patch("subprocess.run", return_value=_sync_result(1)), pytest.raises(RuntimeError) as exc_info:
+        upload(
+            state=["MD"],
+            file_types=["metadata", "load_curve_hourly"],
+            release="rel",
+            path_output_dir=tmp_path,
+            path_s3_dir="s3://data.sb/nrel/resstock",
+        )
 
     msg = str(exc_info.value)
     assert "2 combination" in msg
@@ -85,15 +86,17 @@ def test_upload_attempts_all_combos_despite_earlier_failure(tmp_path: Path) -> N
 
     # First call fails, second succeeds
     results = [_sync_result(1), _sync_result(0)]
-    with patch("subprocess.run", side_effect=results) as mock_run:
-        with pytest.raises(RuntimeError, match="1 combination"):
-            upload(
-                state=["MD"],
-                file_types=["metadata", "load_curve_hourly"],
-                release="rel",
-                path_output_dir=tmp_path,
-                path_s3_dir="s3://data.sb/nrel/resstock",
-            )
+    with (
+        patch("subprocess.run", side_effect=results) as mock_run,
+        pytest.raises(RuntimeError, match="1 combination"),
+    ):
+        upload(
+            state=["MD"],
+            file_types=["metadata", "load_curve_hourly"],
+            release="rel",
+            path_output_dir=tmp_path,
+            path_s3_dir="s3://data.sb/nrel/resstock",
+        )
 
     # Both combos were attempted
     assert mock_run.call_count == 2

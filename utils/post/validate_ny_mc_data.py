@@ -42,12 +42,12 @@ from plotnine import (
 )
 from plotnine.composition import Compose
 
-from utils.file_io import get_aws_storage_options
 from utils.data_prep.marginal_costs.supply_utils import (
     build_mc_partition_parquet_path,
     build_mc_partition_path,
     list_partition_parquet_paths,
 )
+from utils.file_io import get_aws_storage_options
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -61,16 +61,11 @@ class StateValidationConfig:
 STATE_CONFIGS: dict[str, StateValidationConfig] = {
     "ny": StateValidationConfig(
         utilities=("cenhud", "coned", "nimo", "nyseg", "or", "psegli", "rge"),
-        default_mc_table_relpath=(
-            "rate_design/hp_rates/ny/config/marginal_costs/"
-            "ny_sub_tx_and_dist_mc_levelized.csv"
-        ),
+        default_mc_table_relpath=("rate_design/hp_rates/ny/config/marginal_costs/ny_sub_tx_and_dist_mc_levelized.csv"),
     ),
     "ri": StateValidationConfig(
         utilities=("rie",),
-        default_mc_table_relpath=(
-            "rate_design/hp_rates/ri/config/marginal_costs/ri_marginal_costs_2025.csv"
-        ),
+        default_mc_table_relpath=("rate_design/hp_rates/ri/config/marginal_costs/ri_marginal_costs_2025.csv"),
     ),
 }
 
@@ -168,9 +163,7 @@ def load_mc(
     )
     # Explicitly validate we're reading a file, not a directory
     if not canonical_path.endswith("data.parquet"):
-        raise ValueError(
-            f"Expected path ending with 'data.parquet', got: {canonical_path}"
-        )
+        raise ValueError(f"Expected path ending with 'data.parquet', got: {canonical_path}")
     # Use read_parquet (not scan_parquet) to read the explicit file path only
     # This ensures we never accidentally read multiple files from a directory
     try:
@@ -206,14 +199,10 @@ def load_mc(
     if "timestamp" in df.columns:
         ts_dtype = df.schema["timestamp"]
         if isinstance(ts_dtype, pl.Datetime) and ts_dtype.time_zone is not None:
-            df = df.with_columns(
-                pl.col("timestamp").dt.replace_time_zone(None).alias("timestamp")
-            )
+            df = df.with_columns(pl.col("timestamp").dt.replace_time_zone(None).alias("timestamp"))
 
     if value_col not in df.columns:
-        raise ValueError(
-            f"{mc_key}: expected column '{value_col}' not found. Columns: {df.columns}"
-        )
+        raise ValueError(f"{mc_key}: expected column '{value_col}' not found. Columns: {df.columns}")
 
     df = df.select("timestamp", value_col).sort("timestamp")
 
@@ -268,9 +257,7 @@ def check_mc(
     if n_rows > 0 and n_null_ts == 0:
         years_found = df.select(pl.col("timestamp").dt.year().unique()).to_series()
         if len(years_found) != 1 or years_found[0] != year:
-            results["issues"].append(
-                f"WARN: timestamp years {years_found.to_list()}, expected [{year}]"
-            )
+            results["issues"].append(f"WARN: timestamp years {years_found.to_list()}, expected [{year}]")
 
     # Duplicate timestamps
     n_unique_ts = df.select(pl.col("timestamp").n_unique()).item()
@@ -291,9 +278,7 @@ def check_mc(
     results["n_nonzero"] = n_nonzero
     expected = _expected_nonzero_hours(state, mc_key)
     if expected is not None and n_nonzero != expected:
-        results["issues"].append(
-            f"WARN: expected {expected} nonzero hours, got {n_nonzero}"
-        )
+        results["issues"].append(f"WARN: expected {expected} nonzero hours, got {n_nonzero}")
 
     # Total cost recovery (sum of hourly values)
     total = float(vals.sum())
@@ -339,9 +324,7 @@ def _check_capacity_monthly(df: pl.DataFrame, col: str, results: dict) -> None:
     results["monthly_nonzero"] = monthly
     for row in monthly.iter_rows(named=True):
         if row["len"] != 8:
-            results["issues"].append(
-                f"WARN: month {row['month']} has {row['len']} nonzero hours (expected 8)"
-            )
+            results["issues"].append(f"WARN: month {row['month']} has {row['len']} nonzero hours (expected 8)")
 
 
 def _check_bulk_tx_seasonal(df: pl.DataFrame, col: str, results: dict) -> None:
@@ -400,15 +383,12 @@ def print_check_results(r: dict) -> None:
         for row in r["seasonal_split"].iter_rows(named=True):
             phi_key = f"phi_{row['season']}"
             phi_str = f"  phi={r[phi_key]:.4f}" if phi_key in r else ""
-            print(
-                f"    {row['season']:>8s}: {row['n_hours']:3d} hours, "
-                f"cost_sum={row['cost_sum']:.6f}{phi_str}"
-            )
+            print(f"    {row['season']:>8s}: {row['n_hours']:3d} hours, cost_sum={row['cost_sum']:.6f}{phi_str}")
 
     print("  Top 10 hours:")
     for row in r["top10"].iter_rows(named=True):
         ts = row["timestamp"]
-        val_col = [c for c in row if c != "timestamp"][0]
+        val_col = next(c for c in row if c != "timestamp")
         print(f"    {ts}  {row[val_col]:.6f}")
 
     if r["issues"]:
@@ -430,10 +410,7 @@ def prepare_heatmap_df(df: pl.DataFrame) -> pl.DataFrame:
     return df.with_columns(
         pl.col("timestamp").dt.hour().alias("hour"),
         pl.col("timestamp").dt.ordinal_day().alias("day_of_year"),
-        pl.when(pl.col(NORMALIZED_COL) == 0.0)
-        .then(None)
-        .otherwise(pl.col(NORMALIZED_COL))
-        .alias("value"),
+        pl.when(pl.col(NORMALIZED_COL) == 0.0).then(None).otherwise(pl.col(NORMALIZED_COL)).alias("value"),
     )
 
 
@@ -498,12 +475,7 @@ def _make_heatmap(
 def _make_blank_panel() -> ggplot:
     """Create a spacer panel to preserve 2-column grid layout."""
     blank_df = pl.DataFrame({"x": [0.0], "y": [0.0]})
-    return (
-        ggplot(blank_df, aes(x="x", y="y"))
-        + geom_blank()
-        + theme_void()
-        + theme(figure_size=(10, 4))
-    )
+    return ggplot(blank_df, aes(x="x", y="y")) + geom_blank() + theme_void() + theme(figure_size=(10, 4))
 
 
 def make_heatmap_grid(
@@ -590,10 +562,7 @@ def _parse_args() -> argparse.Namespace:
         "--mc-table-path",
         type=str,
         default=None,
-        help=(
-            "Path to dist MC CSV for expected totals "
-            "(default: state-specific marginal_costs CSV)."
-        ),
+        help=("Path to dist MC CSV for expected totals (default: state-specific marginal_costs CSV)."),
     )
     return parser.parse_args()
 
@@ -609,8 +578,7 @@ def main() -> None:
     unknown_utils = sorted(set(utilities) - set(state_cfg.utilities))
     if unknown_utils:
         raise ValueError(
-            f"Utilities {unknown_utils} are not in configured {state.upper()} utilities "
-            f"{list(state_cfg.utilities)}"
+            f"Utilities {unknown_utils} are not in configured {state.upper()} utilities {list(state_cfg.utilities)}"
         )
     year = args.year
     load_year = args.load_year or year
@@ -665,18 +633,12 @@ def main() -> None:
                 if not row.is_empty():
                     expected_total = float(row["sub_tx_and_dist_mc_kw_yr"][0])
                     actual_total = r["total_sum"]
-                    err_pct = (
-                        abs(actual_total - expected_total) / expected_total * 100
-                        if expected_total > 0
-                        else 0
-                    )
+                    err_pct = abs(actual_total - expected_total) / expected_total * 100 if expected_total > 0 else 0
                     r["expected_dist_total"] = expected_total
                     r["dist_err_pct"] = err_pct
                     if err_pct > 0.1:
                         r["issues"].append(
-                            f"WARN: dist total {actual_total:.4f} vs "
-                            f"expected {expected_total:.4f} "
-                            f"(err={err_pct:.4f}%)"
+                            f"WARN: dist total {actual_total:.4f} vs expected {expected_total:.4f} (err={err_pct:.4f}%)"
                         )
 
             all_checks[mc_key] = r
@@ -695,9 +657,7 @@ def main() -> None:
         # Collect energy frames for the faceted histogram
         if "supply_energy" in mc_data:
             energy_frames.append(
-                mc_data["supply_energy"]
-                .select(NORMALIZED_COL)
-                .with_columns(pl.lit(utility).alias("utility"))
+                mc_data["supply_energy"].select(NORMALIZED_COL).with_columns(pl.lit(utility).alias("utility"))
             )
 
         # Timestamp consistency across MC types
@@ -708,10 +668,7 @@ def main() -> None:
                 other_ts = set(mc_data[k]["timestamp"].to_list())
                 if ref_ts != other_ts:
                     diff = ref_ts.symmetric_difference(other_ts)
-                    print(
-                        f"\n  WARN: timestamp mismatch between "
-                        f"{loaded_keys[0]} and {k}: {len(diff)} differences"
-                    )
+                    print(f"\n  WARN: timestamp mismatch between {loaded_keys[0]} and {k}: {len(diff)} differences")
 
         # Generate 5-panel heatmap grid
         expected_panels = len(HEATMAP_ORDER)
@@ -721,10 +678,7 @@ def main() -> None:
             grid.save(str(path_png), dpi=150, verbose=False)
             print(f"\n  Saved heatmap: {path_png}")
         else:
-            print(
-                f"\n  Skipping heatmap for {utility}: "
-                f"only {len(mc_data)}/{expected_panels} MC types loaded"
-            )
+            print(f"\n  Skipping heatmap for {utility}: only {len(mc_data)}/{expected_panels} MC types loaded")
 
     # Faceted energy histogram
     if energy_frames:

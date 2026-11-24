@@ -58,9 +58,7 @@ def test_parse_history_years() -> None:
 
 
 def test_pop_kde_recovers_the_annual_cost_on_an_8760() -> None:
-    hourly, pop = compute_isone_bulk_tx_pop_kde(
-        _history((2022, 2023)), 70.82, 2025, calendar_year=2025
-    )
+    hourly, pop = compute_isone_bulk_tx_pop_kde(_history((2022, 2023)), 70.82, 2025, calendar_year=2025)
     assert hourly.columns == ["timestamp", "bulk_tx_cost_enduse"]
     assert hourly.height == 8760
     assert hourly["timestamp"].dt.year().unique().to_list() == [2025]
@@ -81,9 +79,7 @@ def test_pop_kde_recovers_the_annual_cost_on_an_8760() -> None:
 
 
 def test_pop_kde_year_stamps_output_and_calendar_sets_day_types() -> None:
-    hourly, _ = compute_isone_bulk_tx_pop_kde(
-        _history((2022,)), 69.0, 2026, calendar_year=2025
-    )
+    hourly, _ = compute_isone_bulk_tx_pop_kde(_history((2022,)), 69.0, 2026, calendar_year=2025)
     assert hourly["timestamp"].dt.year().unique().to_list() == [2026]
     assert float(hourly["bulk_tx_cost_enduse"].sum()) == pytest.approx(69.0)
 

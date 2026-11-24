@@ -184,16 +184,8 @@ def _compute_seasonal_kwh(
         .with_columns(pl.col("month").is_in(winter_months).alias("is_winter"))
         .group_by(BLDG_ID)
         .agg(
-            pl.when(pl.col("is_winter"))
-            .then(pl.col("grid_cons_kwh"))
-            .otherwise(0.0)
-            .sum()
-            .alias("kwh_winter"),
-            pl.when(~pl.col("is_winter"))
-            .then(pl.col("grid_cons_kwh"))
-            .otherwise(0.0)
-            .sum()
-            .alias("kwh_summer"),
+            pl.when(pl.col("is_winter")).then(pl.col("grid_cons_kwh")).otherwise(0.0).sum().alias("kwh_winter"),
+            pl.when(~pl.col("is_winter")).then(pl.col("grid_cons_kwh")).otherwise(0.0).sum().alias("kwh_summer"),
         )
         .collect()
     )
@@ -249,12 +241,8 @@ def derive_icos_tariffs(
     assert scenario.depends_on is not None
     parent_name = scenario.depends_on[0]
     parent = config.scenarios[parent_name]
-    base_delivery_path = tariff_json_path(
-        config, f"{config.utility}_{parent.tariff_base}"
-    )
-    base_supply_path = tariff_json_path(
-        config, f"{config.utility}_{parent.tariff_base}_supply"
-    )
+    base_delivery_path = tariff_json_path(config, f"{config.utility}_{parent.tariff_base}")
+    base_supply_path = tariff_json_path(config, f"{config.utility}_{parent.tariff_base}_supply")
 
     base_rate, fixed_charge = extract_base_rate_and_fixed_charge(base_delivery_path)
     supply_component = extract_supply_component(base_delivery_path, base_supply_path)
@@ -312,18 +300,11 @@ def derive_icos_tariffs(
         winter_months = load_winter_months_from_periods(periods_path)
 
         bldg_ids = population[BLDG_ID]
-        avg_kwh_winter, avg_kwh_summer = _compute_seasonal_kwh(
-            calibrated_dir, bldg_ids, population, winter_months
-        )
+        avg_kwh_winter, avg_kwh_summer = _compute_seasonal_kwh(calibrated_dir, bldg_ids, population, winter_months)
 
         if avg_kwh_winter == 0.0:
-            raise ValueError(
-                "avg_kwh_after_winter is zero; cannot concentrate ICOS adjustment "
-                "in winter."
-            )
-        r_winter = (
-            base_rate * avg_kwh_before + avg_delta_mc - base_rate * avg_kwh_summer
-        ) / avg_kwh_winter
+            raise ValueError("avg_kwh_after_winter is zero; cannot concentrate ICOS adjustment in winter.")
+        r_winter = (base_rate * avg_kwh_before + avg_delta_mc - base_rate * avg_kwh_summer) / avg_kwh_winter
         r_summer = base_rate
         log.info(
             "icos seasonal: r_winter=%.6f, r_summer=%.6f (base=%.6f)",

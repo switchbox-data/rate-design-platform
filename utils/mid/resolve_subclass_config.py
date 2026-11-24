@@ -75,9 +75,7 @@ def resolve_subclass_config(
         run = _get_run(runs, run_num)
         selected_run_num = run_num
         if not run.get("run_includes_subclasses"):
-            raise ValueError(
-                f"run {run_num} is not a subclass run in {scenario_config}"
-            )
+            raise ValueError(f"run {run_num} is not a subclass run in {scenario_config}")
     else:
         selected_run_num = None
         run = None
@@ -88,9 +86,7 @@ def resolve_subclass_config(
                 run = candidate
                 break
         if run is None or selected_run_num is None:
-            raise ValueError(
-                f"no run with run_includes_subclasses=True found in {scenario_config}"
-            )
+            raise ValueError(f"no run with run_includes_subclasses=True found in {scenario_config}")
 
     subclass_config_raw = run.get("subclass_config", scenario.get("subclass_config"))
     if subclass_config_raw is None:
@@ -101,17 +97,13 @@ def resolve_subclass_config(
             "subclass_selectors columns to the Google Sheet."
         )
     if not isinstance(subclass_config_raw, dict):
-        raise ValueError(
-            f"run {selected_run_num} subclass_config must be a mapping in {scenario_config}"
-        )
+        raise ValueError(f"run {selected_run_num} subclass_config must be a mapping in {scenario_config}")
     subclass_config = cast(dict[str, Any], subclass_config_raw)
 
     group_col = str(subclass_config["group_col"])
     selectors = subclass_config["selectors"]
     if not isinstance(selectors, dict):
-        raise ValueError(
-            f"run {selected_run_num} subclass_config.selectors must be a mapping"
-        )
+        raise ValueError(f"run {selected_run_num} subclass_config.selectors must be a mapping")
     normalized_selectors = {str(key): str(value) for key, value in selectors.items()}
     group_value_to_subclass = selectors_to_group_value_map(normalized_selectors)
     return group_col, group_value_to_subclass

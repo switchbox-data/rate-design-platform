@@ -73,31 +73,22 @@ def _load_baseline_run(
         data = yaml.safe_load(f)
     runs: dict[int, dict[str, Any]] = data.get("runs", {})
     if run_num not in runs:
-        raise KeyError(
-            f"Run {run_num} not found in {baseline_yaml_path}. "
-            f"Available runs: {sorted(runs.keys())}"
-        )
+        raise KeyError(f"Run {run_num} not found in {baseline_yaml_path}. Available runs: {sorted(runs.keys())}")
     return runs[run_num]
 
 
-def _tariff_stem(
-    utility: str, shorthand: str, strategy_key: str, is_supply: bool
-) -> str:
+def _tariff_stem(utility: str, shorthand: str, strategy_key: str, is_supply: bool) -> str:
     base = f"{utility}_{shorthand}_{strategy_key}"
     return f"{base}_supply" if is_supply else base
 
 
-def _tariff_json(
-    utility: str, shorthand: str, strategy_key: str, is_supply: bool, is_u2: bool
-) -> str:
+def _tariff_json(utility: str, shorthand: str, strategy_key: str, is_supply: bool, is_u2: bool) -> str:
     stem = _tariff_stem(utility, shorthand, strategy_key, is_supply)
     if is_u2:
         if is_supply:
             return f"tariffs/electric/{utility}_{shorthand}_{strategy_key}_supply_calibrated.json"
         else:
-            return (
-                f"tariffs/electric/{utility}_{shorthand}_{strategy_key}_calibrated.json"
-            )
+            return f"tariffs/electric/{utility}_{shorthand}_{strategy_key}_calibrated.json"
     return f"tariffs/electric/{stem}.json"
 
 
@@ -177,17 +168,10 @@ def _make_run(
     )
 
     base = baseline_supply_run if is_supply else baseline_delivery_run
-    resstock_metadata = base.get("path_resstock_metadata", "").replace(
-        "upgrade=00", f"upgrade={resstock_upgrade}"
-    )
-    resstock_loads = base.get("path_resstock_loads", "").replace(
-        "upgrade=00", f"upgrade={resstock_upgrade}"
-    )
+    resstock_metadata = base.get("path_resstock_metadata", "").replace("upgrade=00", f"upgrade={resstock_upgrade}")
+    resstock_loads = base.get("path_resstock_loads", "").replace("upgrade=00", f"upgrade={resstock_upgrade}")
 
-    path_outputs = (
-        f"/data.sb/switchbox/cairo/outputs/hp_rates/{state.lower()}/{utility}"
-        f"/<execution_time>/{run_name}"
-    )
+    path_outputs = f"/data.sb/switchbox/cairo/outputs/hp_rates/{state.lower()}/{utility}/<execution_time>/{run_name}"
 
     if is_supply:
         supply_energy_mc = base["path_supply_energy_mc"]
@@ -309,9 +293,7 @@ def write_fair_default_scenario_yaml(
     baseline_yaml_path = config_dir / "scenarios" / f"scenarios_{utility}.yaml"
 
     if not baseline_yaml_path.exists():
-        raise FileNotFoundError(
-            f"Baseline scenario YAML not found: {baseline_yaml_path}"
-        )
+        raise FileNotFoundError(f"Baseline scenario YAML not found: {baseline_yaml_path}")
 
     runs = generate_fair_default_runs(
         state=state,

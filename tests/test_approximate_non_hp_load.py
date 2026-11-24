@@ -18,8 +18,8 @@ from utils.pre.approximate_non_hp_load import (
     POSTPROCESS_HEATING_TYPE_COLUMN,
     TIMESTAMP_COLUMN,
     UPGRADE_COOLING_EFFICIENCY_COLUMN,
-    UPGRADE_PARTIAL_CONDITIONING_COLUMN,
     UPGRADE_HEATING_EFFICIENCY_COLUMN,
+    UPGRADE_PARTIAL_CONDITIONING_COLUMN,
     _find_nearest_neighbors,
     _identify_non_hp_mf,
     _replace_electricity_columns,
@@ -110,18 +110,14 @@ def _make_metadata_df(
     )
 
 
-def _write_load_parquet(
-    path: Path, heating: np.ndarray, cooling: np.ndarray | None = None
-) -> None:
+def _write_load_parquet(path: Path, heating: np.ndarray, cooling: np.ndarray | None = None) -> None:
     data = {HEATING_LOAD_COLUMN: heating.tolist()}
     if cooling is not None:
         data[COOLING_LOAD_COLUMN] = cooling.tolist()
     pl.DataFrame(data).write_parquet(path)
 
 
-def _heating_curve(
-    n_hours: int, base: float, amplitude: float, phase: float, seed: int | None = None
-) -> np.ndarray:
+def _heating_curve(n_hours: int, base: float, amplitude: float, phase: float, seed: int | None = None) -> np.ndarray:
     """Hourly heating load: base + amplitude * sin(2*pi*hour/8760 + phase) + small noise."""
     if seed is not None:
         np.random.seed(seed)
@@ -131,9 +127,7 @@ def _heating_curve(
     return (seasonal + noise).astype(np.float64)
 
 
-def _cooling_curve(
-    n_hours: int, base: float, amplitude: float, phase: float, seed: int | None = None
-) -> np.ndarray:
+def _cooling_curve(n_hours: int, base: float, amplitude: float, phase: float, seed: int | None = None) -> np.ndarray:
     """Cooling peaks in summer (phase shifted vs heating)."""
     if seed is not None:
         np.random.seed(seed)
@@ -160,15 +154,9 @@ def test_find_nearest_neighbors_heating_only(tmp_path: Path) -> None:
     heating_curves = {
         1: _heating_curve(n_hours, base=5.0, amplitude=3.0, phase=0.0, seed=101),
         2: _heating_curve(n_hours, base=6.0, amplitude=2.5, phase=0.2, seed=102),
-        3: _heating_curve(
-            n_hours, base=5.1, amplitude=2.9, phase=0.05, seed=103
-        ),  # close to 1
-        4: _heating_curve(
-            n_hours, base=6.2, amplitude=2.4, phase=0.18, seed=104
-        ),  # close to 2
-        5: _heating_curve(
-            n_hours, base=8.0, amplitude=1.0, phase=1.0, seed=105
-        ),  # different
+        3: _heating_curve(n_hours, base=5.1, amplitude=2.9, phase=0.05, seed=103),  # close to 1
+        4: _heating_curve(n_hours, base=6.2, amplitude=2.4, phase=0.18, seed=104),  # close to 2
+        5: _heating_curve(n_hours, base=8.0, amplitude=1.0, phase=1.0, seed=105),  # different
         10: _heating_curve(n_hours, base=4.0, amplitude=4.0, phase=0.5, seed=110),
         11: _heating_curve(n_hours, base=4.1, amplitude=3.8, phase=0.52, seed=111),
         12: _heating_curve(n_hours, base=10.0, amplitude=0.5, phase=0.0, seed=112),
@@ -198,9 +186,9 @@ def test_find_nearest_neighbors_heating_only(tmp_path: Path) -> None:
     assert result[1][0][1] <= result[1][1][1]
     assert result[2][0][1] <= result[2][1][1]
     assert result[10][0][1] <= result[10][1][1]
-    assert set(result[1][i][0] for i in range(2)) <= {3, 4, 5}
-    assert set(result[2][i][0] for i in range(2)) <= {3, 4, 5}
-    assert set(result[10][i][0] for i in range(2)) <= {11, 12}
+    assert {result[1][i][0] for i in range(2)} <= {3, 4, 5}
+    assert {result[2][i][0] for i in range(2)} <= {3, 4, 5}
+    assert {result[10][i][0] for i in range(2)} <= {11, 12}
 
 
 def test_find_nearest_neighbors_include_cooling(tmp_path: Path) -> None:
@@ -247,8 +235,8 @@ def test_find_nearest_neighbors_include_cooling(tmp_path: Path) -> None:
     assert 2 in result
     assert len(result[1]) == 2
     assert len(result[2]) == 2
-    assert set(result[1][i][0] for i in range(2)) <= {3, 4, 5}
-    assert set(result[2][i][0] for i in range(2)) <= {3, 4, 5}
+    assert {result[1][i][0] for i in range(2)} <= {3, 4, 5}
+    assert {result[2][i][0] for i in range(2)} <= {3, 4, 5}
     assert result[1][0][1] <= result[1][1][1]
     assert result[2][0][1] <= result[2][1][1]
 
@@ -281,10 +269,7 @@ def _make_electricity_frame_time_varying(
     total_intensity_per_row: list[float],
 ) -> pl.LazyFrame:
     assert len(heating_per_row) == n_rows and len(cooling_per_row) == n_rows
-    assert (
-        len(total_consumption_per_row) == n_rows
-        and len(total_intensity_per_row) == n_rows
-    )
+    assert len(total_consumption_per_row) == n_rows and len(total_intensity_per_row) == n_rows
     heating_cols = list(HEATING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS)
     cooling_cols = list(COOLING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS)
     data = {}
@@ -316,14 +301,9 @@ def test_replace_electricity_columns_constant() -> None:
     for c in COOLING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS:
         assert df[c].to_list() == [1.5] * n_rows
     # Total: orig 100 - orig_heating_sum(4*10) - orig_cooling_sum(2*5) + avg_heating_sum(4*3) + avg_cooling_sum(2*1.5) = 100 - 40 - 10 + 12 + 3 = 65
-    assert (
-        df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[0]].to_list() == [65.0] * n_rows
-    )
+    assert df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[0]].to_list() == [65.0] * n_rows
     # Total intensity: orig 1 - orig_heating_intensity(4*10) - orig_cooling_intensity(2*5) + avg_heating(4*3) + avg_cooling(2*1.5) = 1 - 40 - 10 + 12 + 3 = -34
-    assert (
-        df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[1]].to_list()
-        == [-34.0] * n_rows
-    )
+    assert df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[1]].to_list() == [-34.0] * n_rows
 
 
 def test_replace_electricity_columns_single_neighbor() -> None:
@@ -340,14 +320,9 @@ def test_replace_electricity_columns_single_neighbor() -> None:
     for c in COOLING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS:
         assert df[c].to_list() == [1.0] * n_rows
     # total_consumption = 100 - 4*10 - 2*5 + 4*2 + 2*1 = 100 - 40 - 10 + 8 + 2 = 60
-    assert (
-        df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[0]].to_list() == [60.0] * n_rows
-    )
+    assert df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[0]].to_list() == [60.0] * n_rows
     # total_intensity = 1 - 40 - 10 + 8 + 2 = -39
-    assert (
-        df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[1]].to_list()
-        == [-39.0] * n_rows
-    )
+    assert df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[1]].to_list() == [-39.0] * n_rows
 
 
 def test_replace_electricity_columns_time_varying() -> None:
@@ -365,21 +340,15 @@ def test_replace_electricity_columns_time_varying() -> None:
     n2_heating = (4.0 + 0.3 * np.sin(hour)).tolist()
     n2_cooling = (2.0 + 0.15 * np.cos(hour)).tolist()
 
-    original = _make_electricity_frame_time_varying(
-        n_rows, orig_heating, orig_cooling, orig_total, orig_intensity
-    )
-    neighbor1 = _make_electricity_frame_time_varying(
-        n_rows, n1_heating, n1_cooling, [50.0] * n_rows, [0.5] * n_rows
-    )
-    neighbor2 = _make_electricity_frame_time_varying(
-        n_rows, n2_heating, n2_cooling, [60.0] * n_rows, [0.6] * n_rows
-    )
+    original = _make_electricity_frame_time_varying(n_rows, orig_heating, orig_cooling, orig_total, orig_intensity)
+    neighbor1 = _make_electricity_frame_time_varying(n_rows, n1_heating, n1_cooling, [50.0] * n_rows, [0.5] * n_rows)
+    neighbor2 = _make_electricity_frame_time_varying(n_rows, n2_heating, n2_cooling, [60.0] * n_rows, [0.6] * n_rows)
 
     out = _replace_electricity_columns(original, [neighbor1, neighbor2])
     df = out.collect()
 
-    expected_heating = [(a + b) / 2 for a, b in zip(n1_heating, n2_heating)]
-    expected_cooling = [(a + b) / 2 for a, b in zip(n1_cooling, n2_cooling)]
+    expected_heating = [(a + b) / 2 for a, b in zip(n1_heating, n2_heating, strict=False)]
+    expected_cooling = [(a + b) / 2 for a, b in zip(n1_cooling, n2_cooling, strict=False)]
     # Every heating column equals expected_heating (all 8)
     for c in HEATING_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS:
         assert df[c].to_list() == pytest.approx(expected_heating)
@@ -399,11 +368,10 @@ def test_replace_electricity_columns_time_varying() -> None:
             orig_cooling_sum,
             avg_heating_sum,
             avg_cooling_sum,
+            strict=False,
         )
     ]
-    assert df[
-        TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[0]
-    ].to_list() == pytest.approx(expected_total)
+    assert df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[0]].to_list() == pytest.approx(expected_total)
     # Total intensity: same formula with intensity columns (4 heating + 2 cooling)
     orig_heating_int_sum = [4 * x for x in orig_heating]
     orig_cooling_int_sum = [2 * x for x in orig_cooling]
@@ -415,11 +383,10 @@ def test_replace_electricity_columns_time_varying() -> None:
             orig_cooling_int_sum,
             avg_heating_sum,
             avg_cooling_sum,
+            strict=False,
         )
     ]
-    assert df[
-        TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[1]
-    ].to_list() == pytest.approx(expected_total_intensity)
+    assert df[TOTAL_ENERGY_CONSUMPTION_ELECTRICITY_COLUMNS[1]].to_list() == pytest.approx(expected_total_intensity)
 
 
 def test_replace_heating_cooling_load_columns_single_neighbor() -> None:
@@ -484,21 +451,19 @@ def test_replace_heating_cooling_load_columns() -> None:
         }
     ).lazy()
 
-    out = _replace_heating_cooling_load_columns(
-        original, [neighbor1, neighbor2, neighbor3]
-    )
+    out = _replace_heating_cooling_load_columns(original, [neighbor1, neighbor2, neighbor3])
     df = out.collect()
 
     n1_h = (2.0 + 0.5 * np.sin(2 * np.pi * hour / 24)).tolist()
     n2_h = (4.0 + 1.0 * np.sin(2 * np.pi * hour / 24)).tolist()
     n3_h = (1.0 + 0.2 * np.sin(2 * np.pi * hour / 24)).tolist()
-    expected_heating = [(a + b + c) / 3 for a, b, c in zip(n1_h, n2_h, n3_h)]
+    expected_heating = [(a + b + c) / 3 for a, b, c in zip(n1_h, n2_h, n3_h, strict=False)]
     assert df[HEATING_LOAD_COLUMN].to_list() == pytest.approx(expected_heating)
 
     n1_c = (1.0 + 0.3 * np.cos(2 * np.pi * hour / 24)).tolist()
     n2_c = (3.0 + 0.8 * np.cos(2 * np.pi * hour / 24)).tolist()
     n3_c = (2.0 + 0.5 * np.cos(2 * np.pi * hour / 24)).tolist()
-    expected_cooling = [(a + b + c) / 3 for a, b, c in zip(n1_c, n2_c, n3_c)]
+    expected_cooling = [(a + b + c) / 3 for a, b, c in zip(n1_c, n2_c, n3_c, strict=False)]
     assert df[COOLING_LOAD_COLUMN].to_list() == pytest.approx(expected_cooling)
 
 
@@ -550,29 +515,13 @@ def test_replace_natural_gas_columns() -> None:
     df = out.collect()
 
     # Heating: cols 0,2 are consumption (4 and 6 avg = 5); cols 1,3 are intensity (0.4 and 0.6 avg = 0.5)
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list()
-        == [5.0] * n_rows
-    )
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]].to_list()
-        == [0.5] * n_rows
-    )
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[2]].to_list()
-        == [0.0] * n_rows
-    )  # 0+0
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[3]].to_list()
-        == [0.0] * n_rows
-    )
+    assert df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == [5.0] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]].to_list() == [0.5] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[2]].to_list() == [0.0] * n_rows  # 0+0
+    assert df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[3]].to_list() == [0.0] * n_rows
     # Total: 80 - (20+0) + (4+6)/2 + 0 = 80 - 20 + 5 = 65; intensity: 3 - (2+0) + 0.5 = 1.5
-    assert (
-        df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == [65.0] * n_rows
-    )
-    assert (
-        df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]].to_list() == [1.5] * n_rows
-    )
+    assert df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == [65.0] * n_rows
+    assert df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]].to_list() == [1.5] * n_rows
 
 
 def test_replace_natural_gas_columns_single_neighbor() -> None:
@@ -597,29 +546,13 @@ def test_replace_natural_gas_columns_single_neighbor() -> None:
     df = out.collect()
 
     # Single has col0=4, col1=0.4, col2=0, col3=0
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list()
-        == [4.0] * n_rows
-    )
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]].to_list()
-        == [0.4] * n_rows
-    )
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[2]].to_list()
-        == [0.0] * n_rows
-    )
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[3]].to_list()
-        == [0.0] * n_rows
-    )
+    assert df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == [4.0] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]].to_list() == [0.4] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[2]].to_list() == [0.0] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[3]].to_list() == [0.0] * n_rows
     # total = 80 - (20+0) + (4+0) = 64; total_intensity = 3 - (2+0) + (0.4+0) = 1.4
-    assert (
-        df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == [64.0] * n_rows
-    )
-    assert df[
-        TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]
-    ].to_list() == pytest.approx([1.4] * n_rows)
+    assert df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == [64.0] * n_rows
+    assert df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]].to_list() == pytest.approx([1.4] * n_rows)
 
 
 def test_replace_natural_gas_columns_time_varying() -> None:
@@ -635,9 +568,7 @@ def test_replace_natural_gas_columns_time_varying() -> None:
     n2_h = (4.0 + 0.4 * np.sin(hour)).tolist()
     n2_i = (0.4 + 0.04 * np.cos(hour)).tolist()
 
-    def frame_h(
-        h_vals: list[float], i_vals: list[float], tot: list[float], toti: list[float]
-    ) -> pl.LazyFrame:
+    def frame_h(h_vals: list[float], i_vals: list[float], tot: list[float], toti: list[float]) -> pl.LazyFrame:
         return pl.DataFrame(
             {
                 TIMESTAMP_COLUMN: _timestamp_series(n_rows),
@@ -657,32 +588,18 @@ def test_replace_natural_gas_columns_time_varying() -> None:
     out, _ = _replace_natural_gas_columns(original, [neighbor1, neighbor2])
     df = out.collect()
 
-    expected_h = [(a + b) / 2 for a, b in zip(n1_h, n2_h)]
-    expected_i = [(a + b) / 2 for a, b in zip(n1_i, n2_i)]
+    expected_h = [(a + b) / 2 for a, b in zip(n1_h, n2_h, strict=False)]
+    expected_i = [(a + b) / 2 for a, b in zip(n1_i, n2_i, strict=False)]
     # Cols 0,1: main heating (consumption, intensity); cols 2,3: hp_bkup (all zeros in test data)
-    assert df[
-        HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]
-    ].to_list() == pytest.approx(expected_h)
-    assert df[
-        HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]
-    ].to_list() == pytest.approx(expected_i)
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[2]].to_list()
-        == [0.0] * n_rows
-    )
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[3]].to_list()
-        == [0.0] * n_rows
-    )
+    assert df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == pytest.approx(expected_h)
+    assert df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]].to_list() == pytest.approx(expected_i)
+    assert df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[2]].to_list() == [0.0] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[3]].to_list() == [0.0] * n_rows
     # total = orig_tot - orig_heating_sum + avg_heating_sum (col0+col2 consumption, col1+col3 intensity)
-    expected_tot = [o - oh + ah for o, oh, ah in zip(orig_tot, orig_h, expected_h)]
-    expected_toti = [o - oi + ai for o, oi, ai in zip(orig_toti, orig_int, expected_i)]
-    assert df[
-        TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]
-    ].to_list() == pytest.approx(expected_tot)
-    assert df[
-        TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]
-    ].to_list() == pytest.approx(expected_toti)
+    expected_tot = [o - oh + ah for o, oh, ah in zip(orig_tot, orig_h, expected_h, strict=False)]
+    expected_toti = [o - oi + ai for o, oi, ai in zip(orig_toti, orig_int, expected_i, strict=False)]
+    assert df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[0]].to_list() == pytest.approx(expected_tot)
+    assert df[TOTAL_ENERGY_CONSUMPTION_NATURAL_GAS_COLUMNS[1]].to_list() == pytest.approx(expected_toti)
 
 
 def _make_fuel_oil_frame(
@@ -726,21 +643,11 @@ def test_replace_fuel_oil_columns() -> None:
     df = out.collect()
 
     # Neighbor has (3, 0.3, 0, 0) for the 4 heating cols
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [3.0] * n_rows
-    )
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == [0.3] * n_rows
-    )
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[2]].to_list() == [0.0] * n_rows
-    )
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[3]].to_list() == [0.0] * n_rows
-    )
-    assert (
-        df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [38.0] * n_rows
-    )  # 50 - 15 + 3
+    assert df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [3.0] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == [0.3] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[2]].to_list() == [0.0] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[3]].to_list() == [0.0] * n_rows
+    assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [38.0] * n_rows  # 50 - 15 + 3
     assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == pytest.approx(
         [-0.7] * n_rows
     )  # 0.5 - 1.5 + 0.3
@@ -775,23 +682,13 @@ def test_replace_fuel_oil_columns_two_neighbors() -> None:
     df = out.collect()
 
     # Avg (2,0.2,0,0) and (6,0.6,0,0) = (4, 0.4, 0, 0)
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [4.0] * n_rows
-    )
-    assert df[
-        HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]
-    ].to_list() == pytest.approx([0.4] * n_rows)
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[2]].to_list() == [0.0] * n_rows
-    )
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[3]].to_list() == [0.0] * n_rows
-    )
+    assert df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [4.0] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == pytest.approx([0.4] * n_rows)
+    assert df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[2]].to_list() == [0.0] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[3]].to_list() == [0.0] * n_rows
     # total = 50 - 15 + 4 = 39; total_intensity = 0.5 - 1.5 + 0.4 = -0.6
     assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [39.0] * n_rows
-    assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == pytest.approx(
-        [-0.6] * n_rows
-    )
+    assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == pytest.approx([-0.6] * n_rows)
 
 
 def test_replace_fuel_oil_columns_single_neighbor() -> None:
@@ -815,22 +712,12 @@ def test_replace_fuel_oil_columns_single_neighbor() -> None:
     out = _replace_fuel_oil_columns(original, [single])
     df = out.collect()
 
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [3.0] * n_rows
-    )
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == [0.3] * n_rows
-    )
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[2]].to_list() == [0.0] * n_rows
-    )
-    assert (
-        df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[3]].to_list() == [0.0] * n_rows
-    )
+    assert df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [3.0] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == [0.3] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[2]].to_list() == [0.0] * n_rows
+    assert df[HEATING_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[3]].to_list() == [0.0] * n_rows
     assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[0]].to_list() == [38.0] * n_rows
-    assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == pytest.approx(
-        [-0.7] * n_rows
-    )
+    assert df[TOTAL_ENERGY_CONSUMPTION_FUEL_OIL_COLUMNS[1]].to_list() == pytest.approx([-0.7] * n_rows)
 
 
 def _make_propane_frame(
@@ -880,17 +767,11 @@ def test_replace_propane_columns() -> None:
     out = _replace_propane_columns(original, [neighbor1, neighbor2])
     df = out.collect()
 
-    assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == pytest.approx(
-        [3.0] * n_rows
-    )
-    assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]].to_list() == pytest.approx(
-        [0.3] * n_rows
-    )
+    assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == pytest.approx([3.0] * n_rows)
+    assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]].to_list() == pytest.approx([0.3] * n_rows)
     assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[2]].to_list() == [0.0] * n_rows
     assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[3]].to_list() == [0.0] * n_rows
-    assert df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == pytest.approx(
-        [36.0] * n_rows
-    )  # 45 - 12 + 3
+    assert df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == pytest.approx([36.0] * n_rows)  # 45 - 12 + 3
     assert df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]].to_list() == pytest.approx(
         [-0.45] * n_rows
     )  # 0.45 - 1.2 + 0.3
@@ -921,9 +802,7 @@ def test_replace_propane_columns_single_neighbor() -> None:
     assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]].to_list() == [0.2] * n_rows
     assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[2]].to_list() == [0.0] * n_rows
     assert df[HEATING_ENERGY_CONSUMPTION_PROPANE_COLUMNS[3]].to_list() == [0.0] * n_rows
-    assert (
-        df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == [35.0] * n_rows
-    )  # 45 - 12 + 2
+    assert df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[0]].to_list() == [35.0] * n_rows  # 45 - 12 + 2
     assert df[TOTAL_ENERGY_CONSUMPTION_PROPANE_COLUMNS[1]].to_list() == pytest.approx(
         [-0.55] * n_rows
     )  # 0.45 - 1.2 + 0.2
@@ -955,19 +834,11 @@ def _make_input_metadata_for_update(
     data: dict = {
         "bldg_id": bldg_ids,
         POSTPROCESS_HAS_HP_COLUMN: has_hp,
-        HAS_NATGAS_CONNECTION_COLUMN: has_natgas_connection
-        if has_natgas_connection is not None
-        else [False] * n,
-        "heats_with_electricity": heats_with_electricity
-        if heats_with_electricity is not None
-        else [False] * n,
-        "heats_with_natgas": heats_with_natgas
-        if heats_with_natgas is not None
-        else [False] * n,
+        HAS_NATGAS_CONNECTION_COLUMN: has_natgas_connection if has_natgas_connection is not None else [False] * n,
+        "heats_with_electricity": heats_with_electricity if heats_with_electricity is not None else [False] * n,
+        "heats_with_natgas": heats_with_natgas if heats_with_natgas is not None else [False] * n,
         "heats_with_oil": heats_with_oil if heats_with_oil is not None else [False] * n,
-        "heats_with_propane": heats_with_propane
-        if heats_with_propane is not None
-        else [False] * n,
+        "heats_with_propane": heats_with_propane if heats_with_propane is not None else [False] * n,
         POSTPROCESS_HEATING_TYPE_COLUMN: postprocess_heating_type
         if postprocess_heating_type is not None
         else ["other"] * n,
@@ -980,18 +851,14 @@ def _make_input_metadata_for_update(
         UPGRADE_PARTIAL_CONDITIONING_COLUMN: upgrade_partial_conditioning
         if upgrade_partial_conditioning is not None
         else ["partial"] * n,
-        HEATING_TYPE_COLUMN: in_hvac_heating_type
-        if in_hvac_heating_type is not None
-        else ["Furnace"] * n,
+        HEATING_TYPE_COLUMN: in_hvac_heating_type if in_hvac_heating_type is not None else ["Furnace"] * n,
     }
     return pl.DataFrame(data).lazy()
 
 
 def _make_non_hp_bldg_metadata(bldg_ids: list[int]) -> pl.LazyFrame:
     """Minimal non_hp_bldg_metadata: only bldg_id and weather_file_city needed for update_metadata."""
-    return pl.DataFrame(
-        {"bldg_id": bldg_ids, WEATHER_FILE_CITY_COLUMN: ["WS1"] * len(bldg_ids)}
-    ).lazy()
+    return pl.DataFrame({"bldg_id": bldg_ids, WEATHER_FILE_CITY_COLUMN: ["WS1"] * len(bldg_ids)}).lazy()
 
 
 def test_update_metadata_postprocess_has_hp() -> None:
@@ -1006,15 +873,9 @@ def test_update_metadata_postprocess_has_hp() -> None:
     df = out.collect()
 
     # 1 and 3 in non_hp_bldg_ids → True; 2 not in list → keep True
-    assert df.filter(pl.col("bldg_id") == 1)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
-        True
-    ]
-    assert df.filter(pl.col("bldg_id") == 2)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
-        True
-    ]
-    assert df.filter(pl.col("bldg_id") == 3)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
-        True
-    ]
+    assert df.filter(pl.col("bldg_id") == 1)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 2)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 3)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [True]
 
 
 def test_update_metadata_postprocess_has_hp_others_unchanged() -> None:
@@ -1028,15 +889,9 @@ def test_update_metadata_postprocess_has_hp_others_unchanged() -> None:
     out = update_metadata(non_hp, input_meta)
     df = out.collect()
 
-    assert df.filter(pl.col("bldg_id") == 10)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
-        False
-    ]
-    assert df.filter(pl.col("bldg_id") == 20)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
-        True
-    ]
-    assert df.filter(pl.col("bldg_id") == 30)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
-        False
-    ]
+    assert df.filter(pl.col("bldg_id") == 10)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [False]
+    assert df.filter(pl.col("bldg_id") == 20)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 30)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [False]
 
 
 def test_update_metadata_heats_with_columns() -> None:
@@ -1061,9 +916,7 @@ def test_update_metadata_heats_with_columns() -> None:
             assert df.filter(pl.col("bldg_id") == 1)[col].to_list() == [False]
             assert df.filter(pl.col("bldg_id") == 3)[col].to_list() == [False]
     # bldg_id 2 not in non_hp → unchanged
-    assert df.filter(pl.col("bldg_id") == 2)["heats_with_electricity"].to_list() == [
-        True
-    ]
+    assert df.filter(pl.col("bldg_id") == 2)["heats_with_electricity"].to_list() == [True]
     assert df.filter(pl.col("bldg_id") == 2)["heats_with_natgas"].to_list() == [False]
     assert df.filter(pl.col("bldg_id") == 2)["heats_with_oil"].to_list() == [False]
     assert df.filter(pl.col("bldg_id") == 2)["heats_with_propane"].to_list() == [False]
@@ -1080,20 +933,12 @@ def test_update_metadata_postprocess_heating_type() -> None:
     out = update_metadata(non_hp, input_meta)
     df = out.collect()
 
-    assert df.filter(pl.col("bldg_id") == 1)[
-        POSTPROCESS_HEATING_TYPE_COLUMN
-    ].to_list() == ["heat_pump"]
-    assert df.filter(pl.col("bldg_id") == 2)[
-        POSTPROCESS_HEATING_TYPE_COLUMN
-    ].to_list() == ["heat_pump"]
-    assert df.filter(pl.col("bldg_id") == 3)[
-        POSTPROCESS_HEATING_TYPE_COLUMN
-    ].to_list() == ["heat_pump"]
+    assert df.filter(pl.col("bldg_id") == 1)[POSTPROCESS_HEATING_TYPE_COLUMN].to_list() == ["heat_pump"]
+    assert df.filter(pl.col("bldg_id") == 2)[POSTPROCESS_HEATING_TYPE_COLUMN].to_list() == ["heat_pump"]
+    assert df.filter(pl.col("bldg_id") == 3)[POSTPROCESS_HEATING_TYPE_COLUMN].to_list() == ["heat_pump"]
 
 
-def test_update_metadata_has_natgas_connection_when_natural_gas_usage_provided() -> (
-    None
-):
+def test_update_metadata_has_natgas_connection_when_natural_gas_usage_provided() -> None:
     """When natural_gas_usage is provided: in list → True, in non_hp but not in list → False; others unchanged."""
     input_meta = _make_input_metadata_for_update(
         [1, 2, 3, 4],
@@ -1105,18 +950,12 @@ def test_update_metadata_has_natgas_connection_when_natural_gas_usage_provided()
     out = update_metadata(non_hp, input_meta, natural_gas_usage=natural_gas_usage)
     df = out.collect()
 
-    assert df.filter(pl.col("bldg_id") == 1)[
-        HAS_NATGAS_CONNECTION_COLUMN
-    ].to_list() == [True]
-    assert df.filter(pl.col("bldg_id") == 2)[
-        HAS_NATGAS_CONNECTION_COLUMN
-    ].to_list() == [False]
-    assert df.filter(pl.col("bldg_id") == 3)[
-        HAS_NATGAS_CONNECTION_COLUMN
-    ].to_list() == [True]
-    assert df.filter(pl.col("bldg_id") == 4)[
-        HAS_NATGAS_CONNECTION_COLUMN
-    ].to_list() == [False]  # unchanged (not in non_hp)
+    assert df.filter(pl.col("bldg_id") == 1)[HAS_NATGAS_CONNECTION_COLUMN].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 2)[HAS_NATGAS_CONNECTION_COLUMN].to_list() == [False]
+    assert df.filter(pl.col("bldg_id") == 3)[HAS_NATGAS_CONNECTION_COLUMN].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 4)[HAS_NATGAS_CONNECTION_COLUMN].to_list() == [
+        False
+    ]  # unchanged (not in non_hp)
 
 
 def test_update_metadata_has_natgas_connection_others_unchanged() -> None:
@@ -1131,12 +970,8 @@ def test_update_metadata_has_natgas_connection_others_unchanged() -> None:
     out = update_metadata(non_hp, input_meta, natural_gas_usage=natural_gas_usage)
     df = out.collect()
 
-    assert df.filter(pl.col("bldg_id") == 10)[
-        HAS_NATGAS_CONNECTION_COLUMN
-    ].to_list() == [True]
-    assert df.filter(pl.col("bldg_id") == 20)[
-        HAS_NATGAS_CONNECTION_COLUMN
-    ].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 10)[HAS_NATGAS_CONNECTION_COLUMN].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 20)[HAS_NATGAS_CONNECTION_COLUMN].to_list() == [True]
 
 
 def test_update_metadata_natural_gas_usage_none() -> None:
@@ -1152,12 +987,8 @@ def test_update_metadata_natural_gas_usage_none() -> None:
 
     # Without natural_gas_usage, the has_natgas_connection block is skipped — column stays as-is.
     # So 1 and 2 keep True and False (and they're still updated for has_hp, heats_with, etc.)
-    assert df.filter(pl.col("bldg_id") == 1)[
-        HAS_NATGAS_CONNECTION_COLUMN
-    ].to_list() == [True]
-    assert df.filter(pl.col("bldg_id") == 2)[
-        HAS_NATGAS_CONNECTION_COLUMN
-    ].to_list() == [False]
+    assert df.filter(pl.col("bldg_id") == 1)[HAS_NATGAS_CONNECTION_COLUMN].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 2)[HAS_NATGAS_CONNECTION_COLUMN].to_list() == [False]
 
 
 def test_update_metadata_upgrade_partial_conditioning() -> None:
@@ -1171,15 +1002,9 @@ def test_update_metadata_upgrade_partial_conditioning() -> None:
     out = update_metadata(non_hp, input_meta)
     df = out.collect()
 
-    assert df.filter(pl.col("bldg_id") == 1)[
-        UPGRADE_PARTIAL_CONDITIONING_COLUMN
-    ].to_list() == ["100% Conditioned"]
-    assert df.filter(pl.col("bldg_id") == 2)[
-        UPGRADE_PARTIAL_CONDITIONING_COLUMN
-    ].to_list() == ["100% Conditioned"]
-    assert df.filter(pl.col("bldg_id") == 3)[
-        UPGRADE_PARTIAL_CONDITIONING_COLUMN
-    ].to_list() == ["100% Conditioned"]
+    assert df.filter(pl.col("bldg_id") == 1)[UPGRADE_PARTIAL_CONDITIONING_COLUMN].to_list() == ["100% Conditioned"]
+    assert df.filter(pl.col("bldg_id") == 2)[UPGRADE_PARTIAL_CONDITIONING_COLUMN].to_list() == ["100% Conditioned"]
+    assert df.filter(pl.col("bldg_id") == 3)[UPGRADE_PARTIAL_CONDITIONING_COLUMN].to_list() == ["100% Conditioned"]
 
 
 def test_update_metadata_empty_non_hp() -> None:
@@ -1218,18 +1043,14 @@ def test_update_metadata_upgrade_hvac_by_heating_type() -> None:
     df = out.collect()
 
     # Non-Ducted → MSHP / Non-Ducted Heat Pump; Ducted → ASHP / Ducted Heat Pump
-    assert df.filter(pl.col("bldg_id") == 1)[
-        UPGRADE_HEATING_EFFICIENCY_COLUMN
-    ].to_list() == ["MSHP, SEER 20, 11 HSPF, CCHP, Max Load"]
-    assert df.filter(pl.col("bldg_id") == 1)[
-        UPGRADE_COOLING_EFFICIENCY_COLUMN
-    ].to_list() == ["Non-Ducted Heat Pump"]
-    assert df.filter(pl.col("bldg_id") == 2)[
-        UPGRADE_HEATING_EFFICIENCY_COLUMN
-    ].to_list() == ["ASHP, SEER 20, 11 HSPF, CCHP, Max Load"]
-    assert df.filter(pl.col("bldg_id") == 2)[
-        UPGRADE_COOLING_EFFICIENCY_COLUMN
-    ].to_list() == ["Ducted Heat Pump"]
+    assert df.filter(pl.col("bldg_id") == 1)[UPGRADE_HEATING_EFFICIENCY_COLUMN].to_list() == [
+        "MSHP, SEER 20, 11 HSPF, CCHP, Max Load"
+    ]
+    assert df.filter(pl.col("bldg_id") == 1)[UPGRADE_COOLING_EFFICIENCY_COLUMN].to_list() == ["Non-Ducted Heat Pump"]
+    assert df.filter(pl.col("bldg_id") == 2)[UPGRADE_HEATING_EFFICIENCY_COLUMN].to_list() == [
+        "ASHP, SEER 20, 11 HSPF, CCHP, Max Load"
+    ]
+    assert df.filter(pl.col("bldg_id") == 2)[UPGRADE_COOLING_EFFICIENCY_COLUMN].to_list() == ["Ducted Heat Pump"]
 
 
 def test_update_metadata_mixed_comprehensive() -> None:
@@ -1250,40 +1071,20 @@ def test_update_metadata_mixed_comprehensive() -> None:
     df = out.collect()
 
     # 101: non-HP, in natural_gas_usage
-    assert df.filter(pl.col("bldg_id") == 101)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
-        True
-    ]
-    assert df.filter(pl.col("bldg_id") == 101)[
-        HAS_NATGAS_CONNECTION_COLUMN
-    ].to_list() == [True]
-    assert df.filter(pl.col("bldg_id") == 101)["heats_with_electricity"].to_list() == [
-        True
-    ]
+    assert df.filter(pl.col("bldg_id") == 101)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 101)[HAS_NATGAS_CONNECTION_COLUMN].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 101)["heats_with_electricity"].to_list() == [True]
     assert df.filter(pl.col("bldg_id") == 101)["heats_with_natgas"].to_list() == [False]
-    assert df.filter(pl.col("bldg_id") == 101)[
-        POSTPROCESS_HEATING_TYPE_COLUMN
-    ].to_list() == ["heat_pump"]
+    assert df.filter(pl.col("bldg_id") == 101)[POSTPROCESS_HEATING_TYPE_COLUMN].to_list() == ["heat_pump"]
 
     # 102: non-HP, not in natural_gas_usage
-    assert df.filter(pl.col("bldg_id") == 102)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
-        True
-    ]
-    assert df.filter(pl.col("bldg_id") == 102)[
-        HAS_NATGAS_CONNECTION_COLUMN
-    ].to_list() == [False]
-    assert df.filter(pl.col("bldg_id") == 102)["heats_with_electricity"].to_list() == [
-        True
-    ]
+    assert df.filter(pl.col("bldg_id") == 102)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 102)[HAS_NATGAS_CONNECTION_COLUMN].to_list() == [False]
+    assert df.filter(pl.col("bldg_id") == 102)["heats_with_electricity"].to_list() == [True]
     assert df.filter(pl.col("bldg_id") == 102)["heats_with_natgas"].to_list() == [False]
 
     # 103: not in non_hp → all unchanged except we didn't touch it
-    assert df.filter(pl.col("bldg_id") == 103)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [
-        True
-    ]
-    assert df.filter(pl.col("bldg_id") == 103)[
-        HAS_NATGAS_CONNECTION_COLUMN
-    ].to_list() == [False]
-    assert df.filter(pl.col("bldg_id") == 103)["heats_with_electricity"].to_list() == [
-        True
-    ]
+    assert df.filter(pl.col("bldg_id") == 103)[POSTPROCESS_HAS_HP_COLUMN].to_list() == [True]
+    assert df.filter(pl.col("bldg_id") == 103)[HAS_NATGAS_CONNECTION_COLUMN].to_list() == [False]
+    assert df.filter(pl.col("bldg_id") == 103)["heats_with_electricity"].to_list() == [True]
     assert df.filter(pl.col("bldg_id") == 103)["heats_with_natgas"].to_list() == [False]

@@ -27,6 +27,7 @@ from typing import Any, Literal
 import boto3
 import polars as pl
 from botocore.exceptions import ClientError
+
 from utils.post.validate.subclasses import (
     SUBCLASS_COL,
     SubclassSpec,
@@ -135,10 +136,7 @@ def _weighted_annual_revenue_by_subclass(
         .group_by(SUBCLASS_COL)
         .agg((pl.col(_BILL_COL) * pl.col(_WEIGHT_COL)).sum().alias("weighted_bills"))
     )
-    return {
-        str(row[SUBCLASS_COL]): float(row["weighted_bills"])
-        for row in rows.iter_rows(named=True)
-    }
+    return {str(row[SUBCLASS_COL]): float(row["weighted_bills"]) for row in rows.iter_rows(named=True)}
 
 
 def _weighted_annual_revenue_by_named_subclass(
@@ -173,9 +171,7 @@ def _bat_wavg_by_group(
         .group_by(SUBCLASS_COL)
         .agg(
             *[
-                (
-                    (pl.col(c) * pl.col(_WEIGHT_COL)).sum() / pl.col(_WEIGHT_COL).sum()
-                ).alias(f"{c}_wavg")
+                ((pl.col(c) * pl.col(_WEIGHT_COL)).sum() / pl.col(_WEIGHT_COL).sum()).alias(f"{c}_wavg")
                 for c in bat_cols
             ],
             pl.col(_WEIGHT_COL).sum().alias("customers_weighted"),
@@ -255,9 +251,7 @@ def check_revenue_neutrality(
     """
     target = _rr_target(rr_config, cost_scope)
     total: float = _collect(
-        _weighted_annual_bills(bills, metadata).select(
-            (pl.col(_BILL_COL) * pl.col(_WEIGHT_COL)).sum().alias("v")
-        )
+        _weighted_annual_bills(bills, metadata).select((pl.col(_BILL_COL) * pl.col(_WEIGHT_COL)).sum().alias("v"))
     )["v"][0]
     pct_diff = (total - target) / target * 100
     return CheckResult(
@@ -301,9 +295,7 @@ def check_subclass_revenue_neutrality(
     Returns:
         PASS when every subclass is within tolerance; FAIL if any exceed it.
     """
-    rr_sub: dict[str, Any] = subclass_rr.get(
-        "subclass_revenue_requirements", subclass_rr
-    )
+    rr_sub: dict[str, Any] = subclass_rr.get("subclass_revenue_requirements", subclass_rr)
     rr_key = "total" if cost_scope == "delivery+supply" else "delivery"
     actual_by_subclass = _weighted_annual_revenue_by_named_subclass(
         bills,
@@ -337,14 +329,11 @@ def check_subclass_revenue_neutrality(
 
     all_pass = not missing_subclasses and all(v["pass"] for v in per_subclass.values())
     summary = "; ".join(
-        f"{s}: missing" if v.get("missing") else f"{s}: {float(v['pct_diff']):+.2f}%"
-        for s, v in per_subclass.items()
+        f"{s}: missing" if v.get("missing") else f"{s}: {float(v['pct_diff']):+.2f}%" for s, v in per_subclass.items()
     )
     message = f"Subclass revenue deviations — {summary}"
     if missing_subclasses:
-        message += " — FAIL: missing subclasses " + ", ".join(
-            sorted(missing_subclasses)
-        )
+        message += " — FAIL: missing subclasses " + ", ".join(sorted(missing_subclasses))
     return CheckResult(
         name="subclass_revenue_neutrality",
         status="PASS" if all_pass else "FAIL",
@@ -372,9 +361,7 @@ def check_supply_passthrough_revenue_requirement(
     """
     raw = subclass_rr_raw.get("subclass_revenue_requirements", subclass_rr_raw)
     supply_block = raw.get("supply", {}) if isinstance(raw, dict) else {}
-    passthrough_targets = (
-        supply_block.get("passthrough", {}) if isinstance(supply_block, dict) else {}
-    )
+    passthrough_targets = supply_block.get("passthrough", {}) if isinstance(supply_block, dict) else {}
     if not isinstance(passthrough_targets, dict) or not passthrough_targets:
         return CheckResult(
             name="supply_passthrough_revenue_requirement",
@@ -446,9 +433,7 @@ def check_supply_passthrough_revenue_requirement(
     )
     message = f"Supply passthrough deviations — {summary}"
     if missing_subclasses:
-        message += " — FAIL: missing subclasses " + ", ".join(
-            sorted(missing_subclasses)
-        )
+        message += " — FAIL: missing subclasses " + ", ".join(sorted(missing_subclasses))
     return CheckResult(
         name="supply_passthrough_revenue_requirement",
         status="PASS" if all_pass else "FAIL",
@@ -480,9 +465,7 @@ def check_flex_subclass_revenue_expectations(
     - ``non-hp`` remains approximately revenue-neutral relative to the baseline
     - ``hp`` revenue deviation is non-positive relative to the baseline
     """
-    rr_sub: dict[str, Any] = subclass_rr.get(
-        "subclass_revenue_requirements", subclass_rr
-    )
+    rr_sub: dict[str, Any] = subclass_rr.get("subclass_revenue_requirements", subclass_rr)
     rr_key = "total" if cost_scope == "delivery+supply" else "delivery"
     actual_by_subclass = _weighted_annual_revenue_by_named_subclass(bills, metadata)
 
@@ -510,41 +493,22 @@ def check_flex_subclass_revenue_expectations(
 
     nonhp = per_subclass.get("non-hp")
     hp = per_subclass.get("hp")
-    nonhp_ok = (
-        nonhp is not None
-        and not nonhp.get("missing")
-        and abs(float(nonhp["pct_diff"])) <= nonhp_tolerance_pct
-    )
-    hp_ok = (
-        hp is not None
-        and not hp.get("missing")
-        and float(hp["pct_diff"]) <= hp_positive_tolerance_pct
-    )
+    nonhp_ok = nonhp is not None and not nonhp.get("missing") and abs(float(nonhp["pct_diff"])) <= nonhp_tolerance_pct
+    hp_ok = hp is not None and not hp.get("missing") and float(hp["pct_diff"]) <= hp_positive_tolerance_pct
 
     parts: list[str] = []
     if nonhp is not None:
-        parts.append(
-            "non-hp: missing"
-            if nonhp.get("missing")
-            else f"non-hp: {float(nonhp['pct_diff']):+.2f}%"
-        )
+        parts.append("non-hp: missing" if nonhp.get("missing") else f"non-hp: {float(nonhp['pct_diff']):+.2f}%")
     if hp is not None:
-        parts.append(
-            "hp: missing" if hp.get("missing") else f"hp: {float(hp['pct_diff']):+.2f}%"
-        )
+        parts.append("hp: missing" if hp.get("missing") else f"hp: {float(hp['pct_diff']):+.2f}%")
 
     failures: list[str] = []
     if missing_subclasses:
         failures.append("missing subclasses " + ", ".join(sorted(missing_subclasses)))
     elif not nonhp_ok and nonhp is not None:
-        failures.append(
-            f"non-hp should stay within ±{nonhp_tolerance_pct:.2f}% "
-            f"(got {float(nonhp['pct_diff']):+.2f}%)"
-        )
+        failures.append(f"non-hp should stay within ±{nonhp_tolerance_pct:.2f}% (got {float(nonhp['pct_diff']):+.2f}%)")
     if not hp_ok and hp is not None and not hp.get("missing"):
-        failures.append(
-            f"hp should not exceed baseline RR (got {float(hp['pct_diff']):+.2f}%)"
-        )
+        failures.append(f"hp should not exceed baseline RR (got {float(hp['pct_diff']):+.2f}%)")
 
     return CheckResult(
         name="subclass_revenue_expectations_flex",
@@ -589,8 +553,7 @@ def check_hp_subclass_revenue_lower_with_flex(
         return CheckResult(
             name=f"hp_revenue_lower_with_flex_run{run_noflex}_to_run{run_flex}",
             status="FAIL",
-            message="Missing HP subclass revenue for run(s): "
-            + ", ".join(missing_runs),
+            message="Missing HP subclass revenue for run(s): " + ", ".join(missing_runs),
             details={
                 "run_noflex": run_noflex,
                 "run_flex": run_flex,
@@ -607,8 +570,7 @@ def check_hp_subclass_revenue_lower_with_flex(
         name=f"hp_revenue_lower_with_flex_run{run_noflex}_to_run{run_flex}",
         status="PASS" if hp_flex < hp_noflex else "FAIL",
         message=(
-            f"HP weighted revenue run {run_noflex}→{run_flex}: "
-            f"${hp_noflex:,.0f} → ${hp_flex:,.0f} ({pct_change:+.2f}%)"
+            f"HP weighted revenue run {run_noflex}→{run_flex}: ${hp_noflex:,.0f} → ${hp_flex:,.0f} ({pct_change:+.2f}%)"
         ),
         details={
             "run_noflex": run_noflex,
@@ -643,9 +605,7 @@ def check_subclass_rr_sums_to_total(
         PASS when the subclass sum matches the total RR within $1 (floating-point
         rounding tolerance); FAIL otherwise.
     """
-    rr_sub: dict[str, Any] = subclass_rr.get(
-        "subclass_revenue_requirements", subclass_rr
-    )
+    rr_sub: dict[str, Any] = subclass_rr.get("subclass_revenue_requirements", subclass_rr)
     rr_key = "total" if cost_scope == "delivery+supply" else "delivery"
     sub_sum = sum(float(v[rr_key]) for v in rr_sub.values())
     total = _rr_target(total_rr, cost_scope)
@@ -702,9 +662,7 @@ def check_bat_direction(
 
 def bat_col_for_allocation(residual_allocation: str | None) -> str:
     """Return the BAT column name that should be near zero for a given allocation method."""
-    return _ALLOCATION_TO_BAT_COL.get(
-        residual_allocation or "percustomer", "BAT_percustomer"
-    )
+    return _ALLOCATION_TO_BAT_COL.get(residual_allocation or "percustomer", "BAT_percustomer")
 
 
 def check_bat_near_zero(
@@ -748,9 +706,7 @@ def check_bat_near_zero(
             subclass_spec,
         ).iter_rows(named=True)
     ]
-    label = (
-        bat_metric.replace("BAT_", "").replace("percustomer", "per-customer").upper()
-    )
+    label = bat_metric.replace("BAT_", "").replace("percustomer", "per-customer").upper()
     parts = [f"{d['group']}: ${d[wavg_col]:+.1f}" for d in by_group]
     return CheckResult(
         name="bat_near_zero",
@@ -811,9 +767,7 @@ def check_tariff_unchanged(
     """
     # Build a normalized lookup for the input so output keys (which may carry
     # the _calibrated suffix) can be matched against their precalc counterparts.
-    input_by_norm: dict[str, Any] = {
-        _norm_tariff_key(k): v for k, v in input_tariff.items()
-    }
+    input_by_norm: dict[str, Any] = {_norm_tariff_key(k): v for k, v in input_tariff.items()}
 
     diffs: list[dict[str, Any]] = []
     for key in output_tariff:
@@ -825,9 +779,7 @@ def check_tariff_unchanged(
         for path, out_val in _flatten_numeric(output_tariff[key]).items():
             in_val = _flatten_numeric(in_entry).get(path)
             if in_val is None:
-                diffs.append(
-                    {"path": f"{key}.{path}", "input": None, "output": out_val}
-                )
+                diffs.append({"path": f"{key}.{path}", "input": None, "output": out_val})
             elif abs(in_val - out_val) > tolerance:
                 diffs.append(
                     {
@@ -947,9 +899,7 @@ def check_nonhp_customers_in_upgrade02(metadata: pl.LazyFrame) -> CheckResult:
         .sort(_HEATING_TYPE_COL)
     ).to_dicts()
     total_weighted: float = sum(r["customers_weighted"] for r in rows)
-    summary = ", ".join(
-        f"{r[_HEATING_TYPE_COL]}: {r['customers_weighted']:,.0f}" for r in rows
-    )
+    summary = ", ".join(f"{r[_HEATING_TYPE_COL]}: {r['customers_weighted']:,.0f}" for r in rows)
     return CheckResult(
         name="nonhp_customers_in_upgrade02",
         status="PASS",
@@ -984,22 +934,13 @@ def _period_season_map(schedule: list[list[int]]) -> dict[int, str]:
     """
     counts: dict[int, dict[str, int]] = {}
     for month_idx, hours in enumerate(schedule):
-        season = (
-            "summer"
-            if month_idx in _SUMMER_MONTHS
-            else "winter"
-            if month_idx in _WINTER_MONTHS
-            else None
-        )
+        season = "summer" if month_idx in _SUMMER_MONTHS else "winter" if month_idx in _WINTER_MONTHS else None
         if season is None:
             continue
         for period_id in set(hours):
             bucket = counts.setdefault(period_id, {"summer": 0, "winter": 0})
             bucket[season] += 1
-    return {
-        pid: ("summer" if c["summer"] >= c["winter"] else "winter")
-        for pid, c in counts.items()
-    }
+    return {pid: ("summer" if c["summer"] >= c["winter"] else "winter") for pid, c in counts.items()}
 
 
 def _season_period_rates(
@@ -1060,17 +1001,9 @@ def check_bills_increase_with_supply(
             )
             .filter(pl.col(SUBCLASS_COL).is_not_null())
             .group_by(SUBCLASS_COL)
-            .agg(
-                (
-                    (pl.col(_BILL_COL) * pl.col(_WEIGHT_COL)).sum()
-                    / pl.col(_WEIGHT_COL).sum()
-                ).alias("wavg_bill")
-            )
+            .agg(((pl.col(_BILL_COL) * pl.col(_WEIGHT_COL)).sum() / pl.col(_WEIGHT_COL).sum()).alias("wavg_bill"))
         )
-        return {
-            str(row[SUBCLASS_COL]): float(row["wavg_bill"])
-            for row in rows.iter_rows(named=True)
-        }
+        return {str(row[SUBCLASS_COL]): float(row["wavg_bill"]) for row in rows.iter_rows(named=True)}
 
     a_by_sub = _wavg_by_subclass(bills_a)
     b_by_sub = _wavg_by_subclass(bills_b)
@@ -1094,8 +1027,7 @@ def check_bills_increase_with_supply(
             failures.append(f"{label}: ${a_val:,.2f} → ${b_val:,.2f}")
 
     subclass_summary = "; ".join(
-        f"{d['subclass']} ${d[f'run{run_a}_avg_bill']:,.2f} → ${d[f'run{run_b}_avg_bill']:,.2f}"
-        for d in details
+        f"{d['subclass']} ${d[f'run{run_a}_avg_bill']:,.2f} → ${d[f'run{run_b}_avg_bill']:,.2f}" for d in details
     )
     return CheckResult(
         name=f"bills_increase_run{run_a}_to_run{run_b}",
@@ -1262,10 +1194,7 @@ def check_hp_bat_increases_with_supply(
         PASS when ``|BAT_percustomer_wavg|`` is strictly larger for HP in run B;
         WARN otherwise.
     """
-    if (
-        "BAT_percustomer" not in bat_a.collect_schema()
-        or "BAT_percustomer" not in bat_b.collect_schema()
-    ):
+    if "BAT_percustomer" not in bat_a.collect_schema() or "BAT_percustomer" not in bat_b.collect_schema():
         return CheckResult(
             name=f"hp_bat_increases_run{run_a}_to_run{run_b}",
             status="WARN",
@@ -1277,12 +1206,7 @@ def check_hp_bat_increases_with_supply(
         rows = _collect(
             bat.join(metadata.select([_BLDG_COL, _WEIGHT_COL, _HP_COL]), on=_BLDG_COL)
             .filter(pl.col(_HP_COL))
-            .select(
-                (
-                    (pl.col("BAT_percustomer") * pl.col(_WEIGHT_COL)).sum()
-                    / pl.col(_WEIGHT_COL).sum()
-                ).alias("wavg")
-            )
+            .select(((pl.col("BAT_percustomer") * pl.col(_WEIGHT_COL)).sum() / pl.col(_WEIGHT_COL).sum()).alias("wavg"))
         )
         return float(rows["wavg"][0])
 

@@ -75,14 +75,11 @@ def _process_run(
     path_tariffs_electric: dict[str, str] = run["path_tariffs_electric"]
     if not isinstance(path_tariffs_electric, dict):
         raise TypeError(
-            f"Run {run_id}: path_tariffs_electric must be a dict; "
-            f"got {type(path_tariffs_electric).__name__}"
+            f"Run {run_id}: path_tariffs_electric must be a dict; got {type(path_tariffs_electric).__name__}"
         )
 
     # subclass_config: run-level overrides scenario-level
-    subclass_config: dict[str, Any] | None = run.get(
-        "subclass_config", scenario_subclass_config
-    )
+    subclass_config: dict[str, Any] | None = run.get("subclass_config", scenario_subclass_config)
 
     utility: str = run["utility"]
 
@@ -112,28 +109,15 @@ def _process_run(
         )
 
     # bldg_ids for this utility
-    bldg_ids = (
-        _scan(path_ua)
-        .filter(pl.col("sb.electric_utility") == utility)
-        .select("bldg_id")
-    )
+    bldg_ids = _scan(path_ua).filter(pl.col("sb.electric_utility") == utility).select("bldg_id")
 
     # metadata filtered to utility buildings — only pull the columns we need
-    bldg_data = (
-        _scan(path_meta)
-        .select("bldg_id", meta_col)
-        .join(bldg_ids, on="bldg_id")
-        .collect()
-    )
+    bldg_data = _scan(path_meta).select("bldg_id", meta_col).join(bldg_ids, on="bldg_id").collect()
 
     if bldg_data.is_empty():
-        raise ValueError(
-            f"Run {run_id}: no buildings found for utility '{utility}' in {path_ua}"
-        )
+        raise ValueError(f"Run {run_id}: no buildings found for utility '{utility}' in {path_ua}")
 
-    result = generate_tariff_map_from_scenario_keys(
-        path_tariffs_electric, bldg_data, subclass_config
-    )
+    result = generate_tariff_map_from_scenario_keys(path_tariffs_electric, bldg_data, subclass_config)
 
     out_path = path_config / run["path_tariff_maps_electric"]
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -146,9 +130,7 @@ def main(scenario_config: Path) -> None:
     # Walk up until we find the config/ directory (the one that contains tariff_maps/).
     # This works for both scenarios/ and nested subdirs like scenarios/fair_default/.
     path_config = config_dir.parent
-    while (
-        not (path_config / "tariff_maps").is_dir() and path_config != path_config.parent
-    ):
+    while not (path_config / "tariff_maps").is_dir() and path_config != path_config.parent:
         path_config = path_config.parent
 
     with scenario_config.open(encoding="utf-8") as fh:
@@ -167,7 +149,7 @@ def main(scenario_config: Path) -> None:
     for run_id, run in runs.items():
         try:
             _process_run(run_id, run, config_dir, path_config, scenario_subclass_config)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(f"  run {run_id}: ERROR — {exc}", file=sys.stderr)
             errors.append((run_id, exc))
 
@@ -177,9 +159,7 @@ def main(scenario_config: Path) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Write electric tariff map CSVs for all runs in a scenario YAML."
-    )
+    parser = argparse.ArgumentParser(description="Write electric tariff map CSVs for all runs in a scenario YAML.")
     parser.add_argument(
         "--scenario-config",
         required=True,

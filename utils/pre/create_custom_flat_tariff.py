@@ -71,9 +71,7 @@ def build_tariffs(config: dict) -> tuple[dict, dict]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Generate a flat URDB v7 tariff pair from a custom-rates YAML config"
-    )
+    parser = argparse.ArgumentParser(description="Generate a flat URDB v7 tariff pair from a custom-rates YAML config")
     parser.add_argument(
         "--config",
         type=Path,

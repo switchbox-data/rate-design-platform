@@ -100,15 +100,11 @@ def test_eia176_residential_includes_transport_and_excludes_other_rows(
     tmp_path: Path,
 ) -> None:
     by_consumer, disposition = _write_eia(tmp_path)
-    kwh = load_eia176_residential_kwh(
-        "CT", 2018, path_by_consumer=by_consumer, path_disposition=disposition
-    )
+    kwh = load_eia176_residential_kwh("CT", 2018, path_by_consumer=by_consumer, path_disposition=disposition)
     assert kwh == pytest.approx(((100.0 + 10.0) * 1.0 + 200.0 * 1.05) * KWH_PER_MMBTU)
 
 
-def test_eia176_missing_heat_content_uses_state_median(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_eia176_missing_heat_content_uses_state_median(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     by_consumer, _ = _write_eia(tmp_path)
     disposition = tmp_path / "disposition_gap.parquet"
     pl.DataFrame(
@@ -127,9 +123,7 @@ def test_eia176_missing_heat_content_uses_state_median(
     assert b["heat_content_mmbtu_per_mcf"] == pytest.approx(1.0)
     assert b["eia_customers"] == 8.0
 
-    kwh = load_eia176_residential_kwh(
-        "CT", 2018, path_by_consumer=by_consumer, path_disposition=str(disposition)
-    )
+    kwh = load_eia176_residential_kwh("CT", 2018, path_by_consumer=by_consumer, path_disposition=str(disposition))
     assert kwh == pytest.approx((110.0 + 200.0) * KWH_PER_MMBTU)
     assert "state median" in capsys.readouterr().out
 
@@ -137,9 +131,7 @@ def test_eia176_missing_heat_content_uses_state_median(
 def test_eia176_residential_raises_when_no_rows(tmp_path: Path) -> None:
     by_consumer, disposition = _write_eia(tmp_path)
     with pytest.raises(ValueError, match="no residential deliveries"):
-        load_eia176_residential_kwh(
-            "RI", 2018, path_by_consumer=by_consumer, path_disposition=disposition
-        )
+        load_eia176_residential_kwh("RI", 2018, path_by_consumer=by_consumer, path_disposition=disposition)
 
 
 def _validate(tmp_path: Path, upgrade_ids: list[str], file_types: list[str]) -> None:

@@ -826,18 +826,13 @@ def _station_in_text(station: str, text: str, *, use_negative: bool = False) -> 
     return True
 
 
-def _match_gold_book(
-    sub_names: list[str], entries: list[dict], *, use_negative: bool = False
-) -> list[dict]:
+def _match_gold_book(sub_names: list[str], entries: list[dict], *, use_negative: bool = False) -> list[dict]:
     """Find Gold Book entries where ALL listed station names appear somewhere
     in the concatenated sub-project names."""
     all_text = " ".join(_normalize(n) for n in sub_names)
     matches = []
     for entry in entries:
-        if all(
-            _station_in_text(station, all_text, use_negative=use_negative)
-            for station in entry["stations"]
-        ):
+        if all(_station_in_text(station, all_text, use_negative=use_negative) for station in entry["stations"]):
             matches.append(entry)
     return matches
 
@@ -849,9 +844,7 @@ def _match_gold_book(
 
 def read_finaldata(xlsx_bytes: bytes) -> dict[str, list[SubProject]]:
     """Read FinalData (Sheet 11) and group sub-projects by parent FN."""
-    df = pl.read_excel(
-        xlsx_bytes, sheet_id=11, raise_if_empty=False, infer_schema_length=0
-    )
+    df = pl.read_excel(xlsx_bytes, sheet_id=11, raise_if_empty=False, infer_schema_length=0)
     parents: dict[str, list[SubProject]] = {}
     for row in df.iter_rows(named=True):
         parent = row["FN Parent  #"]
@@ -868,9 +861,7 @@ def read_finaldata(xlsx_bytes: bytes) -> dict[str, list[SubProject]]:
 
         if parent not in parents:
             parents[parent] = []
-        parents[parent].append(
-            SubProject(fn=fn, name=name, invest_type=itype, capital_k=cap_k)
-        )
+        parents[parent].append(SubProject(fn=fn, name=name, invest_type=itype, capital_k=cap_k))
     return parents
 
 
@@ -886,9 +877,7 @@ def read_exhibit1(xlsx_bytes: bytes) -> list[dict]:
       18–21 = capital by cost centre: T_Station, T_Line, D_Station, D_Line
     Data rows start at row index 7 (rows 0–6 are headers).
     """
-    df = pl.read_excel(
-        xlsx_bytes, sheet_id=1, raise_if_empty=False, infer_schema_length=0
-    )
+    df = pl.read_excel(xlsx_bytes, sheet_id=1, raise_if_empty=False, infer_schema_length=0)
 
     COL_LINE, COL_REF, COL_STATION, COL_CAP = 0, 1, 2, 3
     COL_CSUM = 16
@@ -936,9 +925,7 @@ def read_exhibit1(xlsx_bytes: bytes) -> list[dict]:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def classify_project(
-    proj: dict, finaldata: dict[str, list[SubProject]]
-) -> ClassificationResult:
+def classify_project(proj: dict, finaldata: dict[str, list[SubProject]]) -> ClassificationResult:
     fn = proj["fn_reference"]
     station = proj["station"]
     line = proj["line"]
@@ -964,7 +951,7 @@ def classify_project(
         if has_t:
             total_k = proj["c_ts_k"] + proj["c_tl_k"] + proj["c_ds_k"] + proj["c_dl_k"]
             t_frac = (proj["c_ts_k"] + proj["c_tl_k"]) / total_k if total_k else 0
-            sub_types = set(s.invest_type for s in subs)
+            sub_types = {s.invest_type for s in subs}
             evidence = (
                 f"Named substation '{station}' in Exhibit 1 — this identifies it "
                 f"as a distribution project. However, {t_frac:.0%} of capital is T-side "
@@ -988,7 +975,7 @@ def classify_project(
                 sub_project_names=sub_names_str,
                 confidence="medium",
             )
-        sub_types = set(s.invest_type for s in subs)
+        sub_types = {s.invest_type for s in subs}
         evidence = (
             f"Named substation '{station}' in Exhibit 1. "
             f"All capital in D-side cost centres (C_DS=${proj['c_ds_k']:,.0f}k, "
@@ -1038,9 +1025,7 @@ def classify_project(
 
     # Step 2: Gold Book ≥230 kV match (uses negative patterns to avoid
     # "South Oswego" → "Oswego 345 kV" false positives)
-    hv_matches = _match_gold_book(
-        sub_names, GOLD_BOOK_NGRID_HIGH_VOLTAGE, use_negative=True
-    )
+    hv_matches = _match_gold_book(sub_names, GOLD_BOOK_NGRID_HIGH_VOLTAGE, use_negative=True)
     for m in hv_matches:
         all_voltages.append(m["voltage"])
         voltage_sources.append(f"Gold Book Table VII match: {m['desc']}")
@@ -1056,14 +1041,10 @@ def classify_project(
     all_sub_text = " ".join(_normalize(n) for n in sub_names)
     if "smart path" in all_sub_text or "spcp" in all_sub_text:
         all_voltages.extend([230, 345])
-        voltage_sources.append(
-            "Well-known NYISO project: Smart Path Connect (230/345kV, Queue 1125)"
-        )
+        voltage_sources.append("Well-known NYISO project: Smart Path Connect (230/345kV, Queue 1125)")
     if "niagara" in all_sub_text and "dysinger" in all_sub_text:
         all_voltages.append(345)
-        voltage_sources.append(
-            "Project name contains 'Niagara-Dysinger', known 345kV corridor"
-        )
+        voltage_sources.append("Project name contains 'Niagara-Dysinger', known 345kV corridor")
 
     # Step 5: FN-specific overrides (only if nothing else matched — these
     # are the weakest evidence tier)
@@ -1083,15 +1064,10 @@ def classify_project(
     # Case A: ONLY bulk voltages found → bulk_tx
     if has_bulk and not has_sub_tx:
         classification = "bulk_tx"
-        voltage_str = "/".join(
-            str(v) for v in sorted(set(v for v in all_voltages if v >= 230))
-        )
+        voltage_str = "/".join(str(v) for v in sorted({v for v in all_voltages if v >= 230}))
         confidence = "high" if not used_fn_override else "medium"
         inference_method = _pick_inference_method(voltage_sources, hv_matches)
-        evidence = (
-            f"All identified voltages are ≥230kV. "
-            f"Sources: {'; '.join(voltage_sources)}."
-        )
+        evidence = f"All identified voltages are ≥230kV. Sources: {'; '.join(voltage_sources)}."
 
     # Case B: BOTH bulk and sub-TX voltages → capital-weighted classification
     #
@@ -1153,8 +1129,7 @@ def classify_project(
             # refurbishment, not 345 kV station construction.
             stx_corridor = _match_gold_book([s.name], GOLD_BOOK_NGRID_SUB_TX)
             is_line_refurb = s.invest_type == "T_Line" and any(
-                w in s_norm
-                for w in ["refurb", "rebuild", "recond", "acr", "dct", "tap"]
+                w in s_norm for w in ["refurb", "rebuild", "recond", "acr", "dct", "tap"]
             )
             if stx_corridor and is_line_refurb:
                 continue
@@ -1176,9 +1151,7 @@ def classify_project(
 
         voltage_str = "/".join(str(v) for v in sorted(set(all_voltages)))
         inference_method = "mixed_voltage_capital_weighted"
-        bulk_detail_str = (
-            "; ".join(bulk_sub_details) if bulk_sub_details else "none identified"
-        )
+        bulk_detail_str = "; ".join(bulk_sub_details) if bulk_sub_details else "none identified"
         evidence = (
             f"Mixed voltages found: {sorted(set(all_voltages))}. "
             f"Bulk-voltage capital: ${bulk_capital:,.0f}k / ${total_capital:,.0f}k ({bulk_frac:.1%}). "
@@ -1190,12 +1163,8 @@ def classify_project(
     # Case C: ONLY sub-TX voltages → sub_tx
     elif has_sub_tx:
         classification = "sub_tx"
-        voltage_str = "/".join(
-            str(v) for v in sorted(set(v for v in all_voltages if 69 <= v <= 115))
-        )
-        has_strong_evidence = bool(stx_matches) or any(
-            "kV" in s or "kv" in s for s in sub_names
-        )
+        voltage_str = "/".join(str(v) for v in sorted({v for v in all_voltages if 69 <= v <= 115}))
+        has_strong_evidence = bool(stx_matches) or any("kV" in s or "kv" in s for s in sub_names)
         if has_strong_evidence:
             confidence = "high"
         elif used_fn_override:
@@ -1204,10 +1173,7 @@ def classify_project(
         else:
             confidence = "medium"
         inference_method = _pick_inference_method(voltage_sources, stx_matches)
-        evidence = (
-            f"All identified voltages are 69-115kV (sub-transmission). "
-            f"Sources: {'; '.join(voltage_sources)}."
-        )
+        evidence = f"All identified voltages are 69-115kV (sub-transmission). Sources: {'; '.join(voltage_sources)}."
 
     # Case D: No voltage found anywhere → default to sub_tx
     # This is the weakest classification.  It relies on the fact that NiMo's
@@ -1242,9 +1208,7 @@ def classify_project(
     )
 
 
-def _pick_inference_method(
-    voltage_sources: list[str], gold_book_matches: list[dict]
-) -> str:
+def _pick_inference_method(voltage_sources: list[str], gold_book_matches: list[dict]) -> str:
     """Choose a descriptive label for HOW the classification was determined.
 
     The label is a structured categorical value (not free text) that appears
@@ -1254,18 +1218,12 @@ def _pick_inference_method(
     has_finaldata_voltage = any("states" in s and "kV" in s for s in voltage_sources)
     has_gold_book = len(gold_book_matches) > 0
     has_known_project = any("Well-known" in s or "known" in s for s in voltage_sources)
-    has_fn_override = any(
-        "Gold Book Table VII" in s or "Gold Book" in s for s in voltage_sources
-    )
+    has_fn_override = any("Gold Book Table VII" in s or "Gold Book" in s for s in voltage_sources)
     has_line_number = any("line numbering" in s for s in voltage_sources)
-    has_analogy = any(
-        "analogy" in s or "consistent with" in s or "comparable" in s
-        for s in voltage_sources
-    )
+    has_analogy = any("analogy" in s or "consistent with" in s or "comparable" in s for s in voltage_sources)
     has_ev_rs = any("EV Ready Site" in s for s in voltage_sources)
     has_sta_number = any(
-        "STA " in s or "STA 1" in s or "STA 7" in s or "numbered station" in s
-        for s in voltage_sources
+        "STA " in s or "STA 1" in s or "STA 7" in s or "numbered station" in s for s in voltage_sources
     )
     has_network_default = any("NiMo's sub-TX network" in s for s in voltage_sources)
 
@@ -1314,9 +1272,7 @@ def main() -> None:
 
     print("Parsing FinalData (Sheet 11)...")
     finaldata = read_finaldata(xlsx_bytes)
-    print(
-        f"  {len(finaldata)} parent FN groups, {sum(len(v) for v in finaldata.values())} sub-projects"
-    )
+    print(f"  {len(finaldata)} parent FN groups, {sum(len(v) for v in finaldata.values())} sub-projects")
 
     print("\nClassifying projects...")
     results: list[ClassificationResult] = []
@@ -1334,9 +1290,7 @@ def main() -> None:
         items = by_cls.get(cls, [])
         mw = sum(r.capacity_mw for r in items)
         cap_m = sum(r.capital_m for r in items)
-        print(
-            f"  {cls:<15} {len(items):>4} projects  {mw:>10,.0f} MW  ${cap_m:>10,.1f}M"
-        )
+        print(f"  {cls:<15} {len(items):>4} projects  {mw:>10,.0f} MW  ${cap_m:>10,.1f}M")
 
     # ── Inference method breakdown ──
     by_method: dict[str, list[ClassificationResult]] = {}
@@ -1351,9 +1305,7 @@ def main() -> None:
     # ── Uncertain classifications ──
     uncertain = [r for r in results if r.confidence in ("low", "medium")]
     print(f"\n=== Uncertain Classifications ({len(uncertain)} projects) ===")
-    for r in sorted(
-        uncertain, key=lambda x: (-{"low": 0, "medium": 1}[x.confidence], -x.capital_m)
-    ):
+    for r in sorted(uncertain, key=lambda x: (-{"low": 0, "medium": 1}[x.confidence], -x.capital_m)):
         print(
             f"\n  Line {r.exhibit1_line:>3} | {r.fn_reference} | {r.station:<15} | "
             f"{r.capacity_mw:>7,.0f} MW | ${r.capital_m:>8,.1f}M | "

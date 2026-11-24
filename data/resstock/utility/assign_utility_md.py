@@ -35,10 +35,6 @@ from typing import cast
 import geopandas as gpd
 import polars as pl
 
-from data.resstock.utils import (
-    load_state_configs,
-    select_puma_and_heating_fuel_metadata,
-)
 from data.resstock.utility.utils import (
     GIS_CACHE_DIR,
     calculate_prior_distributions,
@@ -51,6 +47,10 @@ from data.resstock.utility.utils import (
     print_comparison_summary,
     sample_utility_per_building,
     zero_excluded_gas_utilities_and_renormalize,
+)
+from data.resstock.utils import (
+    load_state_configs,
+    select_puma_and_heating_fuel_metadata,
 )
 
 # ── MD-specific constants ─────────────────────────────────────────────────────
@@ -121,9 +121,7 @@ def assign_utility(
         gas_polygons=gas_md,
         pumas=pumas,
         state_crs=state_crs,
-        excluded_gas_utilities=frozenset(excluded_gas_utilities)
-        if excluded_gas_utilities is not None
-        else frozenset(),
+        excluded_gas_utilities=frozenset(excluded_gas_utilities) if excluded_gas_utilities is not None else frozenset(),
     )
 
 
@@ -171,9 +169,7 @@ def assign_utility_md(
         }
     ).lazy()
 
-    puma_elec_overlap = calculate_puma_utility_overlap(
-        pumas, electric_polygons, state_crs
-    )
+    puma_elec_overlap = calculate_puma_utility_overlap(pumas, electric_polygons, state_crs)
     puma_gas_overlap = calculate_puma_utility_overlap(pumas, gas_polygons, state_crs)
 
     puma_elec_probs = calculate_utility_probabilities(
@@ -189,9 +185,7 @@ def assign_utility_md(
         filter_none=False,
     )
 
-    puma_elec_probs = fill_missing_puma_probabilities(
-        puma_elec_probs, pumas, label="electric"
-    )
+    puma_elec_probs = fill_missing_puma_probabilities(puma_elec_probs, pumas, label="electric")
     puma_gas_probs = fill_missing_puma_probabilities(puma_gas_probs, pumas, label="gas")
 
     if excluded_gas_utilities:
@@ -202,9 +196,7 @@ def assign_utility_md(
             puma_and_heating_fuel=puma_and_heating_fuel,
         )
 
-    building_elec = sample_utility_per_building(
-        puma_and_heating_fuel, puma_elec_probs, "sb.electric_utility"
-    )
+    building_elec = sample_utility_per_building(puma_and_heating_fuel, puma_elec_probs, "sb.electric_utility")
     building_gas = sample_utility_per_building(
         puma_and_heating_fuel,
         puma_gas_probs,
@@ -229,9 +221,7 @@ def assign_utility_md(
         how="left",
     )
 
-    input_metadata = input_metadata.drop(
-        ["sb.electric_utility", "sb.gas_utility"], strict=False
-    )
+    input_metadata = input_metadata.drop(["sb.electric_utility", "sb.gas_utility"], strict=False)
 
     counts_df = (
         input_metadata.select(pl.lit(1).sum().alias("input_count"))

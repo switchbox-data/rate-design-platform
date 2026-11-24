@@ -11,13 +11,13 @@ Usage:
 
 from __future__ import annotations
 
-from utils.numeric import as_float
-
 import calendar
 import sys
 from pathlib import Path
 
 import polars as pl
+
+from utils.numeric import as_float
 
 CANONICAL_COLUMNS = {
     "interval_start_et": pl.Datetime("us", "America/New_York"),
@@ -142,11 +142,7 @@ def check_location_ids(df: pl.DataFrame, result: ValidationResult) -> None:
 
 def check_uniqueness(df: pl.DataFrame, result: ValidationResult) -> None:
     """interval_start_et should be unique within each zone partition."""
-    dupes = (
-        df.group_by("zone", "interval_start_et")
-        .agg(pl.len().alias("n"))
-        .filter(pl.col("n") > 1)
-    )
+    dupes = df.group_by("zone", "interval_start_et").agg(pl.len().alias("n")).filter(pl.col("n") > 1)
     if dupes.height > 0:
         result.error(
             "Uniqueness",
@@ -170,10 +166,7 @@ def check_row_counts(df: pl.DataFrame, result: ValidationResult) -> None:
     for row in counts.iter_rows(named=True):
         _, min_h, max_h = _expected_hours(row["year"], row["month"])
         if not (min_h <= row["n"] <= max_h):
-            bad.append(
-                f"{row['zone']} {row['year']}-{row['month']:02d}: "
-                f"{row['n']} rows (expected {min_h}–{max_h})"
-            )
+            bad.append(f"{row['zone']} {row['year']}-{row['month']:02d}: {row['n']} rows (expected {min_h}–{max_h})")
     if bad:
         for b in bad:
             result.warn("Row counts", b)
@@ -219,14 +212,12 @@ def check_decomposition(df: pl.DataFrame, result: ValidationResult) -> None:
     if n_bad > 0:
         result.error(
             "LMP decomposition",
-            f"{n_bad} rows where |LMP - (energy+congestion+losses)| > {DECOMP_TOLERANCE} "
-            f"(max diff: {max_diff:.6f})",
+            f"{n_bad} rows where |LMP - (energy+congestion+losses)| > {DECOMP_TOLERANCE} (max diff: {max_diff:.6f})",
         )
     else:
         result.passed(
             "LMP decomposition",
-            f"all rows satisfy |LMP - components| < {DECOMP_TOLERANCE} "
-            f"(max diff: {max_diff:.6f})",
+            f"all rows satisfy |LMP - components| < {DECOMP_TOLERANCE} (max diff: {max_diff:.6f})",
         )
 
 
@@ -249,17 +240,13 @@ def check_cross_year_continuity(df: pl.DataFrame, result: ValidationResult) -> N
             ratio = prices[i] / prices[i - 1]
             if ratio > 5.0 or ratio < 0.2:
                 jumps.append(
-                    f"{zone}: {years[i - 1]}→{years[i]} = {ratio:.1f}x "
-                    f"(${prices[i - 1]:.2f}→${prices[i]:.2f})"
+                    f"{zone}: {years[i - 1]}→{years[i]} = {ratio:.1f}x (${prices[i - 1]:.2f}→${prices[i]:.2f})"
                 )
     if jumps:
         for j in jumps:
             result.warn("Year-over-year continuity", j)
     else:
-        n_transitions = sum(
-            annual.filter(pl.col("zone") == z).height - 1
-            for z in annual["zone"].unique().to_list()
-        )
+        n_transitions = sum(annual.filter(pl.col("zone") == z).height - 1 for z in annual["zone"].unique().to_list())
         result.passed(
             "Year-over-year continuity",
             f"no jumps >5x across {n_transitions} year transitions",
@@ -278,10 +265,7 @@ def check_price_summary_by_zone(df: pl.DataFrame, result: ValidationResult) -> N
     )
     lines = []
     for row in summary.iter_rows(named=True):
-        lines.append(
-            f"{row['zone']}: ${row['min']:.2f}–${row['max']:.2f} "
-            f"(mean ${row['mean']:.2f})"
-        )
+        lines.append(f"{row['zone']}: ${row['min']:.2f}–${row['max']:.2f} (mean ${row['mean']:.2f})")
     result.passed("Price summary by zone", "; ".join(lines))
 
 
@@ -337,9 +321,7 @@ def validate_series(root: Path, series: str, result: ValidationResult) -> int:
 def main() -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Validate ISO-NE zonal LMP parquet tree."
-    )
+    parser = argparse.ArgumentParser(description="Validate ISO-NE zonal LMP parquet tree.")
     parser.add_argument(
         "--path-local-parquet",
         type=Path,

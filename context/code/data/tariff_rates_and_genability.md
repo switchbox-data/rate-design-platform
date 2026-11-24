@@ -80,7 +80,7 @@ bands = ru.rate_filter_bands(rate, scenario, library)
 band_rate_units = {band["rate_unit"] for band in bands}  # empty set when bands=[]
 if rate["charge_type"] != "FIXED_PRICE":
     return 0
-if "COST_PER_UNIT" not in band_rate_units:               # always True for empty set
+if "COST_PER_UNIT" not in band_rate_units:  # always True for empty set
     raise RateConversionError(rate, "Fixed price rate bands units should be COST_PER_UNIT")
 ```
 
@@ -158,7 +158,7 @@ contains the exact same rate (identical `tariff_rate_id`).
 
 ```python
 if rate["rate_bands"]:
-    yield rate                         # yields the inline copy
+    yield rate  # yields the inline copy
 elif rider_id := rate.get("rider_id"):
     rider_tariff = library.tariffs.get_tariff(rider_id)
     yield from tariff_iter_rates_for_dt(rider_tariff, ...)  # yields the same rate again

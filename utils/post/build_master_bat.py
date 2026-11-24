@@ -110,10 +110,7 @@ UPGRADE_02_RUNS = {
     39,
     40,
 }
-VALID_RUN_PAIRS = {
-    (r, r + 1)
-    for r in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39)
-}
+VALID_RUN_PAIRS = {(r, r + 1) for r in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39)}
 
 BAT_METRICS_KNOWN = ["BAT_vol", "BAT_peak", "BAT_percustomer", "BAT_epmc"]
 
@@ -227,9 +224,7 @@ def _find_run_dir(s3_base: str, run_num: int) -> str:
     for dirname in prefixes:
         if marker in dirname:
             return f"{s3_base.rstrip('/')}/{dirname}"
-    raise FileNotFoundError(
-        f"No run directory matching '{marker}' under {s3_base}. Available: {prefixes}"
-    )
+    raise FileNotFoundError(f"No run directory matching '{marker}' under {s3_base}. Available: {prefixes}")
 
 
 def _parse_batch_overrides(raw: list[str] | None) -> dict[str, str]:
@@ -239,9 +234,7 @@ def _parse_batch_overrides(raw: list[str] | None) -> dict[str, str]:
     overrides: dict[str, str] = {}
     for item in raw:
         if "=" not in item:
-            raise ValueError(
-                f"Invalid --batch-override format '{item}'; expected UTILITY=BATCH"
-            )
+            raise ValueError(f"Invalid --batch-override format '{item}'; expected UTILITY=BATCH")
         utility, batch = item.split("=", 1)
         overrides[utility] = batch
     return overrides
@@ -265,18 +258,14 @@ def _upgrade_for_run(run_delivery: int) -> str:
         return "00"
     if run_delivery in UPGRADE_02_RUNS:
         return "02"
-    raise ValueError(
-        f"Cannot infer upgrade for run {run_delivery}; not in UPGRADE_00_RUNS or UPGRADE_02_RUNS"
-    )
+    raise ValueError(f"Cannot infer upgrade for run {run_delivery}; not in UPGRADE_00_RUNS or UPGRADE_02_RUNS")
 
 
 def _validate_run_pair(run_delivery: int, run_supply: int) -> None:
     """Require a valid delivery+supply pair (1+2, 3+4, ..., 11+12)."""
     if (run_delivery, run_supply) not in VALID_RUN_PAIRS:
         expected = ", ".join(f"{d}+{s}" for d, s in sorted(VALID_RUN_PAIRS))
-        raise ValueError(
-            f"Invalid run pair {run_delivery}+{run_supply}. Expected one of: {expected}"
-        )
+        raise ValueError(f"Invalid run pair {run_delivery}+{run_supply}. Expected one of: {expected}")
 
 
 def _assert_building_match(
@@ -299,22 +288,17 @@ def _assert_building_match(
         )
 
 
-def _assert_rows_per_building(
-    df: pl.DataFrame, expected: int, label: str, utility: str
-) -> None:
+def _assert_rows_per_building(df: pl.DataFrame, expected: int, label: str, utility: str) -> None:
     counts = df.group_by(BLDG_ID).agg(pl.len().alias("n"))
     bad = counts.filter(pl.col("n") != expected)
     if not bad.is_empty():
         examples = bad.head(5).to_dicts()
         raise AssertionError(
-            f"[{utility}] {label}: expected {expected} rows per building, "
-            f"but found exceptions: {examples}"
+            f"[{utility}] {label}: expected {expected} rows per building, but found exceptions: {examples}"
         )
 
 
-def _assert_bat_identity(
-    df: pl.DataFrame, metric: str, tol: float, utility: str
-) -> None:
+def _assert_bat_identity(df: pl.DataFrame, metric: str, tol: float, utility: str) -> None:
     """Assert BAT_m_total == BAT_m_delivery + BAT_m_supply."""
     total_col = f"{metric}_total"
     delivery_col = f"{metric}_delivery"
@@ -324,11 +308,7 @@ def _assert_bat_identity(
     if not violations.is_empty():
         n = violations.height
         max_diff = cast(float, violations.select(diff.alias("d"))["d"].max())
-        example = (
-            violations.head(3)
-            .select(BLDG_ID, total_col, delivery_col, supply_col)
-            .to_dicts()
-        )
+        example = violations.head(3).select(BLDG_ID, total_col, delivery_col, supply_col).to_dicts()
         raise AssertionError(
             f"[{utility}] Identity violation: {total_col} != "
             f"{delivery_col} + {supply_col}. "
@@ -419,12 +399,8 @@ def _process_utility(
     # --- Validate building IDs ---
     delivery_ids = set(bat_delivery_df[BLDG_ID].unique().to_list())
     supply_ids = set(bat_supply_df[BLDG_ID].unique().to_list())
-    _assert_building_match(
-        "bat_delivery", delivery_ids, "bat_supply", supply_ids, utility
-    )
-    _assert_building_match(
-        "bat_delivery", delivery_ids, "metadata", meta_bldg_ids, utility
-    )
+    _assert_building_match("bat_delivery", delivery_ids, "bat_supply", supply_ids, utility)
+    _assert_building_match("bat_delivery", delivery_ids, "metadata", meta_bldg_ids, utility)
     _assert_rows_per_building(bat_delivery_df, 1, "bat_delivery", utility)
     _assert_rows_per_building(bat_supply_df, 1, "bat_supply", utility)
 
@@ -447,20 +423,12 @@ def _process_utility(
     bat_metrics = [m for m in BAT_METRICS_KNOWN if m in delivery_cols]
     missing_bat = set(BAT_METRICS_KNOWN) - set(bat_metrics)
     if missing_bat:
-        _log(
-            f"  [{utility}] BAT metrics not in CAIRO output (skipping): "
-            f"{sorted(missing_bat)}"
-        )
+        _log(f"  [{utility}] BAT metrics not in CAIRO output (skipping): {sorted(missing_bat)}")
 
-    cost_components_src = {
-        k: v for k, v in COST_COMPONENTS_SRC_KNOWN.items() if k in delivery_cols
-    }
+    cost_components_src = {k: v for k, v in COST_COMPONENTS_SRC_KNOWN.items() if k in delivery_cols}
     missing_cost = set(COST_COMPONENTS_SRC_KNOWN) - set(cost_components_src)
     if missing_cost:
-        _log(
-            f"  [{utility}] Cost components not in CAIRO output (skipping): "
-            f"{sorted(missing_cost)}"
-        )
+        _log(f"  [{utility}] Cost components not in CAIRO output (skipping): {sorted(missing_cost)}")
     cost_components = list(cost_components_src.values())
 
     # --- Validate no nulls in source columns ---
@@ -474,18 +442,12 @@ def _process_utility(
     delivery_select = (
         [BLDG_ID, "weight"]
         + [pl.col(m).alias(f"{m}_delivery") for m in bat_metrics]
-        + [
-            pl.col(src).alias(f"{short}_delivery")
-            for src, short in cost_components_src.items()
-        ]
+        + [pl.col(src).alias(f"{short}_delivery") for src, short in cost_components_src.items()]
     )
     supply_select = (
         [BLDG_ID]
         + [pl.col(m).alias(f"{m}_total") for m in bat_metrics]
-        + [
-            pl.col(src).alias(f"{short}_total")
-            for src, short in cost_components_src.items()
-        ]
+        + [pl.col(src).alias(f"{short}_total") for src, short in cost_components_src.items()]
     )
     bat = (
         bat_delivery_df.select(delivery_select)
@@ -495,14 +457,8 @@ def _process_utility(
             how="inner",
         )
         .with_columns(
-            [
-                (pl.col(f"{m}_total") - pl.col(f"{m}_delivery")).alias(f"{m}_supply")
-                for m in bat_metrics
-            ]
-            + [
-                (pl.col(f"{c}_total") - pl.col(f"{c}_delivery")).alias(f"{c}_supply")
-                for c in cost_components
-            ]
+            [(pl.col(f"{m}_total") - pl.col(f"{m}_delivery")).alias(f"{m}_supply") for m in bat_metrics]
+            + [(pl.col(f"{c}_total") - pl.col(f"{c}_delivery")).alias(f"{c}_supply") for c in cost_components]
         )
     )
     _log_done("  BAT decomposition", t, f"{bat.height} rows")
@@ -553,9 +509,7 @@ def _process_utility(
     _log_done("  Joining with metadata", t, f"{joined.height} rows")
 
     if joined.height != n_bldgs:
-        raise AssertionError(
-            f"[{utility}] Expected {n_bldgs} rows (1 per building), got {joined.height}"
-        )
+        raise AssertionError(f"[{utility}] Expected {n_bldgs} rows (1 per building), got {joined.height}")
 
     # --- Validate identities and nulls ---
     for m in bat_metrics:
@@ -564,22 +518,11 @@ def _process_utility(
         _assert_bat_identity(joined, c, FLOAT_TOL, utility)
     _assert_bill_decomposition(joined, FLOAT_TOL, utility)
 
-    bat_output_cols = [
-        f"{m}_{component}"
-        for m in bat_metrics
-        for component in ("delivery", "supply", "total")
-    ]
-    cost_output_cols = [
-        f"{c}_{component}"
-        for c in cost_components
-        for component in ("delivery", "supply", "total")
-    ]
+    bat_output_cols = [f"{m}_{component}" for m in bat_metrics for component in ("delivery", "supply", "total")]
+    cost_output_cols = [f"{c}_{component}" for c in cost_components for component in ("delivery", "supply", "total")]
     _assert_no_nulls(
         joined,
-        ["weight"]
-        + bat_output_cols
-        + cost_output_cols
-        + ["passthrough_delivery", "passthrough_supply"],
+        ["weight", *bat_output_cols, *cost_output_cols, "passthrough_delivery", "passthrough_supply"],
         utility,
     )
 
@@ -660,16 +603,13 @@ def main() -> None:
     if batch_overrides:
         _log(f"  Batch overrides: {batch_overrides}")
 
-    output_batch_all_util = args.output_batch or _build_output_path_suffix(
-        args.batch, batch_overrides
-    )
+    output_batch_all_util = args.output_batch or _build_output_path_suffix(args.batch, batch_overrides)
     storage_options = get_aws_storage_options()
 
     # --- Load metadata ---
     t = _log("Loading metadata from utility_assignment.parquet...")
     meta_path = (
-        f"{args.path_resstock_release.rstrip('/')}"
-        f"/metadata_utility/state={state_upper}/utility_assignment.parquet"
+        f"{args.path_resstock_release.rstrip('/')}/metadata_utility/state={state_upper}/utility_assignment.parquet"
     )
     metadata = pl.scan_parquet(meta_path).collect()
     n_bldgs_total = metadata[BLDG_ID].n_unique()
@@ -702,10 +642,7 @@ def main() -> None:
         )
 
         # --- Write per-utility output ---
-        per_util_output_s3 = (
-            f"{s3_base}/run_{args.run_delivery}+{args.run_supply}/"
-            f"cross_subsidization_BAT_values/"
-        )
+        per_util_output_s3 = f"{s3_base}/run_{args.run_delivery}+{args.run_supply}/cross_subsidization_BAT_values/"
         t_util = _log(f"  Writing per-utility output to {per_util_output_s3}...")
         tmp_util_dir = Path(tempfile.mkdtemp(prefix=f"master_bat_{utility}_"))
         try:
@@ -738,27 +675,20 @@ def main() -> None:
     expected_bldgs = sum(bldgs_per_utility[u] for u in utilities)
     if final_bldg_count != expected_bldgs:
         raise AssertionError(
-            f"Final building count {final_bldg_count} != expected {expected_bldgs} "
-            f"(across {len(utilities)} utilities)"
+            f"Final building count {final_bldg_count} != expected {expected_bldgs} (across {len(utilities)} utilities)"
         )
 
-    per_util_check = master.group_by("sb.electric_utility").agg(
-        pl.col(BLDG_ID).n_unique().alias("n_bldgs")
-    )
+    per_util_check = master.group_by("sb.electric_utility").agg(pl.col(BLDG_ID).n_unique().alias("n_bldgs"))
     for row in per_util_check.iter_rows(named=True):
         u = row["sb.electric_utility"]
         actual = row["n_bldgs"]
         expected = bldgs_per_utility.get(u, -1)
         if actual != expected:
-            raise AssertionError(
-                f"Utility {u}: expected {expected} buildings, got {actual}"
-            )
+            raise AssertionError(f"Utility {u}: expected {expected} buildings, got {actual}")
 
     master_cols = set(master.columns)
     final_bat_metrics = [m for m in BAT_METRICS_KNOWN if f"{m}_delivery" in master_cols]
-    final_cost_components = [
-        v for v in COST_COMPONENTS_SRC_KNOWN.values() if f"{v}_delivery" in master_cols
-    ]
+    final_cost_components = [v for v in COST_COMPONENTS_SRC_KNOWN.values() if f"{v}_delivery" in master_cols]
     for m in final_bat_metrics:
         _assert_bat_identity(master, m, FLOAT_TOL, "ALL")
     for c in final_cost_components:

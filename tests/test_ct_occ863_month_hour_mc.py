@@ -13,16 +13,14 @@ import polars as pl
 import pytest
 
 from utils.data_prep.marginal_costs.convert_ct_occ863_month_hour_mc import (
-    Voltage,
     _MATRIX_TITLES,
+    Voltage,
     month_hour_marginal_costs,
     read_sheet,
 )
 
 
-def _matrix_block(
-    title: str, day_counts: list[int], value: float
-) -> list[tuple[object, ...]]:
+def _matrix_block(title: str, day_counts: list[int], value: float) -> list[tuple[object, ...]]:
     width = 16
     rows: list[tuple[object, ...]] = []
     title_row: list[object] = [None] * width
@@ -61,21 +59,19 @@ def _page(voltage: Voltage, *, weekday_days: list[int] | None = None) -> pl.Data
         weekday_days = default_weekday
     all_days = [a + b for a, b in zip(default_weekday, weekend_days, strict=True)]
     all_days_title, weekday_title, weekend_title = _MATRIX_TITLES[voltage]
-    rows = (
-        [("title",)]
-        + _matrix_block(all_days_title, all_days, 0.001)
-        + _matrix_block(weekday_title, weekday_days, 0.02557)
-        + _matrix_block(weekend_title, weekend_days, 0.00011)
-    )
+    rows = [
+        ("title",),
+        *_matrix_block(all_days_title, all_days, 0.001),
+        *_matrix_block(weekday_title, weekday_days, 0.02557),
+        *_matrix_block(weekend_title, weekend_days, 0.00011),
+    ]
     width = max(len(row) for row in rows)
     padded = [row + (None,) * (width - len(row)) for row in rows]
     return pl.DataFrame(padded, orient="row")
 
 
 def test_melts_weekdays_with_the_day_count_repeated_on_every_hour() -> None:
-    all_days, weekday, weekend = month_hour_marginal_costs(
-        _page("secondary"), "secondary"
-    )
+    all_days, weekday, weekend = month_hour_marginal_costs(_page("secondary"), "secondary")
     assert weekday.columns == ["month", "hour", "num_days", "mc_total_per_kwh"]
     assert all_days.height == 288
     assert weekday.height == 288
@@ -97,9 +93,9 @@ def test_melts_weekdays_with_the_day_count_repeated_on_every_hour() -> None:
 
 def test_reads_primary_titles() -> None:
     all_days, _, _ = month_hour_marginal_costs(_page("primary"), "primary")
-    assert all_days.filter((pl.col("month") == 8) & (pl.col("hour") == 16))[
-        "mc_total_per_kwh"
-    ].item() == pytest.approx(0.001)
+    assert all_days.filter((pl.col("month") == 8) & (pl.col("hour") == 16))["mc_total_per_kwh"].item() == pytest.approx(
+        0.001
+    )
 
 
 def test_read_sheet_keeps_full_precision_in_mixed_columns(tmp_path: Path) -> None:
@@ -119,6 +115,4 @@ def test_read_sheet_keeps_full_precision_in_mixed_columns(tmp_path: Path) -> Non
 def test_rejects_day_counts_that_do_not_add_up() -> None:
     weekday_days = [18, 19, 23, 22, 20, 21, 21, 22, 21, 20, 20, 22]
     with pytest.raises(ValueError, match="day counts"):
-        month_hour_marginal_costs(
-            _page("secondary", weekday_days=weekday_days), "secondary"
-        )
+        month_hour_marginal_costs(_page("secondary", weekday_days=weekday_days), "secondary")

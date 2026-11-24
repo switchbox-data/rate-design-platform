@@ -78,9 +78,7 @@ def _parse_iso(s: str) -> datetime:
     return datetime.fromisoformat(s.strip())
 
 
-def _resolve_effective_rate(
-    entries: list[dict], month_start: str, month_end: str
-) -> float | None:
+def _resolve_effective_rate(entries: list[dict], month_start: str, month_end: str) -> float | None:
     """Day-weighted average rate for the calendar month."""
     if len(entries) == 1:
         return entries[0]["rateAmount"]
@@ -113,10 +111,7 @@ def _resolve_effective_rate(
 
 def _month_range(year: int, month: int) -> tuple[str, str]:
     from_dt = f"{year}-{month:02d}-01"
-    if month == 12:
-        to_dt = f"{year + 1}-01-01"
-    else:
-        to_dt = f"{year}-{month + 1:02d}-01"
+    to_dt = f"{year + 1}-01-01" if month == 12 else f"{year}-{month + 1:02d}-01"
     return from_dt, to_dt
 
 
@@ -436,9 +431,7 @@ def _collapse_redundant_bands(entries: list[dict]) -> None:
             e.get("rate_name", "?"),
             e.get("master_charge", "?"),
         )
-        e["band_monthly_rates"] = [
-            {"upper_limit": None, "monthly_rates": bands[0].get("monthly_rates", {})}
-        ]
+        e["band_monthly_rates"] = [{"upper_limit": None, "monthly_rates": bands[0].get("monthly_rates", {})}]
 
 
 def _determine_rate_structure(
@@ -516,9 +509,7 @@ def _tou_label(entry: dict) -> str:
     return ""
 
 
-def _sum_monthly_rates(
-    existing: dict[str, float], incoming: dict[str, float]
-) -> dict[str, float]:
+def _sum_monthly_rates(existing: dict[str, float], incoming: dict[str, float]) -> dict[str, float]:
     """Sum two monthly-rate dicts month-by-month."""
     merged = dict(existing)
     for mo, val in incoming.items():
@@ -639,10 +630,7 @@ def _build_seasonal_tiered_charge(entries: list[dict]) -> dict:
         for e in entries:
             season = _season_label(e) or "all"
             ebmr = e.get("band_monthly_rates") or []
-            if band_idx < len(ebmr):
-                rates = ebmr[band_idx]["monthly_rates"]
-            else:
-                rates = e["monthly_rates"]
+            rates = ebmr[band_idx]["monthly_rates"] if band_idx < len(ebmr) else e["monthly_rates"]
             if season in per_season:
                 per_season[season] = _sum_monthly_rates(per_season[season], rates)
             else:
@@ -688,14 +676,11 @@ def _build_seasonal_tou_charge(entries: list[dict]) -> dict:
         label = _tou_slot_label(e)
         if label in per_period:
             log.warning(
-                "Seasonal-TOU merge: master_charge %r has multiple entries in "
-                "slot %r — summing per month.",
+                "Seasonal-TOU merge: master_charge %r has multiple entries in slot %r — summing per month.",
                 base.get("master_charge", "?"),
                 label,
             )
-            per_period[label] = _sum_monthly_rates(
-                per_period[label], e["monthly_rates"]
-            )
+            per_period[label] = _sum_monthly_rates(per_period[label], e["monthly_rates"])
         else:
             per_period[label] = dict(e["monthly_rates"])
 
@@ -703,21 +688,16 @@ def _build_seasonal_tou_charge(entries: list[dict]) -> dict:
         if not per_period:
             # No TOU slots in this group at all; keep a single unsplit series.
             label = _tou_slot_label(e)
-            per_period[label] = _sum_monthly_rates(
-                per_period.get(label, {}), e["monthly_rates"]
-            )
+            per_period[label] = _sum_monthly_rates(per_period.get(label, {}), e["monthly_rates"])
             continue
         log.warning(
-            "Seasonal-TOU merge: %r (master_charge %r) has no TOU period — "
-            "broadcasting it into all %d TOU slot(s).",
+            "Seasonal-TOU merge: %r (master_charge %r) has no TOU period — broadcasting it into all %d TOU slot(s).",
             e.get("rate_name", "?"),
             base.get("master_charge", "?"),
             len(per_period),
         )
         for label in per_period:
-            per_period[label] = _sum_monthly_rates(
-                per_period[label], e["monthly_rates"]
-            )
+            per_period[label] = _sum_monthly_rates(per_period[label], e["monthly_rates"])
 
     return {"charge_unit": base["charge_unit"], "monthly_rates": per_period}
 
@@ -781,9 +761,7 @@ def _build_grouped_output(
                 idx += 1
                 slug = f"{base_slug}_{idx}"
 
-            has_season_or_tou = any(
-                e.get("season_meta") or e.get("tou_meta") for e in grp
-            )
+            has_season_or_tou = any(e.get("season_meta") or e.get("tou_meta") for e in grp)
 
             if rate_structure == "flat" or not has_season_or_tou:
                 charges[slug] = _build_flat_charge(grp)
@@ -827,9 +805,7 @@ def discover_charges(
 
     utility = utility.lower()
     if utility not in UTILITY_MASTER_TARIFF_IDS:
-        raise SystemExit(
-            f"Unknown utility {utility!r}. Known: {sorted(UTILITY_MASTER_TARIFF_IDS)}"
-        )
+        raise SystemExit(f"Unknown utility {utility!r}. Known: {sorted(UTILITY_MASTER_TARIFF_IDS)}")
     master_tariff_id = UTILITY_MASTER_TARIFF_IDS[utility]
 
     log.info(
@@ -839,9 +815,7 @@ def discover_charges(
         effective_date,
     )
 
-    discovered, unresolved_rider_ids = _discover_tariff_rates(
-        base_url, auth, master_tariff_id, effective_date
-    )
+    discovered, unresolved_rider_ids = _discover_tariff_rates(base_url, auth, master_tariff_id, effective_date)
     log.info(
         "Base tariff: %d rate entries, %d unresolved rider(s)",
         len(discovered),
@@ -882,9 +856,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Fetch monthly volumetric rates for all classified charges from Genability."
     )
-    parser.add_argument(
-        "--utility", required=True, help="Utility shortcode (e.g. coned, rie)"
-    )
+    parser.add_argument("--utility", required=True, help="Utility shortcode (e.g. coned, rie)")
     parser.add_argument(
         "--discover",
         action="store_true",
@@ -920,9 +892,7 @@ def main() -> None:
         return
 
     if not args.start or not args.end or not args.path_charge_list:
-        raise SystemExit(
-            "--start, --end, and --path-charge-list are required in normal mode"
-        )
+        raise SystemExit("--start, --end, and --path-charge-list are required in normal mode")
 
     start_parts = args.start.split("-")
     end_parts = args.end.split("-")
@@ -943,9 +913,7 @@ def main() -> None:
 
     utility = args.utility.lower()
     if utility not in UTILITY_MASTER_TARIFF_IDS:
-        raise SystemExit(
-            f"Unknown utility {args.utility!r}. Known: {sorted(UTILITY_MASTER_TARIFF_IDS)}"
-        )
+        raise SystemExit(f"Unknown utility {args.utility!r}. Known: {sorted(UTILITY_MASTER_TARIFF_IDS)}")
     master_tariff_id = UTILITY_MASTER_TARIFF_IDS[utility]
 
     _ACTIVE_DECISIONS = {"add_to_drr", "add_to_srr", "already_in_drr"}
@@ -999,8 +967,7 @@ def main() -> None:
         if decision in _ACTIVE_DECISIONS:
             classified_charges[trid] = {
                 "master_charge": info.get("master_charge", ""),
-                "variableRateKey": info.get("variableRateKey")
-                or info.get("variable_rate_key"),
+                "variableRateKey": info.get("variableRateKey") or info.get("variable_rate_key"),
                 "rate_name": info.get("rate_name"),
                 "decision": decision,
                 "charge_unit": info.get("charge_unit"),
@@ -1044,9 +1011,7 @@ def main() -> None:
         rn = classified_charges[trid].get("rate_name")
         if rn and not vrk:
             name_candidates.setdefault(rn.lower().strip(), []).append(slug)
-    name_to_slug: dict[str, str] = {
-        rn: slugs[0] for rn, slugs in name_candidates.items() if len(slugs) == 1
-    }
+    name_to_slug: dict[str, str] = {rn: slugs[0] for rn, slugs in name_candidates.items() if len(slugs) == 1}
 
     unrecognized_rates: dict[tuple[str], set[str]] = defaultdict(set)
 
@@ -1068,8 +1033,7 @@ def main() -> None:
         }
         if ci.get("is_tiered") and ci.get("rate_bands"):
             entry["band_monthly_rates"] = [
-                {"upper_limit": b.get("upper_limit"), "monthly_rates": {}}
-                for b in ci["rate_bands"]
+                {"upper_limit": b.get("upper_limit"), "monthly_rates": {}} for b in ci["rate_bands"]
             ]
         charges_data[slug] = entry
 
@@ -1088,9 +1052,7 @@ def main() -> None:
     while (cur_year, cur_month) <= (end_year, end_month):
         from_dt, to_dt = _month_range(cur_year, cur_month)
         month_key = from_dt[:7]
-        rate_map, unresolved_riders = _fetch_tariff_rates(
-            base_url, auth, master_tariff_id, from_dt
-        )
+        rate_map, unresolved_riders = _fetch_tariff_rates(base_url, auth, master_tariff_id, from_dt)
 
         # --- Match API entries to charge_decisions ---
         def _match_slug(api_trid: int, info: dict) -> str | None:
@@ -1173,9 +1135,7 @@ def main() -> None:
                 rider_rates, _ = _fetch_tariff_rates(base_url, auth, rid, from_dt)
             except requests.HTTPError as exc:
                 if first_month:
-                    status = (
-                        exc.response.status_code if exc.response is not None else "?"
-                    )
+                    status = exc.response.status_code if exc.response is not None else "?"
                     log.warning("Rider %d returned %s; skipping", rid, status)
                 continue
             time.sleep(0.2)
@@ -1233,11 +1193,11 @@ def main() -> None:
 
     for info in charges_data.values():
         if not info["monthly_rates"]:
-            info["monthly_rates"] = {mo: 0.0 for mo in all_months}
+            info["monthly_rates"] = dict.fromkeys(all_months, 0.0)
         if info["band_monthly_rates"]:
             for band in info["band_monthly_rates"]:
                 if not band["monthly_rates"]:
-                    band["monthly_rates"] = {mo: 0.0 for mo in all_months}
+                    band["monthly_rates"] = dict.fromkeys(all_months, 0.0)
 
     # -----------------------------------------------------------------------
     # Build grouped YAML output
@@ -1253,9 +1213,7 @@ def main() -> None:
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w") as f:
-        yaml.safe_dump(
-            out, f, default_flow_style=False, sort_keys=False, allow_unicode=True
-        )
+        yaml.safe_dump(out, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
 
 if __name__ == "__main__":

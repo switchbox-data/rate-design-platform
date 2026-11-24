@@ -53,9 +53,7 @@ def fetch_file_list(year="2024"):
     """Fetch the list of available files from the API."""
     project_uuid = PROJECT_UUIDS.get(year)
     if not project_uuid:
-        console.print(
-            f"[red]Invalid year: {year}. Available years: {', '.join(PROJECT_UUIDS.keys())}[/red]"
-        )
+        console.print(f"[red]Invalid year: {year}. Available years: {', '.join(PROJECT_UUIDS.keys())}[/red]")
         return None
 
     response = requests.post(
@@ -95,9 +93,7 @@ def display_files_table(files, year="2024"):
     console.print(
         "[dim]The following datasets are available for download from the National Renewable Energy Laboratory[/dim]"
     )
-    console.print(
-        f"[dim]Source: https://scenarioviewer.nrel.gov/?project={project_uuid}&mode=download[/dim]\n"
-    )
+    console.print(f"[dim]Source: https://scenarioviewer.nrel.gov/?project={project_uuid}&mode=download[/dim]\n")
 
     table = Table(
         title=f"Cambium {year} Available Files",
@@ -141,10 +137,7 @@ def download_files(
         console.print("[yellow]No files to download[/yellow]")
         return
 
-    if output_dir is None:
-        output_dir = Path(f"zips/{year}")
-    else:
-        output_dir = Path(output_dir)
+    output_dir = Path(f"zips/{year}") if output_dir is None else Path(output_dir)
 
     # Show CLI command to reproduce this selection
     if show_cli_command:
@@ -166,23 +159,17 @@ def download_files(
             if len(parts) > 2:  # More than year + output
                 cli_command = f"uv run python fetch_cambium_csvs.py {' '.join(parts)}"
             else:
-                cli_command = (
-                    f"uv run python fetch_cambium_csvs.py --year {year} --output"
-                    f" {output_dir} --id {f['id']}"
-                )
+                cli_command = f"uv run python fetch_cambium_csvs.py --year {year} --output {output_dir} --id {f['id']}"
         else:
             # Multiple files - use IDs
             file_ids = [str(f["id"]) for f in files_to_download]
             cli_command = (
-                f"uv run python fetch_cambium_csvs.py --year {year} --output"
-                f" {output_dir} --id {' '.join(file_ids)}"
+                f"uv run python fetch_cambium_csvs.py --year {year} --output {output_dir} --id {' '.join(file_ids)}"
             )
 
         console.print(f"[cyan]{cli_command}[/cyan]\n")
 
-    console.print(
-        f"[cyan]Fetching S3 URLs for {len(files_to_download)} file(s)...[/cyan]\n"
-    )
+    console.print(f"[cyan]Fetching S3 URLs for {len(files_to_download)} file(s)...[/cyan]\n")
 
     # Get S3 URLs
     with console.status("[bold cyan]Getting presigned URLs...") as status:
@@ -198,7 +185,9 @@ def download_files(
     download_dir.mkdir(parents=True, exist_ok=True)
 
     for i, file in enumerate(successful, 1):
-        filename = f"cambium{year}_{file['id']}_{file['scenario']}_{file['time_resolution']}_{file['location_type']}.zip"
+        filename = (
+            f"cambium{year}_{file['id']}_{file['scenario']}_{file['time_resolution']}_{file['location_type']}.zip"
+        )
         filename = filename.replace(" ", "_").replace("/", "-")
         filepath = download_dir / filename
 
@@ -210,9 +199,7 @@ def download_files(
                 check=True,
                 capture_output=True,
             )
-            console.print(
-                f"[green]  ✓ Downloaded ({format_bytes(file['size'])})[/green]"
-            )
+            console.print(f"[green]  ✓ Downloaded ({format_bytes(file['size'])})[/green]")
         except subprocess.CalledProcessError:
             console.print("[red]  ✗ Failed to download[/red]")
 
@@ -240,32 +227,22 @@ def filter_files(
     if metric:
         filtered = [f for f in filtered if metric.lower() in f["metric"].lower()]
     if resolution:
-        filtered = [
-            f for f in filtered if resolution.lower() in f["time_resolution"].lower()
-        ]
+        filtered = [f for f in filtered if resolution.lower() in f["time_resolution"].lower()]
     if location:
-        filtered = [
-            f for f in filtered if location.lower() in f["location_type"].lower()
-        ]
+        filtered = [f for f in filtered if location.lower() in f["location_type"].lower()]
 
     return filtered
 
 
 def interactive_mode(files, project_uuid, year="2024"):
     """Interactive mode - show table and let user select."""
-    console.print(
-        "\n[bold cyan]═══════════════════════════════════════════════════════[/bold cyan]"
-    )
+    console.print("\n[bold cyan]═══════════════════════════════════════════════════════[/bold cyan]")
     console.print(f"[bold cyan]   Cambium {year} Interactive Downloader[/bold cyan]")
-    console.print(
-        "[bold cyan]═══════════════════════════════════════════════════════[/bold cyan]\n"
-    )
+    console.print("[bold cyan]═══════════════════════════════════════════════════════[/bold cyan]\n")
 
     display_files_table(files, year)
 
-    console.print(
-        "\n[dim]Enter the numbers of the files you want to download (e.g., 1 3 5 or 1-5 or 1,3,5)[/dim]"
-    )
+    console.print("\n[dim]Enter the numbers of the files you want to download (e.g., 1 3 5 or 1-5 or 1,3,5)[/dim]")
     console.print("[dim]Press Enter without typing anything to cancel[/dim]\n")
 
     selection = questionary.text(
@@ -299,17 +276,13 @@ def interactive_mode(files, project_uuid, year="2024"):
         selected_indices = sorted(set(selected_indices))
 
     except ValueError:
-        console.print(
-            "\n[red]Invalid input. Please enter numbers like: 1 3 5 or 1-5[/red]\n"
-        )
+        console.print("\n[red]Invalid input. Please enter numbers like: 1 3 5 or 1-5[/red]\n")
         return
 
     selected_files = [files[i] for i in selected_indices]
     console.print(f"\n[green]Selected {len(selected_files)} file(s)[/green]")
     output_dir = Path(f"zips/{year}")
-    download_files(
-        selected_files, project_uuid, year, output_dir=output_dir, show_cli_command=True
-    )
+    download_files(selected_files, project_uuid, year, output_dir=output_dir, show_cli_command=True)
 
 
 def cli_mode(files, project_uuid, year, args):
@@ -355,20 +328,12 @@ def main():
         choices=list(PROJECT_UUIDS.keys()),
         help="Cambium data year (default: 2024)",
     )
-    parser.add_argument(
-        "--id", type=int, nargs="+", help="Download specific file ID(s)"
-    )
+    parser.add_argument("--id", type=int, nargs="+", help="Download specific file ID(s)")
     parser.add_argument("--scenario", help="Filter by scenario (e.g., 'Mid-case')")
-    parser.add_argument(
-        "--year-filter", dest="year_filter", help="Filter by year within dataset"
-    )
+    parser.add_argument("--year-filter", dest="year_filter", help="Filter by year within dataset")
     parser.add_argument("--metric", help="Filter by metric")
-    parser.add_argument(
-        "--resolution", help="Filter by time resolution (e.g., 'Hourly')"
-    )
-    parser.add_argument(
-        "--location", help="Filter by location type (e.g., 'GEA Regions')"
-    )
+    parser.add_argument("--resolution", help="Filter by time resolution (e.g., 'Hourly')")
+    parser.add_argument("--location", help="Filter by location type (e.g., 'GEA Regions')")
     parser.add_argument("--all", action="store_true", help="Download all files")
     parser.add_argument(
         "--output",
@@ -396,18 +361,14 @@ def main():
     year = args.year
     if not is_cli_mode and year == "2024":
         available_years = sorted(PROJECT_UUIDS.keys(), reverse=True)
-        year = questionary.select(
-            "Select Cambium data year:", choices=available_years, default="2024"
-        ).ask()
+        year = questionary.select("Select Cambium data year:", choices=available_years, default="2024").ask()
 
         if not year:
             console.print("\n[yellow]Cancelled[/yellow]\n")
             return 0
 
     # Fetch file list
-    console.print(
-        f"[cyan]Fetching file list from NREL API for Cambium {year}...[/cyan]"
-    )
+    console.print(f"[cyan]Fetching file list from NREL API for Cambium {year}...[/cyan]")
     result = fetch_file_list(year)
     if result is None:
         console.print("[red]Failed to fetch file list[/red]")

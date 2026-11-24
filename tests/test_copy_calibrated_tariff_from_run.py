@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 
 from utils.mid.copy_calibrated_tariff_from_run import (
-    copy_calibrated_tariff_from_run_dir,
     _tariff_keys_and_payloads,
+    copy_calibrated_tariff_from_run_dir,
 )
 
 
@@ -44,7 +44,7 @@ def test_tariff_keys_and_payloads_multiple_keys() -> None:
 
 def test_tariff_keys_and_payloads_empty_raises() -> None:
     """Empty payload raises ValueError."""
-    with pytest.raises(ValueError, match="tariff_final_config.json is empty"):
+    with pytest.raises(ValueError, match=r"tariff_final_config.json is empty"):
         _tariff_keys_and_payloads({})
 
 
@@ -74,9 +74,7 @@ def test_copy_calibrated_tariff_from_run_dir_single_key(
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     payload = {"rie_a16": _minimal_cairo_tariff_dict()}
-    (run_dir / "tariff_final_config.json").write_text(
-        json.dumps(payload), encoding="utf-8"
-    )
+    (run_dir / "tariff_final_config.json").write_text(json.dumps(payload), encoding="utf-8")
     out_dir = tmp_path / "out"
     out_dir.mkdir()
 
@@ -105,9 +103,7 @@ def test_copy_calibrated_tariff_from_run_dir_multiple_keys(
         "rie_hp_seasonal": _minimal_cairo_tariff_dict(),
         "rie_flat": _minimal_cairo_tariff_dict(),
     }
-    (run_dir / "tariff_final_config.json").write_text(
-        json.dumps(payload), encoding="utf-8"
-    )
+    (run_dir / "tariff_final_config.json").write_text(json.dumps(payload), encoding="utf-8")
     out_dir = tmp_path / "out"
     out_dir.mkdir()
 

@@ -40,7 +40,6 @@ import fsspec
 import openpyxl
 import polars as pl
 
-
 # ── Study parameters ─────────────────────────────────────────────────────────
 
 YEARS = list(range(2026, 2036))
@@ -287,10 +286,7 @@ def compute_variants(
     cum_dil: dict[str, list[float]] = {k: [] for k in BUCKET_KEYS}
     for yi in range(N_YEARS):
         for cc in COST_CENTERS:
-            val = sum(
-                inc_dil[cc][ti] * (1 + INFLATION_RATE) ** (yi - ti)
-                for ti in range(yi + 1)
-            )
+            val = sum(inc_dil[cc][ti] * (1 + INFLATION_RATE) ** (yi - ti) for ti in range(yi + 1))
             cum_dil[cc].append(val)
         cum_dil["total"].append(_total_from_cc(cum_dil, yi))
 
@@ -304,25 +300,17 @@ def compute_variants(
             den = sum(p.final_capacity_mva for p in yr_p)
             inc_und[cc].append(num / den if den > 0 else 0.0)
         all_yr = by_isd[yr]
-        num_t = sum(
-            p.annualized_per_kw * p.final_capacity_mva * loss_map[_cc_of_project(p)]
-            for p in all_yr
-        )
+        num_t = sum(p.annualized_per_kw * p.final_capacity_mva * loss_map[_cc_of_project(p)] for p in all_yr)
         den_t = sum(p.final_capacity_mva for p in all_yr)
         inc_und["total"].append(num_t / den_t if den_t > 0 else 0.0)
 
     # ── Cumulative undiluted ─────────────────────────────────────────────
     cum_und: dict[str, list[float]] = {k: [] for k in BUCKET_KEYS}
-    for yi, yr in enumerate(YEARS):
+    for _yi, yr in enumerate(YEARS):
         for cc in COST_CENTERS:
             subs = SUB_COST_CENTERS[cc]
             scope = [p for p in projects if p.isd <= yr and p.cost_center in subs]
-            num = sum(
-                p.annualized_per_kw
-                * p.final_capacity_mva
-                * (1 + INFLATION_RATE) ** (yr - p.isd)
-                for p in scope
-            )
+            num = sum(p.annualized_per_kw * p.final_capacity_mva * (1 + INFLATION_RATE) ** (yr - p.isd) for p in scope)
             den = sum(p.final_capacity_mva for p in scope)
             cum_und[cc].append(num / den if den > 0 else 0.0)
         scope_all = [p for p in projects if p.isd <= yr]
@@ -462,10 +450,7 @@ def print_report(
         print(line)
 
     # Year-by-year incremental diluted
-    print(
-        f"\n── Year-by-year incremental diluted (nominal $/kW-yr) "
-        f"{'─' * max(1, W - 52)}"
-    )
+    print(f"\n── Year-by-year incremental diluted (nominal $/kW-yr) {'─' * max(1, W - 52)}")
     inc = variants["incremental_diluted"]
     header2 = f"  {'Year':>4}"
     for k in BUCKET_KEYS:
@@ -506,10 +491,7 @@ def run_analysis(
     # 2. Parse loss factors from W4
     ws_w4 = _find_sheet(wb, "W4")
     loss = parse_w4_loss_factors(ws_w4)
-    print(
-        f"  W4: loss factors — ups={loss.upstream:.4f}, "
-        f"ds={loss.dist_sub:.4f}, pf={loss.primary_feeder:.4f}"
-    )
+    print(f"  W4: loss factors — ups={loss.upstream:.4f}, ds={loss.dist_sub:.4f}, pf={loss.primary_feeder:.4f}")
 
     # 3. Compute all four MC variants
     variants = compute_variants(projects, config.system_peak_mw, loss)

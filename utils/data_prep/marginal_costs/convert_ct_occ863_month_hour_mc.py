@@ -46,9 +46,7 @@ _MATRIX_TITLES: dict[Voltage, tuple[str, str, str]] = {
 }
 
 
-def month_hour_marginal_costs(
-    raw: pl.DataFrame, voltage: Voltage
-) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
+def month_hour_marginal_costs(raw: pl.DataFrame, voltage: Voltage) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
     """Return the all-days, weekday, and weekend-and-holiday matrices.
 
     ``voltage`` is ``primary`` or ``secondary``. It selects the three matrix
@@ -84,13 +82,9 @@ def _melt_matrix(rows: list[tuple[object, ...]], title: str) -> pl.DataFrame:
         for col, month in month_cols:
             mc = _as_number(row[col] if col < len(row) else None)
             if mc is None:
-                raise ValueError(
-                    f"missing {title!r} value at month {month} hour {hour}"
-                )
+                raise ValueError(f"missing {title!r} value at month {month} hour {hour}")
             if mc < 0:
-                raise ValueError(
-                    f"negative {title!r} value at month {month} hour {hour}"
-                )
+                raise ValueError(f"negative {title!r} value at month {month} hour {hour}")
             records.append(
                 {
                     "month": month,
@@ -147,9 +141,7 @@ def _month_columns(row: tuple[object, ...]) -> list[tuple[int, int]]:
     return found
 
 
-def _day_counts(
-    row: tuple[object, ...], month_cols: list[tuple[int, int]]
-) -> dict[int, int]:
+def _day_counts(row: tuple[object, ...], month_cols: list[tuple[int, int]]) -> dict[int, int]:
     counts: dict[int, int] = {}
     for col, month in month_cols:
         days = _as_int(row[col] if col < len(row) else None)
@@ -168,18 +160,12 @@ def _validate_matrix(frame: pl.DataFrame, title: str) -> None:
     months = set(frame["month"].unique().to_list())
     if hours != set(range(_N_HOURS)) or months != set(range(1, 13)):
         raise ValueError(f"{title!r} does not cover months 1–12 and hours 0–23")
-    varying = (
-        frame.group_by("month")
-        .agg(pl.col("num_days").n_unique())
-        .filter(pl.col("num_days") != 1)
-    )
+    varying = frame.group_by("month").agg(pl.col("num_days").n_unique()).filter(pl.col("num_days") != 1)
     if varying.height:
         raise ValueError(f"{title!r} day count changes within a month")
 
 
-def _check_day_counts_add(
-    all_days: pl.DataFrame, weekday: pl.DataFrame, weekend: pl.DataFrame
-) -> None:
+def _check_day_counts_add(all_days: pl.DataFrame, weekday: pl.DataFrame, weekend: pl.DataFrame) -> None:
     """Weekday days plus weekend-and-holiday days equal the all-days count."""
     combined = (
         weekday.select("month", pl.col("num_days").alias("weekday"))
@@ -195,10 +181,7 @@ def _check_day_counts_add(
         .filter(pl.col("weekday") + pl.col("weekend") != pl.col("all_days"))
     )
     if combined.height:
-        raise ValueError(
-            "weekday plus weekend day counts do not match the all-days row: "
-            f"{combined.rows()}"
-        )
+        raise ValueError(f"weekday plus weekend day counts do not match the all-days row: {combined.rows()}")
 
 
 def _cell_text(value: object) -> str:
@@ -262,9 +245,7 @@ def write_month_hour_parquets(
 ) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
     """Read one Attachment 2 sheet and write its three parquets."""
     if "{{" in str(path_xlsx) or "{{" in str(path_output_dir):
-        raise ValueError(
-            f"path looks like an uninterpolated Just variable: {path_xlsx} {path_output_dir}"
-        )
+        raise ValueError(f"path looks like an uninterpolated Just variable: {path_xlsx} {path_output_dir}")
     raw = read_sheet(path_xlsx, _MARGINAL_COST_SHEETS[voltage])
     all_days, weekday, weekend = month_hour_marginal_costs(raw, voltage)
     path_output_dir.mkdir(parents=True, exist_ok=True)
@@ -279,9 +260,7 @@ def write_month_hour_parquets(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--path-xlsx", type=Path, required=True, help="OCC-863 Attachment 2 workbook"
-    )
+    parser.add_argument("--path-xlsx", type=Path, required=True, help="OCC-863 Attachment 2 workbook")
     parser.add_argument(
         "--path-output-dir",
         type=Path,
@@ -296,9 +275,7 @@ def main() -> None:
     )
     args = parser.parse_args()
     voltage: Voltage = args.voltage
-    all_days, weekday, weekend = write_month_hour_parquets(
-        args.path_xlsx, args.path_output_dir, voltage
-    )
+    all_days, weekday, weekend = write_month_hour_parquets(args.path_xlsx, args.path_output_dir, voltage)
     for kind, frame in (
         ("all_days", all_days),
         ("weekday", weekday),

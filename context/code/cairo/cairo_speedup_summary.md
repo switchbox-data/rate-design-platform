@@ -279,7 +279,7 @@ Inside `_calculate_gas_bills`, there is a branch check:
 
 ```python
 if "load_data" in raw_load.columns:
-    raw_load_gas = raw_load          # already processed (load_data column present)
+    raw_load_gas = raw_load  # already processed (load_data column present)
 else:
     raw_load_gas = load_funcs._return_load(load_type="gas", target_year=target_year)
 ```

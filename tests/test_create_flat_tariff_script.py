@@ -15,7 +15,6 @@ from utils.pre.create_flat_tariffs import (
     main,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixture helpers — self-contained dummy data, no S3 / real data calls
 # ---------------------------------------------------------------------------
@@ -272,14 +271,10 @@ class TestProcessUtility:
 
         flat_supply = json.loads((output_dir / "testutil_flat_supply.json").read_text())
         combined_rate = flat_supply["items"][0]["energyratestructure"][0][0]["rate"]
-        assert combined_rate == pytest.approx(
-            expected_delivery_vol + expected_supply_vol, abs=1e-6
-        )
+        assert combined_rate == pytest.approx(expected_delivery_vol + expected_supply_vol, abs=1e-6)
 
     def test_fixed_charge_from_monthly_rates(self, tmp_path: Path) -> None:
-        mr_path, rr_path, eia_path, output_dir = self._setup_fixtures(
-            tmp_path, fixed_charge=10.50
-        )
+        mr_path, rr_path, eia_path, output_dir = self._setup_fixtures(tmp_path, fixed_charge=10.50)
         _process_utility("testutil", mr_path, rr_path, eia_path, output_dir)
 
         flat = json.loads((output_dir / "testutil_flat.json").read_text())
@@ -294,9 +289,7 @@ class TestProcessUtility:
 class TestCLI:
     """Test the full CLI entrypoint with self-contained dummy data."""
 
-    def _setup_cli_fixtures(
-        self, tmp_path: Path, utility: str = "acme"
-    ) -> tuple[Path, Path, Path, Path]:
+    def _setup_cli_fixtures(self, tmp_path: Path, utility: str = "acme") -> tuple[Path, Path, Path, Path]:
         """Build the directory layout that main() expects and return dirs."""
         mr_dir = tmp_path / "monthly_rates"
         mr_dir.mkdir()
@@ -371,9 +364,7 @@ class TestCLI:
         assert (output_dir / "acme_flat.json").exists()
         assert (output_dir / "acme_flat_supply.json").exists()
 
-    def test_multiple_utilities(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_multiple_utilities(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """When the monthly-rates dir has files for two utilities, both get tariffs."""
         mr_dir = tmp_path / "monthly_rates"
         mr_dir.mkdir()
@@ -431,9 +422,7 @@ class TestCLI:
             assert (output_dir / f"{util}_flat.json").exists()
             assert (output_dir / f"{util}_flat_supply.json").exists()
 
-    def test_missing_rev_req_skips_utility(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_missing_rev_req_skips_utility(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """If rev-requirement YAML is missing for a utility, it is skipped (not crashed)."""
         mr_dir, _, eia_path, output_dir = self._setup_cli_fixtures(tmp_path)
         empty_rr_dir = tmp_path / "empty_rr"
@@ -457,9 +446,7 @@ class TestCLI:
 
         assert not (output_dir / "acme_flat.json").exists()
 
-    def test_no_matching_files_raises(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_matching_files_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         empty_dir = tmp_path / "empty"
         empty_dir.mkdir()
         monkeypatch.setattr(

@@ -79,9 +79,7 @@ def fetch_statedata(token: str, state_code: str, year: int) -> dict | None:
     """Return il/statedata/{statecode} for the given year, or None on 4xx/5xx after retries."""
     url = f"{BASE_URL}/{IL_STATEDATA_PATH}/{state_code}"
     for attempt in range(RETRY_MAX):
-        r = requests.get(
-            url, headers=_headers(token), params={"year": year}, timeout=30
-        )
+        r = requests.get(url, headers=_headers(token), params={"year": year}, timeout=30)
         if r.ok:
             return r.json()
         if r.status_code == 429 and attempt < RETRY_MAX - 1:
@@ -154,9 +152,7 @@ def main() -> int:
             return (sc, yr, str(e))
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        future_to_task = {
-            executor.submit(do_one, sc, yr): (sc, yr) for (sc, yr) in tasks
-        }
+        future_to_task = {executor.submit(do_one, sc, yr): (sc, yr) for (sc, yr) in tasks}
         with tqdm(total=len(tasks), desc="Fetching SMI", unit="call") as pbar:
             for future in as_completed(future_to_task):
                 result = future.result()
@@ -175,9 +171,7 @@ def main() -> int:
 
 
 def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(
-        description="Fetch HUD SMI (state-level income limits) from API to JSON"
-    )
+    p = argparse.ArgumentParser(description="Fetch HUD SMI (state-level income limits) from API to JSON")
     p.add_argument(
         "--start-year",
         type=int,

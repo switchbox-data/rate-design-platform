@@ -59,10 +59,7 @@ def _write_8760(path: Path, value: float) -> pl.DataFrame:
 
 class TestKeys:
     def test_pop(self) -> None:
-        assert (
-            build_key("dist_and_sub_tx", "pop", _pop_params())
-            == "pop_occ863att3_100h_load2025_2026usd"
-        )
+        assert build_key("dist_and_sub_tx", "pop", _pop_params()) == "pop_occ863att3_100h_load2025_2026usd"
 
     def test_month_hour(self) -> None:
         params = {
@@ -72,8 +69,7 @@ class TestKeys:
             "calendar_year": 2018,
         }
         assert (
-            build_key("dist_and_sub_tx", "month_hour", params)
-            == "month_hour_occ863att2_secondary_noholidays_cal2018"
+            build_key("dist_and_sub_tx", "month_hour", params) == "month_hour_occ863att2_secondary_noholidays_cal2018"
         )
 
     def test_isone_bulk_tx_formats_value(self) -> None:
@@ -83,14 +79,9 @@ class TestKeys:
             "n_peak_hours": 100,
             "load_year": 2025,
         }
-        assert (
-            build_key("bulk_tx", "isone_aesc_ptf", params)
-            == "aesc_ptf69_ne_system_100h_load2025"
-        )
+        assert build_key("bulk_tx", "isone_aesc_ptf", params) == "aesc_ptf69_ne_system_100h_load2025"
         params["ptf_kw_year"] = 184.5
-        assert build_key("bulk_tx", "isone_aesc_ptf", params).startswith(
-            "aesc_ptf184p5_"
-        )
+        assert build_key("bulk_tx", "isone_aesc_ptf", params).startswith("aesc_ptf184p5_")
 
     def test_bulk_tx_month_hour(self) -> None:
         params = {
@@ -101,10 +92,7 @@ class TestKeys:
             "include_holidays": True,
             "calendar_year": 2025,
         }
-        assert (
-            build_key("bulk_tx", "month_hour", params)
-            == "month_hour_occ863att2_aesc_ptf69_holidays_cal2025_2026usd"
-        )
+        assert build_key("bulk_tx", "month_hour", params) == "month_hour_occ863att2_aesc_ptf69_holidays_cal2025_2026usd"
 
     @pytest.mark.parametrize("mc_type", sorted(mc_manifest.MC_TYPES))
     def test_zero_for_every_type(self, mc_type: str) -> None:
@@ -148,9 +136,7 @@ class TestManifest:
     def test_entries_are_per_file_name(self, tmp_path: Path) -> None:
         data = tmp_path / "data.parquet"
         zero = tmp_path / "zero.parquet"
-        record_mc_write(
-            str(data), _pop_spec(), _write_8760(data, 1.0), "mc_total_per_kwh"
-        )
+        record_mc_write(str(data), _pop_spec(), _write_8760(data, 1.0), "mc_total_per_kwh")
         record_mc_write(
             str(zero),
             zero_spec("dist_and_sub_tx", "ct_eversource", 2025),
@@ -167,25 +153,19 @@ class TestManifest:
 class TestVerify:
     def test_ok(self, tmp_path: Path) -> None:
         path = tmp_path / "data.parquet"
-        record_mc_write(
-            str(path), _pop_spec(), _write_8760(path, 1.0), "mc_total_per_kwh"
-        )
+        record_mc_write(str(path), _pop_spec(), _write_8760(path, 1.0), "mc_total_per_kwh")
         assert verify_mc_file(str(path), "pop_occ863att3_100h_load2025_2026usd") == []
 
     def test_key_mismatch(self, tmp_path: Path) -> None:
         path = tmp_path / "data.parquet"
-        record_mc_write(
-            str(path), _pop_spec(), _write_8760(path, 1.0), "mc_total_per_kwh"
-        )
+        record_mc_write(str(path), _pop_spec(), _write_8760(path, 1.0), "mc_total_per_kwh")
         errors = verify_mc_file(str(path), "month_hour_occ863att2_secondary_holidays")
         assert len(errors) == 1
         assert "pop_occ863att3_100h_load2025_2026usd" in errors[0]
 
     def test_file_changed_after_manifest(self, tmp_path: Path) -> None:
         path = tmp_path / "data.parquet"
-        record_mc_write(
-            str(path), _pop_spec(), _write_8760(path, 1.0), "mc_total_per_kwh"
-        )
+        record_mc_write(str(path), _pop_spec(), _write_8760(path, 1.0), "mc_total_per_kwh")
         _write_8760(path, 2.0)
         errors = verify_mc_file(str(path), "pop_occ863att3_100h_load2025_2026usd")
         assert len(errors) == 1
@@ -227,9 +207,7 @@ def test_describe_mc_file_records_the_entry_for_the_bytes_read(tmp_path: Path) -
     first = _write_8760(path, 1.0)
     record_mc_write(str(path), _pop_spec(), first, "mc_total_per_kwh")
     old_bytes = path.read_bytes()
-    record_mc_write(
-        str(path), _pop_spec(n_hours=50), _write_8760(path, 2.0), "mc_total_per_kwh"
-    )
+    record_mc_write(str(path), _pop_spec(n_hours=50), _write_8760(path, 2.0), "mc_total_per_kwh")
     path.write_bytes(old_bytes)
 
     described = describe_mc_file(str(path))
@@ -244,9 +222,7 @@ def test_describe_mc_file_records_the_entry_for_the_bytes_read(tmp_path: Path) -
 
 
 def _run_git(cwd: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
-    ).stdout.strip()
+    return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
 
 
 @pytest.fixture
@@ -275,7 +251,7 @@ class TestRequirePublishedCode:
     def test_dirty_tree_refused(self, scratch_repo: Path) -> None:
         _run_git(scratch_repo, "push", "--quiet", "-u", "origin", "main")
         (scratch_repo / "untracked.py").write_text("x = 1\n")
-        with pytest.raises(mc_manifest.UnpublishedCodeError, match="untracked.py"):
+        with pytest.raises(mc_manifest.UnpublishedCodeError, match=r"untracked.py"):
             mc_manifest.require_published_code()
 
     def test_unpushed_commit_refused(self, scratch_repo: Path) -> None:
@@ -300,9 +276,7 @@ class TestRequirePublishedCode:
     def test_record_mc_write_enforces_it(
         self, scratch_repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(
-            mc_manifest, "git_provenance", mc_manifest.require_published_code
-        )
+        monkeypatch.setattr(mc_manifest, "git_provenance", mc_manifest.require_published_code)
         path = tmp_path / "out" / "data.parquet"
         df = _write_8760(path, 1.0)
         with pytest.raises(mc_manifest.UnpublishedCodeError):

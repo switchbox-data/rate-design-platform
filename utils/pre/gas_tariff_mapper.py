@@ -55,9 +55,7 @@ EXPECTED_GAS_UTILITIES = EXCLUDED_GAS_UTILITIES | {
 
 # Post-merger Chesapeake territory: county group from sb.gas_utility, RES-1/RES-2 from
 # annual therms (≤150 → res1, >150 → res2). See context/code/data/md_tariff_fetch.md.
-CHESAPEAKE_GAS_UTILITIES = frozenset(
-    {"chesapeake_utilities", "elkton_gas", "sandpiper"}
-)
+CHESAPEAKE_GAS_UTILITIES = frozenset({"chesapeake_utilities", "elkton_gas", "sandpiper"})
 CHESAPEAKE_RES1_MAX_THERMS = 150.0
 # Match tariff $/therm → $/kWh conversion in split_chesapeake_gas_tariffs / add_pgc_to_gas_urdb.
 KWH_PER_THERM = 29.3001
@@ -79,11 +77,7 @@ def load_annual_gas_therms(
     ``S3Path`` in ``Path(...)`` mangles the URI.
     """
     uri = str(path_load_curve_annual)
-    lf = (
-        pl.scan_parquet(uri, storage_options=storage_options)
-        if storage_options
-        else pl.scan_parquet(uri)
-    )
+    lf = pl.scan_parquet(uri, storage_options=storage_options) if storage_options else pl.scan_parquet(uri)
     schema_names = lf.collect_schema().names()
     if "bldg_id" not in schema_names or NATGAS_ANNUAL_KWH_COL not in schema_names:
         raise ValueError(
@@ -125,9 +119,7 @@ def _tariff_key_expr() -> pl.Expr:
         .then(pl.lit("kedny_mf"))
         .when((gas_utility_col == "kedny") & ~is_mf & heats_with_natgas_column.eq(True))
         .then(pl.lit("kedny_sf_heating"))
-        .when(
-            (gas_utility_col == "kedny") & ~is_mf & heats_with_natgas_column.eq(False)
-        )
+        .when((gas_utility_col == "kedny") & ~is_mf & heats_with_natgas_column.eq(False))
         .then(pl.lit("kedny_sf_nonheating"))
         #### kedny ####
         #### kedli ####
@@ -136,9 +128,7 @@ def _tariff_key_expr() -> pl.Expr:
         .then(pl.lit("kedli_mf"))
         .when((gas_utility_col == "kedli") & ~is_mf & heats_with_natgas_column.eq(True))
         .then(pl.lit("kedli_sf_heating"))
-        .when(
-            (gas_utility_col == "kedli") & ~is_mf & heats_with_natgas_column.eq(False)
-        )
+        .when((gas_utility_col == "kedli") & ~is_mf & heats_with_natgas_column.eq(False))
         .then(pl.lit("kedli_sf_nonheating"))
         #### kedli ####
         #### nyseg ####
@@ -182,9 +172,7 @@ def _tariff_key_expr() -> pl.Expr:
         # Heating vs non-heating subclasses (matches RateAcuity / URDB JSON stems).
         .when((gas_utility_col == "washington_gas") & heats_with_natgas_column.eq(True))
         .then(pl.lit("washington_gas_heating"))
-        .when(
-            (gas_utility_col == "washington_gas") & heats_with_natgas_column.eq(False)
-        )
+        .when((gas_utility_col == "washington_gas") & heats_with_natgas_column.eq(False))
         .then(pl.lit("washington_gas_nonheating"))
         #### MD: washington_gas ####
         #### MD: Chesapeake territory (county + RES-1/RES-2 by annual therms) ####
@@ -256,9 +244,7 @@ def map_gas_tariff(
             ResStock ``load_curve_annual``.
     """
     # Filter metadata by electric utility name
-    utility_metadata = SB_metadata.filter(
-        pl.col("sb.electric_utility") == electric_utility_name
-    )
+    utility_metadata = SB_metadata.filter(pl.col("sb.electric_utility") == electric_utility_name)
 
     # Check if there are any rows in the filtered dataframe
     test_sample = utility_metadata.head(1).collect()
@@ -267,9 +253,7 @@ def map_gas_tariff(
 
     # Log if we see any gas_utility not in expected set (IOUs + small + none/psegli)
     distinct_gas = utility_metadata.select("sb.gas_utility").unique().collect()
-    distinct_gas_vals = {
-        row["sb.gas_utility"] for row in distinct_gas.iter_rows(named=True)
-    }
+    distinct_gas_vals = {row["sb.gas_utility"] for row in distinct_gas.iter_rows(named=True)}
     for val in distinct_gas_vals:
         if val is not None and val not in EXPECTED_GAS_UTILITIES:
             log.warning(
@@ -304,15 +288,12 @@ def map_gas_tariff(
     if annual_gas_therms is not None:
         selected = selected.join(annual_gas_therms, on="bldg_id", how="left")
     else:
-        selected = selected.with_columns(
-            pl.lit(None).cast(pl.Float64).alias("annual_gas_therms")
-        )
+        selected = selected.with_columns(pl.lit(None).cast(pl.Float64).alias("annual_gas_therms"))
 
     if needs_chesapeake_therms:
         missing = (
             selected.filter(
-                pl.col("sb.gas_utility").is_in(list(CHESAPEAKE_GAS_UTILITIES))
-                & pl.col("annual_gas_therms").is_null()
+                pl.col("sb.gas_utility").is_in(list(CHESAPEAKE_GAS_UTILITIES)) & pl.col("annual_gas_therms").is_null()
             )
             .select(pl.len())
             .collect()
@@ -336,9 +317,7 @@ def map_gas_tariff(
     return gas_tariff_mapping_df
 
 
-def _default_path_load_curve_annual(
-    metadata_path: str | Path, state: str, upgrade_id: str
-) -> Path | None:
+def _default_path_load_curve_annual(metadata_path: str | Path, state: str, upgrade_id: str) -> Path | None:
     """Use annual loads from the same release as the metadata.
 
     Gas tariff subclasses must reflect Switchbox load modifications, so an
@@ -348,18 +327,14 @@ def _default_path_load_curve_annual(
     meta = Path(metadata_path)
     # metadata_path is typically .../res_..._sb/metadata
     release = meta.parent if meta.name == "metadata" else meta
-    annual_dir = (
-        release / "load_curve_annual" / f"state={state}" / f"upgrade={upgrade_id}"
-    )
+    annual_dir = release / "load_curve_annual" / f"state={state}" / f"upgrade={upgrade_id}"
     return annual_dir if annual_dir.exists() else None
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     warnings.simplefilter("always", DeprecationWarning)
-    parser = argparse.ArgumentParser(
-        description="Utility to help assign gas tariffs to utility customers."
-    )
+    parser = argparse.ArgumentParser(description="Utility to help assign gas tariffs to utility customers.")
     parser.add_argument(
         "--metadata_path",
         required=True,
@@ -412,42 +387,24 @@ if __name__ == "__main__":
 
     # Support metadata_utility path (utility_assignment.parquet) or metadata path (metadata-sb.parquet)
     if "metadata_utility" in str(args.utility_assignment_path):
-        utility_assignment_path = (
-            utility_assignment_base_path
-            / f"state={args.state}"
-            / "utility_assignment.parquet"
-        )
+        utility_assignment_path = utility_assignment_base_path / f"state={args.state}" / "utility_assignment.parquet"
     else:
         utility_assignment_path = (
-            utility_assignment_base_path
-            / f"state={args.state}"
-            / f"upgrade={args.upgrade_id}"
-            / "metadata-sb.parquet"
+            utility_assignment_base_path / f"state={args.state}" / f"upgrade={args.upgrade_id}" / "metadata-sb.parquet"
         )
-    metadata_path = (
-        base_path
-        / f"state={args.state}"
-        / f"upgrade={args.upgrade_id}"
-        / "metadata-sb.parquet"
-    )
+    metadata_path = base_path / f"state={args.state}" / f"upgrade={args.upgrade_id}" / "metadata-sb.parquet"
 
     if use_s3_metadata and not metadata_path.exists():
         raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
     if not use_s3_metadata and not Path(metadata_path).exists():
         raise FileNotFoundError(f"Metadata path {metadata_path} does not exist")
     if use_s3_utility_assignment and not utility_assignment_path.exists():
-        raise FileNotFoundError(
-            f"Utility assignment path {utility_assignment_path} does not exist"
-        )
+        raise FileNotFoundError(f"Utility assignment path {utility_assignment_path} does not exist")
     if not use_s3_utility_assignment and not Path(utility_assignment_path).exists():
-        raise FileNotFoundError(
-            f"Utility assignment path {utility_assignment_path} does not exist"
-        )
+        raise FileNotFoundError(f"Utility assignment path {utility_assignment_path} does not exist")
 
     storage_opts_metadata = STORAGE_OPTIONS if use_s3_metadata else None
-    storage_opts_utility_assignment = (
-        STORAGE_OPTIONS if use_s3_utility_assignment else None
-    )
+    storage_opts_utility_assignment = STORAGE_OPTIONS if use_s3_utility_assignment else None
     SB_metadata = (
         pl.scan_parquet(str(metadata_path), storage_options=storage_opts_metadata)
         if storage_opts_metadata
@@ -464,10 +421,7 @@ if __name__ == "__main__":
 
     # Use real sb.electric_utility and sb.gas_utility if present; else fall back to synthetic (deprecated)
     utility_assignment_schema_cols = utility_assignment.collect_schema().names()
-    if (
-        "sb.electric_utility" in utility_assignment_schema_cols
-        and "sb.gas_utility" in utility_assignment_schema_cols
-    ):
+    if "sb.electric_utility" in utility_assignment_schema_cols and "sb.gas_utility" in utility_assignment_schema_cols:
         # Verify all metadata bldg_ids are covered by the utility assignment.
         # The assignment is always derived from upgrade=00, so for non-zero upgrades
         # (e.g. upgrade=02) the metadata may be a strict subset of the assignment
@@ -490,9 +444,7 @@ if __name__ == "__main__":
 
         # Inner join ensures one-to-one matching; will fail if bldg_ids don't match
         SB_metadata_with_utilities = SB_metadata.join(
-            utility_assignment.select(
-                "bldg_id", "sb.electric_utility", "sb.gas_utility"
-            ),
+            utility_assignment.select("bldg_id", "sb.electric_utility", "sb.gas_utility"),
             on="bldg_id",
             how="inner",
         )
@@ -531,9 +483,7 @@ if __name__ == "__main__":
     annual_gas_therms_lf: pl.LazyFrame | None = None
     annual_path_arg = args.path_load_curve_annual
     if annual_path_arg is None:
-        derived = _default_path_load_curve_annual(
-            args.metadata_path, args.state, args.upgrade_id
-        )
+        derived = _default_path_load_curve_annual(args.metadata_path, args.state, args.upgrade_id)
         if derived is not None:
             annual_path_arg = str(derived)
             log.info("Using load_curve_annual at %s", annual_path_arg)
@@ -582,9 +532,7 @@ if __name__ == "__main__":
             output_path = out_base / output_filename
             if not output_path.parent.exists():
                 output_path.parent.mkdir(parents=True)
-            gas_tariff_mapping_df.sink_csv(
-                str(output_path), storage_options=STORAGE_OPTIONS
-            )
+            gas_tariff_mapping_df.sink_csv(str(output_path), storage_options=STORAGE_OPTIONS)
         except ValueError:
             out_base = Path(args.output_dir)
             output_path = out_base / output_filename

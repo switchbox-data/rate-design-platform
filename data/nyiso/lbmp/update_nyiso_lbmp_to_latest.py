@@ -58,9 +58,7 @@ def _list_s3_partitions(prefix: str) -> list[tuple[int, int]]:
     return list(set(parts))
 
 
-def latest_month_on_s3(
-    path_s3_day_ahead: str, path_s3_real_time: str
-) -> tuple[int, int] | None:
+def latest_month_on_s3(path_s3_day_ahead: str, path_s3_real_time: str) -> tuple[int, int] | None:
     """Return (year, month) of the latest partition across both series, or None if empty."""
     day_ahead = _list_s3_partitions(path_s3_day_ahead.rstrip("/") + "/")
     real_time = _list_s3_partitions(path_s3_real_time.rstrip("/") + "/")

@@ -56,9 +56,7 @@ def test_monthly_zone_kwh_sums_megawatts_to_kwh(tmp_path: Path) -> None:
         other.mkdir()
         pl.DataFrame(
             {
-                "timestamp": [
-                    datetime(2025, month, 1, 0, tzinfo=ZoneInfo("America/New_York"))
-                ],
+                "timestamp": [datetime(2025, month, 1, 0, tzinfo=ZoneInfo("America/New_York"))],
                 "load_mw": [1.0],
             }
         ).write_parquet(other / "data.parquet")
@@ -70,7 +68,7 @@ def test_monthly_zone_kwh_sums_megawatts_to_kwh(tmp_path: Path) -> None:
 
 
 def test_compare_monthly_ratio() -> None:
-    filing = {month: 100 for month in range(1, 13)}
+    filing = dict.fromkeys(range(1, 13), 100)
     zone = pl.DataFrame(
         {
             "month": list(range(1, 13)),

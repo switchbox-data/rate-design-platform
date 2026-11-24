@@ -52,9 +52,7 @@ def _load_utility_yamls(path_rev_req: Path) -> list[UtilityData]:
     return yamls
 
 
-def _load_all_utilities(
-    path_ny_rev_req: Path, path_ri_rev_req: Path
-) -> list[tuple[UtilityData, str]]:
+def _load_all_utilities(path_ny_rev_req: Path, path_ri_rev_req: Path) -> list[tuple[UtilityData, str]]:
     """Load all NY and RI utilities, returning (data, state) tuples."""
     utilities = []
     for data in _load_utility_yamls(path_ny_rev_req):
@@ -64,9 +62,7 @@ def _load_all_utilities(
     return utilities
 
 
-def _plot_delivery_vs_kwh(
-    utilities: list[tuple[UtilityData, str]], output_path: Path
-) -> None:
+def _plot_delivery_vs_kwh(utilities: list[tuple[UtilityData, str]], output_path: Path) -> None:
     """Plot delivery revenue requirement vs total residential kWh."""
     rows = []
     for data, state in utilities:
@@ -75,9 +71,7 @@ def _plot_delivery_vs_kwh(
                 "utility": str(data["utility"]),
                 "state": state,
                 "total_residential_kwh": float(data["total_residential_kwh"]),
-                "total_delivery_revenue_requirement": float(
-                    data["total_delivery_revenue_requirement"]
-                ),
+                "total_delivery_revenue_requirement": float(data["total_delivery_revenue_requirement"]),
             }
         )
 
@@ -85,9 +79,7 @@ def _plot_delivery_vs_kwh(
     max_delivery_rr = cast(float, df["total_delivery_revenue_requirement"].max())
 
     p = (
-        ggplot(
-            df, aes(x="total_residential_kwh", y="total_delivery_revenue_requirement")
-        )
+        ggplot(df, aes(x="total_residential_kwh", y="total_delivery_revenue_requirement"))
         + geom_point(aes(color="state"), size=4)
         + geom_text(
             aes(label="utility"),
@@ -108,9 +100,7 @@ def _plot_delivery_vs_kwh(
     print(f"Saved chart to {output_path}")
 
 
-def _plot_delivery_and_supply_vs_kwh(
-    utilities: list[tuple[UtilityData, str]], output_path: Path
-) -> None:
+def _plot_delivery_and_supply_vs_kwh(utilities: list[tuple[UtilityData, str]], output_path: Path) -> None:
     """Plot delivery and supply revenue requirement vs total residential kWh."""
     rows = []
     for data, state in utilities:
@@ -126,9 +116,7 @@ def _plot_delivery_and_supply_vs_kwh(
         )
 
     df = pl.DataFrame(rows)
-    max_delivery_and_supply_rr = cast(
-        float, df["total_delivery_and_supply_revenue_requirement"].max()
-    )
+    max_delivery_and_supply_rr = cast(float, df["total_delivery_and_supply_revenue_requirement"].max())
 
     p = (
         ggplot(
@@ -187,27 +175,19 @@ def main() -> None:
     args = _parse_args()
 
     if not args.path_ny_rev_req.is_dir():
-        raise ValueError(
-            f"NY rev_requirement directory not found: {args.path_ny_rev_req}"
-        )
+        raise ValueError(f"NY rev_requirement directory not found: {args.path_ny_rev_req}")
     if not args.path_ri_rev_req.is_dir():
-        raise ValueError(
-            f"RI rev_requirement directory not found: {args.path_ri_rev_req}"
-        )
+        raise ValueError(f"RI rev_requirement directory not found: {args.path_ri_rev_req}")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     utilities = _load_all_utilities(args.path_ny_rev_req, args.path_ri_rev_req)
 
     if not utilities:
-        raise ValueError(
-            f"No standard utility YAML files found in {args.path_ny_rev_req} or {args.path_ri_rev_req}"
-        )
+        raise ValueError(f"No standard utility YAML files found in {args.path_ny_rev_req} or {args.path_ri_rev_req}")
 
     _plot_delivery_vs_kwh(utilities, args.output_dir / "rr_delivery_vs_kwh.png")
-    _plot_delivery_and_supply_vs_kwh(
-        utilities, args.output_dir / "rr_delivery_and_supply_vs_kwh.png"
-    )
+    _plot_delivery_and_supply_vs_kwh(utilities, args.output_dir / "rr_delivery_and_supply_vs_kwh.png")
 
 
 if __name__ == "__main__":

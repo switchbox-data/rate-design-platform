@@ -73,9 +73,7 @@ class _RateLimiter:
 
 def _reject_just_placeholders(val: str) -> None:
     if "{{" in val or "}}" in val:
-        print(
-            f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr
-        )
+        print(f"ERROR: looks like an uninterpolated Just variable: {val}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -95,9 +93,7 @@ def _load_env(repo_root: Path) -> tuple[str, str]:
     user = env.get("ISONE_USERNAME")
     pw = env.get("ISONE_PASSWORD")
     if not user or not pw:
-        print(
-            "ERROR: ISONE_USERNAME or ISONE_PASSWORD missing from .env", file=sys.stderr
-        )
+        print("ERROR: ISONE_USERNAME or ISONE_PASSWORD missing from .env", file=sys.stderr)
         sys.exit(1)
     return user, pw
 
@@ -152,7 +148,7 @@ def _api_get(
     label: str,
 ) -> requests.Response | None:
     """GET with global rate limiting and exponential backoff on 429."""
-    for attempt, backoff in enumerate([0] + RATE_LIMIT_BACKOFFS):
+    for attempt, backoff in enumerate([0, *RATE_LIMIT_BACKOFFS]):
         if backoff > 0:
             print(
                 f"  429 on {label}, backing off {backoff}s (attempt {attempt + 1})…",
@@ -226,9 +222,7 @@ def _parse_demand_items(items: list[dict], zone: str, loc_id: int) -> pl.DataFra
         )
     df = pl.DataFrame(rows)
     df = df.with_columns(
-        pl.col("interval_start_et")
-        .str.to_datetime("%Y-%m-%dT%H:%M:%S%.f%:z")
-        .dt.convert_time_zone("America/New_York")
+        pl.col("interval_start_et").str.to_datetime("%Y-%m-%dT%H:%M:%S%.f%:z").dt.convert_time_zone("America/New_York")
     )
     return df.cast({"location_id": pl.Int32})
 
@@ -288,10 +282,7 @@ def fetch(
         return
 
     n_api_calls = sum(calendar.monthrange(y, m)[1] for _, _, y, m in tasks)
-    print(
-        f"Fetching {len(tasks)} zone-months (~{n_api_calls} API calls) "
-        f"with {workers} workers..."
-    )
+    print(f"Fetching {len(tasks)} zone-months (~{n_api_calls} API calls) with {workers} workers...")
 
     limiter = _RateLimiter(2.0)
     errors: list[str] = []
@@ -329,9 +320,7 @@ def fetch(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Fetch ISO-NE zonal hourly demand from Web Services API."
-    )
+    parser = argparse.ArgumentParser(description="Fetch ISO-NE zonal hourly demand from Web Services API.")
     parser.add_argument("--start", required=True, help="Start month (YYYY-MM).")
     parser.add_argument(
         "--end",

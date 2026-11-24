@@ -19,7 +19,6 @@ from utils.post.apply_ny_lmi_discounts_to_cairo_bills import (
 )
 from utils.post.lmi_common import load_cpi_ratio
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -88,21 +87,15 @@ def _make_tier_consumption(
 def test_build_smi_threshold_column_basic() -> None:
     """Occupants 1-8 each map to the correct SMI threshold."""
     df = pl.DataFrame({"occ": list(range(1, 9))})
-    out = df.with_columns(
-        _build_smi_threshold_column("occ", SMI_THRESHOLDS).alias("thresh")
-    )
+    out = df.with_columns(_build_smi_threshold_column("occ", SMI_THRESHOLDS).alias("thresh"))
     for hh_size in range(1, 9):
-        assert (
-            out.filter(pl.col("occ") == hh_size)["thresh"][0] == SMI_THRESHOLDS[hh_size]
-        )
+        assert out.filter(pl.col("occ") == hh_size)["thresh"][0] == SMI_THRESHOLDS[hh_size]
 
 
 def test_build_smi_threshold_column_over_8() -> None:
     """Occupants > 8 fall back to the 8-person threshold (HUD max)."""
     df = pl.DataFrame({"occ": [9, 10]})
-    out = df.with_columns(
-        _build_smi_threshold_column("occ", SMI_THRESHOLDS).alias("thresh")
-    )
+    out = df.with_columns(_build_smi_threshold_column("occ", SMI_THRESHOLDS).alias("thresh"))
     assert out["thresh"].to_list() == [70_000.0, 70_000.0]
 
 
@@ -303,9 +296,7 @@ def test_apply_discounts_rider(tmp_path: Path) -> None:
 
     # Participant gets credit subtracted; non-participant gets rider added
     participant_discount = original_annual - float(participant["bill_level"][0])
-    non_participant_surcharge = (
-        float(non_participant["bill_level"][0]) - original_annual
-    )
+    non_participant_surcharge = float(non_participant["bill_level"][0]) - original_annual
 
     # Total discount should equal total rider recovery
     assert participant_discount == pytest.approx(non_participant_surcharge, rel=1e-6)
@@ -319,9 +310,7 @@ def test_apply_discounts_rider(tmp_path: Path) -> None:
 def test_load_cpi_ratio_basic(tmp_path: Path) -> None:
     """CPI ratio = cpi_target / cpi_base."""
     cpi_path = str(tmp_path / "cpi.parquet")
-    pl.DataFrame({"year": [2019, 2024], "value": [255.0, 310.0]}).write_parquet(
-        cpi_path
-    )
+    pl.DataFrame({"year": [2019, 2024], "value": [255.0, 310.0]}).write_parquet(cpi_path)
 
     ratio = load_cpi_ratio(cpi_path, 2024, {})
     assert ratio == pytest.approx(310.0 / 255.0)

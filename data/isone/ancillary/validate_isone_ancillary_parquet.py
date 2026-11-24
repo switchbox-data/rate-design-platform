@@ -11,12 +11,12 @@ Usage:
 
 from __future__ import annotations
 
-from utils.numeric import as_float
-
 import sys
 from pathlib import Path
 
 import polars as pl
+
+from utils.numeric import as_float
 
 EXPECTED_SCHEMA = {
     "interval_start_et": pl.Datetime("us", "America/New_York"),
@@ -119,9 +119,7 @@ def check_hourly_completeness(df: pl.DataFrame, result: ValidationResult) -> Non
         expected = _expected_hours(int(year), int(month))
         actual = group.height
         if actual != expected:
-            bad.append(
-                f"year={year} month={month}: {actual} hours (expected {expected})"
-            )
+            bad.append(f"year={year} month={month}: {actual} hours (expected {expected})")
 
     if bad:
         for b in bad:
@@ -239,9 +237,7 @@ def print_report(result: ValidationResult) -> None:
 def main() -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Validate ISO-NE ancillary data parquet."
-    )
+    parser = argparse.ArgumentParser(description="Validate ISO-NE ancillary data parquet.")
     parser.add_argument(
         "--path-local-parquet",
         type=Path,
@@ -270,9 +266,7 @@ def main() -> int:
     print(f"Source: {root}")
     print(f"Partitions: {len(parquet_files)}")
     print(f"Rows: {df.height}")
-    print(
-        f"Date range: {df['interval_start_et'].min()} — {df['interval_start_et'].max()}"
-    )
+    print(f"Date range: {df['interval_start_et'].min()} — {df['interval_start_et'].max()}")
     print(f"{'=' * 60}\n")
 
     result = ValidationResult()

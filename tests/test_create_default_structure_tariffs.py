@@ -25,7 +25,6 @@ from utils.pre.create_tariff import (
     create_seasonal_tou_tariff_direct,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -333,9 +332,7 @@ class TestBuildFlatTariff:
                 },
             },
         }
-        delivery, supply = _build_flat_tariff(
-            "testutil", already, add_drr, add_srr, 6.0
-        )
+        delivery, supply = _build_flat_tariff("testutil", already, add_drr, add_srr, 6.0)
 
         d_item = delivery["items"][0]
         assert d_item["label"] == "testutil_default"
@@ -409,9 +406,7 @@ class TestBuildSeasonalTieredTariff:
                 },
             },
         }
-        delivery, supply = _build_seasonal_tiered_tariff(
-            "coned", already, add_drr, add_srr, 20.0
-        )
+        delivery, supply = _build_seasonal_tiered_tariff("coned", already, add_drr, add_srr, 20.0)
 
         d_item = delivery["items"][0]
         assert d_item["label"] == "coned_default"
@@ -480,9 +475,7 @@ class TestBuildSeasonalTouTariff:
             },
         }
         fixed = 0.54 * 365.25 / 12
-        delivery, supply = _build_seasonal_tou_tariff(
-            "psegli", already, add_drr, None, fixed
-        )
+        delivery, _supply = _build_seasonal_tou_tariff("psegli", already, add_drr, None, fixed)
 
         d_item = delivery["items"][0]
         assert d_item["label"] == "psegli_default"
@@ -541,12 +534,8 @@ class TestExtractTouSupplyMonthly:
             "winter_on_peak",
         ]
         # Each slot should be commodity + merchant + securitization
-        assert result["summer_on_peak"]["2025-01"] == pytest.approx(
-            0.24 + 0.002 - 0.020
-        )
-        assert result["winter_off_peak"]["2025-06"] == pytest.approx(
-            0.10 + 0.002 - 0.020
-        )
+        assert result["summer_on_peak"]["2025-01"] == pytest.approx(0.24 + 0.002 - 0.020)
+        assert result["winter_off_peak"]["2025-06"] == pytest.approx(0.10 + 0.002 - 0.020)
 
     def test_order_independence(self) -> None:
         """Same result whether TOU charge comes first or last."""
@@ -675,13 +664,9 @@ class TestBuildSeasonalTouWithSupply:
                 "supply_commodity": {
                     "charge_unit": "$/kWh",
                     "monthly_rates": {
-                        "summer_on_peak": {
-                            k: v * 2.4 for k, v in supply_monthly.items()
-                        },
+                        "summer_on_peak": {k: v * 2.4 for k, v in supply_monthly.items()},
                         "summer_off_peak": supply_monthly,
-                        "winter_on_peak": {
-                            k: v * 2.5 for k, v in supply_monthly.items()
-                        },
+                        "winter_on_peak": {k: v * 2.5 for k, v in supply_monthly.items()},
                         "winter_off_peak": supply_monthly,
                     },
                 },
@@ -702,9 +687,7 @@ class TestBuildSeasonalTouWithSupply:
         supply_monthly = {f"2025-{m:02d}": 0.08 + m * 0.001 for m in range(1, 13)}
         already, add_drr, add_srr, fixed = self._psegli_like_inputs(supply_monthly)
 
-        _delivery, supply = _build_seasonal_tou_tariff(
-            "psegli", already, add_drr, add_srr, fixed
-        )
+        _delivery, supply = _build_seasonal_tou_tariff("psegli", already, add_drr, add_srr, fixed)
         s_item = supply["items"][0]
         n_entries = len(s_item["energyratestructure"])
 
@@ -724,9 +707,7 @@ class TestBuildSeasonalTouWithSupply:
 
     def test_supply_rates_include_flat_riders(self) -> None:
         already, add_drr, add_srr, fixed = self._psegli_like_inputs()
-        _delivery, supply = _build_seasonal_tou_tariff(
-            "psegli", already, add_drr, add_srr, fixed
-        )
+        _delivery, supply = _build_seasonal_tou_tariff("psegli", already, add_drr, add_srr, fixed)
 
         s_item = supply["items"][0]
         rates = [p[0]["rate"] for p in s_item["energyratestructure"]]
@@ -895,9 +876,7 @@ class TestProcessUtility:
 
 
 class TestCLI:
-    def test_generates_tariffs(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_generates_tariffs(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         mr_dir = tmp_path / "monthly_rates"
         mr_dir.mkdir()
         _write_yaml(
@@ -950,9 +929,7 @@ class TestCLI:
         assert (output_dir / "acme_default.json").exists()
         assert (output_dir / "acme_default_supply.json").exists()
 
-    def test_no_matching_files_raises(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_matching_files_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         empty = tmp_path / "empty"
         empty.mkdir()
         monkeypatch.setattr(

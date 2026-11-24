@@ -108,9 +108,7 @@ def test_assert_output_dir_is_mounted_passes_when_mount_root_is_mounted(
     assert_output_dir_is_mounted(path_results, mount_root=mount_root)
 
 
-def test_assert_output_dir_is_mounted_noop_outside_mount_root(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_assert_output_dir_is_mounted_noop_outside_mount_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A local scratch output dir (not under mount_root) is never checked."""
     mount_root = tmp_path / "data.sb"
     mount_root.mkdir()

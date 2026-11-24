@@ -149,9 +149,7 @@ def check_weights_sum(df: pl.DataFrame, result: ValidationResult) -> None:
     bad = sums.filter((pl.col("total") - 1.0).abs() > 1e-9)
     if bad.height > 0:
         for row in bad.iter_rows(named=True):
-            result.error(
-                "Weights sum", f"{row['utility']}: weights sum to {row['total']}"
-            )
+            result.error("Weights sum", f"{row['utility']}: weights sum to {row['total']}")
     else:
         result.passed(
             "Weights sum",
@@ -174,9 +172,7 @@ def check_internal_consistency(df: pl.DataFrame, result: ValidationResult) -> No
     for row in df.iter_rows(named=True):
         canonical = row["price_zone"]
         if canonical not in CANONICAL_CROSSWALK:
-            errors.append(
-                f"{row['utility']}: price_zone '{canonical}' not a canonical zone"
-            )
+            errors.append(f"{row['utility']}: price_zone '{canonical}' not a canonical zone")
             continue
         if row["fivecp_zone_label"] != canonical:
             errors.append(
@@ -215,13 +211,7 @@ def check_pnode_ids(df: pl.DataFrame, result: ValidationResult) -> None:
         .filter(pl.col("n_unique") > 1)
     )
     for row in zone_ids.iter_rows(named=True):
-        ids = (
-            df.filter(pl.col("fivecp_zone_label") == row["fivecp_zone_label"])[
-                "pnode_id"
-            ]
-            .unique()
-            .to_list()
-        )
+        ids = df.filter(pl.col("fivecp_zone_label") == row["fivecp_zone_label"])["pnode_id"].unique().to_list()
         errors.append(
             f"fivecp_zone_label '{row['fivecp_zone_label']}' has {row['n_unique']} "
             f"different pnode_ids: {sorted(ids)} (all rows for a zone must share one id)"
@@ -231,19 +221,14 @@ def check_pnode_ids(df: pl.DataFrame, result: ValidationResult) -> None:
         for e in errors:
             result.error("Pnode IDs", e)
     else:
-        unique_ids = sorted(
-            df.select(["fivecp_zone_label", "pnode_id"]).unique().rows()
-        )
+        unique_ids = sorted(df.select(["fivecp_zone_label", "pnode_id"]).unique().rows())
         result.passed(
             "Pnode IDs",
-            f"{len(unique_ids)} zone→pnode mappings: "
-            + ", ".join(f"{z}={n}" for z, n in unique_ids),
+            f"{len(unique_ids)} zone→pnode mappings: " + ", ".join(f"{z}={n}" for z, n in unique_ids),
         )
 
 
-def check_price_zone_crosswalk(
-    df: pl.DataFrame, path_rpm_csv: Path, result: ValidationResult
-) -> None:
+def check_price_zone_crosswalk(df: pl.DataFrame, path_rpm_csv: Path, result: ValidationResult) -> None:
     """Every price_zone must exist in rpm_capacity_prices.csv for every DY."""
     if not path_rpm_csv.is_file():
         result.warn(
@@ -257,9 +242,7 @@ def check_price_zone_crosswalk(
         dy_zones = set(rpm.filter(pl.col("delivery_year") == dy)["zone"].to_list())
         missing = set(df["price_zone"].to_list()) - dy_zones
         if missing:
-            errors.append(
-                f"DY {dy}: price zones missing from rpm CSV: {sorted(missing)}"
-            )
+            errors.append(f"DY {dy}: price zones missing from rpm CSV: {sorted(missing)}")
     if errors:
         for e in errors:
             result.error("Price zone crosswalk", e)
@@ -271,9 +254,7 @@ def check_price_zone_crosswalk(
         )
 
 
-def check_fivecp_crosswalk(
-    df: pl.DataFrame, path_fivecp_csv: Path, result: ValidationResult
-) -> None:
+def check_fivecp_crosswalk(df: pl.DataFrame, path_fivecp_csv: Path, result: ValidationResult) -> None:
     """Every fivecp_zone_label must exist in fivecp_peaks.csv for every summer."""
     if not path_fivecp_csv.is_file():
         result.warn(
@@ -284,14 +265,10 @@ def check_fivecp_crosswalk(
     fivecp = pl.read_csv(path_fivecp_csv, comment_prefix="#", try_parse_dates=True)
     errors: list[str] = []
     for summer in fivecp["summer_year"].unique().to_list():
-        summer_zones = set(
-            fivecp.filter(pl.col("summer_year") == summer)["zone"].to_list()
-        )
+        summer_zones = set(fivecp.filter(pl.col("summer_year") == summer)["zone"].to_list())
         missing = set(df["fivecp_zone_label"].to_list()) - summer_zones
         if missing:
-            errors.append(
-                f"summer {summer}: 5CP zones missing from fivecp CSV: {sorted(missing)}"
-            )
+            errors.append(f"summer {summer}: 5CP zones missing from fivecp CSV: {sorted(missing)}")
     if errors:
         for e in errors:
             result.error("5CP zone crosswalk", e)
@@ -318,9 +295,7 @@ def print_report(result: ValidationResult) -> None:
 def main() -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Validate the PJM utility zone mapping CSV."
-    )
+    parser = argparse.ArgumentParser(description="Validate the PJM utility zone mapping CSV.")
     parser.add_argument(
         "--path-csv",
         type=Path,

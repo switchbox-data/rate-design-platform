@@ -115,9 +115,7 @@ def _ensure_feasible(
     if feasible and not negative_values:
         return
 
-    details = ", ".join(
-        f"{name}={value}" for name, value in sorted(negative_values.items())
-    )
+    details = ", ".join(f"{name}={value}" for name, value in sorted(negative_values.items()))
     if not details:
         details = f"{flag_column}=false"
     message = f"{strategy} fair-default design is infeasible ({details})."
@@ -186,21 +184,15 @@ def _seasonal_strategy_values(
         allow_infeasible=allow_infeasible,
     )
     if allow_infeasible:
-        winter_rate = _clip_nonnegative(
-            _required_float(row, "seasonal_rates_only_clipped_winter_rate")
-        )
-        summer_rate = _clip_nonnegative(
-            _required_float(row, "seasonal_rates_only_clipped_summer_rate")
-        )
+        winter_rate = _clip_nonnegative(_required_float(row, "seasonal_rates_only_clipped_winter_rate"))
+        summer_rate = _clip_nonnegative(_required_float(row, "seasonal_rates_only_clipped_summer_rate"))
         fixed_charge = _clip_nonnegative(fixed_charge)
         if (
             "seasonal_rates_only_residual_cross_subsidy_after_clipping" in row
-            and row["seasonal_rates_only_residual_cross_subsidy_after_clipping"]
-            is not None
+            and row["seasonal_rates_only_residual_cross_subsidy_after_clipping"] is not None
         ):
             LOGGER.warning(
-                "Clipped seasonal fair-default tariff leaves residual target "
-                "cross-subsidy of %s.",
+                "Clipped seasonal fair-default tariff leaves residual target cross-subsidy of %s.",
                 row["seasonal_rates_only_residual_cross_subsidy_after_clipping"],
             )
     return fixed_charge, winter_rate, summer_rate
@@ -284,9 +276,7 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-    parser = argparse.ArgumentParser(
-        description="Create a fair-default tariff JSON from fair_default_inputs.csv."
-    )
+    parser = argparse.ArgumentParser(description="Create a fair-default tariff JSON from fair_default_inputs.csv.")
     parser.add_argument(
         "--base-tariff-json",
         required=True,

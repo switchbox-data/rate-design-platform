@@ -51,18 +51,14 @@ def _resolve_customer_count(eia_path: str, year: int, utility: str) -> tuple[int
     storage_options = _s3_storage_options(eia_path)
     pattern = re.compile(r"year=\d{4}")
     if not pattern.search(eia_path):
-        count = get_residential_customer_count_from_utility_stats(
-            eia_path, utility, storage_options=storage_options
-        )
+        count = get_residential_customer_count_from_utility_stats(eia_path, utility, storage_options=storage_options)
         return count, year
 
     for offset in range(21):
         try_year = year - offset
         path = pattern.sub(f"year={try_year}", eia_path, count=1)
         try:
-            count = get_residential_customer_count_from_utility_stats(
-                path, utility, storage_options=storage_options
-            )
+            count = get_residential_customer_count_from_utility_stats(path, utility, storage_options=storage_options)
             if offset > 0:
                 log.warning(
                     "EIA-861 year %d unavailable for %s; fell back to %d",
@@ -73,9 +69,7 @@ def _resolve_customer_count(eia_path: str, year: int, utility: str) -> tuple[int
             return count, try_year
         except (OSError, FileNotFoundError):
             continue
-    raise FileNotFoundError(
-        f"No EIA-861 data for utility={utility} in years {year}..{year - 20}"
-    )
+    raise FileNotFoundError(f"No EIA-861 data for utility={utility} in years {year}..{year - 20}")
 
 
 # ---------------------------------------------------------------------------
@@ -85,9 +79,7 @@ def _resolve_customer_count(eia_path: str, year: int, utility: str) -> tuple[int
 DAYS_PER_MONTH = {m: calendar.monthrange(2025, m)[1] for m in range(1, 13)}
 
 
-def _monthly_to_monthly_dollar(
-    monthly_rates: dict[str, float], charge_unit: str
-) -> dict[str, float]:
+def _monthly_to_monthly_dollar(monthly_rates: dict[str, float], charge_unit: str) -> dict[str, float]:
     """Normalise a charge's monthly_rates to $/month equivalents.
 
     $/month -> passthrough.  $/day -> multiply by days in that month.
@@ -95,10 +87,7 @@ def _monthly_to_monthly_dollar(
     if charge_unit == "$/month":
         return monthly_rates
     if charge_unit == "$/day":
-        return {
-            k: v * DAYS_PER_MONTH[int(k.split("-")[1])]
-            for k, v in monthly_rates.items()
-        }
+        return {k: v * DAYS_PER_MONTH[int(k.split("-")[1])] for k, v in monthly_rates.items()}
     raise ValueError(f"Cannot convert {charge_unit} to $/month")
 
 
@@ -226,9 +215,7 @@ def _process_utility(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Generate flat URDB v7 tariffs for all utilities in a state"
-    )
+    parser = argparse.ArgumentParser(description="Generate flat URDB v7 tariffs for all utilities in a state")
     parser.add_argument(
         "--monthly-rates-dir",
         type=Path,
@@ -263,9 +250,7 @@ def main() -> None:
     pattern = f"*_monthly_rates_{args.year}.yaml"
     mr_files = sorted(args.monthly_rates_dir.glob(pattern))
     if not mr_files:
-        raise FileNotFoundError(
-            f"No files matching {pattern} in {args.monthly_rates_dir}"
-        )
+        raise FileNotFoundError(f"No files matching {pattern} in {args.monthly_rates_dir}")
 
     suffix = f"_monthly_rates_{args.year}.yaml"
     utilities = [f.name.removesuffix(suffix) for f in mr_files]
@@ -273,12 +258,10 @@ def main() -> None:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    for utility, mr_path in zip(utilities, mr_files):
+    for utility, mr_path in zip(utilities, mr_files, strict=False):
         rr_path = args.rev_requirement_dir / f"{utility}.yaml"
         if not rr_path.exists():
-            log.error(
-                "Rev-requirement file not found: %s — skipping %s", rr_path, utility
-            )
+            log.error("Rev-requirement file not found: %s — skipping %s", rr_path, utility)
             continue
         _process_utility(utility, mr_path, rr_path, args.eia_path, args.output_dir)
 

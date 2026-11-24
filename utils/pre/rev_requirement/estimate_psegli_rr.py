@@ -98,9 +98,7 @@ def parse_bill_components(
 
     rows = _find_section_rows(lines, "Average Residential Monthly Bill Impact")
     if not rows:
-        raise SystemExit(
-            f"Could not find 'Average Residential Monthly Bill Impact' table in {md_path}"
-        )
+        raise SystemExit(f"Could not find 'Average Residential Monthly Bill Impact' table in {md_path}")
 
     # First row is the header — find the "2025 Budget" column index
     header = rows[0]
@@ -110,9 +108,7 @@ def parse_bill_components(
             budget_col = i
             break
     if budget_col is None:
-        raise SystemExit(
-            f"Could not find '2025 Budget' column in bill impact table header: {header}"
-        )
+        raise SystemExit(f"Could not find '2025 Budget' column in bill impact table header: {header}")
 
     result: dict[str, float] = {}
     for row in rows[1:]:
@@ -167,18 +163,14 @@ def _resolve_revenue_with_year_fallback(
     pattern = re.compile(r"year=\d{4}")
     match = pattern.search(path_template)
     if not match:
-        rev = get_residential_sales_revenue_from_utility_stats(
-            path_template, utility, storage_options=storage_options
-        )
+        rev = get_residential_sales_revenue_from_utility_stats(path_template, utility, storage_options=storage_options)
         return rev, year
 
     for offset in range(0, 21):
         try_year = year - offset
         path = pattern.sub(f"year={try_year}", path_template, count=1)
         try:
-            rev = get_residential_sales_revenue_from_utility_stats(
-                path, utility, storage_options=storage_options
-            )
+            rev = get_residential_sales_revenue_from_utility_stats(path, utility, storage_options=storage_options)
             if offset > 0:
                 log.warning(
                     "EIA-861 revenue for year %s not found; used year %s.",
@@ -188,10 +180,7 @@ def _resolve_revenue_with_year_fallback(
             return rev, try_year
         except (OSError, FileNotFoundError):
             continue
-    raise FileNotFoundError(
-        f"Could not read EIA-861 revenue for utility={utility} "
-        f"for year {year} or prior 20 years."
-    )
+    raise FileNotFoundError(f"Could not read EIA-861 revenue for utility={utility} for year {year} or prior 20 years.")
 
 
 # ---------------------------------------------------------------------------
@@ -251,9 +240,7 @@ def main() -> None:
 
     delivery_system = components.get("Delivery & System")
     power_supply = components.get("Power Supply")
-    total_bill = components.get(
-        "Typical Average Residential Bill Assuming No Change in Customer Usage"
-    )
+    total_bill = components.get("Typical Average Residential Bill Assuming No Change in Customer Usage")
 
     if delivery_system is None or total_bill is None:
         raise SystemExit(
@@ -262,8 +249,7 @@ def main() -> None:
         )
     if power_supply is None:
         raise SystemExit(
-            "Could not find 'Power Supply' row in the bill impact table. "
-            f"Found labels: {list(components.keys())}"
+            f"Could not find 'Power Supply' row in the bill impact table. Found labels: {list(components.keys())}"
         )
 
     delivery_share = delivery_system / total_bill
@@ -325,9 +311,7 @@ def main() -> None:
             "Source: s3://data.sb/switchbox/revenue_requirements/ny/revenue_requirements_dummy.csv"
         ),
     )
-    log.info(
-        "Wrote %s = %.2f to %s", args.output_key, delivery_rr, args.path_rate_case_rr
-    )
+    log.info("Wrote %s = %.2f to %s", args.output_key, delivery_rr, args.path_rate_case_rr)
 
     # --- Write supply base to overrides YAML ---
     supply_data = _read_yaml_mapping(args.path_supply_base)
@@ -341,9 +325,7 @@ def main() -> None:
             "See utils/pre/rev_requirement/estimate_psegli_rr.py for methodology."
         ),
     )
-    log.info(
-        "Wrote %s = %.2f to %s", args.output_key, supply_base, args.path_supply_base
-    )
+    log.info("Wrote %s = %.2f to %s", args.output_key, supply_base, args.path_supply_base)
 
 
 if __name__ == "__main__":

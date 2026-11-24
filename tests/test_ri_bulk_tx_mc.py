@@ -20,7 +20,6 @@ from utils.data_prep.marginal_costs.supply_utils import (
     allocate_annual_exceedance_to_hours,
 )
 
-
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 
@@ -36,9 +35,7 @@ def _make_ne_load_profile(year: int = 2025, n_hours: int = 8760) -> pl.DataFrame
     summer = {5, 6, 7, 8, 9}
     return df.with_columns(
         (
-            pl.when(pl.col("timestamp").dt.month().is_in(list(summer)))
-            .then(20_000.0)
-            .otherwise(14_000.0)
+            pl.when(pl.col("timestamp").dt.month().is_in(list(summer))).then(20_000.0).otherwise(14_000.0)
             + (pl.col("idx") % 24).cast(pl.Float64) * 100.0
             + (pl.col("idx") * 0.01)
         ).alias("load_mw")
@@ -56,26 +53,20 @@ def _make_ri_zone_load(ne_load: pl.DataFrame, share: float = 0.05) -> pl.DataFra
 class TestExceedanceAllocation:
     def test_returns_n_peak_hours_rows(self) -> None:
         load_df = _make_ne_load_profile()
-        result = allocate_annual_exceedance_to_hours(
-            load_df, annual_cost_kw_year=69.0, n_peak_hours=100
-        )
+        result = allocate_annual_exceedance_to_hours(load_df, annual_cost_kw_year=69.0, n_peak_hours=100)
         assert result.height == 100
 
     def test_1kw_recovery(self) -> None:
         """Sum of allocated cost equals the annual cost (1 kW constant load)."""
         load_df = _make_ne_load_profile()
         ptf = 69.0
-        result = allocate_annual_exceedance_to_hours(
-            load_df, annual_cost_kw_year=ptf, n_peak_hours=100
-        )
+        result = allocate_annual_exceedance_to_hours(load_df, annual_cost_kw_year=ptf, n_peak_hours=100)
         total = float(result["cost_per_kw"].sum())
         assert total == pytest.approx(ptf, rel=1e-4)
 
     def test_custom_n_peak_hours(self) -> None:
         load_df = _make_ne_load_profile()
-        result = allocate_annual_exceedance_to_hours(
-            load_df, annual_cost_kw_year=50.0, n_peak_hours=50
-        )
+        result = allocate_annual_exceedance_to_hours(load_df, annual_cost_kw_year=50.0, n_peak_hours=50)
         assert result.height == 50
         assert float(result["cost_per_kw"].sum()) == pytest.approx(50.0, rel=1e-4)
 
@@ -83,9 +74,7 @@ class TestExceedanceAllocation:
         # Only 24 hours of data, ask for 100
         load_df = _make_ne_load_profile(n_hours=24)
         with pytest.raises(ValueError, match="need at least"):
-            allocate_annual_exceedance_to_hours(
-                load_df, annual_cost_kw_year=69.0, n_peak_hours=100
-            )
+            allocate_annual_exceedance_to_hours(load_df, annual_cost_kw_year=69.0, n_peak_hours=100)
 
     def test_custom_cost_col_name(self) -> None:
         load_df = _make_ne_load_profile()
@@ -98,13 +87,9 @@ class TestExceedanceAllocation:
     def test_peak_hours_are_highest_load(self) -> None:
         """Allocated hours should be the highest-load hours."""
         load_df = _make_ne_load_profile()
-        result = allocate_annual_exceedance_to_hours(
-            load_df, annual_cost_kw_year=69.0, n_peak_hours=100
-        )
+        result = allocate_annual_exceedance_to_hours(load_df, annual_cost_kw_year=69.0, n_peak_hours=100)
         peak_ts = set(result["timestamp"].to_list())
-        top100 = (
-            load_df.sort("load_mw", descending=True).head(100)["timestamp"].to_list()
-        )
+        top100 = load_df.sort("load_mw", descending=True).head(100)["timestamp"].to_list()
         assert peak_ts == set(top100)
 
 
@@ -128,9 +113,7 @@ class TestComputeIsoneBulkTxSignal:
 
     def test_custom_peak_hours(self) -> None:
         ne_load = _make_ne_load_profile()
-        result = compute_isone_bulk_tx_signal(
-            ne_load, aesc_ptf_kw_year=69.0, n_peak_hours=50
-        )
+        result = compute_isone_bulk_tx_signal(ne_load, aesc_ptf_kw_year=69.0, n_peak_hours=50)
         assert result.height == 50
 
     def test_utility_zone_load_informational_only(self) -> None:
@@ -140,9 +123,7 @@ class TestComputeIsoneBulkTxSignal:
         ptf = 69.0
 
         result_without = compute_isone_bulk_tx_signal(ne_load, aesc_ptf_kw_year=ptf)
-        result_with = compute_isone_bulk_tx_signal(
-            ne_load, aesc_ptf_kw_year=ptf, utility_zone_load_df=ri_load
-        )
+        result_with = compute_isone_bulk_tx_signal(ne_load, aesc_ptf_kw_year=ptf, utility_zone_load_df=ri_load)
 
         # Same cost allocation regardless of whether utility zone load is provided
         assert float(result_without["bulk_tx_cost_enduse"].sum()) == pytest.approx(
@@ -162,9 +143,7 @@ class TestPrepareOutput:
 
     def test_non_peak_hours_are_zero(self) -> None:
         ne_load = _make_ne_load_profile()
-        signal = compute_isone_bulk_tx_signal(
-            ne_load, aesc_ptf_kw_year=69.0, n_peak_hours=100
-        )
+        signal = compute_isone_bulk_tx_signal(ne_load, aesc_ptf_kw_year=69.0, n_peak_hours=100)
         output = prepare_output(signal, year=2025)
         n_nonzero = output.filter(pl.col("bulk_tx_cost_enduse") > 0).height
         assert n_nonzero == 100
@@ -259,19 +238,11 @@ class TestAllocationLoadModes:
         system_load = _make_ne_load_profile()
         zone_load = _make_zone_load()
 
-        system_signal = prepare_output(
-            compute_isone_bulk_tx_signal(system_load, ptf, n_peak_hours=n), 2025
-        )
-        zone_signal = prepare_output(
-            compute_isone_bulk_tx_signal(zone_load, ptf, n_peak_hours=n), 2025
-        )
+        system_signal = prepare_output(compute_isone_bulk_tx_signal(system_load, ptf, n_peak_hours=n), 2025)
+        zone_signal = prepare_output(compute_isone_bulk_tx_signal(zone_load, ptf, n_peak_hours=n), 2025)
 
-        assert float(system_signal["bulk_tx_cost_enduse"].sum()) == pytest.approx(
-            ptf, rel=1e-4
-        )
-        assert float(zone_signal["bulk_tx_cost_enduse"].sum()) == pytest.approx(
-            ptf, rel=1e-4
-        )
+        assert float(system_signal["bulk_tx_cost_enduse"].sum()) == pytest.approx(ptf, rel=1e-4)
+        assert float(zone_signal["bulk_tx_cost_enduse"].sum()) == pytest.approx(ptf, rel=1e-4)
 
     def test_both_have_exactly_n_peak_hours(self) -> None:
         n = 50
@@ -294,9 +265,7 @@ class TestAllocationLoadModes:
             float,
             system_load.sort("load_mw", descending=True).head(100)["load_mw"].min(),
         )
-        zone_top = cast(
-            float, zone_load.sort("load_mw", descending=True).head(100)["load_mw"].min()
-        )
+        zone_top = cast(float, zone_load.sort("load_mw", descending=True).head(100)["load_mw"].min())
         assert system_top is not None and zone_top is not None
 
         assert system_top > zone_top
@@ -339,12 +308,8 @@ class TestAllocationLoadModes:
     def test_system_aggregate_sums_zones(self) -> None:
         """A hand-summed multi-zone aggregate produces the same peak hours
         as loading zones individually and summing via _sum_zone_loads."""
-        zone_a = _make_zone_load(
-            base_mw=10_000.0, summer_boost_mw=3_000.0, noise_offset=0
-        )
-        zone_b = _make_zone_load(
-            base_mw=5_000.0, summer_boost_mw=1_500.0, noise_offset=3
-        )
+        zone_a = _make_zone_load(base_mw=10_000.0, summer_boost_mw=3_000.0, noise_offset=0)
+        zone_b = _make_zone_load(base_mw=5_000.0, summer_boost_mw=1_500.0, noise_offset=3)
         zone_c = _make_zone_load(base_mw=3_000.0, summer_boost_mw=800.0, noise_offset=6)
 
         system = _sum_zone_loads(zone_a, zone_b, zone_c)
@@ -352,9 +317,7 @@ class TestAllocationLoadModes:
 
         system_signal = compute_isone_bulk_tx_signal(system, 69.0, n_peak_hours=n)
         # Peak hours of the sum must be the top-n hours of the combined load
-        top_n_ts = set(
-            system.sort("load_mw", descending=True).head(n)["timestamp"].to_list()
-        )
+        top_n_ts = set(system.sort("load_mw", descending=True).head(n)["timestamp"].to_list())
         assert set(system_signal["timestamp"].to_list()) == top_n_ts
 
     def test_informational_zone_load_does_not_change_signal(self) -> None:
@@ -365,13 +328,9 @@ class TestAllocationLoadModes:
         n = 100
 
         without_info = compute_isone_bulk_tx_signal(system_load, ptf, n_peak_hours=n)
-        with_info = compute_isone_bulk_tx_signal(
-            system_load, ptf, n_peak_hours=n, utility_zone_load_df=zone_load
-        )
+        with_info = compute_isone_bulk_tx_signal(system_load, ptf, n_peak_hours=n, utility_zone_load_df=zone_load)
 
-        assert set(without_info["timestamp"].to_list()) == set(
-            with_info["timestamp"].to_list()
-        )
+        assert set(without_info["timestamp"].to_list()) == set(with_info["timestamp"].to_list())
         assert float(without_info["bulk_tx_cost_enduse"].sum()) == pytest.approx(
             float(with_info["bulk_tx_cost_enduse"].sum()), rel=1e-6
         )

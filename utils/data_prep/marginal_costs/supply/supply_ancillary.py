@@ -145,13 +145,9 @@ def load_ancillary_source_for_year(
         .collect()
     )
     if not isinstance(collected, pl.DataFrame):
-        raise TypeError(
-            f"Expected DataFrame from ancillary collect() ({cfg.data_label})"
-        )
+        raise TypeError(f"Expected DataFrame from ancillary collect() ({cfg.data_label})")
     if collected.is_empty():
-        raise FileNotFoundError(
-            f"No ancillary data found for year={year} under {base} ({cfg.data_label})"
-        )
+        raise FileNotFoundError(f"No ancillary data found for year={year} under {base} ({cfg.data_label})")
 
     collected = strip_tz_if_needed(collected, _INTERVAL_START_COL)
     if iso == "nyiso" and "interval_end_et" in collected.columns:
@@ -195,10 +191,9 @@ def ancillary_wide_to_enduse(
         out = (
             df.rename({_INTERVAL_START_COL: "timestamp"})
             .with_columns(
-                (
-                    pl.col("reg_service_price_usd_per_mwh")
-                    + pl.col("reg_capacity_price_usd_per_mwh")
-                ).alias("ancillary_cost_enduse")
+                (pl.col("reg_service_price_usd_per_mwh") + pl.col("reg_capacity_price_usd_per_mwh")).alias(
+                    "ancillary_cost_enduse"
+                )
             )
             .select("timestamp", "ancillary_cost_enduse")
         )
@@ -212,9 +207,7 @@ def ancillary_wide_to_enduse(
     if iso == "nyiso":
         work = strip_tz_if_needed(df, _INTERVAL_START_COL)
         work = strip_tz_if_needed(work, "interval_end_et")
-        interval_hours = (
-            pl.col("interval_end_et") - pl.col(_INTERVAL_START_COL)
-        ).dt.total_seconds() / 3600.0
+        interval_hours = (pl.col("interval_end_et") - pl.col(_INTERVAL_START_COL)).dt.total_seconds() / 3600.0
         out = (
             work.with_columns(
                 pl.col("nyca_regulation_capacity_usd_per_mwhr").fill_null(0.0),
@@ -224,8 +217,7 @@ def ancillary_wide_to_enduse(
             .with_columns(
                 (
                     pl.col("nyca_regulation_capacity_usd_per_mwhr")
-                    + pl.col("nyca_regulation_movement_usd_per_mw")
-                    * pl.col("_interval_hours")
+                    + pl.col("nyca_regulation_movement_usd_per_mw") * pl.col("_interval_hours")
                 ).alias("ancillary_cost_enduse")
             )
             .drop("_interval_hours")
@@ -292,8 +284,5 @@ def compute_supply_ancillary_mc(
 
     iso_label = "ISO-NE" if iso == "isone" else "NYISO"
     avg_cost = output["ancillary_cost_enduse"].mean()
-    print(
-        f"  Ancillary MC ({iso_label}): {output.height} hours, "
-        f"avg cost = ${avg_cost:.2f}/MWh"
-    )
+    print(f"  Ancillary MC ({iso_label}): {output.height} hours, avg cost = ${avg_cost:.2f}/MWh")
     return output

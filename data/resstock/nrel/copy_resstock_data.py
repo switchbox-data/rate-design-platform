@@ -41,14 +41,10 @@ def copy_dir(
     dst = str(dest_dir).rstrip("/")
 
     if src.startswith("s3://") and dst.startswith("s3://"):
-        return _copy_s3_dir_to_s3(
-            src, dst, max_workers=max_workers, include_suffixes=include_suffixes
-        )
+        return _copy_s3_dir_to_s3(src, dst, max_workers=max_workers, include_suffixes=include_suffixes)
     if not src.startswith("s3://") and not dst.startswith("s3://"):
         return _copy_local_dir(Path(src), Path(dst), include_suffixes=include_suffixes)
-    raise ValueError(
-        "Source and destination must both be S3 URIs or both be local paths"
-    )
+    raise ValueError("Source and destination must both be S3 URIs or both be local paths")
 
 
 def _copy_s3_dir_to_s3(
@@ -111,9 +107,7 @@ def _copy_local_dir(
     for src_file in source_dir.rglob("*"):
         if not src_file.is_file():
             continue
-        if include_suffixes and not any(
-            src_file.name.endswith(s) for s in include_suffixes
-        ):
+        if include_suffixes and not any(src_file.name.endswith(s) for s in include_suffixes):
             continue
         try:
             rel = src_file.relative_to(source_dir)
@@ -184,12 +178,8 @@ def copy_resstock_data(
     if data_path.startswith("s3://"):
         bucket, base_prefix = _get_s3_bucket_and_prefix(data_path.rstrip("/"))
         if file_type == "metadata_utility":
-            source_dir = (
-                f"s3://{bucket}/{base_prefix}/{release_from}/{file_type}/state={state}/"
-            )
-            dest_dir = (
-                f"s3://{bucket}/{base_prefix}/{release_to}/{file_type}/state={state}/"
-            )
+            source_dir = f"s3://{bucket}/{base_prefix}/{release_from}/{file_type}/state={state}/"
+            dest_dir = f"s3://{bucket}/{base_prefix}/{release_to}/{file_type}/state={state}/"
         else:
             source_dir = f"s3://{bucket}/{base_prefix}/{release_from}/{file_type}/state={state}/upgrade={upgrade_id}/"
             dest_dir = f"s3://{bucket}/{base_prefix}/{release_to}/{file_type}/state={state}/upgrade={upgrade_id}/"
@@ -227,12 +217,7 @@ def clone_release(
         flush=True,
     )
 
-    combos = [
-        (ft, s, uid.zfill(2))
-        for ft in file_types
-        for s in states
-        for uid in upgrade_ids
-    ]
+    combos = [(ft, s, uid.zfill(2)) for ft in file_types for s in states for uid in upgrade_ids]
     total_combos = len(combos)
 
     n_copied = 0
@@ -297,9 +282,7 @@ if __name__ == "__main__":
     total = 0
     for file_type in args.file_types.split():
         for upgrade_id in args.upgrade_ids.split():
-            print(
-                f"Copying {file_type} upgrade={upgrade_id} from {args.release_from} to {args.release_to}"
-            )
+            print(f"Copying {file_type} upgrade={upgrade_id} from {args.release_from} to {args.release_to}")
             n = copy_resstock_data(
                 data_path=args.data_path,
                 release_from=args.release_from,
@@ -311,8 +294,7 @@ if __name__ == "__main__":
             total += n
             if n:
                 print(
-                    f"Copied {n} objects: {file_type} upgrade={upgrade_id} "
-                    f"({args.release_from} -> {args.release_to})"
+                    f"Copied {n} objects: {file_type} upgrade={upgrade_id} ({args.release_from} -> {args.release_to})"
                 )
             if file_type == "metadata_utility" and upgrade_id == "00":
                 break

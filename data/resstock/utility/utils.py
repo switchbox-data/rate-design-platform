@@ -18,6 +18,7 @@ constants (state code, HIFLD URLs, CRS, etc.).
 
 from __future__ import annotations
 
+import contextlib
 import io
 import os
 import subprocess
@@ -88,18 +89,14 @@ def read_csv_to_gdf_from_s3(
 
     for col in df.columns:
         if col != geometry_col and col not in string_columns:
-            try:
+            with contextlib.suppress(ValueError, TypeError):
                 df[col] = pd.to_numeric(df[col], errors="coerce")
-            except (ValueError, TypeError):
-                pass
 
     for col in string_columns:
         if col in df.columns:
             df[col] = df[col].astype(str)
 
-    gdf = gpd.GeoDataFrame(
-        df, geometry=gpd.GeoSeries.from_wkt(df[geometry_col]), crs=crs
-    )
+    gdf = gpd.GeoDataFrame(df, geometry=gpd.GeoSeries.from_wkt(df[geometry_col]), crs=crs)
 
     gdf = gdf.to_crs(epsg=state_crs)
     if utility_type == "electric":
@@ -166,18 +163,14 @@ def load_county_utility_weights(
 
     name_map = pl.DataFrame(
         {
-            "utility_id_eia": pl.Series(
-                list(eia_id_to_std_name.keys()), dtype=pl.Int32
-            ),
+            "utility_id_eia": pl.Series(list(eia_id_to_std_name.keys()), dtype=pl.Int32),
             "utility": pl.Series(list(eia_id_to_std_name.values()), dtype=pl.Utf8),
         }
     )
 
     df = (
         df.join(name_map, on="utility_id_eia", how="left")
-        .with_columns(
-            pl.col("utility").fill_null(pl.col("utility_name_eia")).alias("utility")
-        )
+        .with_columns(pl.col("utility").fill_null(pl.col("utility_name_eia")).alias("utility"))
         .select(["county_id_fips", "utility", "weight"])
     )
 
@@ -204,20 +197,14 @@ def calculate_puma_utility_overlap(
 
     utility_polygons_transformed = utility_gdf.to_crs(epsg=state_crs)
 
-    puma_overlap = gpd.overlay(
-        puma_overlap, utility_polygons_transformed, how="intersection"
-    )
+    puma_overlap = gpd.overlay(puma_overlap, utility_polygons_transformed, how="intersection")
 
     puma_overlap["overlap_area"] = puma_overlap.geometry.area
-    puma_overlap["pct_overlap"] = (
-        puma_overlap["overlap_area"] / puma_overlap["puma_area"] * 100
-    ).astype(float)
+    puma_overlap["pct_overlap"] = (puma_overlap["overlap_area"] / puma_overlap["puma_area"] * 100).astype(float)
 
     puma_overlap = puma_overlap.drop(columns=["geometry"])
     utility_cols = [col for col in puma_overlap.columns if "utility" in col.lower()]
-    puma_overlap = puma_overlap[["PUMACE10", "pct_overlap"] + utility_cols].rename(
-        columns={"PUMACE10": "puma_id"}
-    )
+    puma_overlap = puma_overlap[["PUMACE10", "pct_overlap", *utility_cols]].rename(columns={"PUMACE10": "puma_id"})
 
     return pl.from_pandas(puma_overlap).lazy()
 
@@ -236,9 +223,7 @@ def load_census_blocks(state: str, year: int = 2020) -> gpd.GeoDataFrame:
     if year != 2020:
         raise ValueError(f"Only 2020 blocks (HOUSING20) are supported, got {year}.")
     raw = cast(gpd.GeoDataFrame, pygris_blocks(state=state, year=year, cache=True))
-    points = gpd.points_from_xy(
-        raw["INTPTLON20"].astype(float), raw["INTPTLAT20"].astype(float)
-    )
+    points = gpd.points_from_xy(raw["INTPTLON20"].astype(float), raw["INTPTLAT20"].astype(float))
     return gpd.GeoDataFrame(
         {
             "block_geoid": raw["GEOID20"].astype(str),
@@ -254,9 +239,7 @@ ACS_HEATING_FUEL_TOTAL = "B25040_001E"
 ACS_HEATING_FUEL_UTILITY_GAS = "B25040_002E"
 
 
-def fetch_acs_gas_heated_homes_by_block_group(
-    state_fips: str, year: int = ACS5_BLOCK_GROUP_YEAR
-) -> pl.DataFrame:
+def fetch_acs_gas_heated_homes_by_block_group(state_fips: str, year: int = ACS5_BLOCK_GROUP_YEAR) -> pl.DataFrame:
     """ACS 5-year occupied homes heated with utility gas, by block group.
 
     Table B25040 (House Heating Fuel). The 2016-2020 release is tabulated on
@@ -285,19 +268,12 @@ def fetch_acs_gas_heated_homes_by_block_group(
     )
     rows = resp.json()
     return pl.DataFrame(rows[1:], schema=rows[0], orient="row").select(
-        pl.concat_str("state", "county", "tract", "block group").alias(
-            "block_group_geoid"
-        ),
-        pl.col(ACS_HEATING_FUEL_UTILITY_GAS)
-        .cast(pl.Int64)
-        .clip(lower_bound=0)
-        .alias("gas_heated_homes"),
+        pl.concat_str("state", "county", "tract", "block group").alias("block_group_geoid"),
+        pl.col(ACS_HEATING_FUEL_UTILITY_GAS).cast(pl.Int64).clip(lower_bound=0).alias("gas_heated_homes"),
     )
 
 
-def add_block_gas_heated_homes(
-    blocks: gpd.GeoDataFrame, block_groups: pl.DataFrame
-) -> gpd.GeoDataFrame:
+def add_block_gas_heated_homes(blocks: gpd.GeoDataFrame, block_groups: pl.DataFrame) -> gpd.GeoDataFrame:
     """Spread each block group's gas-heated homes over its blocks.
 
     Each block gets the block group's count times the block's share of the
@@ -311,14 +287,10 @@ def add_block_gas_heated_homes(
         }
     ).with_columns(pl.col("block_geoid").str.slice(0, 12).alias("block_group_geoid"))
     bg_hu = pl.col("housing_units").sum().over("block_group_geoid")
-    allocated = block_df.join(
-        block_groups, on="block_group_geoid", how="left"
-    ).with_columns(
+    allocated = block_df.join(block_groups, on="block_group_geoid", how="left").with_columns(
         (
             pl.col("gas_heated_homes").fill_null(0)
-            * pl.when(bg_hu > 0)
-            .then(pl.col("housing_units") / bg_hu)
-            .otherwise(1 / pl.len().over("block_group_geoid"))
+            * pl.when(bg_hu > 0).then(pl.col("housing_units") / bg_hu).otherwise(1 / pl.len().over("block_group_geoid"))
         ).alias("gas_heated_homes")
     )
     out = blocks.copy()
@@ -344,26 +316,20 @@ def calculate_puma_utility_housing_overlap(
     utility's share of the PUMA's ``weight_col`` total, in percent.
     """
     pumas_proj = pumas[["PUMACE10", "geometry"]].to_crs(epsg=state_crs)
-    utilities_proj = (
-        utility_gdf[["utility", "geometry"]].to_crs(epsg=state_crs).dissolve("utility")
-    ).reset_index()
+    utilities_proj = (utility_gdf[["utility", "geometry"]].to_crs(epsg=state_crs).dissolve("utility")).reset_index()
     blocks_proj = blocks[["block_geoid", weight_col, "geometry"]].to_crs(epsg=state_crs)
 
-    blocks_in_puma = gpd.sjoin(
-        blocks_proj, pumas_proj, how="inner", predicate="within"
-    ).drop(columns="index_right")
+    blocks_in_puma = gpd.sjoin(blocks_proj, pumas_proj, how="inner", predicate="within").drop(columns="index_right")
     puma_totals = (
         pl.from_pandas(blocks_in_puma[["PUMACE10", weight_col]])
         .group_by("PUMACE10")
         .agg(pl.col(weight_col).sum().alias("puma_total"))
     )
 
-    in_utility = gpd.sjoin(
-        blocks_in_puma, utilities_proj, how="inner", predicate="within"
+    in_utility = gpd.sjoin(blocks_in_puma, utilities_proj, how="inner", predicate="within")
+    block_utilities = pl.from_pandas(in_utility[["block_geoid", "PUMACE10", "utility", weight_col]]).with_columns(
+        (pl.col(weight_col) / pl.len().over("block_geoid")).alias("share")
     )
-    block_utilities = pl.from_pandas(
-        in_utility[["block_geoid", "PUMACE10", "utility", weight_col]]
-    ).with_columns((pl.col(weight_col) / pl.len().over("block_geoid")).alias("share"))
 
     return (
         block_utilities.group_by("PUMACE10", "utility")
@@ -440,18 +406,12 @@ def calculate_puma_county_utility_overlap(
     )
 
     weighted = weighted.with_columns(
-        (pl.col("overlap_area") * pl.col("weight") / pl.col("puma_area") * 100).alias(
-            "pct_overlap"
-        )
+        (pl.col("overlap_area") * pl.col("weight") / pl.col("puma_area") * 100).alias("pct_overlap")
     )
 
     # Sum across counties: a PUMA spanning multiple counties accumulates
     # weighted overlap area from each.
-    result = (
-        weighted.group_by(["puma_id", "utility"])
-        .agg(pl.col("pct_overlap").sum())
-        .sort("puma_id")
-    )
+    result = weighted.group_by(["puma_id", "utility"]).agg(pl.col("pct_overlap").sum()).sort("puma_id")
 
     return result.lazy()
 
@@ -473,12 +433,8 @@ def calculate_utility_probabilities(
     Returns a wide-format LazyFrame with ``puma_id`` and one probability column
     per utility.
     """
-    probs = puma_overlap.join(
-        utility_name_map, left_on="utility", right_on="state_name", how="left"
-    )
-    probs = probs.with_columns(
-        pl.col("std_name").fill_null(pl.col("utility")).alias("utility")
-    ).drop("std_name")
+    probs = puma_overlap.join(utility_name_map, left_on="utility", right_on="state_name", how="left")
+    probs = probs.with_columns(pl.col("std_name").fill_null(pl.col("utility")).alias("utility")).drop("std_name")
 
     if handle_municipal:
         probs = probs.with_columns(
@@ -487,10 +443,7 @@ def calculate_utility_probabilities(
                 pl.concat_str(
                     [
                         pl.lit("muni-"),
-                        pl.col("utility")
-                        .str.replace("Municipal Utility:", "")
-                        .str.strip_chars()
-                        .str.to_lowercase(),
+                        pl.col("utility").str.replace("Municipal Utility:", "").str.strip_chars().str.to_lowercase(),
                     ]
                 )
             )
@@ -501,9 +454,7 @@ def calculate_utility_probabilities(
     probs = probs.group_by(["puma_id", "utility"]).agg(pl.col("pct_overlap").sum())
 
     probs = probs.with_columns(
-        (pl.col("pct_overlap") / pl.col("pct_overlap").sum().over("puma_id")).alias(
-            "probability"
-        )
+        (pl.col("pct_overlap") / pl.col("pct_overlap").sum().over("puma_id")).alias("probability")
     )
 
     probs = probs.select(["puma_id", "utility", "probability"])
@@ -515,9 +466,7 @@ def calculate_utility_probabilities(
         probs = probs.filter(pl.col("utility") != "none")
 
     probs_collected = probs.collect()
-    probs_pivoted = probs_collected.pivot(
-        index="puma_id", on="utility", values="probability", aggregate_function=None
-    )
+    probs_pivoted = probs_collected.pivot(index="puma_id", on="utility", values="probability", aggregate_function=None)
     probs = probs_pivoted.fill_null(0).lazy()
 
     return probs
@@ -534,9 +483,7 @@ def calculate_prior_distributions(
     utility names to weighted probabilities (for later comparison with the
     posterior).
     """
-    puma_counts = (
-        puma_and_heating_fuel.group_by("puma").agg(pl.len().alias("count")).collect()
-    )
+    puma_counts = puma_and_heating_fuel.group_by("puma").agg(pl.len().alias("count")).collect()
     puma_elec_probs_df = puma_elec_probs.collect()
     elec_prior = (
         puma_elec_probs_df.lazy()
@@ -553,11 +500,7 @@ def calculate_prior_distributions(
     elec_prior_weighted: dict[str, float] = {}
     total_bldgs = float(elec_prior["count"].sum())
     for util in utility_cols_elec:
-        weighted_prob = (
-            float((elec_prior[util] * elec_prior["count"]).sum()) / total_bldgs
-            if total_bldgs > 0
-            else 0.0
-        )
+        weighted_prob = float((elec_prior[util] * elec_prior["count"]).sum()) / total_bldgs if total_bldgs > 0 else 0.0
         if weighted_prob > 0:
             elec_prior_weighted[util] = weighted_prob
 
@@ -580,9 +523,7 @@ def calculate_prior_distributions(
     total_gas_bldgs = float(gas_prior["count"].sum())
     for util in utility_cols_gas:
         weighted_prob = (
-            float((gas_prior[util] * gas_prior["count"]).sum()) / total_gas_bldgs
-            if total_gas_bldgs > 0
-            else 0.0
+            float((gas_prior[util] * gas_prior["count"]).sum()) / total_gas_bldgs if total_gas_bldgs > 0 else 0.0
         )
         if weighted_prob > 0:
             gas_prior_weighted[util] = weighted_prob
@@ -628,9 +569,7 @@ def sample_utility_per_building(
             on ``has_natgas_connection`` rather than ``heating_fuel``.
         seed: Random seed for deterministic sampling.
     """
-    bldgs_joined = bldgs.join(
-        puma_probs, left_on="puma", right_on="puma_id", how="left"
-    )
+    bldgs_joined = bldgs.join(puma_probs, left_on="puma", right_on="puma_id", how="left")
 
     puma_probs_df = puma_probs.collect()
     utility_cols = sorted([c for c in puma_probs_df.columns if c != "puma_id"])
@@ -659,9 +598,7 @@ def sample_utility_per_building(
         probs = np.nan_to_num(probs, nan=0.0)
         probs = probs / np.sum(probs)
 
-        sampled_utility = np.random.choice(
-            utility_cols, size=1, replace=False, p=probs
-        )[0]
+        sampled_utility = np.random.choice(utility_cols, size=1, replace=False, p=probs)[0]
         return sampled_utility
 
     bldgs_pd[utility_col_name] = bldgs_pd.apply(_sample, axis=1)
@@ -722,20 +659,13 @@ def print_comparison_summary(
         )
 
         all_utils = sorted(
-            set(
-                list(prior_weighted.keys())
-                + [r[utility_col] for r in posterior_df.iter_rows(named=True)]
-            ),
+            set(list(prior_weighted.keys()) + [r[utility_col] for r in posterior_df.iter_rows(named=True)]),
             key=lambda x: (x is None, str(x) if x is not None else ""),
         )
 
         total_buildings = building_filtered_df.height
-        assigned_buildings = building_filtered_df.filter(
-            pl.col(utility_col).is_not_null()
-        ).height
-        unassigned_buildings = building_filtered_df.filter(
-            pl.col(utility_col).is_null()
-        ).height
+        assigned_buildings = building_filtered_df.filter(pl.col(utility_col).is_not_null()).height
+        unassigned_buildings = building_filtered_df.filter(pl.col(utility_col).is_null()).height
 
         if filter_fuel_type is not None:
             print(
@@ -757,10 +687,7 @@ def print_comparison_summary(
 
             post_row = None
             for r in posterior_df.iter_rows(named=True):
-                if util is None and r[utility_col] is None:
-                    post_row = r
-                    break
-                elif util is not None and r[utility_col] == util:
+                if (util is None and r[utility_col] is None) or (util is not None and r[utility_col] == util):
                     post_row = r
                     break
 
@@ -783,27 +710,16 @@ def print_comparison_summary(
                 }
             )
 
-        print(
-            f"\n{utility_type} Utilities - Prior vs Posterior Comparison (Percentages):"
-        )
+        print(f"\n{utility_type} Utilities - Prior vs Posterior Comparison (Percentages):")
         print("This table compares the expected probability distribution (prior) with")
-        print(
-            "the actual assignment distribution (posterior) to verify sampling accuracy.\n"
-        )
+        print("the actual assignment distribution (posterior) to verify sampling accuracy.\n")
 
-        print(
-            f"{'Utility':<30} {'Prior %':>12} {'Posterior %':>14} {'Difference %':>15}"
-        )
+        print(f"{'Utility':<30} {'Prior %':>12} {'Posterior %':>14} {'Difference %':>15}")
         print("-" * 73)
 
         for comp in comparisons:
             diff_str = f"{comp['diff_pct']:+.2f}"
-            print(
-                f"{comp['utility']:<30} "
-                f"{comp['prior_pct']:>11.2f}% "
-                f"{comp['posterior_pct']:>13.2f}% "
-                f"{diff_str:>14}"
-            )
+            print(f"{comp['utility']:<30} {comp['prior_pct']:>11.2f}% {comp['posterior_pct']:>13.2f}% {diff_str:>14}")
 
         print(f"\n{utility_type} Utilities - Expected vs Actual Building Counts:")
         print(f"Total buildings: {total_buildings}")
@@ -812,12 +728,7 @@ def print_comparison_summary(
 
         for comp in comparisons:
             diff_str = f"{comp['diff_count']:+.0f}"
-            print(
-                f"{comp['utility']:<30} "
-                f"{comp['expected_count']:>11.0f} "
-                f"{comp['actual_count']:>11.0f} "
-                f"{diff_str:>14}"
-            )
+            print(f"{comp['utility']:<30} {comp['expected_count']:>11.0f} {comp['actual_count']:>11.0f} {diff_str:>14}")
 
         if differences:
             max_diff = max(differences)
@@ -882,16 +793,11 @@ def fill_missing_puma_probabilities(
         ``puma_probs`` augmented with rows for previously missing PUMAs.
     """
     probs_df = puma_probs.collect()
-    covered_ids: set[str] = set(
-        probs_df["puma_id"].cast(pl.Utf8).str.zfill(5).to_list()
-    )
+    covered_ids: set[str] = set(probs_df["puma_id"].cast(pl.Utf8).str.zfill(5).to_list())
 
     puma_id_col = puma_id_series_for_join(pumas)
     if puma_id_col is None:
-        raise ValueError(
-            "pumas GeoDataFrame has no PUMACE10 or GEOID column; "
-            "cannot identify missing PUMAs."
-        )
+        raise ValueError("pumas GeoDataFrame has no PUMACE10 or GEOID column; cannot identify missing PUMAs.")
     pumas = pumas.copy()
     pumas["_puma_id"] = puma_id_col.values
 
@@ -909,8 +815,7 @@ def fill_missing_puma_probabilities(
     centroids = pumas_geom.geometry.centroid
 
     print(
-        f"  {len(missing_ids)} PUMA(s) have no {label} coverage; "
-        "applying nearest-neighbor fill ...",
+        f"  {len(missing_ids)} PUMA(s) have no {label} coverage; applying nearest-neighbor fill ...",
         flush=True,
     )
 
@@ -954,9 +859,7 @@ def fill_missing_puma_probabilities(
             continue
 
         # Flexible donor lookup — puma_id may be stored with or without zero-padding.
-        donor_row = probs_df.filter(
-            pl.col("puma_id").cast(pl.Utf8).str.zfill(5) == best_donor
-        )
+        donor_row = probs_df.filter(pl.col("puma_id").cast(pl.Utf8).str.zfill(5) == best_donor)
         if donor_row.height == 0:
             donor_row = probs_df.filter(pl.col("puma_id").cast(pl.Utf8) == best_donor)
         if donor_row.height == 0:
@@ -976,8 +879,7 @@ def fill_missing_puma_probabilities(
             )
         )
         print(
-            f"    PUMA {missing_str!r} → donor {best_donor!r} "
-            f"({nn_note}, dist={best_dist:.0f})",
+            f"    PUMA {missing_str!r} → donor {best_donor!r} ({nn_note}, dist={best_dist:.0f})",
             flush=True,
         )
 
@@ -1022,9 +924,7 @@ def zero_excluded_gas_utilities_and_renormalize(
 
     gas_probs_df_before_zero = gas_probs_df.clone()
 
-    gas_probs_df = gas_probs_df.with_columns(
-        [pl.lit(0.0).alias(c) for c in excluded_cols]
-    )
+    gas_probs_df = gas_probs_df.with_columns([pl.lit(0.0).alias(c) for c in excluded_cols])
 
     row_sums = gas_probs_df.select(pl.sum_horizontal(utility_cols)).to_series()
     gas_probs_df = gas_probs_df.with_columns(row_sums.alias("_row_sum"))
@@ -1054,9 +954,7 @@ def zero_excluded_gas_utilities_and_renormalize(
 
         puma_id_in_pumas = puma_id_series_for_join(pumas)
         if puma_id_in_pumas is None:
-            raise ValueError(
-                "pumas GeoDataFrame has no PUMACE10 or GEOID column; cannot find nearest neighbor."
-            )
+            raise ValueError("pumas GeoDataFrame has no PUMACE10 or GEOID column; cannot find nearest neighbor.")
         pumas = pumas.copy()
         pumas["_puma_id"] = puma_id_in_pumas.values
 
@@ -1064,8 +962,7 @@ def zero_excluded_gas_utilities_and_renormalize(
         good_puma_ids = good_df["puma_id"].to_list()
         if not good_puma_ids:
             raise ValueError(
-                "No PUMA has non-zero gas probability after excluding small utilities; "
-                "cannot assign nearest neighbor."
+                "No PUMA has non-zero gas probability after excluding small utilities; cannot assign nearest neighbor."
             )
 
         pumas_geom = pumas.set_geometry("geometry")
@@ -1077,9 +974,7 @@ def zero_excluded_gas_utilities_and_renormalize(
             bad_str = str(bad_puma_id).zfill(5)
             bad_idx = pumas_geom["_puma_id"].astype(str) == bad_str
             if not bad_idx.any():
-                raise ValueError(
-                    f"Bad PUMA id {bad_puma_id!r} not found in pumas GeoDataFrame."
-                )
+                raise ValueError(f"Bad PUMA id {bad_puma_id!r} not found in pumas GeoDataFrame.")
             bad_geom = pumas_geom.loc[bad_idx, "geometry"].iloc[0]
             bad_centroid = centroids[bad_idx].iloc[0]
 
@@ -1117,19 +1012,13 @@ def zero_excluded_gas_utilities_and_renormalize(
                     if d < best_dist:
                         best_dist = d
                         best_donor = good_str
-                nn_note = (
-                    "no adjacent PUMA with gas; using nearest by centroid (fallback)"
-                )
+                nn_note = "no adjacent PUMA with gas; using nearest by centroid (fallback)"
 
             if best_donor is None:
                 raise ValueError(f"No donor PUMA found for bad PUMA {bad_puma_id!r}.")
-            donor_row = good_df.filter(
-                pl.col("puma_id").cast(pl.Utf8).str.zfill(5) == best_donor
-            )
+            donor_row = good_df.filter(pl.col("puma_id").cast(pl.Utf8).str.zfill(5) == best_donor)
             if donor_row.height == 0:
-                donor_row = good_df.filter(
-                    pl.col("puma_id").cast(pl.Utf8) == best_donor
-                )
+                donor_row = good_df.filter(pl.col("puma_id").cast(pl.Utf8) == best_donor)
             if donor_row.height == 0:
                 donor_row = good_df.filter(pl.col("puma_id") == best_donor)
             if donor_row.height == 0:
@@ -1145,41 +1034,21 @@ def zero_excluded_gas_utilities_and_renormalize(
                 )
             )
 
-            orig_row_df = gas_probs_df_before_zero.filter(
-                pl.col("puma_id").cast(pl.Utf8).str.zfill(5) == bad_str
-            )
+            orig_row_df = gas_probs_df_before_zero.filter(pl.col("puma_id").cast(pl.Utf8).str.zfill(5) == bad_str)
             if orig_row_df.height == 0:
-                orig_row_df = gas_probs_df_before_zero.filter(
-                    pl.col("puma_id").cast(pl.Utf8) == bad_str
-                )
+                orig_row_df = gas_probs_df_before_zero.filter(pl.col("puma_id").cast(pl.Utf8) == bad_str)
             if orig_row_df.height == 0:
-                orig_row_df = gas_probs_df_before_zero.filter(
-                    pl.col("puma_id") == bad_puma_id
-                )
-            orig_vals = (
-                orig_row_df.select(utility_cols).row(0) if orig_row_df.height else None
-            )
-            orig_probs = (
-                {utility_cols[i]: orig_vals[i] for i in range(len(utility_cols))}
-                if orig_vals
-                else {}
-            )
-            excluded_that_had_prob = [
-                c for c in excluded_cols if orig_probs.get(c, 0.0) > 0
-            ]
+                orig_row_df = gas_probs_df_before_zero.filter(pl.col("puma_id") == bad_puma_id)
+            orig_vals = orig_row_df.select(utility_cols).row(0) if orig_row_df.height else None
+            orig_probs = {utility_cols[i]: orig_vals[i] for i in range(len(utility_cols))} if orig_vals else {}
+            excluded_that_had_prob = [c for c in excluded_cols if orig_probs.get(c, 0.0) > 0]
             small_probs_before = {c: orig_probs[c] for c in excluded_that_had_prob}
-            donor_probs = {
-                utility_cols[i]: donor_vals[i] for i in range(len(utility_cols))
-            }
+            donor_probs = {utility_cols[i]: donor_vals[i] for i in range(len(utility_cols))}
             prior_before_str = ", ".join(
-                f"{u}={orig_probs.get(u, 0):.3f}"
-                for u in utility_cols
-                if orig_probs.get(u, 0) > 0
+                f"{u}={orig_probs.get(u, 0):.3f}" for u in utility_cols if orig_probs.get(u, 0) > 0
             )
             after_nn_str = ", ".join(
-                f"{u}={donor_probs.get(u, 0):.3f}"
-                for u in utility_cols
-                if donor_probs.get(u, 0) > 0
+                f"{u}={donor_probs.get(u, 0):.3f}" for u in utility_cols if donor_probs.get(u, 0) > 0
             )
             row_sum_before = sum(orig_probs.get(u, 0) for u in utility_cols)
 
@@ -1194,12 +1063,8 @@ def zero_excluded_gas_utilities_and_renormalize(
                 f"  Excluded gas utilities zeroed in this PUMA: {excluded_that_had_prob}; "
                 f"their prior probs before removal: {small_probs_before}."
             )
-            print(
-                f"  Prior (before removal): {prior_before_str} (row sum={row_sum_before:.3f})"
-            )
-            if set(excluded_that_had_prob) == set(
-                u for u in utility_cols if orig_probs.get(u, 0) > 0
-            ):
+            print(f"  Prior (before removal): {prior_before_str} (row sum={row_sum_before:.3f})")
+            if set(excluded_that_had_prob) == {u for u in utility_cols if orig_probs.get(u, 0) > 0}:
                 print(
                     "  → So before the fix, all gas bldg_ids in this PUMA would have been "
                     f"assigned to one of {excluded_that_had_prob}."
@@ -1211,9 +1076,7 @@ def zero_excluded_gas_utilities_and_renormalize(
     gas_probs_df = gas_probs_df.drop("_row_sum")
 
     row_sums = gas_probs_df.select(pl.sum_horizontal(utility_cols)).to_series()
-    gas_probs_df = gas_probs_df.with_columns(
-        [(pl.col(c) / row_sums).alias(c) for c in utility_cols]
-    )
+    gas_probs_df = gas_probs_df.with_columns([(pl.col(c) / row_sums).alias(c) for c in utility_cols])
     return gas_probs_df.lazy()
 
 
@@ -1254,9 +1117,7 @@ def create_hh_utilities(
             nearest covered PUMA's distribution.  Use for states where the
             utility boundary data does not fully cover all PUMAs.
     """
-    puma_elec_overlap = calculate_puma_utility_overlap(
-        pumas, electric_polygons, state_crs
-    )
+    puma_elec_overlap = calculate_puma_utility_overlap(pumas, electric_polygons, state_crs)
 
     puma_gas_overlap = calculate_puma_utility_overlap(pumas, gas_polygons, state_crs)
 
@@ -1275,12 +1136,8 @@ def create_hh_utilities(
     )
 
     if fill_missing_pumas:
-        puma_elec_probs = fill_missing_puma_probabilities(
-            puma_elec_probs, pumas, label="electric"
-        )
-        puma_gas_probs = fill_missing_puma_probabilities(
-            puma_gas_probs, pumas, label="gas"
-        )
+        puma_elec_probs = fill_missing_puma_probabilities(puma_elec_probs, pumas, label="electric")
+        puma_gas_probs = fill_missing_puma_probabilities(puma_gas_probs, pumas, label="gas")
 
     if excluded_gas_utilities:
         puma_gas_probs = zero_excluded_gas_utilities_and_renormalize(
@@ -1294,9 +1151,7 @@ def create_hh_utilities(
         puma_elec_probs, puma_gas_probs, puma_and_heating_fuel=puma_and_heating_fuel
     )
 
-    building_elec = sample_utility_per_building(
-        puma_and_heating_fuel, puma_elec_probs, "sb.electric_utility"
-    )
+    building_elec = sample_utility_per_building(puma_and_heating_fuel, puma_elec_probs, "sb.electric_utility")
 
     building_gas = sample_utility_per_building(
         puma_and_heating_fuel,
@@ -1313,9 +1168,7 @@ def create_hh_utilities(
         puma_and_heating_fuel=puma_and_heating_fuel,
     )
 
-    building_utilities = building_elec.join(
-        building_gas.select("bldg_id", "sb.gas_utility"), on="bldg_id", how="left"
-    )
+    building_utilities = building_elec.join(building_gas.select("bldg_id", "sb.gas_utility"), on="bldg_id", how="left")
 
     return building_utilities
 
@@ -1346,8 +1199,7 @@ def _resolve_writable_cache_dir(configured: Path) -> Path:
     if os.access(check, os.W_OK):
         return configured
     print(
-        f"  NOTE: configured cache dir {configured} is not writable; "
-        f"using {_USER_CACHE_DIR} instead.",
+        f"  NOTE: configured cache dir {configured} is not writable; using {_USER_CACHE_DIR} instead.",
         flush=True,
     )
     return _USER_CACHE_DIR
@@ -1364,10 +1216,7 @@ def _resolve_writable_cache_dir(configured: Path) -> Path:
 
 # Electric Retail Service Territories
 HIFLD_ELEC_URLS: list[str] = [
-    (
-        "https://maps.nccs.nasa.gov/mapping/rest/services/"
-        "hifld_open/energy/MapServer/26/query"
-    ),
+    ("https://maps.nccs.nasa.gov/mapping/rest/services/hifld_open/energy/MapServer/26/query"),
     (
         "https://services3.arcgis.com/OYP7N6mAJJCyH6hd/ArcGIS/rest/services/"
         "Electric_Retail_Service_Territories_HIFLD/FeatureServer/0/query"
@@ -1376,22 +1225,15 @@ HIFLD_ELEC_URLS: list[str] = [
 
 # Natural Gas LDC Service Territories
 HIFLD_GAS_URLS: list[str] = [
-    (
-        "https://maps.nccs.nasa.gov/mapping/rest/services/"
-        "hifld_open/energy/MapServer/29/query"
-    ),
+    ("https://maps.nccs.nasa.gov/mapping/rest/services/hifld_open/energy/MapServer/29/query"),
 ]
 
 # DataLumos mirror for the HIFLD gas dataset (Cloudflare-protected; manual
 # download only).  The ZIP contains a single shapefile covering all states.
-HIFLD_GAS_DATALUMOS_URL: str = (
-    "https://www.datalumos.org/datalumos/project/240245/version/V1/view"
-)
+HIFLD_GAS_DATALUMOS_URL: str = "https://www.datalumos.org/datalumos/project/240245/version/V1/view"
 HIFLD_GAS_ZIP_SHP: str = "NG_Service_Terr.shp"
 # Expected local path for the manually downloaded DataLumos ZIP.
-HIFLD_GAS_DATALUMOS_ZIP: Path = Path(
-    "data/resstock/utility/zips/natural-gas-service-territories-shapefile.zip"
-)
+HIFLD_GAS_DATALUMOS_ZIP: Path = Path("data/resstock/utility/zips/natural-gas-service-territories-shapefile.zip")
 
 
 # ---------------------------------------------------------------------------
@@ -1416,13 +1258,10 @@ def get_with_retry(url: str, params: dict) -> httpx.Response:
                 f"retrying in {_RETRY_BACKOFF[attempt]:.0f}s ...",
                 flush=True,
             )
-            last_exc = httpx.HTTPStatusError(
-                f"HTTP {resp.status_code}", request=resp.request, response=resp
-            )
+            last_exc = httpx.HTTPStatusError(f"HTTP {resp.status_code}", request=resp.request, response=resp)
         except (httpx.TransportError, httpx.TimeoutException) as exc:
             print(
-                f"    [{attempt + 1}/{_RETRY_ATTEMPTS}] {exc} — "
-                f"retrying in {_RETRY_BACKOFF[attempt]:.0f}s ...",
+                f"    [{attempt + 1}/{_RETRY_ATTEMPTS}] {exc} — retrying in {_RETRY_BACKOFF[attempt]:.0f}s ...",
                 flush=True,
             )
             last_exc = exc
@@ -1497,7 +1336,7 @@ def fetch_geojson_with_fallback(
             gdf = paginate_arcgis_geojson(url, where=where)
             print(f"    ✓ Success ({len(gdf)} features).", flush=True)
             return gdf
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(f"    ✗ Failed: {exc}", flush=True)
             errors.append((url, exc))
 
@@ -1513,13 +1352,9 @@ def fetch_geojson_with_fallback(
 
 def s3_cp(local: Path, s3_dest: str) -> None:
     """Copy a single local file to S3."""
-    rc = subprocess.run(
-        ["aws", "s3", "cp", str(local), s3_dest], check=False
-    ).returncode
+    rc = subprocess.run(["aws", "s3", "cp", str(local), s3_dest], check=False).returncode
     if rc != 0:
-        print(
-            f"  WARNING: aws s3 cp exited with code {rc} for {local.name}.", flush=True
-        )
+        print(f"  WARNING: aws s3 cp exited with code {rc} for {local.name}.", flush=True)
 
 
 def _s3_sync(src: str, dest: str) -> bool:
@@ -1530,9 +1365,7 @@ def _s3_sync(src: str, dest: str) -> bool:
     """
     rc = subprocess.run(["aws", "s3", "sync", src, dest], check=False).returncode
     if rc != 0:
-        print(
-            f"  WARNING: aws s3 sync {src} → {dest} exited with code {rc}.", flush=True
-        )
+        print(f"  WARNING: aws s3 sync {src} → {dest} exited with code {rc}.", flush=True)
     return rc == 0
 
 
@@ -1681,8 +1514,7 @@ def load_utility_boundaries(
 
     if cached_filename:
         print(
-            f"  Cached {state} {utility_type} filename {cached_filename!r} not found "
-            "locally — fetching from HIFLD ...",
+            f"  Cached {state} {utility_type} filename {cached_filename!r} not found locally — fetching from HIFLD ...",
             flush=True,
         )
     else:
@@ -1723,9 +1555,7 @@ def load_csv_as_gdf(csv_path: Path) -> gpd.GeoDataFrame:
     return cast(gpd.GeoDataFrame, gdf.drop(columns="the_geom"))
 
 
-def write_utilities_csv(
-    utilities: gpd.GeoDataFrame, out_path: Path, label: str = "utilities"
-) -> None:
+def write_utilities_csv(utilities: gpd.GeoDataFrame, out_path: Path, label: str = "utilities") -> None:
     """Write a utility GeoDataFrame as a WKT-geometry CSV.
 
     Column layout matches what ``read_csv_to_gdf_from_s3`` expects:
@@ -1793,9 +1623,7 @@ def fetch_national_hifld(
     elif utility_type == "gas":
         gdf = _load_gas_from_zip_or_api()
     else:
-        raise ValueError(
-            f"utility_type must be 'electric' or 'gas', got {utility_type!r}"
-        )
+        raise ValueError(f"utility_type must be 'electric' or 'gas', got {utility_type!r}")
 
     gdf = gdf.to_crs(epsg=4326)
     gdf.to_parquet(local_pq)
@@ -1880,9 +1708,7 @@ def load_national_hifld(
         flush=True,
     )
     local_pq.parent.mkdir(parents=True, exist_ok=True)
-    dl_rc = subprocess.run(
-        ["aws", "s3", "cp", s3_src, str(local_pq)], check=False
-    ).returncode
+    dl_rc = subprocess.run(["aws", "s3", "cp", s3_src, str(local_pq)], check=False).returncode
     if dl_rc == 0 and local_pq.exists():
         print(f"    Downloaded from S3 → {local_pq}", flush=True)
         gdf = gpd.read_parquet(str(local_pq))
@@ -1953,8 +1779,7 @@ def filter_hifld_for_state(
         )
 
     print(
-        f"    Filtered to {len(filtered)} {fuel} features for {state} "
-        f"({len(matched)} utilities: {matched})",
+        f"    Filtered to {len(filtered)} {fuel} features for {state} ({len(matched)} utilities: {matched})",
         flush=True,
     )
     return cast(gpd.GeoDataFrame, filtered)
@@ -1997,9 +1822,7 @@ def update_state_config_filenames(
     print(f"  Updated state_configs.yaml [{state}]: {', '.join(updates)}", flush=True)
 
 
-def latest_utility_csv_name(
-    cache_dir: Path, state: str, utility_type: str
-) -> str | None:
+def latest_utility_csv_name(cache_dir: Path, state: str, utility_type: str) -> str | None:
     """Return the name of the most recently written utility CSV in ``cache_dir``.
 
     Matches files of the form ``<state_lower>_<utility_type>_utilities_YYYYMMDD.csv``.

@@ -36,9 +36,7 @@ def _sheet() -> pl.DataFrame:
         (None, None, None, None),
         ("Interval Ending EST", "kW", "kW", "kW"),
     ]
-    for stamp, a, b, c in zip(
-        stamps.to_list(), rate1.to_list(), rate5.to_list(), rate7.to_list(), strict=True
-    ):
+    for stamp, a, b, c in zip(stamps.to_list(), rate1.to_list(), rate5.to_list(), rate7.to_list(), strict=True):
         rows.append((str(stamp), str(a), str(b), str(c)))
     rows.append((None, str(rate1.max()), str(rate5.max()), str(rate7.max())))
     rows.append((None, "true", "true", "true"))
@@ -56,14 +54,8 @@ def test_shifts_interval_ending_back_one_hour_and_drops_the_summary() -> None:
     assert rate1.columns == ["timestamp", "load_kw", "load_mw"]
     assert rate1.schema["timestamp"] == pl.Datetime("us")
     assert rate1.height == 8760
-    assert (
-        rate1["timestamp"][0]
-        == pl.select(pl.lit("2025-01-01 00:00:00").str.to_datetime()).item()
-    )
-    assert (
-        rate1["timestamp"][-1]
-        == pl.select(pl.lit("2025-12-31 23:00:00").str.to_datetime()).item()
-    )
+    assert rate1["timestamp"][0] == pl.select(pl.lit("2025-01-01 00:00:00").str.to_datetime()).item()
+    assert rate1["timestamp"][-1] == pl.select(pl.lit("2025-12-31 23:00:00").str.to_datetime()).item()
     first = rate1.row(0, named=True)
     assert first["load_kw"] == 1000.0
     assert first["load_mw"] == pytest.approx(1.0)
@@ -93,10 +85,7 @@ def test_maps_standard_time_onto_local_clock() -> None:
 
 def test_rejects_a_peak_that_does_not_match_the_hourly_column() -> None:
     raw = _sheet().with_columns(
-        pl.when(pl.col("column_1") == "Peak Demand")
-        .then(pl.lit("1"))
-        .otherwise(pl.col("column_2"))
-        .alias("column_2")
+        pl.when(pl.col("column_1") == "Peak Demand").then(pl.lit("1")).otherwise(pl.col("column_2")).alias("column_2")
     )
     with pytest.raises(ValueError, match="Peak Demand"):
         rate_class_loads(raw)

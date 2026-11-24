@@ -40,9 +40,7 @@ def create_default_flat_tariff(
                 "sector": "Residential",
                 "energyweekdayschedule": schedule,
                 "energyweekendschedule": schedule,
-                "energyratestructure": [
-                    [{"rate": volumetric_rate, "adj": adjustment, "unit": "kWh"}]
-                ],
+                "energyratestructure": [[{"rate": volumetric_rate, "adj": adjustment, "unit": "kWh"}]],
                 "fixedchargefirstmeter": fixed_charge,
                 "fixedchargeunits": "$/month",
                 "mincharge": 0.0,
@@ -77,16 +75,12 @@ def extract_base_rate_and_fixed_charge(tariff_path: Path) -> tuple[float, float]
     tariff = load_tariff_json(tariff_path)
     items = tariff.get("items")
     if not isinstance(items, list) or not items:
-        raise ValueError(
-            f"Tariff at {tariff_path} must contain a non-empty 'items' list."
-        )
+        raise ValueError(f"Tariff at {tariff_path} must contain a non-empty 'items' list.")
     item = items[0]
 
     rate_structure = item.get("energyratestructure")
     if not isinstance(rate_structure, list) or not rate_structure:
-        raise ValueError(
-            f"Tariff at {tariff_path} must contain a non-empty 'energyratestructure'."
-        )
+        raise ValueError(f"Tariff at {tariff_path} must contain a non-empty 'energyratestructure'.")
 
     rates = [period[0]["rate"] for period in rate_structure]
     base_rate = sum(rates) / len(rates)
@@ -216,9 +210,7 @@ def create_seasonal_tariff(
         for month in months:
             month_to_period[month] = period_idx
 
-    schedule = [
-        [month_to_period[month_0 + 1] for _hour in range(24)] for month_0 in range(12)
-    ]
+    schedule = [[month_to_period[month_0 + 1] for _hour in range(24)] for month_0 in range(12)]
     rates = [(float(rate), float(adjustment)) for _months, rate in seasons]
 
     return create_urdb_tariff(
@@ -253,16 +245,12 @@ def create_seasonal_tou_tariff(
         month_1 = month_0 + 1
         offpeak_period, peak_set = month_info[month_1]
         peak_period = offpeak_period + 1
-        schedule.append(
-            [peak_period if hour in peak_set else offpeak_period for hour in range(24)]
-        )
+        schedule.append([peak_period if hour in peak_set else offpeak_period for hour in range(24)])
 
     rates: list[tuple[float, float]] = []
     for spec in specs:
         rates.append((float(spec.base_rate), float(adjustment)))
-        rates.append(
-            (float(spec.base_rate) * float(spec.peak_offpeak_ratio), float(adjustment))
-        )
+        rates.append((float(spec.base_rate) * float(spec.peak_offpeak_ratio), float(adjustment)))
 
     return create_urdb_tariff(
         label=label,
@@ -378,9 +366,7 @@ def create_urdb_tariff(
     utility: str,
 ) -> dict[str, Any]:
     """Assemble the URDB v7 tariff envelope from schedule + rates."""
-    rate_structure = [
-        [{"rate": round(rate, 6), "adj": adj, "unit": "kWh"}] for rate, adj in rates
-    ]
+    rate_structure = [[{"rate": round(rate, 6), "adj": adj, "unit": "kWh"}] for rate, adj in rates]
     return {
         "items": [
             {

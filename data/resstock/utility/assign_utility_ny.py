@@ -20,14 +20,14 @@ import polars as pl
 from cloudpathlib import S3Path
 from pygris import pumas as get_pumas
 
+from data.resstock.utility.utils import (
+    create_hh_utilities,
+    read_csv_to_gdf_from_s3,
+)
 from data.resstock.utils import (
     get_excluded_gas_utilities,
     load_state_configs,
     select_puma_and_heating_fuel_metadata,
-)
-from data.resstock.utility.utils import (
-    create_hh_utilities,
-    read_csv_to_gdf_from_s3,
 )
 from utils import get_aws_region
 from utils.utility_codes import get_ny_open_data_to_std_name
@@ -78,9 +78,7 @@ def assign_utility(
         gas_polygons=gas_polygons,
         pumas=pumas,
         state_crs=state_crs,
-        excluded_gas_utilities=frozenset(excluded_gas_utilities)
-        if excluded_gas_utilities is not None
-        else None,
+        excluded_gas_utilities=frozenset(excluded_gas_utilities) if excluded_gas_utilities is not None else None,
     )
 
 
@@ -115,10 +113,7 @@ def assign_utility_ny(
     puma_and_heating_fuel = select_puma_and_heating_fuel_metadata(input_metadata)
 
     utility_name_map = pl.DataFrame(
-        [
-            {"state_name": k, "std_name": v}
-            for k, v in get_ny_open_data_to_std_name().items()
-        ]
+        [{"state_name": k, "std_name": v} for k, v in get_ny_open_data_to_std_name().items()]
     ).lazy()
 
     building_utilities = create_hh_utilities(
@@ -132,9 +127,7 @@ def assign_utility_ny(
     )
 
     # Drop existing utility columns if they exist (equivalent to ADD COLUMN IF NOT EXISTS)
-    input_metadata = input_metadata.drop(
-        ["sb.electric_utility", "sb.gas_utility"], strict=False
-    )
+    input_metadata = input_metadata.drop(["sb.electric_utility", "sb.gas_utility"], strict=False)
 
     # Runtime check: ensure both LazyFrames have the same number of rows (one collect)
     counts_df = (
@@ -163,9 +156,7 @@ def assign_utility_ny(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Assign electric and gas utilities to ResStock buildings in NY"
-    )
+    parser = argparse.ArgumentParser(description="Assign electric and gas utilities to ResStock buildings in NY")
     parser.add_argument(
         "--input_metadata_dir",
         type=str,
@@ -219,9 +210,7 @@ if __name__ == "__main__":
 
     input_dir_s3 = S3Path(args.input_metadata_dir)
     input_path_s3 = S3Path(input_dir_s3 / args.input_metadata_filename)
-    input_metadata = pl.scan_parquet(
-        str(input_path_s3), storage_options=STORAGE_OPTIONS
-    )
+    input_metadata = pl.scan_parquet(str(input_path_s3), storage_options=STORAGE_OPTIONS)
 
     output_dir_s3 = S3Path(args.output_metadata_dir)
     output_path_s3 = S3Path(output_dir_s3 / args.output_utility_assignment_filename)
@@ -263,8 +252,6 @@ if __name__ == "__main__":
     )
 
     # Write only the assignment columns — full metadata lives in metadata-sb.parquet.
-    metadata_with_utility_assignment.select(
-        "bldg_id", "sb.electric_utility", "sb.gas_utility"
-    ).sink_parquet(
+    metadata_with_utility_assignment.select("bldg_id", "sb.electric_utility", "sb.gas_utility").sink_parquet(
         str(output_path_s3), compression="zstd", storage_options=STORAGE_OPTIONS
     )

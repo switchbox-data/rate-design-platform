@@ -87,9 +87,7 @@ _FIELD_RE = {
     "dy_end": re.compile(r"^\*\*DY end:\*\*\s*(.+?)\s*$", re.MULTILINE),
     "source_url": re.compile(r"^\*\*Final zonal source:\*\*\s*(.+?)\s*$", re.MULTILINE),
     "bra_source_url": re.compile(r"^\*\*BRA source:\*\*\s*(.+?)\s*$", re.MULTILINE),
-    "final_price_as_of": re.compile(
-        r"^\*\*Final price as of:\*\*\s*(.+?)\s*$", re.MULTILINE
-    ),
+    "final_price_as_of": re.compile(r"^\*\*Final price as of:\*\*\s*(.+?)\s*$", re.MULTILINE),
 }
 
 
@@ -155,10 +153,7 @@ def parse_intermediate(path: Path) -> list[Row]:
     rows: list[Row] = []
     for cells in table:
         if len(cells) != 5:
-            raise ValueError(
-                f"{path.name}: expected 5 columns (zone|lda|bra|final|notes), "
-                f"got {len(cells)}: {cells}"
-            )
+            raise ValueError(f"{path.name}: expected 5 columns (zone|lda|bra|final|notes), got {len(cells)}: {cells}")
         zone, lda, bra, final, notes = cells
         rows.append(
             Row(
@@ -203,9 +198,7 @@ def write_csv(rows: list[Row], path: Path) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Convert RPM markdown intermediates to rpm_capacity_prices.csv."
-    )
+    parser = argparse.ArgumentParser(description="Convert RPM markdown intermediates to rpm_capacity_prices.csv.")
     parser.add_argument("--path-sources", type=Path, required=True)
     parser.add_argument("--path-csv", type=Path, required=True)
     args = parser.parse_args()

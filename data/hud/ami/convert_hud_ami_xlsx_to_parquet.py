@@ -218,9 +218,7 @@ def main() -> int:
 
 
 def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(
-        description="Convert HUD Section 8 Income Limits xlsx to partitioned Parquet"
-    )
+    p = argparse.ArgumentParser(description="Convert HUD Section 8 Income Limits xlsx to partitioned Parquet")
     p.add_argument(
         "--input",
         "-i",

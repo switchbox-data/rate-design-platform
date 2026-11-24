@@ -22,12 +22,12 @@ import polars as pl
 from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
-from utils.file_io import get_aws_storage_options
 from utils import get_aws_region
 from utils.cairo import (
     add_bulk_tx_and_dist_and_sub_tx_marginal_cost,
     load_dist_and_sub_tx_marginal_costs,
 )
+from utils.file_io import get_aws_storage_options
 from utils.loads import (
     ELECTRIC_LOAD_COL,
     ELECTRIC_PV_COL,
@@ -38,13 +38,13 @@ from utils.loads import (
 from utils.mid.compute_fair_default_inputs import (
     CustomerGroupTotals,
     FairDefaultInputs,
+    _load_bill_totals,
+    _load_metadata_and_cross_subsidy,
+    _resolve_winter_months,
     derive_fair_default_rate_designs,
     fair_default_inputs_frame,
     fair_default_rate_design_modules,
     fixed_charge_feasibility,
-    _load_bill_totals,
-    _load_metadata_and_cross_subsidy,
-    _resolve_winter_months,
 )
 from utils.mid.compute_subclass_rr import (
     BLDG_ID_COL,
@@ -109,9 +109,7 @@ SUBCLASSES: list[SubclassConfig] = [
         shorthand="eheat",
         group_col="heating_type_v2",
         group_value="electric_heating",
-        group_value_to_subclass=(
-            "heat_pump=electric_heating,electrical_resistance=electric_heating"
-        ),
+        group_value_to_subclass=("heat_pump=electric_heating,electrical_resistance=electric_heating"),
     ),
 ]
 
@@ -177,17 +175,14 @@ def _load_utility_hourly_load(
     )
     raw_weight_sum = float(ua_df["weight"].sum())
     if raw_weight_sum > 0:
-        ua_df = ua_df.with_columns(
-            (pl.col("weight") / raw_weight_sum * customer_count).alias("weight")
-        )
+        ua_df = ua_df.with_columns((pl.col("weight") / raw_weight_sum * customer_count).alias("weight"))
     weights_df = ua_df.select(
         pl.col("bldg_id").cast(pl.Int64),
         pl.col("weight").cast(pl.Float64),
     )
     building_ids = ua_df["bldg_id"].to_list()
     LOGGER.info(
-        "Loading %d buildings of ResStock load for %s utility-aggregate demand "
-        "(used to demand-weight rho_MC)",
+        "Loading %d buildings of ResStock load for %s utility-aggregate demand (used to demand-weight rho_MC)",
         len(building_ids),
         utility,
     )
@@ -233,16 +228,8 @@ def _compute_supply_mc_seasonal_ratio(
 
     Sums energy and capacity MC columns to get total supply MC per hour.
     """
-    energy_df = (
-        pl.scan_parquet(
-            path_supply_energy_mc, storage_options=storage_options or {}
-        ).collect()
-    ).to_pandas()
-    cap_df = (
-        pl.scan_parquet(
-            path_supply_capacity_mc, storage_options=storage_options or {}
-        ).collect()
-    ).to_pandas()
+    energy_df = (pl.scan_parquet(path_supply_energy_mc, storage_options=storage_options or {}).collect()).to_pandas()
+    cap_df = (pl.scan_parquet(path_supply_capacity_mc, storage_options=storage_options or {}).collect()).to_pandas()
 
     for df in [energy_df, cap_df]:
         for col in ["timestamp", "datetime", "time"]:
@@ -250,9 +237,7 @@ def _compute_supply_mc_seasonal_ratio(
                 df.index = pd.DatetimeIndex(df[col])
                 break
 
-    numeric_energy = [
-        c for c in energy_df.columns if energy_df[c].dtype in (float, "float64")
-    ]
+    numeric_energy = [c for c in energy_df.columns if energy_df[c].dtype in (float, "float64")]
     numeric_cap = [c for c in cap_df.columns if cap_df[c].dtype in (float, "float64")]
     combined = energy_df[numeric_energy[0]] + cap_df[numeric_cap[0]]
     combined.name = "total_supply_mc"
@@ -323,9 +308,7 @@ def _load_kwh_totals_for_subclasses(
 
     weights_with_flags = weights
     for shorthand, metadata in metadata_by_subclass.items():
-        metadata_building_ids = frozenset(
-            int(bldg_id) for bldg_id in metadata[BLDG_ID_COL].to_list()
-        )
+        metadata_building_ids = frozenset(int(bldg_id) for bldg_id in metadata[BLDG_ID_COL].to_list())
         if metadata_building_ids != building_id_set:
             raise ValueError(
                 "Fair-default subclass metadata must use the same building sample "
@@ -357,11 +340,7 @@ def _load_kwh_totals_for_subclasses(
     t1 = perf_counter()
     aggregate_exprs: list[pl.Expr] = [
         pl.col("weighted_kwh").sum().alias("class_annual_kwh"),
-        pl.when(pl.col("is_winter"))
-        .then(pl.col("weighted_kwh"))
-        .otherwise(0.0)
-        .sum()
-        .alias("class_winter_kwh"),
+        pl.when(pl.col("is_winter")).then(pl.col("weighted_kwh")).otherwise(0.0).sum().alias("class_winter_kwh"),
     ]
     for shorthand in metadata_by_subclass:
         aggregate_exprs.extend(
@@ -387,10 +366,9 @@ def _load_kwh_totals_for_subclasses(
             .str.to_datetime(strict=False)
             .dt.month()
             .alias("month_num"),
-            (
-                grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL)
-                * pl.col(WEIGHT_COL).cast(pl.Float64)
-            ).alias("weighted_kwh"),
+            (grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL) * pl.col(WEIGHT_COL).cast(pl.Float64)).alias(
+                "weighted_kwh"
+            ),
             *[pl.col(f"_is_{shorthand}") for shorthand in metadata_by_subclass],
         )
         .with_columns(pl.col("month_num").is_in(winter_months).alias("is_winter"))
@@ -406,12 +384,10 @@ def _load_kwh_totals_for_subclasses(
         class_annual_kwh=float(kwh["class_annual_kwh"][0] or 0.0),
         class_winter_kwh=float(kwh["class_winter_kwh"][0] or 0.0),
         subclass_annual_kwh={
-            shorthand: float(kwh[f"{shorthand}_annual_kwh"][0] or 0.0)
-            for shorthand in metadata_by_subclass
+            shorthand: float(kwh[f"{shorthand}_annual_kwh"][0] or 0.0) for shorthand in metadata_by_subclass
         },
         subclass_winter_kwh={
-            shorthand: float(kwh[f"{shorthand}_winter_kwh"][0] or 0.0)
-            for shorthand in metadata_by_subclass
+            shorthand: float(kwh[f"{shorthand}_winter_kwh"][0] or 0.0) for shorthand in metadata_by_subclass
         },
     )
 
@@ -458,8 +434,7 @@ def prepare_fair_default_tariffs(
     winter_months = list(resolved_winter_months)
 
     LOGGER.info(
-        "Loading utility-aggregate hourly ResStock load for %s "
-        "(used to demand-weight rho_MC) ...",
+        "Loading utility-aggregate hourly ResStock load for %s (used to demand-weight rho_MC) ...",
         utility,
     )
     utility_hourly_load = _load_utility_hourly_load(
@@ -497,9 +472,7 @@ def prepare_fair_default_tariffs(
         else path_base_tariff_delivery
     )
     base_tariff_supply = _read_json(
-        Path(path_base_tariff_supply)
-        if not isinstance(path_base_tariff_supply, Path)
-        else path_base_tariff_supply
+        Path(path_base_tariff_supply) if not isinstance(path_base_tariff_supply, Path) else path_base_tariff_supply
     )
 
     written_paths: list[str] = []
@@ -514,9 +487,7 @@ def prepare_fair_default_tariffs(
     ) -> tuple[pl.DataFrame, float]:
         cache_key = (is_supply, subclass.shorthand)
         if cache_key not in metadata_cache:
-            run_dir = (
-                run_dir_supply_resolved if is_supply else run_dir_delivery_resolved
-            )
+            run_dir = run_dir_supply_resolved if is_supply else run_dir_delivery_resolved
             metadata_cache[cache_key] = _load_metadata_and_cross_subsidy(
                 run_dir=run_dir,
                 group_col=subclass.group_col,
@@ -558,14 +529,8 @@ def prepare_fair_default_tariffs(
     ) -> FairDefaultInputs:
         cache_key = (is_supply, subclass.shorthand)
         if cache_key not in shared_inputs_cache:
-            run_dir = (
-                run_dir_supply_resolved if is_supply else run_dir_delivery_resolved
-            )
-            base_tariff_json_path = (
-                Path(path_base_tariff_supply)
-                if is_supply
-                else Path(path_base_tariff_delivery)
-            )
+            run_dir = run_dir_supply_resolved if is_supply else run_dir_delivery_resolved
+            base_tariff_json_path = Path(path_base_tariff_supply) if is_supply else Path(path_base_tariff_delivery)
             LOGGER.info(
                 "Loading shared fair-default inputs for %s %s ...",
                 subclass.shorthand,
@@ -575,9 +540,7 @@ def prepare_fair_default_tariffs(
                 is_supply=is_supply,
                 subclass=subclass,
             )
-            metadata_building_ids = frozenset(
-                int(bldg_id) for bldg_id in metadata[BLDG_ID_COL].to_list()
-            )
+            metadata_building_ids = frozenset(int(bldg_id) for bldg_id in metadata[BLDG_ID_COL].to_list())
             kwh_totals = get_kwh_totals()
             if metadata_building_ids != kwh_totals.building_ids:
                 raise ValueError(
@@ -603,9 +566,7 @@ def prepare_fair_default_tariffs(
                 summer_kwh=class_annual_kwh - class_winter_kwh,
             )
             subclass_totals = CustomerGroupTotals(
-                customer_count=float(
-                    metadata.filter(pl.col("_is_subclass"))[WEIGHT_COL].sum() or 0.0
-                ),
+                customer_count=float(metadata.filter(pl.col("_is_subclass"))[WEIGHT_COL].sum() or 0.0),
                 current_bill=subclass_bill,
                 annual_kwh=subclass_annual_kwh,
                 winter_kwh=subclass_winter_kwh,
@@ -617,9 +578,7 @@ def prepare_fair_default_tariffs(
                 class_totals=class_totals,
                 subclass_totals=subclass_totals,
                 subclass_cross_subsidy=subclass_cross_subsidy,
-                base_fixed_charge=_extract_fixed_charge_from_urdb(
-                    base_tariff_json_path
-                ),
+                base_fixed_charge=_extract_fixed_charge_from_urdb(base_tariff_json_path),
                 fixed_charge_floor=0.0,
             )
         return shared_inputs_cache[cache_key]
@@ -629,21 +588,14 @@ def prepare_fair_default_tariffs(
         strategy = combo.strategy
         key = combo.strategy_key
 
-        mc_ratio_delivery = (
-            delivery_mc_ratio if strategy == "fixed_plus_seasonal_mc" else None
-        )
-        mc_ratio_supply = (
-            supply_mc_ratio if strategy == "fixed_plus_seasonal_mc" else None
-        )
+        mc_ratio_delivery = delivery_mc_ratio if strategy == "fixed_plus_seasonal_mc" else None
+        mc_ratio_supply = supply_mc_ratio if strategy == "fixed_plus_seasonal_mc" else None
 
         for is_supply in (False, True):
             base_tariff = base_tariff_supply if is_supply else base_tariff_delivery
             mc_ratio = mc_ratio_supply if is_supply else mc_ratio_delivery
 
-            if is_supply:
-                tariff_stem = f"{utility}_{sub.shorthand}_{key}_supply"
-            else:
-                tariff_stem = f"{utility}_{sub.shorthand}_{key}"
+            tariff_stem = f"{utility}_{sub.shorthand}_{key}_supply" if is_supply else f"{utility}_{sub.shorthand}_{key}"
 
             LOGGER.info("Processing %s ...", tariff_stem)
 
@@ -759,10 +711,7 @@ def main() -> None:
     parser.add_argument(
         "--base-tariff-supply",
         required=True,
-        help=(
-            "Calibrated supply base tariff JSON "
-            "(e.g. nyseg_default_supply_calibrated.json)."
-        ),
+        help=("Calibrated supply base tariff JSON (e.g. nyseg_default_supply_calibrated.json)."),
     )
     parser.add_argument(
         "--path-utility-assignment",

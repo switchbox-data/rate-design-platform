@@ -74,9 +74,7 @@ def assign_utility(
     ua_cfg = _STATE_CONFIGS[state]["utility_assignment"]
     module_path = ua_cfg.get("module")
     if not module_path:
-        raise ValueError(
-            f"State {state!r} has a utility_assignment config but no 'module' key."
-        )
+        raise ValueError(f"State {state!r} has a utility_assignment config but no 'module' key.")
 
     kwargs: dict = dict(ua_cfg.get("kwargs") or {})
 
@@ -132,18 +130,12 @@ if __name__ == "__main__":
 
     cfg = yaml.safe_load(CONFIG_PATH.open())
     rs = cfg["resstock"]
-    release_sb = (
-        f"res_{rs['release_year']}_{rs['weather_file']}_{rs['release_version']}_sb"
-    )
+    release_sb = f"res_{rs['release_year']}_{rs['weather_file']}_{rs['release_version']}_sb"
     upgrade = str(rs["utility_assign_upgrade_id"]).zfill(2)
     s3_dir = cfg["paths"]["s3_dir"].rstrip("/")
 
-    input_path = S3Path(
-        f"{s3_dir}/{release_sb}/metadata/state={state}/upgrade={upgrade}/metadata-sb.parquet"
-    )
-    output_path = S3Path(
-        f"{s3_dir}/{release_sb}/metadata_utility/state={state}/utility_assignment.parquet"
-    )
+    input_path = S3Path(f"{s3_dir}/{release_sb}/metadata/state={state}/upgrade={upgrade}/metadata-sb.parquet")
+    output_path = S3Path(f"{s3_dir}/{release_sb}/metadata_utility/state={state}/utility_assignment.parquet")
 
     storage_options = {"aws_region": get_aws_region()}
     input_metadata = pl.scan_parquet(str(input_path), storage_options=storage_options)

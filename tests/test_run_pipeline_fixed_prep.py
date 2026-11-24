@@ -64,17 +64,13 @@ def _config(tmp_path: Path, scenarios: dict[str, ScenarioConfig]) -> PipelineCon
 def _state_config_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point PipelineConfig.state_config_dir at tmp_path for all tests here."""
     config_dir = tmp_path / "config"
-    monkeypatch.setattr(
-        PipelineConfig, "state_config_dir", property(lambda self: config_dir)
-    )
+    monkeypatch.setattr(PipelineConfig, "state_config_dir", property(lambda self: config_dir))
     return config_dir
 
 
 def _write_urdb_tariff(path: Path, label: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"items": [{"label": label, "name": label}]}), encoding="utf-8"
-    )
+    path.write_text(json.dumps({"items": [{"label": label, "name": label}]}), encoding="utf-8")
 
 
 class TestResolveStatePath:
@@ -139,9 +135,7 @@ class TestComputeCandidateTariffRrForFixedManual:
         # Written to the canonical multi_rate_rr_path destination, not the
         # manual source path.
         assert out_path == config_dir / "rev_requirement" / "bge_hp_vs_non-hp.yaml"
-        assert out_path.read_text(encoding="utf-8") == manual_rr.read_text(
-            encoding="utf-8"
-        )
+        assert out_path.read_text(encoding="utf-8") == manual_rr.read_text(encoding="utf-8")
 
     def test_manual_path_does_not_touch_req_outputs(self, tmp_path: Path) -> None:
         """No req_outputs entries are needed at all in the fully-manual case."""
@@ -190,16 +184,12 @@ class TestPrepareFixedTariffsManual:
 
     def test_copies_and_relabels_manual_tariffs(self, tmp_path: Path) -> None:
         config_dir = tmp_path / "config"
-        _write_urdb_tariff(
-            config_dir / "tariffs/electric/manual_hp.json", "manual_hp_source"
-        )
+        _write_urdb_tariff(config_dir / "tariffs/electric/manual_hp.json", "manual_hp_source")
         _write_urdb_tariff(
             config_dir / "tariffs/electric/manual_hp_supply.json",
             "manual_hp_supply_source",
         )
-        _write_urdb_tariff(
-            config_dir / "tariffs/electric/manual_nonhp.json", "manual_nonhp_source"
-        )
+        _write_urdb_tariff(config_dir / "tariffs/electric/manual_nonhp.json", "manual_nonhp_source")
         _write_urdb_tariff(
             config_dir / "tariffs/electric/manual_nonhp_supply.json",
             "manual_nonhp_supply_source",
@@ -212,9 +202,7 @@ class TestPrepareFixedTariffsManual:
         written = prepare_fixed_tariffs.fn(config, scenario, {})
         assert len(written) == 4
 
-        hp_delivery = next(
-            p for p in written if "_hp_" in p.name and "_supply" not in p.name
-        )
+        hp_delivery = next(p for p in written if "_hp_" in p.name and "_supply" not in p.name)
         payload = json.loads(hp_delivery.read_text(encoding="utf-8"))
         # Relabelled to this scenario's own stem, not the manual source's label.
         assert payload["items"][0]["label"] == hp_delivery.stem
@@ -253,19 +241,11 @@ class TestPrepareFixedTariffsCopyFrom:
 
     def test_uncalibrated_copy_from_uses_posted_tariff(self, tmp_path: Path) -> None:
         config_dir = tmp_path / "config"
-        _write_urdb_tariff(
-            config_dir / "tariffs/electric/bge_rd_default.json", "posted_rd"
-        )
+        _write_urdb_tariff(config_dir / "tariffs/electric/bge_rd_default.json", "posted_rd")
         # Tag the posted file so we can tell copy_from did not pick *_calibrated.
-        posted = json.loads(
-            (config_dir / "tariffs/electric/bge_rd_default.json").read_text(
-                encoding="utf-8"
-            )
-        )
+        posted = json.loads((config_dir / "tariffs/electric/bge_rd_default.json").read_text(encoding="utf-8"))
         posted["items"][0]["source_tag"] = "posted_rd"
-        (config_dir / "tariffs/electric/bge_rd_default.json").write_text(
-            json.dumps(posted), encoding="utf-8"
-        )
+        (config_dir / "tariffs/electric/bge_rd_default.json").write_text(json.dumps(posted), encoding="utf-8")
         _write_urdb_tariff(
             config_dir / "tariffs/electric/bge_rd_default_supply.json",
             "posted_rd_supply",
@@ -274,24 +254,16 @@ class TestPrepareFixedTariffsCopyFrom:
             config_dir / "tariffs/electric/bge_default_calibrated.json",
             "calibrated_default",
         )
-        cal = json.loads(
-            (config_dir / "tariffs/electric/bge_default_calibrated.json").read_text(
-                encoding="utf-8"
-            )
-        )
+        cal = json.loads((config_dir / "tariffs/electric/bge_default_calibrated.json").read_text(encoding="utf-8"))
         cal["items"][0]["source_tag"] = "calibrated_default"
-        (config_dir / "tariffs/electric/bge_default_calibrated.json").write_text(
-            json.dumps(cal), encoding="utf-8"
-        )
+        (config_dir / "tariffs/electric/bge_default_calibrated.json").write_text(json.dumps(cal), encoding="utf-8")
         _write_urdb_tariff(
             config_dir / "tariffs/electric/bge_default_supply_calibrated.json",
             "calibrated_default_supply",
         )
 
         scenarios = {
-            "default": ScenarioConfig(
-                name="default", quartet="single_rate", tariff_base="default"
-            ),
+            "default": ScenarioConfig(name="default", quartet="single_rate", tariff_base="default"),
             "default_rd_uncalibrated": ScenarioConfig(
                 name="default_rd_uncalibrated",
                 quartet="single_rate_uncalibrated",
@@ -302,12 +274,8 @@ class TestPrepareFixedTariffsCopyFrom:
         config = _config(tmp_path, scenarios)
         written = prepare_fixed_tariffs.fn(config, scenarios["hp_rd_vs_default"], {})
 
-        hp_delivery = next(
-            p for p in written if "_hp_" in p.name and "_supply" not in p.name
-        )
-        nonhp_delivery = next(
-            p for p in written if "_non-hp_" in p.name and "_supply" not in p.name
-        )
+        hp_delivery = next(p for p in written if "_hp_" in p.name and "_supply" not in p.name)
+        nonhp_delivery = next(p for p in written if "_non-hp_" in p.name and "_supply" not in p.name)
         hp_payload = json.loads(hp_delivery.read_text(encoding="utf-8"))
         nonhp_payload = json.loads(nonhp_delivery.read_text(encoding="utf-8"))
         assert hp_payload["items"][0]["source_tag"] == "posted_rd"

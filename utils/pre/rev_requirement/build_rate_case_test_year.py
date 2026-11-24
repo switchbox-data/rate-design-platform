@@ -71,9 +71,7 @@ def _months_in_range(start_month: str, end_month: str) -> list[tuple[int, int]]:
     return out
 
 
-def _day_weighted_avg_rate(
-    monthly_rates: dict[str, float], month_list: list[tuple[int, int]]
-) -> float:
+def _day_weighted_avg_rate(monthly_rates: dict[str, float], month_list: list[tuple[int, int]]) -> float:
     """Compute sum(rate_m * days_m) / total_days for the given months."""
     if not month_list:
         return 0.0
@@ -133,11 +131,7 @@ def _load_utility_weights(
     base = path_resstock_release.rstrip("/")
     ua_path = f"{base}/metadata_utility/state={state}/utility_assignment.parquet"
 
-    ua_df = (
-        pl.scan_parquet(ua_path)
-        .filter(pl.col("sb.electric_utility") == utility)
-        .collect()
-    )
+    ua_df = pl.scan_parquet(ua_path).filter(pl.col("sb.electric_utility") == utility).collect()
     if ua_df.is_empty():
         raise ValueError(f"No buildings for utility {utility!r} in {ua_path}.")
 
@@ -145,19 +139,12 @@ def _load_utility_weights(
         return ua_df.select(BLDG_ID_COL, "weight")
 
     bldg_ids = ua_df[BLDG_ID_COL].to_list()
-    meta_path = (
-        f"{base}/metadata/state={state}/upgrade={RESSTOCK_UPGRADE}/metadata-sb.parquet"
-    )
+    meta_path = f"{base}/metadata/state={state}/upgrade={RESSTOCK_UPGRADE}/metadata-sb.parquet"
     weights_df = (
-        pl.scan_parquet(meta_path)
-        .filter(pl.col(BLDG_ID_COL).is_in(bldg_ids))
-        .select(BLDG_ID_COL, "weight")
-        .collect()
+        pl.scan_parquet(meta_path).filter(pl.col(BLDG_ID_COL).is_in(bldg_ids)).select(BLDG_ID_COL, "weight").collect()
     )
     if weights_df.is_empty():
-        raise ValueError(
-            f"No weights found in {meta_path} for {len(bldg_ids)} building IDs."
-        )
+        raise ValueError(f"No weights found in {meta_path} for {len(bldg_ids)} building IDs.")
     return weights_df
 
 
@@ -201,9 +188,7 @@ def _aggregate_resstock_monthly_grid_cons(
     )
 
     monthly_df = (
-        loads_lf.with_columns(
-            grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL).alias("grid_cons")
-        )
+        loads_lf.with_columns(grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL).alias("grid_cons"))
         .join(weights_df.lazy(), on=BLDG_ID_COL, how="inner")
         .group_by("month")
         .agg(
@@ -254,9 +239,7 @@ def _compute_charge_budget(
     charge_unit = charge_data.get("charge_unit", "$/kWh")
 
     if charge_unit in ("$/day", "$/month"):
-        total_budget = _fixed_charge_annual_budget(
-            monthly, month_list, charge_unit, test_year_customer_count
-        )
+        total_budget = _fixed_charge_annual_budget(monthly, month_list, charge_unit, test_year_customer_count)
         return {
             "charge_unit": charge_unit,
             "budget_method": "rate_case",
@@ -420,36 +403,24 @@ def _build_output_yaml(
 
     # Durable testimony references (hand-maintained, preserved across re-runs).
     if "test_year_fixed_charge_from_rate_case" in partial:
-        out["test_year_fixed_charge_from_rate_case"] = partial[
-            "test_year_fixed_charge_from_rate_case"
-        ]
+        out["test_year_fixed_charge_from_rate_case"] = partial["test_year_fixed_charge_from_rate_case"]
 
     out["resstock_total_residential_kwh"] = round(resstock_total_kwh, 2)
     out["resstock_customer_count"] = round(resstock_customer_count, 2)
     out["resstock_customer_scale_factor"] = customer_scale_factor
-    out["resstock_total_residential_kwh_scaled_customer"] = round(
-        scaled_customer_total, 2
-    )
+    out["resstock_total_residential_kwh_scaled_customer"] = round(scaled_customer_total, 2)
     out["resstock_kwh_scale_factor"] = kwh_scale_factor
-    out["resstock_total_residential_kwh_scaled_customer_kwh"] = round(
-        sum(scaled_monthly_kwh.values()), 2
-    )
-    out["resstock_monthly_kwh_scaled_customer_kwh"] = {
-        m: round(v, 2) for m, v in sorted(scaled_monthly_kwh.items())
-    }
+    out["resstock_total_residential_kwh_scaled_customer_kwh"] = round(sum(scaled_monthly_kwh.values()), 2)
+    out["resstock_monthly_kwh_scaled_customer_kwh"] = {m: round(v, 2) for m, v in sorted(scaled_monthly_kwh.items())}
 
     out["supply_commodity_bundled_rates"] = supply_commodity_rates
 
-    yaml_str = yaml.safe_dump(
-        out, default_flow_style=False, sort_keys=False, allow_unicode=True
-    )
+    yaml_str = yaml.safe_dump(out, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
     # Add inline comments for key computed fields
     inline_comments: dict[str, str] = {
         "delivery_revenue_requirement_from_rate_case:": ("# from rate case testimony"),
-        "delivery_revenue_requirement_topups:": (
-            "# sum(delivery_top_ups.total_budget)"
-        ),
+        "delivery_revenue_requirement_topups:": ("# sum(delivery_top_ups.total_budget)"),
         "total_delivery_revenue_requirement:": (
             "# delivery_revenue_requirement_from_rate_case + delivery_revenue_requirement_topups"
         ),
@@ -457,22 +428,14 @@ def _build_output_yaml(
         "total_delivery_and_supply_revenue_requirement:": (
             "# total_delivery_revenue_requirement + supply_revenue_requirement_topups"
         ),
-        "resstock_total_residential_kwh:": (
-            f"# sum(grid_cons * weight) where utility = {utility}"
-        ),
+        "resstock_total_residential_kwh:": (f"# sum(grid_cons * weight) where utility = {utility}"),
         "resstock_customer_count:": (f"# sum(weight) where utility = {utility}"),
-        "resstock_customer_scale_factor:": (
-            "# test_year_customer_count / resstock_customer_count"
-        ),
+        "resstock_customer_scale_factor:": ("# test_year_customer_count / resstock_customer_count"),
         "resstock_total_residential_kwh_scaled_customer:": (
             "# resstock_total_residential_kwh * resstock_customer_scale_factor"
         ),
-        "resstock_kwh_scale_factor:": (
-            "# test_year_residential_kwh / resstock_total_residential_kwh_scaled_customer"
-        ),
-        "resstock_total_residential_kwh_scaled_customer_kwh:": (
-            "# = test_year_residential_kwh (sanity check)"
-        ),
+        "resstock_kwh_scale_factor:": ("# test_year_residential_kwh / resstock_total_residential_kwh_scaled_customer"),
+        "resstock_total_residential_kwh_scaled_customer_kwh:": ("# = test_year_residential_kwh (sanity check)"),
     }
     ic = input_comments or _InputComments()
 
@@ -565,9 +528,7 @@ def main() -> None:
     )
     for key in required_keys:
         if key not in partial:
-            raise SystemExit(
-                f"Missing required key {key!r} in {args.path_partial_yaml}"
-            )
+            raise SystemExit(f"Missing required key {key!r} in {args.path_partial_yaml}")
 
     utility = partial["utility"]
     base_drr = float(partial["delivery_revenue_requirement_from_rate_case"])
@@ -588,9 +549,7 @@ def main() -> None:
     start_month = rates_data.get("start_month")
     end_month = rates_data.get("end_month")
     if not start_month or not end_month:
-        raise SystemExit(
-            f"{args.path_monthly_rates} must have start_month and end_month."
-        )
+        raise SystemExit(f"{args.path_monthly_rates} must have start_month and end_month.")
     month_list = _months_in_range(start_month, end_month)
 
     def _extract_charges(section_key: str) -> dict[str, dict]:
@@ -606,9 +565,7 @@ def main() -> None:
     # --- Step 3: Compute delivery top-ups ---
     delivery_top_ups: dict[str, dict] = {}
     for slug, data in drr_charges.items():
-        entry = _compute_charge_budget(
-            slug, data, month_list, test_year_kwh, test_year_cc
-        )
+        entry = _compute_charge_budget(slug, data, month_list, test_year_kwh, test_year_cc)
         if entry is not None:
             delivery_top_ups[slug] = entry
 
@@ -620,9 +577,7 @@ def main() -> None:
     # used only for the sanity check below (not summed into any budget total).
     delivery_rr_breakdown: dict[str, dict] = {}
     for slug, data in base_charges.items():
-        entry = _compute_charge_budget(
-            slug, data, month_list, test_year_kwh, test_year_cc
-        )
+        entry = _compute_charge_budget(slug, data, month_list, test_year_kwh, test_year_cc)
         if entry is not None:
             delivery_rr_breakdown[slug] = entry
 
@@ -649,12 +604,10 @@ def main() -> None:
         utility,
         args.state.upper(),
     )
-    resstock_monthly_kwh, resstock_total_kwh, resstock_cc = (
-        _aggregate_resstock_monthly_grid_cons(
-            path_resstock_release=args.path_resstock_release,
-            state=args.state.upper(),
-            utility=utility,
-        )
+    resstock_monthly_kwh, resstock_total_kwh, resstock_cc = _aggregate_resstock_monthly_grid_cons(
+        path_resstock_release=args.path_resstock_release,
+        state=args.state.upper(),
+        utility=utility,
     )
     log.info(
         "ResStock total grid_cons: %s kWh, customer_count: %.2f",
@@ -668,8 +621,7 @@ def main() -> None:
     kwh_scale_factor = test_year_kwh / scaled_customer_total
 
     scaled_monthly_kwh: dict[int, float] = {
-        m: v * customer_scale_factor * kwh_scale_factor
-        for m, v in resstock_monthly_kwh.items()
+        m: v * customer_scale_factor * kwh_scale_factor for m, v in resstock_monthly_kwh.items()
     }
     scaled_total_check = sum(scaled_monthly_kwh.values())
     if abs(scaled_total_check - test_year_kwh) > 1.0:

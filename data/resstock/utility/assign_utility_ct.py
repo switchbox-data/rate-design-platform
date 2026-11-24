@@ -159,9 +159,7 @@ def assign_utility(
         pumas=pumas,
         state_crs=state_crs,
         gas_blocks=blocks,
-        excluded_gas_utilities=frozenset(excluded_gas_utilities)
-        if excluded_gas_utilities is not None
-        else frozenset(),
+        excluded_gas_utilities=frozenset(excluded_gas_utilities) if excluded_gas_utilities is not None else frozenset(),
     )
 
 
@@ -214,17 +212,13 @@ def assign_utility_ct(
         }
     ).lazy()
 
-    puma_elec_overlap = calculate_puma_utility_overlap(
-        pumas, electric_polygons, state_crs
-    )
+    puma_elec_overlap = calculate_puma_utility_overlap(pumas, electric_polygons, state_crs)
     if gas_blocks is not None:
         puma_gas_overlap = calculate_puma_utility_housing_overlap(
             pumas, gas_polygons, gas_blocks, state_crs, weight_col="gas_heated_homes"
         )
     else:
-        puma_gas_overlap = calculate_puma_utility_overlap(
-            pumas, gas_polygons, state_crs
-        )
+        puma_gas_overlap = calculate_puma_utility_overlap(pumas, gas_polygons, state_crs)
 
     puma_elec_probs = calculate_utility_probabilities(
         puma_elec_overlap,
@@ -239,9 +233,7 @@ def assign_utility_ct(
         filter_none=False,
     )
 
-    puma_elec_probs = fill_missing_puma_probabilities(
-        puma_elec_probs, pumas, label="electric"
-    )
+    puma_elec_probs = fill_missing_puma_probabilities(puma_elec_probs, pumas, label="electric")
     puma_gas_probs = fill_missing_puma_probabilities(puma_gas_probs, pumas, label="gas")
 
     if excluded_gas_utilities:
@@ -252,9 +244,7 @@ def assign_utility_ct(
             puma_and_heating_fuel=puma_and_heating_fuel,
         )
 
-    building_elec = sample_utility_per_building(
-        puma_and_heating_fuel, puma_elec_probs, "sb.electric_utility"
-    )
+    building_elec = sample_utility_per_building(puma_and_heating_fuel, puma_elec_probs, "sb.electric_utility")
     building_gas = sample_utility_per_building(
         puma_and_heating_fuel,
         puma_gas_probs,
@@ -279,9 +269,7 @@ def assign_utility_ct(
         how="left",
     )
 
-    input_metadata = input_metadata.drop(
-        ["sb.electric_utility", "sb.gas_utility"], strict=False
-    )
+    input_metadata = input_metadata.drop(["sb.electric_utility", "sb.gas_utility"], strict=False)
 
     counts_df = (
         input_metadata.select(pl.lit(1).sum().alias("input_count"))

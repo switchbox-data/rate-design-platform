@@ -2,12 +2,11 @@
 
 from pathlib import Path
 
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 import polars as pl
 import pytest
-
-import geopandas as gpd
 from shapely.geometry import box
 
 from data.resstock.utility.assign_utility_ny import EXCLUDED_GAS_UTILITIES
@@ -23,12 +22,7 @@ from utils.utility_codes import get_ny_open_data_to_std_name
 
 def _utility_name_map_lazy() -> pl.LazyFrame:
     """Build utility_name_map from central crosswalk (matches data.resstock.utility.assign_utility_ny)."""
-    return pl.DataFrame(
-        [
-            {"state_name": k, "std_name": v}
-            for k, v in get_ny_open_data_to_std_name().items()
-        ]
-    ).lazy()
+    return pl.DataFrame([{"state_name": k, "std_name": v} for k, v in get_ny_open_data_to_std_name().items()]).lazy()
 
 
 def test_calculate_utility_probabilities_basic():
@@ -142,9 +136,7 @@ def test_calculate_prior_distributions_sums_to_one():
         }
     )
 
-    elec_prior, gas_prior = calculate_prior_distributions(
-        puma_elec_probs, puma_gas_probs, puma_and_heating_fuel
-    )
+    elec_prior, gas_prior = calculate_prior_distributions(puma_elec_probs, puma_gas_probs, puma_and_heating_fuel)
 
     assert abs(sum(elec_prior.values()) - 1.0) < 1e-9
     assert abs(sum(gas_prior.values()) - 1.0) < 1e-9
@@ -167,9 +159,7 @@ def test_calculate_prior_distributions_gas_only_has_natgas_connection():
         }
     )
 
-    _, gas_prior = calculate_prior_distributions(
-        puma_elec_probs, puma_gas_probs, puma_and_heating_fuel
-    )
+    _, gas_prior = calculate_prior_distributions(puma_elec_probs, puma_gas_probs, puma_and_heating_fuel)
     assert gas_prior == {"coned": 1.0}
 
     # No buildings with gas connection -> gas_prior empty; total gas bldgs = 0 so weighted_prob is 0
@@ -181,9 +171,7 @@ def test_calculate_prior_distributions_gas_only_has_natgas_connection():
             "has_natgas_connection": [False],
         }
     )
-    _, gas_prior_no_gas = calculate_prior_distributions(
-        puma_elec_probs, puma_gas_probs, puma_and_heating_fuel_no_gas
-    )
+    _, gas_prior_no_gas = calculate_prior_distributions(puma_elec_probs, puma_gas_probs, puma_and_heating_fuel_no_gas)
     assert gas_prior_no_gas == {}
 
 
@@ -205,12 +193,8 @@ def test_sample_utility_per_building_deterministic():
         }
     )
 
-    out1 = sample_utility_per_building(
-        bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
-    ).collect()
-    out2 = sample_utility_per_building(
-        bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
-    ).collect()
+    out1 = sample_utility_per_building(bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None).collect()
+    out2 = sample_utility_per_building(bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None).collect()
 
     assert out1.equals(out2)
     assert out1.columns == ["bldg_id", "sb.electric_utility"]
@@ -269,9 +253,7 @@ def test_sample_utility_per_building_all_zero_probs_returns_none():
         }
     )
     # Building in 99999 has no row in puma_probs (left join) -> null probs -> null utility
-    out = sample_utility_per_building(
-        bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
-    ).collect()
+    out = sample_utility_per_building(bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None).collect()
     assert out["sb.electric_utility"][0] is None
 
 
@@ -304,26 +286,18 @@ def test_sample_utility_per_building_exact_assignments():
         }
     )
 
-    elec = sample_utility_per_building(
-        bldgs, puma_elec, "sb.electric_utility", only_when_fuel=None
-    ).collect()
-    gas = sample_utility_per_building(
-        bldgs, puma_gas, "sb.gas_utility", only_when_fuel="Natural Gas"
-    ).collect()
+    elec = sample_utility_per_building(bldgs, puma_elec, "sb.electric_utility", only_when_fuel=None).collect()
+    gas = sample_utility_per_building(bldgs, puma_gas, "sb.gas_utility", only_when_fuel="Natural Gas").collect()
 
     # Electric: every building gets the single utility for its PUMA
-    elec_by_bldg = {
-        row["bldg_id"]: row["sb.electric_utility"] for row in elec.iter_rows(named=True)
-    }
+    elec_by_bldg = {row["bldg_id"]: row["sb.electric_utility"] for row in elec.iter_rows(named=True)}
     assert elec_by_bldg[1] == "coned"
     assert elec_by_bldg[2] == "coned"
     assert elec_by_bldg[3] == "nimo"
     assert elec_by_bldg[4] == "nyseg"
 
     # Gas: only buildings with has_natgas_connection get an assignment
-    gas_by_bldg = {
-        row["bldg_id"]: row["sb.gas_utility"] for row in gas.iter_rows(named=True)
-    }
+    gas_by_bldg = {row["bldg_id"]: row["sb.gas_utility"] for row in gas.iter_rows(named=True)}
     assert gas_by_bldg[1] == "coned"  # PUMA 00100, has_natgas_connection
     assert gas_by_bldg[2] is None  # no gas connection -> no gas utility
     assert gas_by_bldg[3] == "nfg"  # PUMA 00200, has_natgas_connection
@@ -362,9 +336,7 @@ def test_sample_utility_per_building_deterministic_with_varying_probs():
     )
 
     # Perform assignment directly in test with seed 42 (same logic as sample_utility_per_building)
-    bldgs_joined_df = bldgs.join(
-        puma_probs, left_on="puma", right_on="puma_id", how="left"
-    ).collect()
+    bldgs_joined_df = bldgs.join(puma_probs, left_on="puma", right_on="puma_id", how="left").collect()
     bldgs_pd = bldgs_joined_df.to_pandas().sort_values("bldg_id").reset_index(drop=True)
     puma_probs_df = puma_probs.collect()
     utility_cols = sorted([c for c in puma_probs_df.columns if c != "puma_id"])
@@ -383,12 +355,8 @@ def test_sample_utility_per_building_deterministic_with_varying_probs():
     expected = dict(zip(bldgs_pd["bldg_id"], expected_utility, strict=True))
 
     # Function uses the same seed 42 internally; result must match
-    out = sample_utility_per_building(
-        bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None
-    ).collect()
-    actual = {
-        row["bldg_id"]: row["sb.electric_utility"] for row in out.iter_rows(named=True)
-    }
+    out = sample_utility_per_building(bldgs, puma_probs, "sb.electric_utility", only_when_fuel=None).collect()
+    actual = {row["bldg_id"]: row["sb.electric_utility"] for row in out.iter_rows(named=True)}
 
     assert actual == expected, f"Expected {expected}, got {actual}"
 
@@ -402,7 +370,7 @@ def test_excluded_gas_utilities_constant():
     """EXCLUDED_GAS_UTILITIES is loaded from state_configs.yaml and matches the expected set."""
     expected = {"bath", "chautauqua", "corning", "fillmore", "reserve", "stlaw"}
     assert isinstance(EXCLUDED_GAS_UTILITIES, frozenset)
-    assert EXCLUDED_GAS_UTILITIES == frozenset(expected)
+    assert frozenset(expected) == EXCLUDED_GAS_UTILITIES
 
 
 def test_get_excluded_gas_utilities_union_and_per_state(tmp_path: Path):
@@ -515,9 +483,7 @@ def test_assign_utility_none_excluded_gas_uses_defaults():
 
 def test_puma_id_series_for_join_pumace10():
     """puma_id_series_for_join returns 5-char zero-padded ids from PUMACE10."""
-    gdf = gpd.GeoDataFrame(
-        {"PUMACE10": [100, 200, 3600], "geometry": [box(0, 0, 1, 1)] * 3}
-    )
+    gdf = gpd.GeoDataFrame({"PUMACE10": [100, 200, 3600], "geometry": [box(0, 0, 1, 1)] * 3})
     out = puma_id_series_for_join(gdf)
     assert out is not None
     assert list(out) == ["00100", "00200", "03600"]
@@ -525,9 +491,7 @@ def test_puma_id_series_for_join_pumace10():
 
 def test_puma_id_series_for_join_geoid():
     """puma_id_series_for_join uses last 5 chars of GEOID when PUMACE10 missing."""
-    gdf = gpd.GeoDataFrame(
-        {"GEOID": ["3600100", "3600200"], "geometry": [box(0, 0, 1, 1)] * 2}
-    )
+    gdf = gpd.GeoDataFrame({"GEOID": ["3600100", "3600200"], "geometry": [box(0, 0, 1, 1)] * 2})
     out = puma_id_series_for_join(gdf)
     assert out is not None
     assert list(out) == ["00100", "00200"]
@@ -548,9 +512,7 @@ def test_zero_excluded_gas_utilities_no_excluded_cols_unchanged():
             "nyseg": [0.5, 1.0],
         }
     )
-    out = zero_excluded_gas_utilities_and_renormalize(
-        puma_gas_probs, excluded_utilities=EXCLUDED_GAS_UTILITIES
-    )
+    out = zero_excluded_gas_utilities_and_renormalize(puma_gas_probs, excluded_utilities=EXCLUDED_GAS_UTILITIES)
     df = out.collect()
     assert df.shape == (2, 3)
     assert df.filter(pl.col("puma_id") == "00100").to_dicts()[0]["coned"] == 0.5
@@ -567,9 +529,7 @@ def test_zero_excluded_gas_utilities_renormalize():
             "nimo": [0.2, 0.3],
         }
     )
-    out = zero_excluded_gas_utilities_and_renormalize(
-        puma_gas_probs, excluded_utilities=EXCLUDED_GAS_UTILITIES
-    )
+    out = zero_excluded_gas_utilities_and_renormalize(puma_gas_probs, excluded_utilities=EXCLUDED_GAS_UTILITIES)
     df = out.collect()
     # 00100: stlaw zeroed, nyseg+nimo renormalized from 0.4+0.2 to sum 1
     row1 = df.filter(pl.col("puma_id") == "00100").to_dicts()[0]

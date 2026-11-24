@@ -16,8 +16,13 @@ from cloudpathlib import S3Path
 from dotenv import load_dotenv
 
 from utils.file_io import get_aws_storage_options
-from utils.loads import ELECTRIC_LOAD_COL, ELECTRIC_PV_COL, grid_consumption_expr
-from utils.loads import scan_resstock_loads, scan_resstock_loads_monthly
+from utils.loads import (
+    ELECTRIC_LOAD_COL,
+    ELECTRIC_PV_COL,
+    grid_consumption_expr,
+    scan_resstock_loads,
+    scan_resstock_loads_monthly,
+)
 from utils.mid.compute_subclass_rr import (
     ANNUAL_MONTH_VALUE,
     BAT_METRIC_CHOICES,
@@ -136,10 +141,7 @@ def subclass_cross_subsidy_at(
     summer_rate: float,
 ) -> float:
     """Compute subclass cross-subsidy under a candidate seasonal tariff."""
-    return (
-        seasonal_bill(inputs.subclass_totals, fixed_charge, winter_rate, summer_rate)
-        - inputs.subclass_fair_bill
-    )
+    return seasonal_bill(inputs.subclass_totals, fixed_charge, winter_rate, summer_rate) - inputs.subclass_fair_bill
 
 
 def _require_nonzero(value: float, label: str) -> None:
@@ -157,8 +159,7 @@ def fixed_charge_only_rate_design(inputs: FairDefaultInputs) -> FairDefaultRateD
     )
     _require_nonzero(denominator, "fixed rate design")
     fixed_charge = (
-        class_totals.current_bill * subclass_totals.annual_kwh
-        - inputs.subclass_fair_bill * class_totals.annual_kwh
+        class_totals.current_bill * subclass_totals.annual_kwh - inputs.subclass_fair_bill * class_totals.annual_kwh
     ) / (MONTHS_PER_YEAR * denominator)
     return FairDefaultRateDesign(
         module="fixed_charge_only",
@@ -175,8 +176,7 @@ def _seasonal_denominator(inputs: FairDefaultInputs) -> float:
     class_totals = inputs.class_totals
     subclass_totals = inputs.subclass_totals
     denominator = (
-        class_totals.winter_kwh * subclass_totals.summer_kwh
-        - subclass_totals.winter_kwh * class_totals.summer_kwh
+        class_totals.winter_kwh * subclass_totals.summer_kwh - subclass_totals.winter_kwh * class_totals.summer_kwh
     )
     _require_nonzero(denominator, "seasonal rate design")
     return denominator
@@ -190,17 +190,12 @@ def _seasonal_rates_at_fixed_charge(
     subclass_totals = inputs.subclass_totals
     denominator = _seasonal_denominator(inputs)
     class_energy_target = energy_revenue(class_totals, fixed_charge)
-    subclass_energy_target = (
-        inputs.subclass_fair_bill
-        - MONTHS_PER_YEAR * fixed_charge * subclass_totals.customer_count
-    )
+    subclass_energy_target = inputs.subclass_fair_bill - MONTHS_PER_YEAR * fixed_charge * subclass_totals.customer_count
     winter_rate = (
-        class_energy_target * subclass_totals.summer_kwh
-        - subclass_energy_target * class_totals.summer_kwh
+        class_energy_target * subclass_totals.summer_kwh - subclass_energy_target * class_totals.summer_kwh
     ) / denominator
     summer_rate = (
-        subclass_energy_target * class_totals.winter_kwh
-        - class_energy_target * subclass_totals.winter_kwh
+        subclass_energy_target * class_totals.winter_kwh - class_energy_target * subclass_totals.winter_kwh
     ) / denominator
     return winter_rate, summer_rate, denominator
 
@@ -251,11 +246,7 @@ def seasonal_rates_only_rate_design(inputs: FairDefaultInputs) -> FairDefaultRat
         winter_rate,
         summer_rate,
     )
-    feasible = (
-        fixed_charge >= inputs.fixed_charge_floor
-        and winter_rate >= 0.0
-        and summer_rate >= 0.0
-    )
+    feasible = fixed_charge >= inputs.fixed_charge_floor and winter_rate >= 0.0 and summer_rate >= 0.0
     return FairDefaultRateDesign(
         module="seasonal_rates_only",
         fixed_charge=fixed_charge,
@@ -273,38 +264,26 @@ def seasonal_rates_only_rate_design(inputs: FairDefaultInputs) -> FairDefaultRat
 def fixed_plus_seasonal_mc_rate_design(mc_seasonal_ratio: float) -> RateDesignModule:
     """Return a design module constrained by winter_rate / summer_rate."""
     if mc_seasonal_ratio <= 0.0:
-        raise ValueError(
-            f"mc_seasonal_ratio must be positive; got {mc_seasonal_ratio}."
-        )
+        raise ValueError(f"mc_seasonal_ratio must be positive; got {mc_seasonal_ratio}.")
 
     def solve(inputs: FairDefaultInputs) -> FairDefaultRateDesign:
         class_totals = inputs.class_totals
         subclass_totals = inputs.subclass_totals
-        class_ratio_kwh = (
-            mc_seasonal_ratio * class_totals.winter_kwh + class_totals.summer_kwh
-        )
-        subclass_ratio_kwh = (
-            mc_seasonal_ratio * subclass_totals.winter_kwh + subclass_totals.summer_kwh
-        )
+        class_ratio_kwh = mc_seasonal_ratio * class_totals.winter_kwh + class_totals.summer_kwh
+        subclass_ratio_kwh = mc_seasonal_ratio * subclass_totals.winter_kwh + subclass_totals.summer_kwh
         denominator = (
-            class_totals.customer_count * subclass_ratio_kwh
-            - subclass_totals.customer_count * class_ratio_kwh
+            class_totals.customer_count * subclass_ratio_kwh - subclass_totals.customer_count * class_ratio_kwh
         )
         _require_nonzero(denominator, "combined rate design")
         fixed_charge = (
-            subclass_ratio_kwh * class_totals.current_bill
-            - class_ratio_kwh * inputs.subclass_fair_bill
+            subclass_ratio_kwh * class_totals.current_bill - class_ratio_kwh * inputs.subclass_fair_bill
         ) / (MONTHS_PER_YEAR * denominator)
         summer_rate = (
             class_totals.customer_count * inputs.subclass_fair_bill
             - subclass_totals.customer_count * class_totals.current_bill
         ) / denominator
         winter_rate = mc_seasonal_ratio * summer_rate
-        feasible = (
-            fixed_charge >= inputs.fixed_charge_floor
-            and winter_rate >= 0.0
-            and summer_rate >= 0.0
-        )
+        feasible = fixed_charge >= inputs.fixed_charge_floor and winter_rate >= 0.0 and summer_rate >= 0.0
         return FairDefaultRateDesign(
             module="fixed_plus_seasonal_mc",
             fixed_charge=fixed_charge,
@@ -329,9 +308,7 @@ def fair_default_rate_design_modules(
         "seasonal_rates_only": seasonal_rates_only_rate_design,
     }
     if mc_seasonal_ratio is not None:
-        modules["fixed_plus_seasonal_mc"] = fixed_plus_seasonal_mc_rate_design(
-            mc_seasonal_ratio
-        )
+        modules["fixed_plus_seasonal_mc"] = fixed_plus_seasonal_mc_rate_design(mc_seasonal_ratio)
     return modules
 
 
@@ -368,8 +345,7 @@ def fixed_charge_feasibility(inputs: FairDefaultInputs) -> FixedChargeFeasibilit
     class_totals = inputs.class_totals
     subclass_totals = inputs.subclass_totals
     winter_intercept = (
-        class_totals.current_bill * subclass_totals.summer_kwh
-        - inputs.subclass_fair_bill * class_totals.summer_kwh
+        class_totals.current_bill * subclass_totals.summer_kwh - inputs.subclass_fair_bill * class_totals.summer_kwh
     ) / denominator
     winter_slope = (
         MONTHS_PER_YEAR
@@ -380,8 +356,7 @@ def fixed_charge_feasibility(inputs: FairDefaultInputs) -> FixedChargeFeasibilit
         / denominator
     )
     summer_intercept = (
-        inputs.subclass_fair_bill * class_totals.winter_kwh
-        - class_totals.current_bill * subclass_totals.winter_kwh
+        inputs.subclass_fair_bill * class_totals.winter_kwh - class_totals.current_bill * subclass_totals.winter_kwh
     ) / denominator
     summer_slope = (
         MONTHS_PER_YEAR
@@ -505,10 +480,7 @@ class RevenueSufficientLineData:
 
     def subclass_cross_subsidy_per_customer_at(self, winter_rate: float) -> float:
         """Return per-customer subclass cross-subsidy at a winter-rate choice."""
-        return (
-            self.subclass_cross_subsidy_at(winter_rate)
-            / self.inputs.subclass_totals.customer_count
-        )
+        return self.subclass_cross_subsidy_at(winter_rate) / self.inputs.subclass_totals.customer_count
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -572,11 +544,7 @@ def _load_kwh_totals_monthly(
         .with_columns(pl.col("month").is_in(list(winter_months)).alias("is_winter"))
         .select(
             pl.col("weighted_kwh").sum().alias("class_annual_kwh"),
-            pl.when(pl.col("is_winter"))
-            .then(pl.col("weighted_kwh"))
-            .otherwise(0.0)
-            .sum()
-            .alias("class_winter_kwh"),
+            pl.when(pl.col("is_winter")).then(pl.col("weighted_kwh")).otherwise(0.0).sum().alias("class_winter_kwh"),
             pl.when(pl.col("_is_subclass"))
             .then(pl.col("weighted_kwh"))
             .otherwise(0.0)
@@ -749,9 +717,7 @@ def _load_monthly_fair_default_inputs(
         summer_kwh=class_annual_kwh - class_winter_kwh,
     )
     subclass_totals = CustomerGroupTotals(
-        customer_count=float(
-            metadata.filter(pl.col("_is_subclass"))[WEIGHT_COL].sum() or 0.0
-        ),
+        customer_count=float(metadata.filter(pl.col("_is_subclass"))[WEIGHT_COL].sum() or 0.0),
         current_bill=subclass_bill,
         annual_kwh=subclass_annual_kwh,
         winter_kwh=subclass_winter_kwh,
@@ -951,10 +917,7 @@ def compute_revenue_sufficient_line_from_runs(
             group_value_to_subclass=group_value_to_subclass_map,
             fixed_charge_floor=fixed_charge_floor,
         )
-        default_title = (
-            "revenue-sufficient seasonal sweep "
-            f"(C1 only) — {group_col}={subclass_value}, {variant}"
-        )
+        default_title = f"revenue-sufficient seasonal sweep (C1 only) — {group_col}={subclass_value}, {variant}"
         result[variant] = _build_revenue_sufficient_line_data(
             inputs=inputs,
             title=title_override if title_override else default_title,
@@ -1002,17 +965,12 @@ def _load_metadata_and_cross_subsidy(
     )
     metadata = (
         _load_group_values(run_dir, group_col, storage_options)
-        .with_columns(
-            pl.col(GROUP_VALUE_COL).is_in(raw_subclass_values).alias("_is_subclass")
-        )
+        .with_columns(pl.col(GROUP_VALUE_COL).is_in(raw_subclass_values).alias("_is_subclass"))
         .collect()
     )
     if metadata.is_empty():
         raise ValueError("No customers found in customer_metadata.csv.")
-    if (
-        set(metadata.filter(pl.col("_is_subclass"))[BLDG_ID_COL].to_list())
-        != subclass_ids
-    ):
+    if set(metadata.filter(pl.col("_is_subclass"))[BLDG_ID_COL].to_list()) != subclass_ids:
         raise ValueError("Subclass metadata and BAT inputs do not match.")
     return metadata, subclass_cross_subsidy
 
@@ -1033,18 +991,11 @@ def _load_bill_totals(
     )
     missing_bills = bills.filter(pl.col("annual_bill").is_null()).height
     if missing_bills:
-        raise ValueError(
-            f"Missing annual target bills for {missing_bills} buildings "
-            f"(month={ANNUAL_MONTH_VALUE})."
-        )
+        raise ValueError(f"Missing annual target bills for {missing_bills} buildings (month={ANNUAL_MONTH_VALUE}).")
     weighted_bill = pl.col("annual_bill") * pl.col(WEIGHT_COL)
     totals = bills.select(
         weighted_bill.sum().alias("class_current_bill"),
-        pl.when(pl.col("_is_subclass"))
-        .then(weighted_bill)
-        .otherwise(0.0)
-        .sum()
-        .alias("subclass_current_bill"),
+        pl.when(pl.col("_is_subclass")).then(weighted_bill).otherwise(0.0).sum().alias("subclass_current_bill"),
     )
     return (
         float(totals["class_current_bill"][0] or 0.0),
@@ -1086,20 +1037,15 @@ def _load_kwh_totals(
             .str.to_datetime(strict=False)
             .dt.month()
             .alias("month_num"),
-            (
-                grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL)
-                * pl.col(WEIGHT_COL).cast(pl.Float64)
-            ).alias("weighted_kwh"),
+            (grid_consumption_expr(ELECTRIC_LOAD_COL, ELECTRIC_PV_COL) * pl.col(WEIGHT_COL).cast(pl.Float64)).alias(
+                "weighted_kwh"
+            ),
             pl.col("_is_subclass"),
         )
         .with_columns(pl.col("month_num").is_in(winter_months).alias("is_winter"))
         .select(
             pl.col("weighted_kwh").sum().alias("class_annual_kwh"),
-            pl.when(pl.col("is_winter"))
-            .then(pl.col("weighted_kwh"))
-            .otherwise(0.0)
-            .sum()
-            .alias("class_winter_kwh"),
+            pl.when(pl.col("is_winter")).then(pl.col("weighted_kwh")).otherwise(0.0).sum().alias("class_winter_kwh"),
             pl.when(pl.col("_is_subclass"))
             .then(pl.col("weighted_kwh"))
             .otherwise(0.0)
@@ -1159,21 +1105,17 @@ def load_fair_default_inputs(
         metadata,
         storage_options,
     )
-    (class_annual_kwh, class_winter_kwh), (subclass_annual_kwh, subclass_winter_kwh) = (
-        _load_kwh_totals(
-            resstock_base=resstock_base,
-            state=state,
-            upgrade=upgrade,
-            metadata=metadata,
-            winter_months=winter_months,
-            storage_options=storage_options,
-        )
+    (class_annual_kwh, class_winter_kwh), (subclass_annual_kwh, subclass_winter_kwh) = _load_kwh_totals(
+        resstock_base=resstock_base,
+        state=state,
+        upgrade=upgrade,
+        metadata=metadata,
+        winter_months=winter_months,
+        storage_options=storage_options,
     )
 
     class_customers = float(metadata[WEIGHT_COL].sum() or 0.0)
-    subclass_customers = float(
-        metadata.filter(pl.col("_is_subclass"))[WEIGHT_COL].sum() or 0.0
-    )
+    subclass_customers = float(metadata.filter(pl.col("_is_subclass"))[WEIGHT_COL].sum() or 0.0)
     class_totals = CustomerGroupTotals(
         customer_count=class_customers,
         current_bill=class_bill,
@@ -1217,9 +1159,7 @@ def _design_columns(prefix: str, design: FairDefaultRateDesign) -> dict[str, obj
         columns[f"{prefix}_clipped_winter_rate"] = design.clipped_winter_rate
     if design.clipped_summer_rate is not None:
         columns[f"{prefix}_clipped_summer_rate"] = design.clipped_summer_rate
-    columns[f"{prefix}_residual_cross_subsidy_after_clipping"] = (
-        design.residual_cross_subsidy
-    )
+    columns[f"{prefix}_residual_cross_subsidy_after_clipping"] = design.residual_cross_subsidy
     return columns
 
 
@@ -1266,18 +1206,10 @@ def fair_default_inputs_frame(
         "feasible_fixed_charge_min": feasibility.minimum,
         "feasible_fixed_charge_max": feasibility.maximum,
         "feasible_fixed_charge_range_exists": feasibility.exists,
-        "winter_rate_at_zero_fixed_charge": (
-            feasibility.winter_rate_at_zero_fixed_charge
-        ),
-        "winter_rate_per_fixed_charge_dollar": (
-            feasibility.winter_rate_per_fixed_charge_dollar
-        ),
-        "summer_rate_at_zero_fixed_charge": (
-            feasibility.summer_rate_at_zero_fixed_charge
-        ),
-        "summer_rate_per_fixed_charge_dollar": (
-            feasibility.summer_rate_per_fixed_charge_dollar
-        ),
+        "winter_rate_at_zero_fixed_charge": (feasibility.winter_rate_at_zero_fixed_charge),
+        "winter_rate_per_fixed_charge_dollar": (feasibility.winter_rate_per_fixed_charge_dollar),
+        "summer_rate_at_zero_fixed_charge": (feasibility.summer_rate_at_zero_fixed_charge),
+        "summer_rate_per_fixed_charge_dollar": (feasibility.summer_rate_per_fixed_charge_dollar),
     }
     for name, design in designs.items():
         row.update(_design_columns(name, design))
@@ -1301,9 +1233,7 @@ def compute_fair_default_inputs(
 ) -> pl.DataFrame:
     """Load shared inputs, run fair-default modules, and return one CSV row."""
     if base_tariff_json_path is None:
-        raise ValueError(
-            "base_tariff_json_path is required: pass a calibrated URDB tariff JSON."
-        )
+        raise ValueError("base_tariff_json_path is required: pass a calibrated URDB tariff JSON.")
 
     inputs, winter_months = load_fair_default_inputs(
         run_dir=run_dir,
@@ -1363,9 +1293,7 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-    parser = argparse.ArgumentParser(
-        description="Compute fair-default rate designs from CAIRO outputs and loads."
-    )
+    parser = argparse.ArgumentParser(description="Compute fair-default rate designs from CAIRO outputs and loads.")
     parser.add_argument("--run-dir", required=True)
     parser.add_argument("--resstock-base", required=True)
     parser.add_argument("--state", required=True)
@@ -1389,14 +1317,10 @@ def main() -> None:
     output_dir = _resolve_path_or_s3(args.output_dir) if args.output_dir else run_dir
     base_tariff_json_path = _resolve_path_or_s3(args.base_tariff_json)
     storage_options = (
-        get_aws_storage_options()
-        if isinstance(run_dir, S3Path) or args.resstock_base.startswith("s3://")
-        else None
+        get_aws_storage_options() if isinstance(run_dir, S3Path) or args.resstock_base.startswith("s3://") else None
     )
     group_value_to_subclass = (
-        parse_group_value_to_subclass(args.group_value_to_subclass)
-        if args.group_value_to_subclass
-        else None
+        parse_group_value_to_subclass(args.group_value_to_subclass) if args.group_value_to_subclass else None
     )
     fair_default_inputs = compute_fair_default_inputs(
         run_dir=run_dir,

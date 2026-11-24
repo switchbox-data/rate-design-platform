@@ -44,7 +44,7 @@ The $69/kW-year value must be converted to an 8760 hourly signal for CAIRO. The 
 3. Inflate the PTF value from its dollar year (`--ptf-dollar-year`, default 2024 for AESC 2024) to the target dollar year (`--target-dollar-year`, default `--year`) with FRED CPI. The ct recipe passes 2026, the same dollar year as `create-dist-mc-data` and `month_hour` (below). For 2026 the factor is 1.0560, so `$69` becomes `$72.87/kW-yr`. The exceedance method does not do this; it uses the value as given.
 4. Each cell's `$/kWh` is the inflated `$/kW-yr` × PoP ÷ the number of days of that month and day type on the `--calendar-year` calendar (default `--year`). The cells are laid onto the CAIRO 8760 with `expand_month_hour_mc_to_8760`, the same expansion the OCC-863 month-hour distribution tables use, and the sum is checked against the inflated `$/kW-yr`.
 
-On 2022–2025 NE system load, 121 of 576 cells are nonzero. June, July, August, and September carry 13%, 56%, 26%, and 5% of the probability; weekend-and-holiday cells carry 25%; February holds a trace (0.05%). The result is about 1,900 nonzero hours with a maximum of `$0.19/kWh` (July weekday 17:00).
+On 2022–2025 NE system load, 121 of 576 cells are nonzero. June, July, August, and September carry 13%, 56%, 26%, and 5% of the probability; weekend-and-holiday cells carry 25%; February holds a trace (0.05%). The result is about 1,900 nonzero hours, and the maximum falls on the July weekday 17:00 cell. The level of every hour scales with the inflated `$/kW-yr`.
 
 `--allocation-load utility_zone` fits the PoP on CT zone load instead; `--pop-history-years 2021-2025` is the five-year sensitivity.
 
@@ -64,9 +64,9 @@ $$
 
 where S is the annual cost in $/kW-yr and D is that day type's day count for the month. S starts
 as the AESC 69 $/kW-yr in 2024 dollars (`--aesc-ptf-kw-year`, `--ptf-dollar-year`). There is no
-loss factor. `--target-dollar-year` (default `--year`; the ct recipe passes 2026, the same dollar
-year as `create-dist-mc-data`) inflates S by CPIAUCSL when the years differ, the same rule as
-distribution. The 8760 is then scaled so it sums to that inflated S, which is $69/kW-yr only when
+loss factor. `--target-dollar-year` (default `--year`; the ct recipe passes 2026) inflates S by
+CPIAUCSL when the years differ. 2026 matches the dollar year of Eversource's distribution MC, the
+same reason `pop_kde` uses it. The 8760 is then scaled so it sums to that inflated S, which is $69/kW-yr only when
 the target year is 2024.
 
 Weekday and weekend-and-holiday probabilities are applied separately, then looked up onto the

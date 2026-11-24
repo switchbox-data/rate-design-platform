@@ -11,12 +11,12 @@ Usage:
 
 from __future__ import annotations
 
-from utils.numeric import as_float
-
 import sys
 from pathlib import Path
 
 import polars as pl
+
+from utils.numeric import as_float
 
 REQUIRED_COLUMNS = {
     "cp": pl.String,
@@ -86,11 +86,7 @@ def check_schema(df: pl.DataFrame, result: ValidationResult) -> None:
 
 
 def check_no_nulls_required(df: pl.DataFrame, result: ValidationResult) -> None:
-    null_cols = [
-        col
-        for col in REQUIRED_COLUMNS
-        if col in df.columns and df[col].null_count() > 0
-    ]
+    null_cols = [col for col in REQUIRED_COLUMNS if col in df.columns and df[col].null_count() > 0]
     if null_cols:
         for col in null_cols:
             result.error("Nulls (required)", f"{col}: {df[col].null_count()} nulls")
@@ -137,9 +133,7 @@ def check_price_ranges(df: pl.DataFrame, result: ValidationResult) -> None:
             f"max ${pmax:.4f} exceeds ${PRICE_CEILING:.0f}/kW-mo ceiling — verify",
         )
     else:
-        result.passed(
-            "Price range", f"${pmin:.4f}–${pmax:.4f}/kW-mo (mean ${pmean:.4f})"
-        )
+        result.passed("Price range", f"${pmin:.4f}–${pmax:.4f}/kW-mo (mean ${pmean:.4f})")
 
 
 def check_zone_ids(df: pl.DataFrame, result: ValidationResult) -> None:
@@ -148,9 +142,7 @@ def check_zone_ids(df: pl.DataFrame, result: ValidationResult) -> None:
     if unexpected:
         result.warn("Zone IDs", f"unexpected zone IDs: {unexpected}")
     else:
-        result.passed(
-            "Zone IDs", f"all IDs in canonical set {sorted(CANONICAL_ZONE_IDS)}"
-        )
+        result.passed("Zone IDs", f"all IDs in canonical set {sorted(CANONICAL_ZONE_IDS)}")
 
 
 def check_ara_numbers(df: pl.DataFrame, result: ValidationResult) -> None:
@@ -188,14 +180,8 @@ def summarize_cp_ara(df: pl.DataFrame, result: ValidationResult) -> None:
 
 
 def summarize_zones_and_interfaces(df: pl.DataFrame, result: ValidationResult) -> None:
-    zones = sorted(
-        df.filter(pl.col("entity_type") == "zone")["entity_name"].unique().to_list()
-    )
-    interfaces = sorted(
-        df.filter(pl.col("entity_type") == "external_interface")["entity_name"]
-        .unique()
-        .to_list()
-    )
+    zones = sorted(df.filter(pl.col("entity_type") == "zone")["entity_name"].unique().to_list())
+    interfaces = sorted(df.filter(pl.col("entity_type") == "external_interface")["entity_name"].unique().to_list())
     result.passed("Zones", ", ".join(zones))
     result.passed("External interfaces", ", ".join(interfaces))
 

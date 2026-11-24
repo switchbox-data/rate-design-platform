@@ -46,10 +46,7 @@ def _all_months(value: float) -> dict[str, float]:
 
 
 def _bands(pairs: BandPairs) -> list[dict]:
-    return [
-        {"upper_limit": upper, "monthly_rates": _all_months(rate)}
-        for rate, upper in pairs
-    ]
+    return [{"upper_limit": upper, "monthly_rates": _all_months(rate)} for rate, upper in pairs]
 
 
 def _entry(
@@ -257,11 +254,7 @@ class TestDetermineRateStructure:
         assert _determine_rate_structure(entries) == "flat"
 
     def test_any_tou_wins(self):
-        entries = [
-            _entry(
-                "GSC On", "Supply commodity (bundled)", "add_to_srr", 0.15, tou=ON_PEAK
-            )
-        ]
+        entries = [_entry("GSC On", "Supply commodity (bundled)", "add_to_srr", 0.15, tou=ON_PEAK)]
         assert _determine_rate_structure(entries) == "seasonal_tou"
 
 
@@ -311,9 +304,7 @@ class TestSeasonalFlatMerge:
                 season=SUMMER_H2,
             ),
         }
-        return _build_grouped_output(
-            "ct_eversource", 614, "2025-01", "2025-12", charges, {}
-        )
+        return _build_grouped_output("ct_eversource", 614, "2025-01", "2025-12", charges, {})
 
     def test_structure_is_flat(self):
         out = self._ct_rate1_supply()
@@ -326,9 +317,7 @@ class TestSeasonalFlatMerge:
 
     def test_in_season_components_sum(self):
         out = self._ct_rate1_supply()
-        rates = out["add_to_srr"]["charges"]["supply_commodity_bundled"][
-            "monthly_rates"
-        ]
+        rates = out["add_to_srr"]["charges"]["supply_commodity_bundled"]["monthly_rates"]
         # Jan-Jun: winter GSC + winter FMCC
         assert rates["2025-01"] == pytest.approx(0.1129 - 0.001)
         assert rates["2025-06"] == pytest.approx(0.1129 - 0.001)
@@ -338,9 +327,7 @@ class TestSeasonalFlatMerge:
 
     def test_seasons_are_not_summed_together(self):
         out = self._ct_rate1_supply()
-        rates = out["add_to_srr"]["charges"]["supply_commodity_bundled"][
-            "monthly_rates"
-        ]
+        rates = out["add_to_srr"]["charges"]["supply_commodity_bundled"]["monthly_rates"]
         both_seasons = 0.1129 - 0.001 + 0.09115 - 0.0012
         assert rates["2025-01"] != pytest.approx(both_seasons)
 
@@ -349,12 +336,8 @@ class TestSeasonalFlatMerge:
             "a": _entry("GSC", "Supply commodity (bundled)", "add_to_srr", 0.1129),
             "b": _entry("FMCC", "Supply commodity (bundled)", "add_to_srr", -0.001),
         }
-        out = _build_grouped_output(
-            "ct_eversource_elecheat", 616, "2025-01", "2025-12", charges, {}
-        )
-        rates = out["add_to_srr"]["charges"]["supply_commodity_bundled"][
-            "monthly_rates"
-        ]
+        out = _build_grouped_output("ct_eversource_elecheat", 616, "2025-01", "2025-12", charges, {})
+        rates = out["add_to_srr"]["charges"]["supply_commodity_bundled"]["monthly_rates"]
         assert rates["2025-01"] == pytest.approx(0.1129 - 0.001)
 
 
@@ -415,12 +398,8 @@ class TestSeasonalTieredMerge:
         charges = {"a": gsc, "b": fmcc}
         out = _build_grouped_output("x", 1, "2025-01", "2025-12", charges, {})
         tiers = out["add_to_srr"]["charges"]["supply_commodity_bundled"]["tiers"]
-        assert tiers[0]["monthly_rates"]["winter"]["2025-01"] == pytest.approx(
-            0.1129 - 0.001
-        )
-        assert tiers[1]["monthly_rates"]["winter"]["2025-01"] == pytest.approx(
-            0.20 - 0.002
-        )
+        assert tiers[0]["monthly_rates"]["winter"]["2025-01"] == pytest.approx(0.1129 - 0.001)
+        assert tiers[1]["monthly_rates"]["winter"]["2025-01"] == pytest.approx(0.20 - 0.002)
 
 
 class TestSeasonalTouMerge:
@@ -449,23 +428,17 @@ class TestSeasonalTouMerge:
                 -0.001,
             ),
         }
-        return _build_grouped_output(
-            "ct_eversource_tou", 615, "2025-01", "2025-12", charges, {}
-        )
+        return _build_grouped_output("ct_eversource_tou", 615, "2025-01", "2025-12", charges, {})
 
     def test_no_phantom_all_slot(self):
         out = self._ct_rate7_supply()
-        rates = out["add_to_srr"]["charges"]["supply_commodity_bundled"][
-            "monthly_rates"
-        ]
+        rates = out["add_to_srr"]["charges"]["supply_commodity_bundled"]["monthly_rates"]
         assert "all" not in rates
         assert set(rates) == {"all_on_peak", "all_off_peak"}
 
     def test_non_tou_component_added_to_each_slot(self):
         out = self._ct_rate7_supply()
-        rates = out["add_to_srr"]["charges"]["supply_commodity_bundled"][
-            "monthly_rates"
-        ]
+        rates = out["add_to_srr"]["charges"]["supply_commodity_bundled"]["monthly_rates"]
         assert rates["all_on_peak"]["2025-01"] == pytest.approx(0.15396 - 0.001)
         assert rates["all_off_peak"]["2025-01"] == pytest.approx(0.11096 - 0.001)
 

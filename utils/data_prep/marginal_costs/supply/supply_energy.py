@@ -25,9 +25,7 @@ def aggregate_lbmp_to_hourly(lbmp_df: pl.DataFrame) -> pl.DataFrame:
         .agg(pl.col("lbmp_usd_per_mwh").mean().alias("lbmp_usd_per_mwh"))
         .sort("timestamp", "zone")
     )
-    print(
-        f"  Aggregated {lbmp_df.height:,} 5-minute intervals -> {aggregated.height:,} hourly averages"
-    )
+    print(f"  Aggregated {lbmp_df.height:,} 5-minute intervals -> {aggregated.height:,} hourly averages")
     return aggregated
 
 
@@ -52,17 +50,11 @@ def load_lbmp_for_zones(
     if not isinstance(collected, pl.DataFrame):
         raise TypeError("Expected DataFrame from LBMP collect()")
     if collected.is_empty():
-        raise FileNotFoundError(
-            f"No LBMP data found for zones={zone_names}, year={year} under {base}"
-        )
+        raise FileNotFoundError(f"No LBMP data found for zones={zone_names}, year={year} under {base}")
 
-    collected = strip_tz_if_needed(collected, "interval_start_est").rename(
-        {"interval_start_est": "timestamp"}
-    )
+    collected = strip_tz_if_needed(collected, "interval_start_est").rename({"interval_start_est": "timestamp"})
     zones_found = sorted(collected["zone"].unique().to_list())
-    print(
-        f"Loaded LBMP data: {len(collected):,} rows for zones {zones_found}, year {year}"
-    )
+    print(f"Loaded LBMP data: {len(collected):,} rows for zones {zones_found}, year {year}")
     return collected
 
 
@@ -101,9 +93,7 @@ def load_lmp_for_zone(
     if not isinstance(collected, pl.DataFrame):
         raise TypeError("Expected DataFrame from ISO-NE LMP collect()")
     if collected.is_empty():
-        raise FileNotFoundError(
-            f"No ISO-NE LMP data found for zone={zone!r}, year={year} under {base}"
-        )
+        raise FileNotFoundError(f"No ISO-NE LMP data found for zone={zone!r}, year={year} under {base}")
 
     # Handle DST properly: convert to UTC first to preserve both DST fallback hours
     # as distinct timestamps. When DST falls back, we get two 1:00 AM hours in local
@@ -114,9 +104,7 @@ def load_lmp_for_zone(
     if isinstance(ts_dtype, pl.Datetime) and ts_dtype.time_zone is not None:
         # Convert to UTC to preserve DST fallback hours as distinct timestamps
         # This gives us 8761 hours for a year with DST fallback (instead of losing one)
-        collected = collected.with_columns(
-            pl.col(ts_col).dt.convert_time_zone("UTC").alias("timestamp_utc")
-        )
+        collected = collected.with_columns(pl.col(ts_col).dt.convert_time_zone("UTC").alias("timestamp_utc"))
         # Convert UTC to local naive time (America/New_York)
         # DST fallback hours will map to the same local time, but we preserve both
         # by keeping them as separate rows with the same timestamp
@@ -152,9 +140,7 @@ def load_lmp_for_zone(
                 f"  DST fallback detected: {n_before} rows with {n_unique_before} unique timestamps. "
                 f"Preserving both DST fallback hours (will be handled in alignment to 8760)."
             )
-            collected = collected.select("timestamp", "lmp_usd_per_mwh").sort(
-                "timestamp"
-            )
+            collected = collected.select("timestamp", "lmp_usd_per_mwh").sort("timestamp")
             n_after = collected.height
         else:
             # Multiple duplicates - likely partition overlap, collapse by mean
@@ -169,19 +155,13 @@ def load_lmp_for_zone(
                 .sort("timestamp")
             )
             n_after = collected.height
-            print(
-                f"  Collapsed duplicate timestamps: {n_before} rows "
-                f"({n_unique_before} unique) → {n_after} rows"
-            )
+            print(f"  Collapsed duplicate timestamps: {n_before} rows ({n_unique_before} unique) → {n_after} rows")
     else:
         # No duplicates - all timestamps are unique
         collected = collected.select("timestamp", "lmp_usd_per_mwh").sort("timestamp")
         n_after = collected.height
 
-    print(
-        f"Loaded ISO-NE LMP data: {n_after:,} hourly rows "
-        f"for zone {zone!r}, year {year}"
-    )
+    print(f"Loaded ISO-NE LMP data: {n_after:,} hourly rows for zone {zone!r}, year {year}")
     return collected
 
 
@@ -252,9 +232,7 @@ def load_lmp_for_pjm_zone(
     if not isinstance(collected, pl.DataFrame):
         raise TypeError("Expected DataFrame from PJM LMP collect()")
     if collected.is_empty():
-        raise FileNotFoundError(
-            f"No PJM LMP data found for zone={zone!r}, year={year} under {base}"
-        )
+        raise FileNotFoundError(f"No PJM LMP data found for zone={zone!r}, year={year} under {base}")
 
     collected = strip_tz_if_needed(collected, "datetime_beginning_ept").rename(
         {"datetime_beginning_ept": "timestamp", "total_lmp_rt": "lmp_usd_per_mwh"}
@@ -264,20 +242,10 @@ def load_lmp_for_pjm_zone(
     n_unique = collected["timestamp"].n_unique()
     if n_before != n_unique:
         n_dup = n_before - n_unique
-        print(
-            f"  {n_dup} duplicate EPT timestamp(s) in zone={zone!r} year={year} "
-            f"(DST fall-back — collapsing by mean)"
-        )
-        collected = (
-            collected.group_by("timestamp")
-            .agg(pl.col("lmp_usd_per_mwh").mean())
-            .sort("timestamp")
-        )
+        print(f"  {n_dup} duplicate EPT timestamp(s) in zone={zone!r} year={year} (DST fall-back — collapsing by mean)")
+        collected = collected.group_by("timestamp").agg(pl.col("lmp_usd_per_mwh").mean()).sort("timestamp")
 
-    print(
-        f"Loaded PJM LMP data: {collected.height:,} hourly rows "
-        f"for zone={zone!r}, year={year}"
-    )
+    print(f"Loaded PJM LMP data: {collected.height:,} hourly rows for zone={zone!r}, year={year}")
     return collected
 
 
@@ -323,25 +291,17 @@ def compute_supply_energy_mc(
     zone_load_year = year if zone_load_year is None else zone_load_year
     zone_names = sorted(utility_mapping["lbmp_zone_name"].unique().to_list())
 
-    lbmp_df = aggregate_lbmp_to_hourly(
-        load_lbmp_for_zones(lbmp_s3_base, zone_names, year, storage_options)
-    )
+    lbmp_df = aggregate_lbmp_to_hourly(load_lbmp_for_zones(lbmp_s3_base, zone_names, year, storage_options))
 
     if len(zone_names) == 1:
         print(f"  Single-zone utility -> using {zone_names[0]} LBMP directly")
-        result = lbmp_df.select(
-            "timestamp", pl.col("lbmp_usd_per_mwh").alias("energy_cost_enduse")
-        ).sort("timestamp")
+        result = lbmp_df.select("timestamp", pl.col("lbmp_usd_per_mwh").alias("energy_cost_enduse")).sort("timestamp")
     else:
         print(f"  Multi-zone utility -> load-weighting across {zone_names}")
-        zone_loads = load_zone_loads(
-            zone_loads_s3_base, zone_names, zone_load_year, storage_options
-        )
+        zone_loads = load_zone_loads(zone_loads_s3_base, zone_names, zone_load_year, storage_options)
         if zone_load_year != year:
             print(f"  Remapping zone load timestamps: {zone_load_year} -> {year}")
-            zone_loads = remap_year_if_needed(
-                zone_loads, "timestamp", zone_load_year, year
-            )
+            zone_loads = remap_year_if_needed(zone_loads, "timestamp", zone_load_year, year)
 
         joined = lbmp_df.join(
             zone_loads.select("timestamp", "zone", "load_mw"),
@@ -350,17 +310,15 @@ def compute_supply_energy_mc(
         )
         if joined.is_empty():
             raise ValueError(
-                "No matching timestamps between LBMP and zone loads. "
-                "Check that both datasets cover the same year."
+                "No matching timestamps between LBMP and zone loads. Check that both datasets cover the same year."
             )
 
         result = (
             joined.group_by("timestamp")
             .agg(
-                (
-                    (pl.col("lbmp_usd_per_mwh") * pl.col("load_mw")).sum()
-                    / pl.col("load_mw").sum()
-                ).alias("energy_cost_enduse")
+                ((pl.col("lbmp_usd_per_mwh") * pl.col("load_mw")).sum() / pl.col("load_mw").sum()).alias(
+                    "energy_cost_enduse"
+                )
             )
             .sort("timestamp")
         )

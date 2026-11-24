@@ -8,10 +8,9 @@ heating fuel data on S3.
 
 from __future__ import annotations
 
-
 import polars as pl
 
-from utils.post.io import ANNUAL_MONTH, BLDG_ID, BILL_LEVEL, scan
+from utils.post.io import ANNUAL_MONTH, BILL_LEVEL, BLDG_ID, scan
 
 # kWh per gallon: 138,500 BTU/gal heating oil / 3,412 BTU/kWh ≈ 40.6; 91,500 BTU/gal propane ≈ 26.8
 KWH_PER_GAL_HEATING_OIL = 40.6
@@ -48,18 +47,10 @@ def _assert_both_products(pivoted: pl.DataFrame, state: str, year: int) -> None:
 
 def _assert_no_null_prices(df: pl.DataFrame, state: str, year: int) -> None:
     """Raise if any month is missing an oil or propane price."""
-    nulls = df.filter(
-        pl.col("oil_price_per_gallon").is_null()
-        | pl.col("propane_price_per_gallon").is_null()
-    )
+    nulls = df.filter(pl.col("oil_price_per_gallon").is_null() | pl.col("propane_price_per_gallon").is_null())
     if not nulls.is_empty():
-        missing = nulls.select(
-            "month", "oil_price_per_gallon", "propane_price_per_gallon"
-        )
-        raise ValueError(
-            f"Missing EIA fuel prices for state={state}, year={year}. "
-            f"Null months:\n{missing}"
-        )
+        missing = nulls.select("month", "oil_price_per_gallon", "propane_price_per_gallon")
+        raise ValueError(f"Missing EIA fuel prices for state={state}, year={year}. Null months:\n{missing}")
 
 
 def load_monthly_fuel_prices(
@@ -76,15 +67,9 @@ def load_monthly_fuel_prices(
     root = path_heating_fuel_prices.rstrip("/") + "/"
     df = (
         scan(root, "parquet")
-        .filter(
-            (pl.col("year") == year)
-            & (pl.col("state") == state)
-            & (pl.col("price_type") == "residential")
-        )
+        .filter((pl.col("year") == year) & (pl.col("state") == state) & (pl.col("price_type") == "residential"))
         .select(
-            pl.col("month").cast(
-                pl.Int8
-            ),  # Hive partitions infer as Int64; cast to match load_curve_monthly's Int8
+            pl.col("month").cast(pl.Int8),  # Hive partitions infer as Int64; cast to match load_curve_monthly's Int8
             pl.col("product"),
             pl.col("price_per_gallon"),
         )
@@ -104,9 +89,7 @@ def load_monthly_fuel_prices(
     return result
 
 
-def _assert_no_null_fuel_bills(
-    fuel: pl.LazyFrame, col: str = "delivered_fuel_bill"
-) -> None:
+def _assert_no_null_fuel_bills(fuel: pl.LazyFrame, col: str = "delivered_fuel_bill") -> None:
     """Raise if any rows have null in the given fuel bill column (price join failed)."""
     null_count = (fuel.filter(pl.col(col).is_null()).select(pl.len()).collect()).item()
     if null_count > 0:
@@ -119,9 +102,7 @@ def _assert_no_null_fuel_bills(
 
 def _assert_fuel_join_complete(combined: pl.LazyFrame, col: str) -> None:
     """Raise if any bill rows lack a matching fuel record from load_curve_monthly."""
-    null_count = (
-        combined.filter(pl.col(col).is_null()).select(pl.len()).collect()
-    ).item()
+    null_count = (combined.filter(pl.col(col).is_null()).select(pl.len()).collect()).item()
     if null_count > 0:
         raise ValueError(
             f"{null_count} rows in bills have no matching fuel record after joining "
@@ -152,16 +133,12 @@ def compute_fuel_bills(
         )
         .join(monthly_prices.lazy(), on="month", how="left")
         .with_columns(
-            (
-                pl.col(OIL_CONSUMPTION_COL)
-                / KWH_PER_GAL_HEATING_OIL
-                * pl.col("oil_price_per_gallon")
-            ).alias("oil_total_bill"),
-            (
-                pl.col(PROPANE_CONSUMPTION_COL)
-                / KWH_PER_GAL_PROPANE
-                * pl.col("propane_price_per_gallon")
-            ).alias("propane_total_bill"),
+            (pl.col(OIL_CONSUMPTION_COL) / KWH_PER_GAL_HEATING_OIL * pl.col("oil_price_per_gallon")).alias(
+                "oil_total_bill"
+            ),
+            (pl.col(PROPANE_CONSUMPTION_COL) / KWH_PER_GAL_PROPANE * pl.col("propane_price_per_gallon")).alias(
+                "propane_total_bill"
+            ),
         )
     )
     _assert_no_null_fuel_bills(fuel_with_prices, "oil_total_bill")
@@ -206,15 +183,11 @@ def add_delivered_fuel_bills(
     """
     fuel_bills = compute_fuel_bills(load_curve_monthly, monthly_prices)
     all_fuel = fuel_bills.with_columns(
-        (pl.col("oil_total_bill") + pl.col("propane_total_bill")).alias(
-            "delivered_fuel_bill"
-        )
+        (pl.col("oil_total_bill") + pl.col("propane_total_bill")).alias("delivered_fuel_bill")
     ).select(BLDG_ID, "month", "delivered_fuel_bill")
 
     combined = comb_bills.join(all_fuel, on=[BLDG_ID, "month"], how="left")
     _assert_fuel_join_complete(combined, "delivered_fuel_bill")
 
-    result = combined.with_columns(
-        (pl.col(BILL_LEVEL) + pl.col("delivered_fuel_bill")).alias(BILL_LEVEL)
-    )
+    result = combined.with_columns((pl.col(BILL_LEVEL) + pl.col("delivered_fuel_bill")).alias(BILL_LEVEL))
     return result.drop("delivered_fuel_bill")
