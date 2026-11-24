@@ -1,8 +1,6 @@
 # Polars laziness, collect, and runtime data validation
 
-A guide for data scientists on how LazyFrames, deferred execution, and
-streaming interact with runtime data-quality checks. The concepts are general
-but the examples are from our codebase.
+Why a second `.collect()` re-reads every source, and how to embed checks when streaming. The procedure is [SKILL.md](SKILL.md). Read this for the streaming case.
 
 ## What is a LazyFrame?
 

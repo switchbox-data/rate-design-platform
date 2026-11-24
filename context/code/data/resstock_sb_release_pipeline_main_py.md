@@ -2,13 +2,11 @@
 
 This document describes the unified Python pipeline (`data/resstock/main.py`) for preparing a Switchbox `_sb` ResStock release from the standard NREL release. This script consolidates what was previously a multi-step Justfile workflow into a single orchestrated pipeline with built-in provenance tracking.
 
-For the older Justfile-based workflow, see `context/code/data/resstock_data_preparation_run_order.md`. That document remains the canonical reference for the full end-to-end flow including steps not yet implemented in `main.py`.
+The `resstock-sb-release` skill is the procedure. This file is the step reference and the constants. The legacy per-step Justfile recipes are in `resstock_data_preparation_run_order.md`.
 
 ---
 
 ## Relationship to the Justfile workflow
-
-`main.py` replaces the full Justfile workflow in a single invocation with manifest-based provenance. The pipeline writes directly to the local EBS mount, so the intermediate `sudo aws s3 sync` that the Justfile needed (to pull `_sb` from S3 before building monthly curves) is not required here.
 
 | Justfile step              | `main.py` equivalent                  | Status      |
 | -------------------------- | ------------------------------------- | ----------- |
@@ -50,7 +48,7 @@ Release-level defaults are loaded from `data/resstock/config.yaml`. State-specif
 | `--adjust-mf-electricity`      | `True`                                         | Apply MF non-HVAC electricity adjustment (00 and 02)                                |
 | `--adjust-gas-usage`           | `True`                                         | Step 2c-iii: scale hourly gas of all requested upgrades by one statewide factor     |
 | `--gas-usage-eia-year`         | `2018`                                         | EIA-176 year for the gas factor (res. sales + transport ÷ weighted u00 ResStock)    |
-| `--assign-utility`             | `True`                                         | Assign electric/gas utilities (NY, RI only)                                         |
+| `--assign-utility`             | `True`                                         | Assign utilities for states with `utility_assignment` in `state_configs.yaml`       |
 | `--electric-poly-filename`     | from `state_configs.yaml`                      | Electric utility polygon CSV; overrides config default                              |
 | `--gas-poly-filename`          | from `state_configs.yaml`                      | Gas utility polygon CSV; overrides config default                                   |
 | `--path-s3-gis-dir`            | `s3://data.sb/gis/utility_boundaries/`         | S3 directory for NY utility polygon CSVs                                            |
