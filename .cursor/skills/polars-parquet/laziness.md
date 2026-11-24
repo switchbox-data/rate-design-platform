@@ -1,6 +1,6 @@
 # Polars laziness, collect, and runtime data validation
 
-The `polars-parquet` skill is the procedure (one collect, then assert). This file is why a second `.collect()` re-reads every source, and how to embed checks when streaming. Open it for those cases.
+Why a second `.collect()` re-reads every source, and how to embed checks when streaming. The procedure is [SKILL.md](SKILL.md). Read this for the streaming case.
 
 ## What is a LazyFrame?
 

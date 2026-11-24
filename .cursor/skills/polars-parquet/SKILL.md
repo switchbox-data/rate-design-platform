@@ -10,7 +10,7 @@ description: >-
 
 # Polars and Parquet
 
-Apply this before writing a Parquet query. The long versions of these rules are [laziness and validation](../../../context/code/data/polars_laziness_and_validation.md) and [local disk vs S3](../../../context/code/data/parquet_reads_local_vs_s3.md). Open one of those only for a case this file does not decide.
+Apply this before writing a Parquet query. Longer notes live in this skill: [laziness.md](laziness.md) and [local-vs-s3.md](local-vs-s3.md). Open one only for a case this file does not decide.
 
 ## Output
 
@@ -66,5 +66,5 @@ Use `sink_parquet` when the result does not fit in memory. Streaming has no mid-
 
 ## Leave the long docs closed unless
 
-- A streaming pipeline must embed checks in the output: [laziness doc](../../../context/code/data/polars_laziness_and_validation.md), "Large data where streaming matters".
-- You are changing how a whole-state S3 dataset is packaged (many small files vs few large files): [local vs S3](../../../context/code/data/parquet_reads_local_vs_s3.md), use case 1.
+- A streaming pipeline must embed checks in the output: [laziness.md](laziness.md), "Large data where streaming matters".
+- You are changing how a whole-state S3 dataset is packaged (many small files vs few large files): [local-vs-s3.md](local-vs-s3.md), use case 1.

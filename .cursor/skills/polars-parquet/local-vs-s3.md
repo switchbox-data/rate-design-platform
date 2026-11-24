@@ -1,6 +1,6 @@
 # Reading Parquet from local disk vs S3
 
-The `polars-parquet` skill is the procedure (which read to use, and the path-list pattern). This file is why: per-GET cost, whole-state scans, and one-utility scans, using ResStock load curves as the example. Open it when the skill's table does not decide the case. The same lessons apply to any Hive dataset made of many small files.
+Why a whole-state scan of many small Parquet files is cheap on disk and slow on S3, using ResStock load curves. The read to use is in [SKILL.md](SKILL.md). Read this when changing how a whole-state dataset is packaged. The same lessons apply to any Hive dataset made of many small files.
 
 ## Two things you need to know
 
