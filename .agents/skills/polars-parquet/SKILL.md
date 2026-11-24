@@ -53,12 +53,7 @@ Default `coalesce=True` keeps the left join key and drops the right. Pass `coale
 Collect once at the validation boundary, then assert on the DataFrame:
 
 ```python
-df = (
-    pl.scan_parquet(path)
-    .filter(...)
-    .select(...)
-    .collect()
-)
+df = pl.scan_parquet(path).filter(...).select(...).collect()
 assert df.height > 0
 ```
 
