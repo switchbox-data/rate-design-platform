@@ -5,7 +5,8 @@ description: >-
   rate-design-platform. Use when running data/resstock/main.py or the
   run-pipeline recipe, including fetch, clone, metadata, utility assignment,
   non-HP approximation, multifamily adjustment, monthly and annual loads, and
-  S3 upload.
+  S3 upload. Writes the release plan to a temporary markdown file and, after
+  approval, launches the pipeline in a new agent session.
 ---
 
 # ResStock `_sb` release
@@ -24,7 +25,29 @@ s3://data.sb/nrel/resstock/<release>_sb/
 
 Release names come from `data/resstock/config.yaml`. Today they are `res_2024_amy2018_2` and `res_2024_amy2018_2_sb`. The `_sb` tree has `metadata` (`metadata-sb.parquet`), `metadata_utility`, `load_curve_hourly`, `load_curve_monthly`, and a generated `load_curve_annual`. Raw NREL annual is fetched for the unmodified release and is not cloned onto `_sb`.
 
+## Plan
+
+Follow this order when carrying out the work this skill covers. The user asks for the work. Read this skill and use it to figure out how to do it. Write a plan for how you will do it in a temporary markdown file. The user edits that file. On feedback, update the file and stop again. Repeat until they finalize the approval. When they ask you to execute the finalized file, hand the work to a new agent session.
+
+A question about how the skill works is answered from the skill, without a plan file.
+
+Write the plan to `.tmp/plan-resstock-sb-release-<slug>.md`. Create `.tmp/` if it is missing. `.tmp/` is gitignored. Do not commit the plan. Tell them the path and stop. Do not launch `run-pipeline`, a partial re-run, or `mark-crashed` in the turn that writes or revises the plan. Reading `config.yaml` and `state_configs.yaml` to fill the plan is part of writing the plan.
+
+When they ask you to execute the finalized file, and this chat wrote the plan, start a new agent session with the Task tool: `subagent_type` generalPurpose, local environment, and no `resume`. The prompt is only the absolute path of the plan file, the absolute path of this skill, and these instructions: you are the execution session; read both files; carry out the plan by following Procedure; do not write a plan; do not start another session. Do not paste the plan or this skill into the prompt. This chat does not re-read the skill and does not do the work. The new session returns only the EBS prefix, the S3 prefix, and whether the real-world checks warned.
+
+The plan includes:
+
+- State or states.
+- Upgrade ids, and whether they come from that state's `upgrade_ids`, the release catalog, or `--upgrade-ids`.
+- Production (`--sample` 0) or a development sample, and the sample size.
+- The exact `just` command.
+- The local EBS prefixes and the S3 prefix the run will write.
+- Whether the run is a full release or a partial re-run, and which recipe in the latter case.
+- That real-world checks warn and do not fail the run.
+
 ## Procedure
+
+The execution session runs these steps. It does not start another session.
 
 1. **Launch one command** from the repo root. The upgrade list is that state's `upgrade_ids` in `state_configs.yaml`. NY and RI are `0` and `2`, the baseline and the heat-pump package. A state with no list, including MD and CT, uses every id in `config.yaml` (`0` through `5`). `--upgrade-ids` overrides the list for one run. States in one run must resolve to the same list.
 

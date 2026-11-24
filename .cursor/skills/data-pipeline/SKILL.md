@@ -4,7 +4,9 @@ description: >-
   Add or change a dataset pipeline under data/ in rate-design-platform: Just
   recipes, fetch and convert scripts, local staging, validation, and S3 upload.
   Use when creating a data subdirectory, editing a data Justfile, or naming
-  fetch, convert, validate, update, upload, prepare, or clean recipes.
+  fetch, convert, validate, update, upload, prepare, or clean recipes. Writes
+  the pipeline plan to a temporary markdown file and, after approval, does the
+  work in a new agent session.
 ---
 
 # Data pipeline
@@ -24,7 +26,28 @@ A ResStock `_sb` release is the `resstock-sb-release` skill. This recipe table d
 
 Done means `prepare` (or `fetch`, then `convert`, then `validate`) succeeds locally, `upload` succeeds, and `clean` removes staging.
 
+## Plan
+
+Follow this order when carrying out the work this skill covers. The user asks for the work. Read this skill and use it to figure out how to do it. Write a plan for how you will do it in a temporary markdown file. The user edits that file. On feedback, update the file and stop again. Repeat until they finalize the approval. When they ask you to execute the finalized file, hand the work to a new agent session.
+
+A question about how the skill works is answered from the skill, without a plan file.
+
+Write the plan to `.tmp/plan-data-pipeline-<slug>.md`. Create `.tmp/` if it is missing. `.tmp/` is gitignored. Do not commit the plan. Tell them the path and stop. Do not edit recipes or scripts, and do not run `prepare`, `upload`, or `clean`, in the turn that writes or revises the plan. Reading a nearby pipeline to fill the plan is part of writing the plan.
+
+When they ask you to execute the finalized file, and this chat wrote the plan, start a new agent session with the Task tool: `subagent_type` generalPurpose, local environment, and no `resume`. The prompt is only the absolute path of the plan file, the absolute path of this skill, and these instructions: you are the execution session; read both files; carry out the plan by following Procedure; do not write a plan; do not start another session. Do not paste the plan or this skill into the prompt. This chat does not re-read the skill and does not do the work. The new session returns only the dataset directory and whether `prepare`, `upload`, and `clean` succeeded.
+
+The plan includes:
+
+- Dataset directory (`data/<org>/<dataproduct>/`) and `path_s3_parquet`.
+- The nearby pipeline whose shape is being copied.
+- Recipes and script filenames to add or change.
+- Whether `validate` and `update` are included, and why.
+- Staging paths to add to `.gitignore`.
+- The `prepare`, `upload`, and `clean` commands to run after approval.
+
 ## Procedure
+
+The execution session runs these steps. It does not start another session.
 
 1. Copy the shape of a nearby pipeline (for example `data/fred/cpi/` or `data/hud/ami/`) rather than inventing recipe names.
 2. Write fetch and convert so they only touch local paths passed as arguments. Reject an output directory whose value still contains `{{` or `}}`.

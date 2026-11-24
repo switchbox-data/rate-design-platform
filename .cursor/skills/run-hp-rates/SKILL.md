@@ -5,7 +5,8 @@ description: >-
   Use when launching a Prefect pipeline, naming a batch, building master bills
   or master BAT, resuming a failed run, or interpreting delivery vs supply,
   precalc vs calibrated, or hp_rates output paths. Legacy runs 1–16 use the
-  same skill.
+  same skill. Writes the batch plan to a temporary markdown file and, after
+  approval, launches, resumes, or builds master tables in a new agent session.
 ---
 
 # Run an hp_rates batch
@@ -31,7 +32,28 @@ s3://data.sb/switchbox/cairo/outputs/hp_rates/<state>/all_utilities/<batch>/<seg
 
 One CAIRO run is one stage (`precalc` or `calibrated`) and one variant (`delivery` or `supply`). Its directory is `{cairo_ts}_{run_name}` inside the utility batch directory. The run name is `{state}_{utility}_{scenario}_{stage}_{variant}`.
 
+## Plan
+
+Follow this order when carrying out the work this skill covers. The user asks for the work. Read this skill and use it to figure out how to do it. Write a plan for how you will do it in a temporary markdown file. The user edits that file. On feedback, update the file and stop again. Repeat until they finalize the approval. When they ask you to execute the finalized file, hand the work to a new agent session.
+
+A question about how the skill works is answered from the skill, without a plan file.
+
+Write the plan to `.tmp/plan-run-hp-rates-<slug>.md`. Create `.tmp/` if it is missing. `.tmp/` is gitignored. Do not commit the plan. Tell them the path and stop. Do not start Prefect, launch or resume a batch, or build master tables in the turn that writes or revises the plan.
+
+When they ask you to execute the finalized file, and this chat wrote the plan, start a new agent session with the Task tool: `subagent_type` generalPurpose, local environment, and no `resume`. The prompt is only the absolute path of the plan file, the absolute path of this skill, and these instructions: you are the execution session; read both files; carry out the plan by following Procedure; do not write a plan; do not start another session. Do not paste the plan or this skill into the prompt. This chat does not re-read the skill and does not do the work. The new session returns only the commands that ran, the `all_utilities` bills path, the BAT path, and whether BAT on that segment is a precalc cross-subsidy or a calibrated bill run.
+
+The plan includes:
+
+- Batch name, state, and whether this is a new batch or a resume of the same name.
+- Scenario scope: all scenarios, or the one scenario named.
+- `run-pipeline`, or `run-with-lmi` when the state folds LMI into the batch.
+- Commands in order, including `just serve-prefect` when it is not already running, and master-table builds when the plan includes them.
+- For a read: the `all_utilities` bills path, the BAT path, the segment, and whether BAT on that segment is a precalc cross-subsidy or a calibrated bill run.
+- The legacy run-number path only when the batch already uses it or the user names run numbers. Include `RDP_BATCH` and the run numbers.
+
 ## Procedure
+
+The execution session runs these steps. It does not start another session.
 
 1. **Name the batch** `{state}_{YYYYMMDD}{letter}` when more than one batch shares a date, for example `md_20260803_a`. The name is the directory. Reusing it resumes. Do not append `_r1-8`; that suffix is the legacy orchestrator below.
 2. **Start Prefect once per session**, in its own terminal, and leave it running:
