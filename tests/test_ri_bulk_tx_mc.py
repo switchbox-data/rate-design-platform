@@ -15,10 +15,7 @@ from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_isone import (
     prepare_output,
     validate_allocation,
 )
-from utils.data_prep.marginal_costs.supply_utils import (
-    ISONE_ALL_LOAD_ZONES,
-    allocate_annual_exceedance_to_hours,
-)
+from utils.data_prep.marginal_costs.supply_utils import ISONE_ALL_LOAD_ZONES
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -47,50 +44,8 @@ def _make_ri_zone_load(ne_load: pl.DataFrame, share: float = 0.05) -> pl.DataFra
     return ne_load.with_columns((pl.col("load_mw") * share).alias("load_mw"))
 
 
-# ── allocate_annual_exceedance_to_hours ──────────────────────────────────────
-
-
-class TestExceedanceAllocation:
-    def test_returns_n_peak_hours_rows(self) -> None:
-        load_df = _make_ne_load_profile()
-        result = allocate_annual_exceedance_to_hours(load_df, annual_cost_kw_year=69.0, n_peak_hours=100)
-        assert result.height == 100
-
-    def test_1kw_recovery(self) -> None:
-        """Sum of allocated cost equals the annual cost (1 kW constant load)."""
-        load_df = _make_ne_load_profile()
-        ptf = 69.0
-        result = allocate_annual_exceedance_to_hours(load_df, annual_cost_kw_year=ptf, n_peak_hours=100)
-        total = float(result["cost_per_kw"].sum())
-        assert total == pytest.approx(ptf, rel=1e-4)
-
-    def test_custom_n_peak_hours(self) -> None:
-        load_df = _make_ne_load_profile()
-        result = allocate_annual_exceedance_to_hours(load_df, annual_cost_kw_year=50.0, n_peak_hours=50)
-        assert result.height == 50
-        assert float(result["cost_per_kw"].sum()) == pytest.approx(50.0, rel=1e-4)
-
-    def test_raises_on_insufficient_hours(self) -> None:
-        # Only 24 hours of data, ask for 100
-        load_df = _make_ne_load_profile(n_hours=24)
-        with pytest.raises(ValueError, match="need at least"):
-            allocate_annual_exceedance_to_hours(load_df, annual_cost_kw_year=69.0, n_peak_hours=100)
-
-    def test_custom_cost_col_name(self) -> None:
-        load_df = _make_ne_load_profile()
-        result = allocate_annual_exceedance_to_hours(
-            load_df, annual_cost_kw_year=42.0, n_peak_hours=50, cost_col="my_cost"
-        )
-        assert "my_cost" in result.columns
-        assert float(result["my_cost"].sum()) == pytest.approx(42.0, rel=1e-4)
-
-    def test_peak_hours_are_highest_load(self) -> None:
-        """Allocated hours should be the highest-load hours."""
-        load_df = _make_ne_load_profile()
-        result = allocate_annual_exceedance_to_hours(load_df, annual_cost_kw_year=69.0, n_peak_hours=100)
-        peak_ts = set(result["timestamp"].to_list())
-        top100 = load_df.sort("load_mw", descending=True).head(100)["timestamp"].to_list()
-        assert peak_ts == set(top100)
+def _nonzero_timestamps(signal: pl.DataFrame, column: str = "bulk_tx_cost_enduse") -> set[datetime]:
+    return set(signal.filter(pl.col(column) > 0)["timestamp"].to_list())
 
 
 # ── compute_isone_bulk_tx_signal ─────────────────────────────────────────────
@@ -100,7 +55,8 @@ class TestComputeIsoneBulkTxSignal:
     def test_returns_correct_shape(self) -> None:
         ne_load = _make_ne_load_profile()
         result = compute_isone_bulk_tx_signal(ne_load, aesc_ptf_kw_year=69.0)
-        assert result.height == DEFAULT_N_PEAK_HOURS
+        assert result.height == ne_load.height
+        assert result.filter(pl.col("bulk_tx_cost_enduse") > 0).height == DEFAULT_N_PEAK_HOURS
         assert "bulk_tx_cost_enduse" in result.columns
         assert "timestamp" in result.columns
 
@@ -114,7 +70,8 @@ class TestComputeIsoneBulkTxSignal:
     def test_custom_peak_hours(self) -> None:
         ne_load = _make_ne_load_profile()
         result = compute_isone_bulk_tx_signal(ne_load, aesc_ptf_kw_year=69.0, n_peak_hours=50)
-        assert result.height == 50
+        assert result.height == ne_load.height
+        assert result.filter(pl.col("bulk_tx_cost_enduse") > 0).height == 50
 
     def test_utility_zone_load_informational_only(self) -> None:
         """Passing utility_zone_load_df should not change the cost values."""
@@ -252,8 +209,8 @@ class TestAllocationLoadModes:
         system_signal = compute_isone_bulk_tx_signal(system_load, 69.0, n_peak_hours=n)
         zone_signal = compute_isone_bulk_tx_signal(zone_load, 69.0, n_peak_hours=n)
 
-        assert system_signal.height == n
-        assert zone_signal.height == n
+        assert system_signal.filter(pl.col("bulk_tx_cost_enduse") > 0).height == n
+        assert zone_signal.filter(pl.col("bulk_tx_cost_enduse") > 0).height == n
 
     def test_peak_thresholds_differ_by_load_magnitude(self) -> None:
         """The system aggregate has a higher peak threshold than a single zone
@@ -281,11 +238,8 @@ class TestAllocationLoadModes:
         system_signal = compute_isone_bulk_tx_signal(system_load, 69.0, n_peak_hours=n)
         zone_signal = compute_isone_bulk_tx_signal(zone_load, 69.0, n_peak_hours=n)
 
-        system_peak_ts = set(system_signal["timestamp"].to_list())
-        zone_peak_ts = set(zone_signal["timestamp"].to_list())
-
         # A proportional zone has the same rank ordering → identical peak windows
-        assert system_peak_ts == zone_peak_ts
+        assert _nonzero_timestamps(system_signal) == _nonzero_timestamps(zone_signal)
 
     def test_divergent_zone_produces_different_peak_hours(self) -> None:
         """A zone whose intra-day peak phase differs from the system aggregate
@@ -299,11 +253,8 @@ class TestAllocationLoadModes:
         system_signal = compute_isone_bulk_tx_signal(system_load, 69.0, n_peak_hours=n)
         zone_signal = compute_isone_bulk_tx_signal(zone_load, 69.0, n_peak_hours=n)
 
-        system_peak_ts = set(system_signal["timestamp"].to_list())
-        zone_peak_ts = set(zone_signal["timestamp"].to_list())
-
         # With a shifted phase, some peak hours must differ
-        assert system_peak_ts != zone_peak_ts
+        assert _nonzero_timestamps(system_signal) != _nonzero_timestamps(zone_signal)
 
     def test_system_aggregate_sums_zones(self) -> None:
         """A hand-summed multi-zone aggregate produces the same peak hours
@@ -318,7 +269,7 @@ class TestAllocationLoadModes:
         system_signal = compute_isone_bulk_tx_signal(system, 69.0, n_peak_hours=n)
         # Peak hours of the sum must be the top-n hours of the combined load
         top_n_ts = set(system.sort("load_mw", descending=True).head(n)["timestamp"].to_list())
-        assert set(system_signal["timestamp"].to_list()) == top_n_ts
+        assert _nonzero_timestamps(system_signal) == top_n_ts
 
     def test_informational_zone_load_does_not_change_signal(self) -> None:
         """Passing utility_zone_load_df changes only what's printed, not the signal."""

@@ -412,7 +412,7 @@ choice is explicit, not inadvertent.
 
 PCAF load-share is the peak N load hours allocation that distribution PoP also uses
 ([top_n_load_share_allocation.md](top_n_load_share_allocation.md)). Exceedance weighting
-(`allocate_annual_exceedance_to_hours()` in `supply_utils.py`) is a different method:
+([top_n_exceedance_allocation.md](top_n_exceedance_allocation.md)) is a different method:
 it allocates proportionally to each hour's load above a threshold. For MD bulk TX,
 we use **PCAF load-share** (with N = 150) because:
 

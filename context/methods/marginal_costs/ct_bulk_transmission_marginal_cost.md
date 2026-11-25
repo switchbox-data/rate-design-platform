@@ -84,16 +84,17 @@ just -f ct/Justfile bulk_tx_method=month_hour create-bulk-tx-mc-data ct_eversour
 just -f ct/Justfile bulk_tx_method=month_hour include_holidays=false create-bulk-tx-mc-data ct_eversource 2025
 ```
 
-### Top-100 exceedance (`isone_aesc_ptf`)
+### Top-N exceedance (`isone_aesc_ptf`)
 
-`bulk_tx_method=isone_aesc_ptf` is the allocation RI uses, and what CT used before `pop_kde`. It allocates the uninflated $69/kW-year on one year of the allocation curve (`--load-year`):
+`bulk_tx_method=isone_aesc_ptf` is the allocation RI uses, and what CT used before `pop_kde`. The formula is top-N exceedance ([top_n_exceedance_allocation.md](top_n_exceedance_allocation.md)). The CT inputs:
 
-1. Load the 8760 aggregate load curve (either NE system or CT zone, see below).
-2. Identify the top 100 hours by load level.
-3. Allocate the total annual cost across those 100 hours proportional to each hour's load magnitude above the threshold (exceedance weighting).
-4. All other hours receive $0.
+| Input       | CT value                                                                                                                                      |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Load curve  | One year of the allocation load (`--load-year`). Default is the sum of all 8 ISO-NE zones. `utility_zone` uses CT zone load alone. See below. |
+| Annual cost | AESC `$69/kW-yr`, used as filed. This path does not apply CPI. `--aesc-ptf-kw-year` overrides the scalar.                                     |
+| N           | 100                                                                                                                                           |
 
-A customer who runs a kW of load during the top-100 peak hours sees a positive bulk TX marginal cost on those hours; all other hours are zero. The sum over all 8760 hours for a 1 kW flat load equals $69/kW-year. This method covers `ct_eversource` and `ct_ui`.
+The writer calls `top_n_exceedance` and keeps the column name `bulk_tx_cost_enduse`. A flat 1 kW load pays `$69/kW-yr`. This alternative covers `ct_eversource` and `ct_ui`. The inputs are recorded under `bulk_tx.alternatives.isone_aesc_ptf` in `rate_design/hp_rates/ct/config/marginal_costs/allocation.yaml`. `--allocation-load utility_zone` is the same alternative with `zones: [CT]`.
 
 ---
 
@@ -181,11 +182,13 @@ The manifest keys are `aesc_ptf69_pop_kde_ne_system_hist2022to2025_cal2025_2026u
 | `utils/data_prep/marginal_costs/bulk_tx/bulk_tx_isone.py`        | Core logic: `compute_isone_bulk_tx_signal`, `compute_isone_bulk_tx_pop_kde`, `load_isone_zone_load_history`, `prepare_output`, `validate_allocation` |
 | `utils/data_prep/marginal_costs/probability_of_peak.py`          | KDE probability of peak and `allocate_annual_cost_by_pop`, used by `pop_kde`                                                                         |
 | `utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py`  | CLI entrypoint; `--method {isone_aesc_ptf,month_hour,pop_kde}` and `--allocation-load`; `_run_isone_month_hour`, `_run_isone_pop_kde`                |
-| `utils/data_prep/marginal_costs/supply_utils.py`                 | `ISONE_UTILITY_ZONES` mapping, `allocate_annual_exceedance_to_hours`                                                                                 |
+| `utils/data_prep/marginal_costs/methods/top_n_exceedance.py`     | Top-N exceedance formula used by `isone_aesc_ptf`                                                                                                    |
+| `utils/data_prep/marginal_costs/supply_utils.py`                 | `ISONE_UTILITY_ZONES` mapping                                                                                                                        |
 | `utils/data_prep/marginal_costs/supply/supply_capacity_isone.py` | `load_isone_zone_loads`                                                                                                                              |
 | `rate_design/hp_rates/ct/Justfile`                               | `create-bulk-tx-mc-data`, `create-bulk-tx-mc-data-all` recipes; `bulk_tx_method` variable                                                            |
 | `rate_design/hp_rates/ct/state.env`                              | `UTILITIES=ct_eversource,ct_ui`, `REGION=isone`, `YEAR=2025`                                                                                         |
-| `tests/test_ri_bulk_tx_mc.py`                                    | Tests for exceedance allocation, system vs. zone load modes                                                                                          |
+| `tests/test_top_n_exceedance.py`                                 | Tests for the exceedance formula and the RI and CT config entries                                                                                    |
+| `tests/test_ri_bulk_tx_mc.py`                                    | Tests for the ISO-NE bulk-tx writer: system vs. zone load, 8760 fill, validation                                                                     |
 | `tests/test_bulk_tx_month_hour.py`                               | Tests for the `month_hour` allocation and its manifest key                                                                                           |
 | `tests/test_bulk_tx_pop_kde.py`                                  | Tests for the `pop_kde` allocation and its manifest key                                                                                              |
 

@@ -153,23 +153,21 @@ zone (ID 8500).
 Zone loads are summed across RI + SEMA (`ISONE_CAPACITY_ZONE_LOAD_ZONES` in
 `supply_utils.py`). No per-utility zone split or weighting is required.
 
-### Peak allocation: annual exceedance
+### Peak allocation: top-N exceedance
 
 Unlike NYISO, FCA commits a single annual price — there is no monthly price
-granularity to match. Allocation uses the top **100** highest-load hours across
-the full calendar year:
+granularity to match. `allocate_fca_to_hours` calls top-N exceedance
+([top_n_exceedance_allocation.md](../../methods/marginal_costs/top_n_exceedance_allocation.md))
+with these inputs:
 
-1. Sum RI + SEMA hourly loads to form the SENE aggregate (8760 rows).
-2. Rank all 8760 hours by load (descending); select top 100.
-3. Threshold = highest load strictly below the 100th-highest.
-4. `exceedance_h = load_h − threshold`.
-5. `weight_h = exceedance_h / Σ(exceedance over 100 hours)`.
-6. `capacity_cost_h = weight_h × capacity_cost_kw_year`.
+| Input       | ISO-NE FCA value                                                             |
+| ----------- | ---------------------------------------------------------------------------- |
+| Load curve  | Sum of RI + SEMA hourly loads, the SENE aggregate, already on the CAIRO 8760 |
+| Annual cost | The blended FCA `$/kW-yr` for the calendar year                              |
+| N           | 100                                                                          |
+| Column      | `capacity_cost_per_kw`                                                       |
 
-The 100-hour annual window was chosen for consistency with the RI dist/bulk-TX
-component pipelines (which also use annual exceedance). It has no direct ISO-NE
-citation analog to PJM's 5CP, but it is calibrated to capture the highest-demand
-hours across all seasons, which is appropriate for a winter-peaking ISO.
+The 100-hour window matches RI bulk transmission, which uses the same formula, and the width RI distribution uses for top-N load-share. It has no direct ISO-NE citation analog to PJM's 5CP. The window covers the highest-demand hours across the year, which fits a winter-peaking ISO.
 
 ### Nonzero hours in final output
 
@@ -358,9 +356,7 @@ monthly granularity to exploit.
 is a regulatory fact: five specific hours determine every customer's capacity share.
 NYISO uses K = 8/month (96/year) as a practical balance between peak concentration
 and cross-subsidy signal strength; the ICAP market has no equivalent "5CP" rule.
-ISO-NE uses K = 100 for consistency with the RI dist/bulk-TX components (all three
-use annual exceedance), and because ISO-NE's obligation is driven by seasonal peaks
-without a specific handful of statutory hours.
+ISO-NE uses K = 100, the same window as RI bulk transmission (top-N exceedance) and RI distribution (top-N load-share). ISO-NE's obligation is driven by seasonal peaks without a specific handful of statutory hours.
 
 **Equal weighting vs exceedance:** PJM's PLC definition averages load over five
 hours, so equal weighting is the correct analog. NYISO and ISO-NE have no
@@ -377,11 +373,11 @@ zone.
 
 ## Shared infrastructure
 
-All three pipelines use shared helpers from `utils/data_prep/marginal_costs/supply_utils.py`:
+The CAIRO clock, zone maps, and output preparation live in `utils/data_prep/marginal_costs/supply_utils.py`. ISO-NE's hourly weighting is `top_n_exceedance` in `utils/data_prep/marginal_costs/methods/top_n_exceedance.py`.
 
 | Helper                                                            | Used by                                                   |
 | ----------------------------------------------------------------- | --------------------------------------------------------- |
-| `allocate_annual_exceedance_to_hours`                             | ISO-NE; available as sensitivity for PJM (C3)             |
+| `top_n_exceedance` (`methods/top_n_exceedance.py`)                | ISO-NE FCA, via `allocate_fca_to_hours`                   |
 | `build_cairo_8760_timestamps`                                     | All three (reference grid, leap-year / DST normalization) |
 | `prepare_component_output(scale=1000)`                            | All three (`$/kW` → `$/MWh`)                              |
 | `PJM_UTILITY_ZONES`                                               | PJM zone lookup                                           |

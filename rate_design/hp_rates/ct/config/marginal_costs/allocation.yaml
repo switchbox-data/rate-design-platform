@@ -1,6 +1,7 @@
 # Connecticut marginal-cost allocation. Defaults match ct/Justfile.
 # Distribution default is month_hour. Bulk transmission default is pop_kde.
-# Top-N load-share is only the two distribution alternatives.
+# Top-N load-share is the two distribution alternatives. Top-N exceedance is
+# the bulk-transmission alternative isone_aesc_ptf.
 state: ct
 dist_and_sub_tx:
   method: month_hour
@@ -78,3 +79,18 @@ bulk_tx:
       path: s3://data.sb/isone/hourly_demand/zones/
       zones: [CT, ME, NEMA, NH, RI, SEMA, VT, WCMA]
       history_years: [2022, 2023, 2024, 2025]
+  alternatives:
+    isone_aesc_ptf:
+      method: top_n_exceedance
+      manifest_method: isone_aesc_ptf
+      utilities: [ct_eversource, ct_ui]
+      inputs:
+        n_hours: 100
+        annual_cost_kw_year:
+          from: literal
+          value: 69.0
+        load:
+          from: zone_sum_load
+          path: s3://data.sb/isone/hourly_demand/zones/
+          zones: [CT, ME, NEMA, NH, RI, SEMA, VT, WCMA]
+          year: "{load_year}"

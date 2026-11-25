@@ -282,19 +282,19 @@ def test_allocate_fca_output_sorted_by_timestamp() -> None:
 
 
 def test_allocate_fca_only_peak_hours_have_cost() -> None:
-    """Non-peak hours are absent from the output (they carry no capacity cost)."""
+    """Every input hour is returned. Hours outside the eligible set are zero."""
     n_peak = 5
     load_df = _make_annual_load(n_hours=8760, base_mw=1000.0, ramp=0.01)
     result = allocate_fca_to_hours(load_df, capacity_cost_kw_year=20.0, n_peak_hours=n_peak)
-    # All returned rows should have positive cost (non-peak hours are excluded)
-    assert (result["capacity_cost_per_kw"] > 0).all()
-    assert result.height == n_peak
+    assert result.height == load_df.height
+    assert result.filter(pl.col("capacity_cost_per_kw") > 0).height == n_peak
+    assert result.filter(pl.col("capacity_cost_per_kw") == 0.0).height == load_df.height - n_peak
 
 
 def test_allocate_fca_raises_when_too_few_hours() -> None:
     """Raises ValueError if load profile has fewer rows than n_peak_hours."""
     load_df = _make_annual_load(n_hours=10)
-    with pytest.raises(ValueError, match="Load profile has only"):
+    with pytest.raises(ValueError, match="needs at least"):
         allocate_fca_to_hours(load_df, capacity_cost_kw_year=10.0, n_peak_hours=100)
 
 
@@ -303,7 +303,7 @@ def test_allocate_fca_selects_highest_load_hours() -> None:
     n_peak = 5
     load_df = _make_annual_load(n_hours=8760, base_mw=1000.0, ramp=1.0)
     result = allocate_fca_to_hours(load_df, capacity_cost_kw_year=10.0, n_peak_hours=n_peak)
-    peak_timestamps = set(result["timestamp"].to_list())
+    peak_timestamps = set(result.filter(pl.col("capacity_cost_per_kw") > 0)["timestamp"].to_list())
 
     # The top-N timestamps are the last n_peak hours (highest load due to ramp=1.0)
     sorted_load = load_df.sort("load_mw", descending=True)

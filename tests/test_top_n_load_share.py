@@ -115,7 +115,6 @@ def test_state_configs_name_this_method_and_its_output() -> None:
     assert ri["output_base"] == "s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/"
     assert ri["inputs"]["load"]["path"] == "s3://data.sb/isone/hourly_demand/utilities/"
     assert ri["inputs"]["annual_cost_kw_year"]["path"].endswith("ri_marginal_costs_2025.csv")
-    assert "bulk_tx" not in _allocation("ri")
 
     ny = _allocation("ny")["dist_and_sub_tx"]
     assert ny["method"] == "top_n_load_share"

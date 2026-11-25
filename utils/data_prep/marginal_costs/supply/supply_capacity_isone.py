@@ -3,8 +3,8 @@
 Methodology
 -----------
 Convert FCA clearing price ($/kW-month) into an hourly capacity cost adder
-($/kW per hour) using annual threshold-exceedance weighting on the top-N system
-peak-load hours, then scale to $/MWh via prepare_component_output(scale=1000).
+($/kW per hour) using top-N exceedance (``methods/top_n_exceedance.py``) on the
+top-N system peak-load hours, then scale to $/MWh via prepare_component_output(scale=1000).
 
 Key design decisions:
 - No CSO multiplication — this is a per-kW marginal cost allocation, not total
@@ -31,13 +31,13 @@ from datetime import date
 
 import polars as pl
 
+from utils.data_prep.marginal_costs.methods.top_n_exceedance import top_n_exceedance
 from utils.data_prep.marginal_costs.supply_utils import (
     DEFAULT_ISONE_FCA_S3_PATH,
     DEFAULT_ISONE_ZONE_LOADS_S3_BASE,
     ISONE_CAPACITY_ZONE_FALLBACK,
     ISONE_CAPACITY_ZONE_LOAD_ZONES,
     ISONE_UTILITY_CAPACITY_ZONES,
-    allocate_annual_exceedance_to_hours,
     build_cairo_8760_timestamps,
     strip_tz_if_needed,
 )
@@ -334,28 +334,27 @@ def allocate_fca_to_hours(
     capacity_cost_kw_year: float,
     n_peak_hours: int = N_PEAK_HOURS_ANNUAL,
 ) -> pl.DataFrame:
-    """Allocate annual FCA $/kW-year to hourly $/kW via threshold exceedance.
+    """Allocate annual FCA $/kW-year to hourly $/kW via top-N exceedance.
 
-    Thin wrapper around :func:`allocate_annual_exceedance_to_hours` that
-    preserves the ``capacity_cost_per_kw`` output column name expected by
-    downstream FCA pipeline code.
+    Calls :func:`top_n_exceedance` with the ``capacity_cost_per_kw`` column
+    the FCA pipeline expects. The load is already the output clock.
 
     Args:
         load_df: DataFrame with columns ``timestamp`` (datetime) and ``load_mw`` (float).
             Typically the SENE aggregate load for the calendar year (8760 rows).
         capacity_cost_kw_year: Annual capacity cost per kW in $/kW-year.
-        n_peak_hours: Number of top-system-peak hours to allocate cost over.
+        n_peak_hours: Number of top-system-peak hours eligible for cost.
 
     Returns:
-        DataFrame with columns ``timestamp`` and ``capacity_cost_per_kw``, containing
-        exactly n_peak_hours nonzero rows (the rest are absent — non-peak hours carry
-        no capacity cost). Sorted by timestamp.
+        DataFrame with columns ``timestamp`` and ``capacity_cost_per_kw``, one
+        row per input hour, sorted by timestamp. Hours outside the eligible
+        set are 0.
     """
-    return allocate_annual_exceedance_to_hours(
-        load_df=load_df,
-        annual_cost_kw_year=capacity_cost_kw_year,
-        n_peak_hours=n_peak_hours,
-        cost_col="capacity_cost_per_kw",
+    return top_n_exceedance(
+        load_df,
+        capacity_cost_kw_year,
+        n_peak_hours,
+        output_column="capacity_cost_per_kw",
     )
 
 
@@ -502,26 +501,29 @@ def compute_isone_supply_capacity_mc(
         offset = f"{year - capacity_load_year}y"
         load_df = load_df.with_columns(pl.col("timestamp").dt.offset_by(offset).alias("timestamp"))
 
-    # 5. Allocate FCA cost to top-N annual peak hours
+    # 5. Allocate FCA cost. The method returns every input hour; the rest are 0.
     print("\n── FCA Exceedance Allocation ──")
-    peak_hours_df = allocate_fca_to_hours(
+    allocated = allocate_fca_to_hours(
         load_df=load_df,
         capacity_cost_kw_year=capacity_cost_kw_year,
         n_peak_hours=n_peak_hours,
     )
+    n_nonzero = allocated.filter(pl.col("capacity_cost_per_kw") > 0).height
+    print(f"  ${capacity_cost_kw_year:.4f}/kW-yr across {n_nonzero} hours (of {n_peak_hours} eligible)")
 
     # 6. Validate 1-kW constant load recovery
-    validate_fca_allocation(peak_hours_df, capacity_cost_kw_year)
+    validate_fca_allocation(allocated, capacity_cost_kw_year)
 
-    # 7. Expand to full 8760 hours: join with reference timestamps and fill non-peak hours with 0.0
-    print("\n── Expanding to Full 8760 Hours ──")
+    # 7. Place the hourly costs on the CAIRO clock. Hours the load does not
+    # cover stay 0. Non-selected hours are already 0.
+    print("\n── Aligning to the CAIRO 8760 ──")
     ref_8760 = build_cairo_8760_timestamps(year)
     capacity_df = (
-        ref_8760.join(peak_hours_df, on="timestamp", how="left")
+        ref_8760.join(allocated, on="timestamp", how="left")
         .with_columns(pl.col("capacity_cost_per_kw").fill_null(0.0))
         .sort("timestamp")
     )
-    print(f"  Expanded from {peak_hours_df.height} peak hours to {capacity_df.height} hours")
+    print(f"  {n_nonzero} nonzero hours on the {capacity_df.height}-hour clock")
 
     # Final check: ensure no duplicate timestamps and correct row count
     n_rows = capacity_df.height

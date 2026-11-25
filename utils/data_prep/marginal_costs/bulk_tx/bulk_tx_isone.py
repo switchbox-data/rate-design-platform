@@ -19,9 +19,10 @@ AESC 2024 this value is **$69/kW-year** across all six New England states.
 Two load-based hourly allocations live here, both on the aggregate New
 England system load (all 8 ISO-NE load zones summed) by default:
 
-- ``isone_aesc_ptf``: the **top-100-hour exceedance** method on one year of
-  load.  This is consistent with how RNS costs are peak-driven and with the
-  sub-TX/dist PoP methodology used elsewhere in the platform.
+- ``isone_aesc_ptf``: top-N exceedance on one year of load
+  (``methods/top_n_exceedance.py``). Default N is 100. Each eligible hour is
+  weighted by its load above the threshold. See
+  ``context/methods/marginal_costs/top_n_exceedance_allocation.md``.
 - ``pop_kde``: a month x day-type x hour **probability of peak** from several
   years of load (truncated Gaussian KDE, ``probability_of_peak.py``), spread
   as ``$/kW-yr x PoP / num_days`` on the CAIRO 8760.  The default history is
@@ -49,6 +50,7 @@ from typing import cast
 
 import polars as pl
 
+from utils.data_prep.marginal_costs.methods.top_n_exceedance import top_n_exceedance
 from utils.data_prep.marginal_costs.probability_of_peak import (
     WEEKEND_HOLIDAY,
     ProbabilityOfPeak,
@@ -58,10 +60,7 @@ from utils.data_prep.marginal_costs.probability_of_peak import (
 from utils.data_prep.marginal_costs.supply.supply_capacity_isone import (
     load_isone_zone_loads,
 )
-from utils.data_prep.marginal_costs.supply_utils import (
-    allocate_annual_exceedance_to_hours,
-    build_cairo_8760_timestamps,
-)
+from utils.data_prep.marginal_costs.supply_utils import build_cairo_8760_timestamps
 
 # ── AESC 2024 default ────────────────────────────────────────────────────────
 #
@@ -77,10 +76,8 @@ AESC_2024_AVOIDED_PTF_KW_YEAR: float = 69.0
 # isone_aesc_ptf (exceedance) uses it as given.
 AESC_2024_DOLLAR_YEAR: int = 2024
 
-# Default number of top system-load hours for exceedance allocation.
-# Matches the top-100 convention used for sub-TX/dist PoP and FCA capacity
-# allocation.  Bulk TX may justify a narrower window (e.g. 50), but 100 is
-# consistent and the difference is unlikely to be material for the BAT.
+# Default number of top hours. RI and CT bulk transmission and ISO-NE FCA
+# all pass 100.
 DEFAULT_N_PEAK_HOURS: int = 100
 
 # History for the pop_kde method: the four complete years Eversource used for
@@ -118,7 +115,9 @@ def compute_isone_bulk_tx_signal(
 
     Returns:
         DataFrame with columns ``timestamp`` and ``bulk_tx_cost_enduse``
-        ($/kW per hour).  Contains *n_peak_hours* non-zero rows.
+        ($/kW per hour), one row per input hour. Hours outside the eligible
+        set are 0. A tie at the cutoff can leave fewer than ``n_peak_hours``
+        hours with a positive cost.
     """
     # Informational: show utility's share of the allocation load peak
     if utility_zone_load_df is not None:
@@ -136,16 +135,18 @@ def compute_isone_bulk_tx_signal(
             print(f"  {utility_label} load at peak:   {util_peak_mw:,.1f} MW")
             print(f"  Load share:              {load_share:.4f} ({load_share * 100:.2f}%)")
 
-    # Allocate AESC PTF value to top-N peak hours
+    # Allocate AESC PTF value. The method returns every input hour; the rest are 0.
     print("\n── Bulk TX Exceedance Allocation ──")
-    peak_hours_df = allocate_annual_exceedance_to_hours(
-        load_df=load_df,
-        annual_cost_kw_year=aesc_ptf_kw_year,
-        n_peak_hours=n_peak_hours,
-        cost_col="bulk_tx_cost_enduse",
+    allocated = top_n_exceedance(
+        load_df,
+        aesc_ptf_kw_year,
+        n_peak_hours,
+        output_column="bulk_tx_cost_enduse",
     )
+    n_nonzero = allocated.filter(pl.col("bulk_tx_cost_enduse") > 0).height
+    print(f"  ${aesc_ptf_kw_year:.4f}/kW-yr across {n_nonzero} hours (of {n_peak_hours} eligible)")
 
-    return peak_hours_df
+    return allocated
 
 
 def parse_history_years(text: str) -> tuple[int, ...]:
