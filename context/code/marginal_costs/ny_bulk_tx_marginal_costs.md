@@ -76,12 +76,11 @@ CLI:
 High-level flow:
 
 1. Load `ny_bulk_tx_constraint_groups.csv`.
-2. Build load profiles for required `tightest_nested_locality` values from NYISO zone loads (`s3://data.sb/nyiso/hourly_demand/zones/`). When `--load-year` differs from `--year`, timestamps are remapped after allocation.
-3. Compute SCR weights per nested locality.
-4. Allocate each `constraint_group` value to hours using its tightest locality SCR weights.
-5. Aggregate hourly signals to paying localities.
-6. Blend paying localities to utility-level signal via `gen_capacity_zone` + `capacity_weight`.
-7. Save 8760 output to:
+2. Average `v_constraint_group_kw_yr` over the constraint groups that list each paying locality (`ROS`, `LHV`, `NYC`, `LI`) to get one `$/kW-yr` per paying locality (`compute_paying_locality_costs`).
+3. Read the utility's ICAP rows from the zone mapping (`icap_locality`, `gen_capacity_zone`, `capacity_weight`). Map each `icap_locality` to a nested locality (`NYCA`, `GHIJ` → `LHV`, `NYC`, `LI`).
+4. Build a load profile for each of those nested localities by summing NYISO zone loads (`s3://data.sb/nyiso/hourly_demand/zones/`).
+5. For each ICAP row, allocate the paying locality's `$/kW-yr` × `capacity_weight` onto the SCR hours of that row's nested-locality load, and sum the rows into one utility signal (`compute_utility_bulk_tx_signal`). When `--load-year` differs from `--year`, timestamps are remapped after allocation.
+6. Save 8760 output to:
    `s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility={utility}/year={year}/data.parquet`
 
 ## Load year / output year separation

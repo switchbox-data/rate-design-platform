@@ -13,7 +13,6 @@ For the CLI entrypoint, see ``generate_bulk_tx_mc.py``.
 from __future__ import annotations
 
 import io
-from typing import cast
 
 import polars as pl
 from cloudpathlib import S3Path
@@ -247,131 +246,6 @@ def build_nested_locality_load_profiles(
             raise ValueError(f"No zone loads found for nested locality {locality} (zones={zone_names})")
         profiles[locality] = profile
     return profiles
-
-
-def compute_nested_locality_scr_weights(
-    load_profile: pl.DataFrame,
-    n_hours_per_season: int,
-    winter_months: list[int],
-) -> pl.DataFrame:
-    """Compute locality-specific SCR weights (sum to 1 across all hours)."""
-    with_scr = identify_scr_hours(
-        load_profile,
-        n_hours_per_season=n_hours_per_season,
-        winter_months=winter_months,
-    )
-    one_dollar = allocate_bulk_tx_to_hours(
-        with_scr,
-        v_constraint_group_kw_yr=1.0,
-        n_hours_per_season=n_hours_per_season,
-    )
-    return one_dollar.rename({"bulk_tx_cost_enduse": "scr_weight"})
-
-
-def allocate_constraint_group_to_hours(
-    row: dict[str, object],
-    locality_weights: dict[str, pl.DataFrame],
-) -> pl.DataFrame:
-    """Allocate one constraint group's annual value using its tightest locality."""
-    locality = str(row["tightest_nested_locality"])
-    weights = locality_weights[locality]
-    value = cast(float, row["v_constraint_group_kw_yr"])
-
-    return weights.with_columns(
-        pl.lit(str(row["constraint_group"])).alias("constraint_group"),
-        pl.lit(locality).alias("tightest_nested_locality"),
-        pl.lit(str(row["paying_localities"])).alias("paying_localities"),
-        (pl.col("scr_weight") * value).alias("constraint_group_cost_enduse"),
-    ).select(
-        "timestamp",
-        "constraint_group",
-        "tightest_nested_locality",
-        "paying_localities",
-        "constraint_group_cost_enduse",
-    )
-
-
-def aggregate_paying_locality_hourly_signals_from_constraint_groups(
-    constraint_group_hourly: pl.DataFrame,
-) -> dict[str, pl.DataFrame]:
-    """Average contributing constraint-group hourly signals per paying locality."""
-    exploded = (
-        constraint_group_hourly.with_columns(pl.col("paying_localities").str.split("|").alias("paying_locality_list"))
-        .explode("paying_locality_list")
-        .rename({"paying_locality_list": "paying_locality"})
-    )
-
-    invalid = sorted(set(exploded["paying_locality"].drop_nulls().to_list()) - set(VALID_PAYING_LOCALITIES))
-    if invalid:
-        raise ValueError(
-            f"Invalid paying_locality values in constraint groups: {invalid}. "
-            f"Expected {sorted(VALID_PAYING_LOCALITIES)}"
-        )
-
-    locality_hourly = (
-        exploded.group_by("paying_locality", "timestamp")
-        .agg(pl.col("constraint_group_cost_enduse").mean().alias("bulk_tx_cost_enduse"))
-        .sort("paying_locality", "timestamp")
-    )
-
-    result: dict[str, pl.DataFrame] = {}
-    for locality in locality_hourly["paying_locality"].unique().to_list():
-        result[str(locality)] = locality_hourly.filter(pl.col("paying_locality") == locality).select(
-            "timestamp", "bulk_tx_cost_enduse"
-        )
-
-    return result
-
-
-def resolve_utility_paying_locality_signal(
-    mapping_df: pl.DataFrame,
-    utility: str,
-    paying_locality_hourly: dict[str, pl.DataFrame],
-) -> pl.DataFrame:
-    """Blend paying-locality hourly signals into one utility-level signal."""
-    utility_weights = (
-        mapping_df.filter(pl.col("utility") == utility)
-        .select("gen_capacity_zone", "capacity_weight")
-        .group_by("gen_capacity_zone")
-        .agg(pl.col("capacity_weight").sum().alias("capacity_weight"))
-        .rename({"gen_capacity_zone": "paying_locality"})
-        .sort("paying_locality")
-    )
-    if utility_weights.is_empty():
-        available = sorted(mapping_df["utility"].unique().to_list())
-        raise ValueError(f"Utility '{utility}' not found in zone mapping. Available: {available}")
-
-    missing = sorted(set(utility_weights["paying_locality"].to_list()) - set(paying_locality_hourly))
-    if missing:
-        raise ValueError(
-            f"No paying-locality hourly signal available for {missing}. Check constraint-group table coverage."
-        )
-
-    total_weight = float(utility_weights["capacity_weight"].sum())
-    if total_weight <= 0:
-        raise ValueError(f"capacity_weight sum must be positive for utility={utility}")
-    utility_weights = utility_weights.with_columns((pl.col("capacity_weight") / total_weight).alias("capacity_weight"))
-
-    locality_frames: list[pl.DataFrame] = []
-    for row in utility_weights.iter_rows(named=True):
-        locality = str(row["paying_locality"])
-        weight = float(row["capacity_weight"])
-        locality_frames.append(
-            paying_locality_hourly[locality].with_columns(
-                pl.lit(locality).alias("paying_locality"),
-                pl.lit(weight).alias("capacity_weight"),
-            )
-        )
-
-    blended = (
-        pl.concat(locality_frames)
-        .with_columns((pl.col("bulk_tx_cost_enduse") * pl.col("capacity_weight")).alias("weighted_cost"))
-        .group_by("timestamp")
-        .agg(pl.col("weighted_cost").sum().alias("bulk_tx_cost_enduse"))
-        .sort("timestamp")
-    )
-
-    return blended
 
 
 def compute_utility_bulk_tx_signal(
