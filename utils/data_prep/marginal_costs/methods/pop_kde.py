@@ -47,15 +47,15 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
 import polars as pl
 from scipy.special import ndtr
 
-from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
-    expand_month_hour_mc_to_8760,
+from utils.data_prep.marginal_costs.methods.month_hour import (
+    expand_month_hour_to_8760,
+    us_federal_holidays,
 )
 from utils.data_prep.marginal_costs.supply_utils import build_cairo_8760_timestamps
 
@@ -73,53 +73,6 @@ _N_CELLS = 12 * 2 * 24
 # ---------------------------------------------------------------------------
 # Calendar
 # ---------------------------------------------------------------------------
-
-
-def us_federal_holidays(year: int) -> set[date]:
-    """US federal holidays observed in ``year`` (5 U.S.C. § 6103).
-
-    A fixed-date holiday on Saturday is observed the Friday before and one on
-    Sunday the Monday after, so December 31 is a holiday when the next
-    January 1 is a Saturday. Juneteenth is included from 2021, the year it
-    became a federal holiday. This is the rule whose day counts match the
-    "No Days" rows of OCC-863 Attachment 2.
-    """
-    fixed = [
-        date(year, 1, 1),
-        date(year, 7, 4),
-        date(year, 11, 11),
-        date(year, 12, 25),
-        date(year + 1, 1, 1),
-    ]
-    if year >= 2021:
-        fixed.append(date(year, 6, 19))
-    floating = [
-        _nth_weekday(year, 1, 0, 3),  # Martin Luther King Jr. Day
-        _nth_weekday(year, 2, 0, 3),  # Washington's Birthday
-        _nth_weekday(year, 5, 0, -1),  # Memorial Day
-        _nth_weekday(year, 9, 0, 1),  # Labor Day
-        _nth_weekday(year, 10, 0, 2),  # Columbus Day
-        _nth_weekday(year, 11, 3, 4),  # Thanksgiving
-    ]
-    observed = {_observe_holiday(day) for day in fixed + floating}
-    return {day for day in observed if day.year == year}
-
-
-def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
-    """The nth ``weekday`` of ``month`` (Monday = 0). ``n`` of -1 is the last."""
-    if n > 0:
-        first = date(year, month, 1)
-        return first + timedelta(days=(weekday - first.weekday()) % 7 + 7 * (n - 1))
-    last = date(year, 12, 31) if month == 12 else date(year, month + 1, 1) - timedelta(1)
-    return last - timedelta(days=(last.weekday() - weekday) % 7)
-
-
-def _observe_holiday(day: date) -> date:
-    if day.weekday() == 5:
-        return day - timedelta(days=1)
-    if day.weekday() == 6:
-        return day + timedelta(days=1)
-    return day
 
 
 def label_hour_types(frame: pl.DataFrame, *, timestamp_col: str = "timestamp") -> pl.DataFrame:
@@ -423,11 +376,12 @@ def allocate_annual_cost_by_pop(
     """Hourly 8760 of ``value_col`` ($/kWh) that recovers ``annual_cost_kw_year``.
 
     The per-cell $/kWh from :func:`month_hour_costs_from_pop` is placed on
-    the CAIRO 8760 by :func:`expand_month_hour_mc_to_8760`: each hour takes
+    the CAIRO 8760 by :func:`expand_month_hour_to_8760`: each hour takes
     its month-hour value from the weekday or the weekend-and-holiday table
     according to ``calendar_year`` (default ``year``), and ``year`` is stamped
-    on the timestamps. A flat 1 kW load therefore pays the annual cost
-    exactly, which is checked before returning.
+    on the timestamps. The uniform scale month-hour applies is skipped: the
+    day counts and the calendar match, so a flat 1 kW load pays the annual
+    cost exactly. That is checked before returning.
 
     Returns ``timestamp`` (naive, hour beginning, 8,760 rows) and ``value_col``.
     """
@@ -437,14 +391,14 @@ def allocate_annual_cost_by_pop(
         daytype: costs.filter(pl.col("daytype") == daytype).select("month", "hour", "mc_total_per_kwh")
         for daytype in DAY_TYPES
     }
-    expanded = expand_month_hour_mc_to_8760(
+    expanded = expand_month_hour_to_8760(
         tables[WEEKDAY],
         tables[WEEKEND_HOLIDAY],
         year,
-        "",
         include_holidays=True,
         calendar_year=calendar_year,
-    ).select("timestamp", pl.col("mc_total_per_kwh").alias(value_col))
+        output_column=value_col,
+    )
     total = float(expanded[value_col].sum())
     if abs(total - annual_cost_kw_year) > 1e-6 * max(1.0, abs(annual_cost_kw_year)):
         raise ValueError(

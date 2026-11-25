@@ -1,7 +1,8 @@
 # Connecticut marginal-cost allocation. Defaults match ct/Justfile.
-# Distribution default is month_hour. Bulk transmission default is pop_kde.
-# Top-N load-share is the two distribution alternatives. Top-N exceedance is
-# the bulk-transmission alternative isone_aesc_ptf.
+# Distribution default is month_hour (published $/kWh tables). Bulk transmission
+# default is pop_kde. Top-N load-share is the two distribution alternatives.
+# Bulk-transmission alternatives are month_hour (published probability of peak,
+# ct_eversource only) and isone_aesc_ptf (top-N exceedance).
 state: ct
 dist_and_sub_tx:
   method: month_hour
@@ -22,10 +23,10 @@ dist_and_sub_tx:
       target_dollar_year: 2026
     weekday:
       from: parquet
-      path: s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet/month_hour_marginal_costs_weekday_secondary.parquet
+      path: s3://data.sb/eversource/occ863/parquet/month_hour_marginal_costs_weekday_secondary.parquet
     weekend:
       from: parquet
-      path: s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet/month_hour_marginal_costs_weekend_holidays_secondary.parquet
+      path: s3://data.sb/eversource/occ863/parquet/month_hour_marginal_costs_weekend_holidays_secondary.parquet
   alternatives:
     pop_occ863:
       method: top_n_load_share
@@ -40,7 +41,7 @@ dist_and_sub_tx:
           target_dollar_year: 2026
         load:
           from: parquet
-          path: s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet/system_load.parquet
+          path: s3://data.sb/eversource/occ863/parquet/system_load.parquet
           load_source: occ863att3
           load_year: "{load_year}"
     pop_isone_zone:
@@ -80,6 +81,27 @@ bulk_tx:
       zones: [CT, ME, NEMA, NH, RI, SEMA, VT, WCMA]
       history_years: [2022, 2023, 2024, 2025]
   alternatives:
+    month_hour:
+      method: month_hour
+      manifest_method: month_hour
+      utilities: [ct_eversource]
+      inputs:
+        table_kind: probability
+        include_holidays: true
+        calendar_year: "{year}"
+        year: "{year}"
+        annual_cost_kw_year:
+          from: cpi
+          value: 69.0
+          dollar_year: 2024
+          target_dollar_year: 2026
+          cpi_s3_base: s3://data.sb/fred/cpi/
+        weekday:
+          from: parquet
+          path: s3://data.sb/eversource/occ863/parquet/month_hour_probability_of_peak_weekday.parquet
+        weekend:
+          from: parquet
+          path: s3://data.sb/eversource/occ863/parquet/month_hour_probability_of_peak_weekend_holidays.parquet
     isone_aesc_ptf:
       method: top_n_exceedance
       manifest_method: isone_aesc_ptf

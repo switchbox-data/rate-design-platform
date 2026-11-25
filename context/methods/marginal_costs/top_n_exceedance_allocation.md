@@ -65,6 +65,7 @@ Other peak-hour allocations give different hourly series and live in different c
 - **Top-N load-share** weights each of the top $N$ hours by its load, with no threshold. The $N$th hour keeps a large share. See [top_n_load_share_allocation.md](top_n_load_share_allocation.md).
 - **Seasonal SCR exceedance** does this exceedance weighting inside each of two seasons, after splitting the annual cost between summer and winter. See [seasonal_scr_exceedance_allocation.md](seasonal_scr_exceedance_allocation.md).
 - **KDE probability of peak** builds a month × day-type × hour probability from several years of load. See [probability_of_peak_kde.md](probability_of_peak_kde.md).
+- **Month-hour expansion** looks up a published month-hour table and scales the 8760 so it sums to the annual cost. It uses no load curve. See [month_hour_allocation.md](month_hour_allocation.md).
 
 ---
 

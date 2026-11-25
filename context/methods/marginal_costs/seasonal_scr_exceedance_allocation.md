@@ -76,6 +76,7 @@ Other peak-hour allocations give different hourly series and live in different c
 - **Top-N load-share** weights each of one window's top $N$ hours by its load, with no threshold and no seasonal split. See [top_n_load_share_allocation.md](top_n_load_share_allocation.md).
 - **Top-N exceedance** weights one window of top $N$ hours by load above a threshold. The whole annual cost goes on that one window. Its threshold is the highest load strictly below the $N$th hour, so a tie at the cutoff still leaves those eligible hours with a positive weight. See [top_n_exceedance_allocation.md](top_n_exceedance_allocation.md).
 - **KDE probability of peak** builds a month × day-type × hour probability from several years of load. See [probability_of_peak_kde.md](probability_of_peak_kde.md).
+- **Month-hour expansion** looks up a published month-hour table and scales the 8760 so it sums to the annual cost. It uses no load curve. See [month_hour_allocation.md](month_hour_allocation.md).
 
 ---
 

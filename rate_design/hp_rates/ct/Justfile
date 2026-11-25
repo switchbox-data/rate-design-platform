@@ -14,7 +14,7 @@ set dotenv-path := "state.env"
 state := env_var_or_default('STATE', 'ct')
 
 path_s3_utility_loads := "s3://data.sb/isone/hourly_demand/utilities/"
-path_s3_occ863_parquet := "s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet"
+path_s3_occ863_parquet := "s3://data.sb/eversource/occ863/parquet"
 path_s3_mc_root := "s3://data.sb/switchbox/marginal_costs/ct/"
 path_local_mc_root := "/ebs/data/switchbox/marginal_costs/ct/"
 # month_hour (default), pop_occ863, or pop_isone_zone. See create-dist-mc-data.
@@ -320,72 +320,6 @@ create-zero-supply-mc-data utility_arg year_arg *extra_args:
       --year {{ year_arg }} \
       --output-s3-base "{{ path_s3_mc_root }}supply/" \
       {{ extra_args }}
-
-# =============================================================================
-# CT-only: OCC-863 Attachment 3 → hourly system load and monthly peaks (MW)
-#
-# Page 2 is the hourly distribution-substation load for 2022–2025 (2024 keeps
-# the leap day). Page 1 is each month's maximum MW. Writes
-# system_load.parquet and system_monthly_peak_mw.parquet. See
-# context/code/data/ct_occ863_system_load.md.
-#
-#   just -f ct/Justfile convert-occ863-system-load <path_xlsx> <path_output_dir>
-# =============================================================================
-
-convert-occ863-system-load path_xlsx path_output_dir:
-    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/convert_ct_occ863_system_load.py \
-      --path-xlsx {{ path_xlsx }} \
-      --path-output-dir {{ path_output_dir }}
-
-# =============================================================================
-# CT-only: OCC-863 Attachment 4 → 2025 hourly load for Rates 1, 5, and 7
-#
-# Interval Ending EST is shifted back one hour, then mapped from Eastern
-# Standard Time onto local wall-clock time so the stamps match system_load.
-# Writes rate_1_load.parquet, rate_5_load.parquet, and rate_7_load.parquet
-# with columns timestamp, load_kw, load_mw. See
-# context/code/data/ct_occ863_system_load.md.
-#
-#   just -f ct/Justfile convert-occ863-rate-class-load <path_xlsx> <path_output_dir>
-# =============================================================================
-
-convert-occ863-rate-class-load path_xlsx path_output_dir:
-    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/convert_ct_occ863_rate_class_load.py \
-      --path-xlsx {{ path_xlsx }} \
-      --path-output-dir {{ path_output_dir }}
-
-# =============================================================================
-# CT-only: OCC-863 Attachment 2 → month-hour marginal costs
-#
-# voltage is secondary (page 1) or primary (page 2). Writes the all-day-types,
-# weekday, and weekend-and-holiday matrices. Each row is one month (1–12) and
-# hour (0–23), with that month's "No Days" count and mc_total_per_kwh. See
-# context/code/data/ct_occ863_system_load.md.
-#
-#   just -f ct/Justfile convert-occ863-month-hour-mc <path_xlsx> <path_output_dir> secondary
-# =============================================================================
-
-convert-occ863-month-hour-mc path_xlsx path_output_dir voltage:
-    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/convert_ct_occ863_month_hour_mc.py \
-      --path-xlsx {{ path_xlsx }} \
-      --path-output-dir {{ path_output_dir }} \
-      --voltage {{ voltage }}
-
-# =============================================================================
-# CT-only: OCC-863 Attachment 2 page 3 → month-hour probability of peak
-#
-# Writes the weekday and weekend-and-holiday probability-of-peak matrices,
-# one row per month (1–12) and hour (0–23), with probability_of_peak as a
-# fraction. Page 3 has no day counts, so num_days comes from page 1 (page 2
-# must agree). See context/code/data/ct_occ863_system_load.md.
-#
-#   just -f ct/Justfile convert-occ863-probability-of-peak <path_xlsx> <path_output_dir>
-# =============================================================================
-
-convert-occ863-probability-of-peak path_xlsx path_output_dir:
-    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/convert_ct_occ863_probability_of_peak.py \
-      --path-xlsx {{ path_xlsx }} \
-      --path-output-dir {{ path_output_dir }}
 
 # =============================================================================
 # CT-only: gas tariff fetch

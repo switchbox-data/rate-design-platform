@@ -58,26 +58,27 @@ The manifest key is `aesc_ptf69_pop_kde_ne_system_hist2022to2025_cal2025_2026usd
 
 ### Month-hour allocation from OCC-863 (`month_hour`, ct_eversource only)
 
-`bulk_tx_method=month_hour` (`generate_bulk_tx_mc.py --method month_hour`) builds the 8760 from
-OCC-863 Attachment 2 page 3 instead of from a load curve. Page 3 is the probability of
-distribution peak by month, hour, and day type. Pages 1 and 2 turn that into $/kWh as
+`bulk_tx_method=month_hour` (`generate_bulk_tx_mc.py --method month_hour`) is the same month-hour
+calendar expansion as distribution ([month_hour_allocation.md](month_hour_allocation.md)), with
+`table_kind` `probability`. It builds the 8760 from OCC-863 Attachment 2 page 3 instead of from a
+load curve. Page 3 is the probability of distribution peak by month, hour, and day type. There is
+no loss factor.
 
-$$
-MC_{m,h} = \frac{S \cdot PoP_{m,h}}{D_{m}}
-$$
+| Input         | CT value                                                                                                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Weekday table | `month_hour_probability_of_peak_weekday.parquet` (`month`, `hour`, `num_days`, `probability_of_peak`)                                                                           |
+| Weekend table | `month_hour_probability_of_peak_weekend_holidays.parquet`, same shape                                                                                                           |
+| Annual cost   | AESC `$69/kW-yr` in 2024 dollars, CPI-inflated to 2026 so it matches the dollar year of Eversource's distribution MC. The 8760 sums to `$69` only when the target year is 2024. |
+| Year          | The recipe's `year_arg`, stamped on the timestamps                                                                                                                              |
+| Calendar year | `month_hour_calendar_year`, default `year_arg`                                                                                                                                  |
+| Holidays      | `include_holidays` defaults to true                                                                                                                                             |
 
-where S is the annual cost in $/kW-yr and D is that day type's day count for the month. S starts
-as the AESC 69 $/kW-yr in 2024 dollars (`--aesc-ptf-kw-year`, `--ptf-dollar-year`). There is no
-loss factor. `--target-dollar-year` (default `--year`; the ct recipe passes 2026) inflates S by
-CPIAUCSL when the years differ. 2026 matches the dollar year of Eversource's distribution MC, the
-same reason `pop_kde` uses it. The 8760 is then scaled so it sums to that inflated S, which is $69/kW-yr only when
-the target year is 2024.
-
-Weekday and weekend-and-holiday probabilities are applied separately, then looked up onto the
-calendar year with the same Saturday/Sunday and federal-holiday rule as distribution
-`month_hour` (`context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md` §7). The
-uniform factor corrects for the calendar's day counts differing from `num_days`. When they match,
-that factor is 1 and the sum is already S.
+`num_days` on the published table is the divisor inside each cell. The uniform scale absorbs a
+mismatch with the target calendar's day counts. When they match, the factor is 1. The parquets
+live under `s3://data.sb/eversource/occ863/parquet/`. These
+inputs are the `month_hour` alternative under `bulk_tx` in
+`rate_design/hp_rates/ct/config/marginal_costs/allocation.yaml`. `--aesc-ptf-kw-year` overrides
+the `$69` scalar before CPI.
 
 The manifest key is `month_hour_occ863att2_aesc_ptf69_holidays_cal2025_2026usd`. The ct
 recipe wires CL&P's OCC-863 probability files, so it runs for `ct_eversource` only. The generator
@@ -181,21 +182,23 @@ The manifest keys are `aesc_ptf69_pop_kde_ne_system_hist2022to2025_cal2025_2026u
 
 ## Implementation files
 
-| File                                                             | Role                                                                                                                                                 |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `utils/data_prep/marginal_costs/bulk_tx/bulk_tx_isone.py`        | Core logic: `compute_isone_bulk_tx_signal`, `compute_isone_bulk_tx_pop_kde`, `load_isone_zone_load_history`, `prepare_output`, `validate_allocation` |
-| `utils/data_prep/marginal_costs/methods/pop_kde.py`              | KDE probability of peak. `pop_kde` places the annual cost on the 8760                                                                                |
-| `utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py`  | CLI entrypoint; `--method {isone_aesc_ptf,month_hour,pop_kde}` and `--allocation-load`; `_run_isone_month_hour`, `_run_isone_pop_kde`                |
-| `utils/data_prep/marginal_costs/methods/top_n_exceedance.py`     | Top-N exceedance formula used by `isone_aesc_ptf`                                                                                                    |
-| `utils/data_prep/marginal_costs/supply_utils.py`                 | `ISONE_UTILITY_ZONES` mapping                                                                                                                        |
-| `utils/data_prep/marginal_costs/supply/supply_capacity_isone.py` | `load_isone_zone_loads`                                                                                                                              |
-| `rate_design/hp_rates/ct/Justfile`                               | `create-bulk-tx-mc-data`, `create-bulk-tx-mc-data-all` recipes; `bulk_tx_method` variable                                                            |
-| `rate_design/hp_rates/ct/state.env`                              | `UTILITIES=ct_eversource,ct_ui`, `REGION=isone`, `YEAR=2025`                                                                                         |
-| `tests/test_top_n_exceedance.py`                                 | Tests for the exceedance formula and the RI and CT config entries                                                                                    |
-| `tests/test_ri_bulk_tx_mc.py`                                    | Tests for the ISO-NE bulk-tx writer: system vs. zone load, 8760 fill, validation                                                                     |
-| `tests/test_bulk_tx_month_hour.py`                               | Tests for the `month_hour` allocation and its manifest key                                                                                           |
-| `tests/test_pop_kde.py`                                          | Tests for the KDE formula, its CLI, and the CT config entry                                                                                          |
-| `tests/test_bulk_tx_pop_kde.py`                                  | Tests for the ISO-NE `pop_kde` writer and its manifest key                                                                                           |
+| File                                                             | Role                                                                                                                                                          |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `utils/data_prep/marginal_costs/bulk_tx/bulk_tx_isone.py`        | Core logic: `compute_isone_bulk_tx_signal`, `compute_isone_bulk_tx_pop_kde`, `load_isone_zone_load_history`, `prepare_output`, `validate_allocation`          |
+| `utils/data_prep/marginal_costs/methods/month_hour.py`           | Month-hour calendar expansion. `month_hour` with `table_kind` `probability` is the `month_hour` alternative; `pop_kde` calls its expander and skips the scale |
+| `utils/data_prep/marginal_costs/methods/pop_kde.py`              | KDE probability of peak. `pop_kde` places the annual cost on the 8760                                                                                         |
+| `utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py`  | CLI entrypoint; `--method {isone_aesc_ptf,month_hour,pop_kde}` and `--allocation-load`; `_run_isone_month_hour`, `_run_isone_pop_kde`                         |
+| `utils/data_prep/marginal_costs/methods/top_n_exceedance.py`     | Top-N exceedance formula used by `isone_aesc_ptf`                                                                                                             |
+| `utils/data_prep/marginal_costs/supply_utils.py`                 | `ISONE_UTILITY_ZONES` mapping                                                                                                                                 |
+| `utils/data_prep/marginal_costs/supply/supply_capacity_isone.py` | `load_isone_zone_loads`                                                                                                                                       |
+| `rate_design/hp_rates/ct/Justfile`                               | `create-bulk-tx-mc-data`, `create-bulk-tx-mc-data-all` recipes; `bulk_tx_method` variable                                                                     |
+| `rate_design/hp_rates/ct/state.env`                              | `UTILITIES=ct_eversource,ct_ui`, `REGION=isone`, `YEAR=2025`                                                                                                  |
+| `tests/test_top_n_exceedance.py`                                 | Tests for the exceedance formula and the RI and CT config entries                                                                                             |
+| `tests/test_ri_bulk_tx_mc.py`                                    | Tests for the ISO-NE bulk-tx writer: system vs. zone load, 8760 fill, validation                                                                              |
+| `tests/test_month_hour.py`                                       | Tests for the month-hour formula, its CLI, and the CT distribution and bulk-tx config entries                                                                 |
+| `tests/test_bulk_tx_month_hour.py`                               | Tests for CPI on the `month_hour` annual cost, composed with the expander                                                                                     |
+| `tests/test_pop_kde.py`                                          | Tests for the KDE formula, its CLI, and the CT config entry                                                                                                   |
+| `tests/test_bulk_tx_pop_kde.py`                                  | Tests for the ISO-NE `pop_kde` writer and its manifest key                                                                                                    |
 
 ---
 

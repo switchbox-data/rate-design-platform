@@ -11,10 +11,10 @@
 - ``month_hour`` (CT only): look up Eversource's OCC-863 Attachment 2
   month-hour $/kWh tables onto one calendar year, then multiply every hour by
   one factor so the 8760 sums to the MC table's $/kW-yr (the same value PoP
-  allocates, with the same dollar-year rule). Uses no load profile.
-  ``--calendar-year`` (default ``--year``) sets which year's weekdays,
-  weekends, and holidays are used; the 8760 is then stamped as ``--year`` by
-  position.
+  allocates, with the same dollar-year rule). The formula is
+  ``methods/month_hour.py``. Uses no load profile. ``--calendar-year``
+  (default ``--year``) sets which year's weekdays, weekends, and holidays are
+  used; the 8760 is then stamped as ``--year`` by position.
 
 CT Eversource, in order of preference (the ct Justfile's ``dist_mc_method``):
 
@@ -94,10 +94,9 @@ Usage:
 """
 
 import argparse
-import calendar
 import io
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import polars as pl
@@ -112,9 +111,12 @@ from utils.data_prep.marginal_costs.mc_manifest import (
     record_mc_write,
     require_published_code,
 )
+from utils.data_prep.marginal_costs.methods.month_hour import (
+    expand_month_hour_to_8760,
+    scale_8760_to_annual,
+)
 from utils.data_prep.marginal_costs.methods.top_n_load_share import top_n_load_share
 from utils.data_prep.marginal_costs.supply_utils import (
-    build_cairo_8760_timestamps,
     output_base_for_load_year,
     remap_year_if_needed,
     warn_if_multiple_partition_parquets,
@@ -474,59 +476,6 @@ def inflate_annual_mc(
     return ResolvedAnnualMc(as_filed, allocated, dollar_year, cpi_factor)
 
 
-def month_hour_costs_from_probability(probability: pl.DataFrame, annual_kw_yr: float, *, label: str) -> pl.DataFrame:
-    """Month-hour ``$/kWh`` from an annual ``$/kW-yr`` and a probability of peak.
-
-    The OCC-863 Attachment 2 recipe. Pages 1 and 2 compute each month-hour as
-    the loss-adjusted $/kW-yr times that day type's probability of peak,
-    divided by the month's day count for that day type. This applies the same
-    division to ``annual_kw_yr``:
-    ``mc_total_per_kwh = annual_kw_yr * probability_of_peak / num_days``.
-
-    ``probability`` has ``month`` (1–12), ``hour`` (0–23), ``num_days``, and
-    ``probability_of_peak`` (a fraction). The result has ``month``, ``hour``,
-    and ``mc_total_per_kwh``, ready for ``expand_month_hour_mc_to_8760``.
-    """
-    required = {"month", "hour", "num_days", "probability_of_peak"}
-    missing = required - set(probability.columns)
-    if missing:
-        raise ValueError(f"{label} probability table is missing {sorted(missing)}")
-    if annual_kw_yr <= 0:
-        raise ValueError(f"{label}: annual $/kW-yr must be positive, got {annual_kw_yr}")
-    rates = probability.select(sorted(required))
-    n_unique = rates.select("month", "hour").n_unique()
-    if rates.height != 12 * 24 or n_unique != rates.height:
-        raise ValueError(f"{label} probability table must have 288 unique month-hour rows")
-    if rates.filter(pl.col("num_days") <= 0).height:
-        raise ValueError(f"{label} probability table has a non-positive day count")
-    out_of_range = rates.filter((pl.col("probability_of_peak") < 0) | (pl.col("probability_of_peak") > 1))
-    if out_of_range.height:
-        raise ValueError(f"{label} probability_of_peak is outside 0–1: {out_of_range.select('month', 'hour').rows()}")
-    return rates.select(
-        "month",
-        "hour",
-        (annual_kw_yr * pl.col("probability_of_peak") / pl.col("num_days")).alias("mc_total_per_kwh"),
-    )
-
-
-def scale_8760_to_annual(
-    df: pl.DataFrame, target_kw_yr: float, *, value_col: str = "mc_total_per_kwh"
-) -> tuple[pl.DataFrame, float]:
-    """Multiply every hour by one factor so ``value_col`` sums to ``target_kw_yr``.
-
-    Zero hours stay zero, and the ratio between any two hours is unchanged.
-    Returns the scaled frame and the factor (1.0 when the column already sums
-    to the target, including a column of zeros scaled to zero).
-    """
-    total = float(df[value_col].sum())
-    if total == 0.0:
-        if target_kw_yr != 0.0:
-            raise ValueError(f"cannot scale {value_col} to ${target_kw_yr}/kW-yr: the 8760 sums to 0")
-        return df, 1.0
-    factor = target_kw_yr / total
-    return df.with_columns((pl.col(value_col) * factor).alias(value_col)), factor
-
-
 def load_cpi_inflation_factor(
     cpi_s3_base: str,
     from_year: int,
@@ -632,134 +581,6 @@ def validate_allocation(
     print("=" * 60)
 
     return validation_results
-
-
-def expand_month_hour_mc_to_8760(
-    weekday: pl.DataFrame,
-    weekend: pl.DataFrame,
-    year: int,
-    utility: str,
-    *,
-    include_holidays: bool = True,
-    calendar_year: int | None = None,
-) -> pl.DataFrame:
-    """Expand month-hour marginal costs onto one calendar year's Cairo 8760.
-
-    ``weekday`` and ``weekend`` are the OCC-863 Attachment 2 matrices, each with
-    ``month`` (1–12), ``hour`` (0–23), and ``mc_total_per_kwh``. Saturday and
-    Sunday take the weekend value. When ``include_holidays`` is true, US
-    federal holidays do too: a holiday that falls on Saturday is observed on
-    Friday, and one that falls on Sunday is observed on Monday. When it is
-    false, a holiday on Monday through Friday takes the weekday value.
-    Any other Monday through Friday takes the weekday value.
-
-    ``calendar_year`` (default ``year``) is the calendar used to classify each
-    day as weekday, weekend, or holiday. ``year`` is stamped on ``timestamp``
-    and the ``year`` column. When they differ, row *i* of ``calendar_year``'s
-    8760 is restamped as row *i* of ``year``'s, the same by-position alignment
-    CAIRO applies (``utils.cairo._align_mc_to_index``). The loads are not on
-    their source calendar: CAIRO rotates AMY2018 loads onto ``year_run``'s
-    weekdays, so ``calendar_year`` should normally equal the run year. The two
-    years must both be leap years or both not, so that each row keeps its month.
-
-    Timestamps match ``build_cairo_8760_timestamps``: naive hour-beginning
-    local time, 8,760 rows, with December 31 dropped in a leap year.
-    """
-    calendar_year = year if calendar_year is None else calendar_year
-    if calendar.isleap(calendar_year) != calendar.isleap(year):
-        raise ValueError(
-            f"calendar_year {calendar_year} and year {year} must both be leap "
-            "years or both not; otherwise rows after February shift by a day"
-        )
-    clock = build_cairo_8760_timestamps(calendar_year).with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
-    holidays = _us_federal_holidays(calendar_year) if include_holidays else set()
-    clock = clock.with_columns(
-        pl.col("timestamp").dt.month().alias("month"),
-        pl.col("timestamp").dt.hour().alias("hour"),
-        # Polars weekday is ISO: Monday = 1, Sunday = 7.
-        (pl.col("timestamp").dt.weekday() >= 6).alias("is_weekend"),
-        pl.col("timestamp").dt.date().is_in(sorted(holidays)).alias("is_holiday"),
-    )
-    weekday_rates = _month_hour_rates(weekday, "weekday").rename({"mc_total_per_kwh": "weekday_mc"})
-    weekend_rates = _month_hour_rates(weekend, "weekend").rename({"mc_total_per_kwh": "weekend_mc"})
-    joined = clock.join(weekday_rates, on=["month", "hour"], how="left").join(
-        weekend_rates, on=["month", "hour"], how="left"
-    )
-    expanded = joined.with_columns(
-        pl.when(pl.col("is_weekend") | pl.col("is_holiday"))
-        .then(pl.col("weekend_mc"))
-        .otherwise(pl.col("weekday_mc"))
-        .alias("mc_total_per_kwh")
-    )
-    if expanded["mc_total_per_kwh"].null_count() != 0:
-        raise ValueError(f"month-hour lookup missed hours in {calendar_year}")
-    expanded = expanded.sort("timestamp").with_columns(
-        build_cairo_8760_timestamps(year)["timestamp"].cast(pl.Datetime("us")).alias("timestamp")
-    )
-    return expanded.select(
-        "timestamp",
-        pl.lit(utility).alias("utility"),
-        pl.lit(year).cast(pl.Int32).alias("year"),
-        "mc_total_per_kwh",
-    )
-
-
-def _us_federal_holidays(year: int) -> set[date]:
-    """US federal holidays observed during ``year``.
-
-    The eleven holidays in 5 U.S.C. § 6103. A fixed-date holiday on Saturday is
-    observed the Friday before, and one on Sunday the Monday after. That
-    observed set is what Attachment 2's weekend-and-holiday day counts match
-    for 2025.
-    """
-    fixed = [
-        date(year, 1, 1),
-        date(year, 6, 19),
-        date(year, 7, 4),
-        date(year, 11, 11),
-        date(year, 12, 25),
-        date(year + 1, 1, 1),
-    ]
-    floating = [
-        _nth_weekday(year, 1, 0, 3),
-        _nth_weekday(year, 2, 0, 3),
-        _nth_weekday(year, 5, 0, -1),
-        _nth_weekday(year, 9, 0, 1),
-        _nth_weekday(year, 10, 0, 2),
-        _nth_weekday(year, 11, 3, 4),
-    ]
-    observed = {_observe_holiday(day) for day in fixed + floating}
-    return {day for day in observed if day.year == year}
-
-
-def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
-    """The nth ``weekday`` of ``month`` (Monday = 0). ``n`` of -1 is the last."""
-    if n > 0:
-        first = date(year, month, 1)
-        shift = (weekday - first.weekday()) % 7
-        return first + timedelta(days=shift + 7 * (n - 1))
-    last = date(year, 12, 31) if month == 12 else date(year, month + 1, 1) - timedelta(days=1)
-    return last - timedelta(days=(last.weekday() - weekday) % 7)
-
-
-def _observe_holiday(day: date) -> date:
-    if day.weekday() == 5:
-        return day - timedelta(days=1)
-    if day.weekday() == 6:
-        return day + timedelta(days=1)
-    return day
-
-
-def _month_hour_rates(frame: pl.DataFrame, label: str) -> pl.DataFrame:
-    required = {"month", "hour", "mc_total_per_kwh"}
-    missing = required - set(frame.columns)
-    if missing:
-        raise ValueError(f"{label} month-hour table is missing {sorted(missing)}")
-    rates = frame.select("month", "hour", "mc_total_per_kwh")
-    n_unique = rates.select("month", "hour").n_unique()
-    if rates.height != 12 * 24 or n_unique != rates.height:
-        raise ValueError(f"{label} month-hour table must have 288 unique month-hour rows")
-    return rates
 
 
 def save_allocated_costs(
@@ -1191,11 +1012,10 @@ def _run_month_hour(args: argparse.Namespace, storage_options: dict[str, str]) -
 
     weekday = _read_parquet_any(args.path_weekday_mc, storage_options)
     weekend = _read_parquet_any(args.path_weekend_mc, storage_options)
-    expanded = expand_month_hour_mc_to_8760(
+    expanded = expand_month_hour_to_8760(
         weekday,
         weekend,
         year,
-        args.utility,
         include_holidays=args.include_holidays,
         calendar_year=calendar_year,
     )

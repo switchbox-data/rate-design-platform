@@ -30,7 +30,7 @@ Recipe names, path variables, and the fetch-then-upload order are the `data-pipe
 
 ## Script names in use
 
-`fetch_smi_json.py`, `fetch_ami_xlsx.py`, `fetch_cpi_parquet.py`, `fetch_zone_loads_parquet.py`, `fetch_electric_utility_stat_parquets.py`, `fetch_fpl_yaml.py`, `convert_hud_smi_json_to_parquet.py`, `convert_cambium_csv_to_parquet.py`, `validate_isone_ancillary_parquet.py`, `validate_fca_reference.py`.
+`fetch_smi_json.py`, `fetch_ami_xlsx.py`, `fetch_cpi_parquet.py`, `fetch_zone_loads_parquet.py`, `fetch_electric_utility_stat_parquets.py`, `fetch_fpl_yaml.py`, `convert_hud_smi_json_to_parquet.py`, `convert_cambium_csv_to_parquet.py`, `convert_occ733_xlsx_to_parquet.py`, `convert_occ863_xlsx_to_parquet.py`, `validate_isone_ancillary_parquet.py`, `validate_fca_reference.py`.
 
 Parallel fetch in this repo: `data/nyiso/lbmp/fetch_lbmp_zonal_zips.py` (`concurrent.futures.ThreadPoolExecutor`).
 
@@ -40,4 +40,4 @@ Parallel fetch in this repo: `data/nyiso/lbmp/fetch_lbmp_zonal_zips.py` (`concur
 
 ## Gitignore
 
-Local staging directories are gitignored. Examples: `data/fred/cpi/parquet/`, `data/eia/861/parquet/`, `data/hud/ami/xlsx/`, `data/hud/ami/parquet/`, `data/census/pums/zips/`.
+Local staging directories are gitignored. Examples: `data/fred/cpi/parquet/`, `data/eia/861/parquet/`, `data/hud/ami/xlsx/`, `data/hud/ami/parquet/`, `data/census/pums/zips/`, `data/eversource/occ863/xlsx/`.

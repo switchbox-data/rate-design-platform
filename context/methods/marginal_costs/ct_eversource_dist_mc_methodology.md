@@ -11,16 +11,12 @@ and the pipeline YAML declares the key it expects
 ([mc_provenance_manifest.md](../../code/marginal_costs/mc_provenance_manifest.md)).
 
 1. **Month-hour expansion (default).** Eversource's OCC-863 Attachment 2 secondary month-hour
-   `$/kWh` tables are looked up onto one calendar year. Saturday and Sunday take the
-   weekend-and-holiday table. Every other Monday–Friday takes the weekday table, except the
-   eleven federal holidays in 5 U.S.C. § 6103 when `include_holidays` is true (the default):
-   a Saturday holiday is observed Friday, and a Sunday holiday is observed Monday. The days are
-   classified on the 2025 calendar (`--calendar-year`, default `--year`), and 2025 is stamped on
-   `timestamp`, the `year` column, and the Hive partition. 2025 rather than the 2018 weather year
-   because CAIRO rotates the AMY2018 loads onto 2025's weekdays (§7.2). Every hour is then
-   multiplied by one factor so the 8760 sums to the MC table's `$/kW-yr` (`$21.22`, the same
-   scalar and dollar-year rule as the PoP paths, §7.4). Key
-   `month_hour_occ863att2_secondary_holidays_cal2025`. Detail is in §7.
+   `$/kWh` tables are looked up onto the 2025 calendar and scaled so the 8760 sums to the MC
+   table's `$21.22/kW-yr`. The formula is
+   [month_hour_allocation.md](month_hour_allocation.md). 2025 rather than the 2018 weather year
+   because CAIRO rotates the AMY2018 loads onto 2025's weekdays (§7.2). The dollar-year rule is
+   the same as the load-share paths (§2.3, §7.3). Key
+   `month_hour_occ863att2_secondary_holidays_cal2025`. The inputs are in §7.
 2. **`$21.22/kW-yr` on Eversource's substation load.** The scalar is Table 3's `$20.17/kW-yr`
    times the OCC-863 secondary loss factor (§2.2). The peak N load hours allocation (§3.1,
    [top_n_load_share_allocation.md](top_n_load_share_allocation.md)) spreads it over
@@ -361,8 +357,7 @@ trunkline cost per kW, assigned to each hour type within the month. That workboo
 secondary loss factor behind the `$21.22/kW-yr` scalar comes from (§2.2).
 
 The raw workbooks and the discovery-request PDF live at
-`s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/`, mirrored locally at
-`/ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/`.
+`s3://data.sb/eversource/occ863/`.
 
 The hourly series we keep is Attachment 3 page 2, not Attachment 1. Page 2 is the substation sum
 for 2022–2025. Attachment 1 covers 2023–2025 and, on the three fall-back Sundays, stores twice the
@@ -376,7 +371,8 @@ back one hour, then mapped from Eastern Standard Time onto local wall-clock time
 `dist_mc_method=pop_occ863` reads `system_load.parquet` through `--path-utility-load` and keeps the
 load year inside `normalize_load_to_cairo_8760` (§3.3). The rate-class files are not the PoP
 load. `--utility-load-s3-base` still expects the hive `utility`/`year` layout the other states
-use. How to rebuild the parquets:
+use. The parquets are rebuilt by the `data/eversource/occ863/` pipeline
+(`just -f data/eversource/occ863/Justfile prepare`, then `upload`); see
 [ct_occ863_system_load.md](../../code/data/ct_occ863_system_load.md).
 
 ---
@@ -384,31 +380,32 @@ use. How to rebuild the parquets:
 ## 7. OCC-863 Attachment 2 month-hour 8760 (current default)
 
 `create-dist-mc-data` defaults to `dist_mc_method=month_hour`, which passes
-`--method month_hour`. It does not probability-of-peak allocate the `$21.22/kW-yr` scalar. It looks
-up each hour of one calendar year in Eversource's OCC-863 Attachment 2 secondary month-hour
-`$/kWh` tables (Docket 26-05-10), then multiplies every hour by one factor so the 8760 sums to
-that scalar (§7.3), and writes an 8760 in the same schema as the PoP file (`timestamp`,
-`utility`, `year`, `mc_total_per_kwh`).
+`--method month_hour`. The formula is month-hour calendar expansion
+([month_hour_allocation.md](month_hour_allocation.md)), with `table_kind` `rates`. It does not
+probability-of-peak allocate the `$21.22/kW-yr` scalar. It looks up each hour of one calendar
+year in Eversource's OCC-863 Attachment 2 secondary month-hour `$/kWh` tables (Docket 26-05-10),
+then multiplies every hour by one factor so the 8760 sums to that scalar (§7.3). The saved file
+has the same schema as the load-share file (`timestamp`, `utility`, `year`, `mc_total_per_kwh`).
+The utility and year columns are added when the file is written. The method itself returns
+`timestamp` and the cost column.
 
-The tables live at
-`s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet/`:
+### 7.1 Inputs
 
-- `month_hour_marginal_costs_weekday_secondary.parquet`
-- `month_hour_marginal_costs_weekend_holidays_secondary.parquet`
+| Input         | CT value                                                                                                                                                    |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Weekday table | `month_hour_marginal_costs_weekday_secondary.parquet` (288 rows: `month`, `hour`, `mc_total_per_kwh`)                                                       |
+| Weekend table | `month_hour_marginal_costs_weekend_holidays_secondary.parquet`, same shape, for Saturday, Sunday, and holidays                                              |
+| Annual cost   | `$21.22/kW-yr` from `ct_marginal_costs_<year>.csv`, 2026 dollars, as filed (`--target-dollar-year 2026`, §2.3). This is the scale target.                   |
+| Year          | The recipe's `year_arg`, stamped on the timestamps and the Hive partition                                                                                   |
+| Calendar year | `month_hour_calendar_year`, default the same as `year_arg`. CT uses 2025 for both (§7.2)                                                                    |
+| Holidays      | `include_holidays` defaults to true. Federal holidays take the weekend table. `include_holidays=false` leaves a Monday–Friday holiday on the weekday table. |
 
-Each has 288 rows (`month` 1–12, `hour` 0–23, `num_days`, `mc_total_per_kwh`). The recipe uses
-the **secondary** voltage pair. Implementation is `expand_month_hour_mc_to_8760` in
-`utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py`.
-
-### 7.1 Day type
-
-Saturday and Sunday take the weekend-and-holiday table. Every other Monday–Friday takes the
-weekday table, except federal holidays when holidays are included.
-
-`include_holidays` defaults to `true`. Those holidays are the eleven dates in 5 U.S.C. § 6103.
-A fixed-date holiday that falls on Saturday is observed the Friday before, and one that falls
-on Sunday is observed the Monday after. With `include_holidays=false`, a holiday on
-Monday–Friday stays on the weekday table; Saturday and Sunday are unchanged.
+Both parquets live under
+`s3://data.sb/eversource/occ863/parquet/`. The recipe uses
+the **secondary** voltage pair. The voltage in the manifest key is read from the file names
+unless `--voltage` is passed. These inputs are `dist_and_sub_tx` in
+`rate_design/hp_rates/ct/config/marginal_costs/allocation.yaml`. The day-type rule is the one in
+[month_hour_allocation.md](month_hour_allocation.md).
 
 ```bash
 just -f ct/Justfile create-dist-mc-data 2025 --upload
@@ -441,25 +438,19 @@ weekend-and-holiday day counts also match the 2025 calendar.
 
 ### 7.3 Uniform scale to the annual $/kW-yr
 
-The lookup does not by itself recover the annual scalar. Attachment 2's month-hour `$/kWh`
-values, summed over the 2025 calendar's 8,760, come to `$21.3495/kW-yr` across 2,039 nonzero
-hours, against the `$21.22/kW-yr` in `ct_marginal_costs_<year>.csv` (Table 3's `$20.17` times
-the secondary loss factor, §2.2). The uniform factor for that pair is `0.993932`.
+The lookup does not by itself recover the annual scalar. The uniform scale is the one in
+[month_hour_allocation.md](month_hour_allocation.md): every hour, including the zeros, is
+multiplied by one factor so the 8760 sums to the CSV scalar, and the ratio between any two hours
+is unchanged. Attachment 2's month-hour `$/kWh` values, summed over the 2025 calendar's 8,760,
+come to `$21.3495/kW-yr` across 2,039 nonzero hours, against the `$21.22/kW-yr` in
+`ct_marginal_costs_<year>.csv` (Table 3's `$20.17` times the secondary loss factor, §2.2). The
+uniform factor for that pair is `0.993932`.
 
-After the lookup, every hour — including the zeros — is multiplied by one factor,
-
-$$
-\text{scale} = \frac{\text{MC}_{\text{kW-yr}}}{\sum_h P_h}
-$$
-
-where $P_h$ is the looked-up `$/kWh` and $\text{MC}_{\text{kW-yr}}$ is the utility's
-`sub_tx_and_dist_mc_kw_yr` from that CSV. The ratio between any two hours is unchanged, and a
-zero hour stays zero. The scalar is read by the same code as the PoP paths
-(`resolve_annual_mc`), including the dollar-year rule: `--target-dollar-year 2026` matches the
-CSV's 2026 dollars, so `$21.22` is used as filed with no CPI (§2.3).
-
-The manifest params record `mc_kw_yr_target`, `sum_before_scale`, and `scale_factor`. The scalar
-stays in those params and in the hashed CSV input, the same place PoP records `$21.22`.
+The scalar is read by the same code as the load-share paths (`resolve_annual_mc`), including the
+dollar-year rule: `--target-dollar-year 2026` matches the CSV's 2026 dollars, so `$21.22` is used
+as filed with no CPI (§2.3). The manifest params record `mc_kw_yr_target`, `sum_before_scale`,
+and `scale_factor`. The scalar stays in those params and in the hashed CSV input, the same place
+the load-share paths record `$21.22`.
 
 ### 7.4 Where it is written
 
@@ -487,5 +478,5 @@ always rebuild the file
 ([mc_provenance_manifest.md](../../code/marginal_costs/mc_provenance_manifest.md)).
 
 Tests for the lookup, the observed-holiday rule, the holiday toggle, leap-year length, the
-calendar-year restamping, the uniform annual scale, and the voltage read from the table names
-are in `tests/test_expand_month_hour_mc.py`.
+calendar-year restamping, the uniform annual scale, the CLI, the CT config, and the voltage
+read from the table names are in `tests/test_month_hour.py`.

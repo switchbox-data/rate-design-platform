@@ -1,0 +1,74 @@
+# Eversource CT OCC-863 workbooks (PURA Docket 26-05-10) -> parquet.
+#
+# Eversource filed the workbooks in response to an Office of Consumer Counsel
+# data request. They are archived on S3 by hand (there is no API), so `fetch`
+# syncs them down. `convert` writes 13 parquets that the CT marginal-cost
+# allocation reads (see rate_design/hp_rates/ct/config/marginal_costs/allocation.yaml).
+# See context/code/data/ct_occ863_system_load.md for what each output holds.
+#
+# Usage (from project root):
+#   just -f data/eversource/occ863/Justfile prepare   # fetch, then convert
+#   just -f data/eversource/occ863/Justfile upload
+#   just -f data/eversource/occ863/Justfile clean
+#
+# Re-run one attachment (workbooks must already be in xlsx/):
+#   just -f data/eversource/occ863/Justfile convert-system-load
+#   just -f data/eversource/occ863/Justfile convert-rate-class-load
+#   just -f data/eversource/occ863/Justfile convert-month-hour-mc secondary
+#   just -f data/eversource/occ863/Justfile convert-probability-of-peak
+
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_base := path_local_repo + "/data/eversource/occ863"
+path_local_xlsx := path_local_base + "/xlsx/"
+path_local_parquet := path_local_base + "/parquet/"
+path_s3_xlsx := "s3://data.sb/eversource/occ863/xlsx/"
+path_s3_parquet := "s3://data.sb/eversource/occ863/parquet/"
+path_script := path_local_base + "/convert_occ863_xlsx_to_parquet.py"
+
+# Sync the archived workbooks (attachment-1..4.xlsx) from S3 to local xlsx/.
+fetch:
+    aws s3 sync "{{ path_s3_xlsx }}" "{{ path_local_xlsx }}"
+
+# Convert all three attachment workbooks to parquet in local parquet/.
+convert:
+    uv run python "{{ path_script }}" all \
+      --path-local-xlsx "{{ path_local_xlsx }}" \
+      --path-local-parquet "{{ path_local_parquet }}"
+
+# Attachment 3 -> system_load.parquet and system_monthly_peak_mw.parquet.
+convert-system-load:
+    uv run python "{{ path_script }}" system-load \
+      --path-xlsx "{{ path_local_xlsx }}attachment-3.xlsx" \
+      --path-local-parquet "{{ path_local_parquet }}"
+
+# Attachment 4 -> rate_1_load.parquet, rate_5_load.parquet, rate_7_load.parquet.
+convert-rate-class-load:
+    uv run python "{{ path_script }}" rate-class-load \
+      --path-xlsx "{{ path_local_xlsx }}attachment-4.xlsx" \
+      --path-local-parquet "{{ path_local_parquet }}"
+
+# Attachment 2 page 1 (secondary) or page 2 (primary) -> month_hour_marginal_costs_*.
+convert-month-hour-mc voltage:
+    uv run python "{{ path_script }}" month-hour-mc \
+      --path-xlsx "{{ path_local_xlsx }}attachment-2.xlsx" \
+      --path-local-parquet "{{ path_local_parquet }}" \
+      --voltage {{ voltage }}
+
+# Attachment 2 page 3 -> month_hour_probability_of_peak_*.
+convert-probability-of-peak:
+    uv run python "{{ path_script }}" probability-of-peak \
+      --path-xlsx "{{ path_local_xlsx }}attachment-2.xlsx" \
+      --path-local-parquet "{{ path_local_parquet }}"
+
+# Fetch, then convert. The converters check every output and exit non-zero
+# before writing, so there is no separate validate step. Does not upload.
+prepare: fetch convert
+
+# Sync local parquet/ to S3.
+upload:
+    aws s3 sync "{{ path_local_parquet }}" "{{ path_s3_parquet }}"
+
+# Remove local staging (xlsx/ and parquet/).
+clean:
+    rm -rf "{{ path_local_xlsx }}" "{{ path_local_parquet }}"
+    @echo "Removed {{ path_local_xlsx }} and {{ path_local_parquet }}"

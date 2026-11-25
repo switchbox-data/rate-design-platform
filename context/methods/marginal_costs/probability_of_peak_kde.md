@@ -6,6 +6,8 @@ This document describes the method and the script only. Which load history, whic
 
 The five steps are the reading of Eversource's OCC-733 response (PURA Docket 26-05-10) that reproduces the probability-of-peak table on OCC-863 Attachment 2 page 3. The delimiter in step 3 is the reading that matches that table. OCC-733's sentence says "the maximum hourly load in the year," which read as the single highest hour does not.
 
+The OCC-733 response PDF and its Attachment 1 workbook are at `s3://data.sb/eversource/occ733/`. Attachment 1 is the Company's hourly input to the calculation (gross substation load, behind-the-meter PV, and net load, 2022–2025). The `data/eversource/occ733/` pipeline converts it to `s3://data.sb/eversource/occ733/parquet/hourly_load.parquet` (`just -f data/eversource/occ733/Justfile prepare`, then `upload`).
+
 ---
 
 ## 1. Inputs
@@ -49,7 +51,7 @@ For the target calendar year, count the days $N_{m,d}$ of each month and day typ
 
 $$MC_{m,d,h} = C \times \frac{\mathrm{PoP}_{m,d,h}}{N_{m,d}}$$
 
-Each hour of the 8760 takes its month-hour value from the weekday table or the weekend-and-holiday table, using the same expansion as the month-hour method (`expand_month_hour_mc_to_8760`). The day counts are applied here, not inside the probability. The uniform scale that month-hour uses is not applied: the day counts and the calendar match, so the sum is already $C$.
+Each hour of the 8760 takes its month-hour value from the weekday table or the weekend-and-holiday table, using the same expansion as the month-hour method (`expand_month_hour_to_8760` in [month_hour_allocation.md](month_hour_allocation.md)). The day counts are applied here, not inside the probability. The uniform scale that month-hour uses is not applied: the day counts and the calendar match, so the sum is already $C$.
 
 $MC_h$ is dollars per kW of demand in hour $h$. A customer who uses 1 kWh in that hour is charged $MC_h$ dollars, so the column reads as `$/kWh`.
 
@@ -74,7 +76,7 @@ Other allocations give different hourly series and live in different code:
 - **Top-N load-share** puts the annual cost on the N highest hours of one load year, each in proportion to its load. See [top_n_load_share_allocation.md](top_n_load_share_allocation.md).
 - **Top-N exceedance** weights those same hours by load above a threshold. See [top_n_exceedance_allocation.md](top_n_exceedance_allocation.md).
 - **Seasonal SCR exceedance** splits the year into summer and winter before that exceedance weighting. See [seasonal_scr_exceedance_allocation.md](seasonal_scr_exceedance_allocation.md).
-- **Month-hour expansion** looks up a published month-hour table, including a published probability of peak, and then scales the 8760 so it sums to the annual cost. This method fits the probability from load and does not scale.
+- **Month-hour expansion** looks up a published month-hour table, including a published probability of peak, and then scales the 8760 so it sums to the annual cost. This method fits the probability from load and does not scale. See [month_hour_allocation.md](month_hour_allocation.md).
 
 ---
 

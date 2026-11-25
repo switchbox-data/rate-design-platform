@@ -100,12 +100,14 @@ from utils.data_prep.marginal_costs.mc_manifest import (
     record_mc_write,
     require_published_code,
 )
-from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
-    _parse_bool,
-    expand_month_hour_mc_to_8760,
-    inflate_annual_mc,
+from utils.data_prep.marginal_costs.methods.month_hour import (
+    expand_month_hour_to_8760,
     month_hour_costs_from_probability,
     scale_8760_to_annual,
+)
+from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
+    _parse_bool,
+    inflate_annual_mc,
 )
 from utils.data_prep.marginal_costs.supply_utils import (
     DEFAULT_ISONE_ZONE_LOADS_S3_BASE,
@@ -731,11 +733,10 @@ def _run_isone_month_hour(
     weekend_pop = _read_parquet_any(args.path_weekend_pop, storage_options)
     weekday = month_hour_costs_from_probability(weekday_pop, resolved.allocated, label="weekday")
     weekend = month_hour_costs_from_probability(weekend_pop, resolved.allocated, label="weekend")
-    expanded = expand_month_hour_mc_to_8760(
+    expanded = expand_month_hour_to_8760(
         weekday,
         weekend,
         year,
-        utility,
         include_holidays=args.include_holidays,
         calendar_year=calendar_year,
     )

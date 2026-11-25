@@ -101,7 +101,8 @@ are in its own doc: [ny_dist_mc_bat_methodology.md](ny_dist_mc_bat_methodology.m
 `dollar_year` column to the run year.
 
 CT's default 8760 is the OCC-863 Attachment 2 month-hour expansion
-([ct_eversource_dist_mc_methodology.md](ct_eversource_dist_mc_methodology.md) §7). After the
+([month_hour_allocation.md](month_hour_allocation.md);
+[ct_eversource_dist_mc_methodology.md](ct_eversource_dist_mc_methodology.md) §7). After the
 lookup, every hour is multiplied by one factor so the year sums to this same `$21.22/kW-yr`.
 The PoP paths (`dist_mc_method` of `pop_occ863` or `pop_isone_zone`) spread that scalar over
 their top hours instead. Neither path CPI-adjusts: `--target-dollar-year 2026` matches the
