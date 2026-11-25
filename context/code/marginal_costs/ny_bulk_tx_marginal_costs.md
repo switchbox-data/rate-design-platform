@@ -79,7 +79,7 @@ High-level flow:
 2. Average `v_constraint_group_kw_yr` over the constraint groups that list each paying locality (`ROS`, `LHV`, `NYC`, `LI`) to get one `$/kW-yr` per paying locality (`compute_paying_locality_costs`).
 3. Read the utility's ICAP rows from the zone mapping (`icap_locality`, `gen_capacity_zone`, `capacity_weight`). Map each `icap_locality` to a nested locality (`NYCA`, `GHIJ` → `LHV`, `NYC`, `LI`).
 4. Build a load profile for each of those nested localities by summing NYISO zone loads (`s3://data.sb/nyiso/hourly_demand/zones/`).
-5. For each ICAP row, allocate the paying locality's `$/kW-yr` × `capacity_weight` onto the SCR hours of that row's nested-locality load, and sum the rows into one utility signal (`compute_utility_bulk_tx_signal`). When `--load-year` differs from `--year`, timestamps are remapped after allocation.
+5. For each ICAP row, allocate the paying locality's `$/kW-yr` × `capacity_weight` onto that row's nested-locality load with seasonal SCR exceedance (`seasonal_scr_exceedance` in `methods/seasonal_scr_exceedance.py`; see [seasonal_scr_exceedance_allocation.md](../../methods/marginal_costs/seasonal_scr_exceedance_allocation.md)), and sum the rows into one utility signal (`compute_utility_bulk_tx_signal`). The NYISO module chooses the scalar and the load; the formula lives in the method script. When `--load-year` differs from `--year`, timestamps are remapped after allocation.
 6. Save 8760 output to:
    `s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility={utility}/year={year}/data.parquet`
 

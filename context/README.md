@@ -83,10 +83,11 @@ Allocation formulas and the state files that choose their inputs. The catalog is
 | README.md                                 | Catalog of the allocation methods and the other files in this directory. Open this first. |
 | top_n_load_share_allocation.md            | Top-N load-share formula.                                                                 |
 | top_n_exceedance_allocation.md            | Top-N exceedance formula.                                                                 |
+| seasonal_scr_exceedance_allocation.md     | Seasonal SCR exceedance formula.                                                          |
 | probability_of_peak_kde.md                | KDE probability-of-peak formula.                                                          |
 | ny_dist_mc_bat_methodology.md             | NY sub-transmission and distribution `$/kW-yr` from the MCOS workbooks.                   |
 | ny_mcos_studies_comparison.md             | Comparison of the seven NY 2025 MCOS studies.                                             |
-| ny_bulk_transmission_marginal_cost.md     | Choosing a NY bulk-transmission marginal-cost source.                                     |
+| ny_bulk_transmission_marginal_cost.md     | Choosing a NY bulk-transmission `$/kW-yr`, and the implemented seasonal SCR inputs.       |
 | ri_bulk_transmission_marginal_cost.md     | RI bulk transmission: sources and the implemented exceedance inputs.                      |
 | ri_rie_dist_mc_methodology.md             | RIE distribution `$/kW-yr` and its load-share inputs.                                     |
 | ct_bulk_transmission_marginal_cost.md     | CT bulk transmission: `pop_kde`, `month_hour`, and `isone_aesc_ptf`.                      |

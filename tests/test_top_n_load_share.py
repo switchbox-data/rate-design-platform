@@ -123,7 +123,6 @@ def test_state_configs_name_this_method_and_its_output() -> None:
     assert ny["output_base"] == "s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/"
     assert ny["inputs"]["load"]["path"] == "s3://data.sb/nyiso/hourly_demand/utilities/"
     assert "dollar_year_column" not in ny["inputs"]["annual_cost_kw_year"]
-    assert "bulk_tx" not in _allocation("ny")
 
     md = _allocation("md")
     dist = md["dist_and_sub_tx"]

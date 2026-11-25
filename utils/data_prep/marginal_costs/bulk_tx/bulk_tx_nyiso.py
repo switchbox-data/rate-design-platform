@@ -4,7 +4,13 @@ Methodology
 -----------
 Derives scalar costs for paying localities (ROS/LHV/NYC/LI) from NYISO
 constraint groups, then allocates each utility's weighted locality costs onto
-SCR hours identified from that utility's mapped ICAP localities.
+SCR hours of that utility's mapped ICAP localities.
+
+The hourly formula is seasonal SCR exceedance
+(``methods/seasonal_scr_exceedance.py``). This module chooses the ``$/kW-yr``
+and the nested-locality load, calls that function once per utility ICAP row,
+and sums the hourly costs. See
+``context/methods/marginal_costs/seasonal_scr_exceedance_allocation.md``.
 
 For ISO-NE bulk transmission, see ``bulk_tx_isone.py``.
 For the CLI entrypoint, see ``generate_bulk_tx_mc.py``.
@@ -17,13 +23,13 @@ import io
 import polars as pl
 from cloudpathlib import S3Path
 
+from utils.data_prep.marginal_costs.methods.seasonal_scr_exceedance import (
+    seasonal_scr_exceedance,
+)
 from utils.data_prep.marginal_costs.supply_utils import (
     build_cairo_8760_timestamps,
 )
-from utils.pre.season_config import (
-    DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS,
-    derive_summer_months,
-)
+from utils.pre.season_config import DEFAULT_SEASONAL_DISCOUNT_WINTER_MONTHS
 
 # ── NYISO constants ───────────────────────────────────────────────────────────
 
@@ -100,101 +106,6 @@ def load_constraint_group_table(path: str) -> pl.DataFrame:
     return df
 
 
-# ── SCR allocation helpers ───────────────────────────────────────────────────
-
-
-def identify_scr_hours(
-    load_df: pl.DataFrame,
-    n_hours_per_season: int = N_SCR_HOURS_PER_SEASON,
-    winter_months: list[int] | None = None,
-) -> pl.DataFrame:
-    """Identify top-N SCR hours in each season."""
-    if winter_months is None:
-        winter_months = list(DEFAULT_SCR_WINTER_MONTHS)
-    summer_months = derive_summer_months(winter_months)
-
-    result = load_df.with_columns(
-        pl.when(pl.col("timestamp").dt.month().is_in(summer_months))
-        .then(pl.lit("summer"))
-        .otherwise(pl.lit("winter"))
-        .alias("season")
-    )
-
-    summer = result.filter(pl.col("season") == "summer").sort("load_mw", descending=True)
-    winter = result.filter(pl.col("season") == "winter").sort("load_mw", descending=True)
-
-    if summer.height < n_hours_per_season or winter.height < n_hours_per_season:
-        raise ValueError("Not enough hours to identify SCR windows")
-
-    summer_scr_ts = summer.head(n_hours_per_season)["timestamp"].to_list()
-    winter_scr_ts = winter.head(n_hours_per_season)["timestamp"].to_list()
-
-    result = result.with_columns(
-        (pl.col("timestamp").is_in(summer_scr_ts) | pl.col("timestamp").is_in(winter_scr_ts)).alias("is_scr")
-    )
-
-    n_scr_total = result.filter(pl.col("is_scr")).height
-    expected = 2 * n_hours_per_season
-    if n_scr_total != expected:
-        raise ValueError(f"Expected {expected} SCR hours, got {n_scr_total}")
-
-    return result
-
-
-def allocate_bulk_tx_to_hours(
-    load_with_scr: pl.DataFrame,
-    v_constraint_group_kw_yr: float,
-    n_hours_per_season: int = N_SCR_HOURS_PER_SEASON,
-) -> pl.DataFrame:
-    """Allocate annual value to hours using two-level SCR exceedance weights."""
-    season_stats = load_with_scr.group_by("season").agg(
-        pl.col("load_mw").max().alias("peak_mw"),
-        pl.col("load_mw").top_k(n_hours_per_season + 1).min().alias("threshold_mw"),
-    )
-
-    peaks = dict(zip(season_stats["season"], season_stats["peak_mw"], strict=True))
-    thresholds = dict(zip(season_stats["season"], season_stats["threshold_mw"], strict=True))
-
-    tau_min = min(thresholds.values())
-    summer_surplus = peaks["summer"] - tau_min
-    winter_surplus = peaks["winter"] - tau_min
-    total_surplus = summer_surplus + winter_surplus
-    if total_surplus <= 0:
-        raise ValueError("Invalid SCR surplus; cannot compute seasonal weights")
-
-    phi_s = summer_surplus / total_surplus
-    phi_w = 1.0 - phi_s
-
-    season_phi = season_stats.with_columns(
-        pl.when(pl.col("season") == "summer").then(phi_s).otherwise(phi_w).alias("phi")
-    ).select("season", "threshold_mw", "phi")
-
-    with_exc = load_with_scr.join(season_phi, on="season").with_columns(
-        pl.when(pl.col("is_scr"))
-        .then((pl.col("load_mw") - pl.col("threshold_mw")).clip(lower_bound=0.0))
-        .otherwise(0.0)
-        .alias("exceedance")
-    )
-
-    exc_sums = with_exc.group_by("season").agg(pl.col("exceedance").sum().alias("exc_sum"))
-    for exc_sum in exc_sums["exc_sum"].to_list():
-        if float(exc_sum) <= 0:
-            raise ValueError("Zero seasonal exceedance; cannot allocate SCR weights")
-
-    result = (
-        with_exc.join(exc_sums, on="season")
-        .with_columns((pl.col("exceedance") / pl.col("exc_sum") * pl.col("phi")).alias("weight"))
-        .with_columns((pl.col("weight") * v_constraint_group_kw_yr).alias("bulk_tx_cost_enduse"))
-        .select("timestamp", "bulk_tx_cost_enduse")
-    )
-
-    weight_sum = float((result["bulk_tx_cost_enduse"] / v_constraint_group_kw_yr).sum())
-    if abs(weight_sum - 1.0) > 1e-4:
-        raise ValueError(f"Global SCR weights sum to {weight_sum:.6f}, expected 1.0")
-
-    return result
-
-
 # ── Constraint-group engine ──────────────────────────────────────────────────
 
 
@@ -255,7 +166,12 @@ def compute_utility_bulk_tx_signal(
     n_scr: int,
     winter_months: list[int],
 ) -> pl.DataFrame:
-    """Compute utility bulk TX hourly signal from utility ICAP locality rows."""
+    """Compute utility bulk TX hourly signal from utility ICAP locality rows.
+
+    Each row is one call to :func:`seasonal_scr_exceedance`: the paying
+    locality's ``$/kW-yr`` times ``capacity_weight``, on that row's
+    nested-locality load. The hourly costs are summed.
+    """
     component_frames: list[pl.DataFrame] = []
 
     for row in utility_icap_rows.iter_rows(named=True):
@@ -281,15 +197,12 @@ def compute_utility_bulk_tx_signal(
 
         component_value = paying_locality_costs[gen_capacity_zone] * capacity_weight
         load_profile = locality_profiles[nested_locality]
-        with_scr = identify_scr_hours(
+        component_hourly = seasonal_scr_exceedance(
             load_profile,
-            n_hours_per_season=n_scr,
-            winter_months=winter_months,
-        )
-        component_hourly = allocate_bulk_tx_to_hours(
-            with_scr,
-            v_constraint_group_kw_yr=component_value,
-            n_hours_per_season=n_scr,
+            component_value,
+            n_scr,
+            winter_months,
+            output_column="bulk_tx_cost_enduse",
         )
         component_frames.append(component_hourly)
 

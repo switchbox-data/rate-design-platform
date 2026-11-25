@@ -205,14 +205,14 @@ The implemented run uses top-N exceedance with N = 100 on the sum of all eight I
 
 ## Comparison with NY approach
 
-| Feature                  | NY                                  | RI                                          |
-| ------------------------ | ----------------------------------- | ------------------------------------------- |
-| Best available MC source | OATT ATRR (embedded cost proxy)     | AESC avoided PTF cost (marginal cost)       |
-| Institutional backing    | None for bulk TX MC                 | AESC is the regional standard, used by PUC  |
-| Data quality             | OATT embedded rate only             | AESC provides year-by-year LRMC projections |
-| Upper bound              | OATT ATRR / peak demand             | RNS rate                                    |
-| Forward-looking study    | FERC Order 1920 (not yet available) | ISO-NE 2050 Transmission Study (2024)       |
-| Allocation to peaks      | NYISO zonal load, top N hours       | NE system load, top-100 exceedance          |
+| Feature                  | NY                                                       | RI                                          |
+| ------------------------ | -------------------------------------------------------- | ------------------------------------------- |
+| Best available MC source | OATT ATRR (embedded cost proxy)                          | AESC avoided PTF cost (marginal cost)       |
+| Institutional backing    | None for bulk TX MC                                      | AESC is the regional standard, used by PUC  |
+| Data quality             | OATT embedded rate only                                  | AESC provides year-by-year LRMC projections |
+| Upper bound              | OATT ATRR / peak demand                                  | RNS rate                                    |
+| Forward-looking study    | FERC Order 1920 (not yet available)                      | ISO-NE 2050 Transmission Study (2024)       |
+| Allocation to peaks      | Nested-locality load, seasonal SCR (40 hours per season) | NE system load, top-100 exceedance          |
 
 RI is in a better position than NY for this component: the institutional framework (AESC + explicit RNS allocation) provides a cleaner marginal cost signal than anything available in NYISO territory.
 

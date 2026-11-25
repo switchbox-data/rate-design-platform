@@ -58,6 +58,7 @@ $MC_h$ is dollars per kW of demand in hour $h$. A customer who uses 1 kWh in tha
 Other peak-hour allocations give different hourly series and live in different code:
 
 - **Top-N exceedance** weights each top-N hour by its load minus the highest load below the $N$th hour. It puts much more weight on the very top hours, and the $N$th hour gets almost nothing. See [top_n_exceedance_allocation.md](top_n_exceedance_allocation.md).
+- **Seasonal SCR exceedance** splits the year into summer and winter, marks the top $N$ hours of each, and splits the annual cost between the seasons before weighting hours by exceedance. See [seasonal_scr_exceedance_allocation.md](seasonal_scr_exceedance_allocation.md).
 - **KDE probability of peak** builds a month × day-type × hour probability from several years of load. See [probability_of_peak_kde.md](probability_of_peak_kde.md).
 
 Older docs and CLI flags sometimes call this method "PoP" (`--method pop`) or "PCAF load-share". Those names mean the formula in §2, not the KDE probability of peak.

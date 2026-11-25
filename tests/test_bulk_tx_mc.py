@@ -11,13 +11,14 @@ import pytest
 
 from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_nyiso import (
     DEFAULT_SCR_WINTER_MONTHS,
-    allocate_bulk_tx_to_hours,
     build_nested_locality_load_profiles,
     compute_paying_locality_costs,
     compute_utility_bulk_tx_signal,
-    identify_scr_hours,
     load_constraint_group_table,
     prepare_output,
+)
+from utils.data_prep.marginal_costs.methods.seasonal_scr_exceedance import (
+    seasonal_scr_exceedance,
 )
 
 
@@ -109,27 +110,14 @@ class TestConstraintGroupTable:
         }
 
 
-class TestScrAllocation:
-    def test_identify_scr_hours_has_80_hours(self) -> None:
-        load_df = _make_hourly_load_profile()
-        result = identify_scr_hours(load_df, n_hours_per_season=40)
-        assert result.filter(pl.col("is_scr")).height == 80
-
-    def test_scr_weights_sum_to_one(self) -> None:
-        load_df = _make_hourly_load_profile()
-        with_scr = identify_scr_hours(
-            load_df,
-            n_hours_per_season=40,
-            winter_months=list(DEFAULT_SCR_WINTER_MONTHS),
-        )
-        weights = allocate_bulk_tx_to_hours(with_scr, v_constraint_group_kw_yr=1.0)
-        assert abs(float(weights["bulk_tx_cost_enduse"].sum()) - 1.0) < 1e-4
-
-    def test_1kw_recovery(self) -> None:
-        load_df = _make_hourly_load_profile()
-        with_scr = identify_scr_hours(load_df, n_hours_per_season=40)
-        allocated = allocate_bulk_tx_to_hours(with_scr, v_constraint_group_kw_yr=47.5)
-        assert abs(float(allocated["bulk_tx_cost_enduse"].sum()) - 47.5) < 1e-3
+def _allocate(load_df: pl.DataFrame, annual_cost_kw_year: float) -> pl.DataFrame:
+    return seasonal_scr_exceedance(
+        load_df,
+        annual_cost_kw_year,
+        40,
+        list(DEFAULT_SCR_WINTER_MONTHS),
+        output_column="bulk_tx_cost_enduse",
+    )
 
 
 class TestLocalityProfiles:
@@ -179,6 +167,7 @@ class TestUtilityAllocationBehavior:
 
         n_nonzero = utility_hourly.filter(pl.col("bulk_tx_cost_enduse") > 0).height
         assert n_nonzero == 80
+        assert float(utility_hourly["bulk_tx_cost_enduse"].sum()) == pytest.approx(50.0)
 
     def test_two_locality_blend_can_exceed_80_nonzero_hours(self) -> None:
         utility_icap_rows = pl.DataFrame(
@@ -204,13 +193,13 @@ class TestUtilityAllocationBehavior:
 
         n_nonzero = utility_hourly.filter(pl.col("bulk_tx_cost_enduse") > 0).height
         assert n_nonzero > 80
+        assert float(utility_hourly["bulk_tx_cost_enduse"].sum()) == pytest.approx(0.87 * 80.0 + 0.13 * 20.0)
 
 
 class TestPrepareOutput:
     def test_prepare_output_8760(self) -> None:
         load_df = _make_hourly_load_profile()
-        with_scr = identify_scr_hours(load_df, n_hours_per_season=40)
-        allocated = allocate_bulk_tx_to_hours(with_scr, v_constraint_group_kw_yr=30.0)
+        allocated = _allocate(load_df, 30.0)
         output = prepare_output(allocated, year=2025)
 
         assert output.height == 8760
@@ -221,8 +210,7 @@ class TestTimestampRemap:
     def test_bulk_tx_remap_preserves_allocation(self) -> None:
         """Remapping 2018->2025 timestamps preserves ordinal positions and totals."""
         load_df = _make_hourly_load_profile(year=2018)
-        with_scr = identify_scr_hours(load_df, n_hours_per_season=40)
-        allocated = allocate_bulk_tx_to_hours(with_scr, v_constraint_group_kw_yr=30.0)
+        allocated = _allocate(load_df, 30.0)
 
         remapped = allocated.with_columns(pl.col("timestamp").dt.offset_by(f"{2025 - 2018}y"))
 
