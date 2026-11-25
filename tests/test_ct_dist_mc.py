@@ -1,7 +1,7 @@
 """Tests for CT (Eversource/CL&P) sub-TX + distribution marginal cost allocation.
 
-CT reuses the generic ISO-native PoP allocator (generate_utility_tx_dx_mc.py) already
-tested for NY/RI/MD in test_marginal_cost_allocation.py and test_tx_dx_load_layouts.py.
+CT's pop paths call top_n_load_share, the same formula NY, RI, and MD distribution
+use (tested in test_marginal_cost_allocation.py and test_top_n_load_share.py).
 These tests cover the CT-specific wiring: the ISO-NE zone mapping (both CT utilities
 map to the single CT load zone), and an end-to-end PoP allocation on a synthetic
 CT-shaped (summer-peaking) load profile using the secondary loss-adjusted
@@ -23,9 +23,8 @@ from data.isone.hourly_demand.aggregate_isone_utility_loads import (
     get_utility_zone_mapping,
 )
 from data.isone.zone_mapping.generate_zone_mapping_csv import build_zone_mapping
+from utils.data_prep.marginal_costs.methods.top_n_load_share import top_n_load_share
 from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
-    allocate_costs_to_hours,
-    calculate_pop_weights,
     get_marginal_cost_for_utility,
     load_utility_load_file,
     normalize_load_to_cairo_8760,
@@ -193,32 +192,31 @@ class TestCtPopAllocationEndToEnd:
         """Sum of allocated hourly cost equals the input $/kW-yr, exactly."""
         load_df = _make_ct_summer_peaking_load()
         normalized = normalize_load_to_cairo_8760(load_df, "ct_eversource", 2025)
-        weighted = calculate_pop_weights(normalized, n_hours=100)
-
         mc_df = pl.read_csv(CT_MC_TABLE_PATH)
         mc = get_marginal_cost_for_utility(mc_df, "ct_eversource")
 
-        result = allocate_costs_to_hours(weighted, mc)
+        result = top_n_load_share(normalized, mc, 100)
         total = float(result["mc_total_per_kwh"].sum())
         assert total == pytest.approx(mc, rel=1e-6)
+        assert result.height == 8760
 
     def test_peak_hours_concentrate_in_summer(self) -> None:
         """Top-100 PoP hours should fall almost entirely in Jun-Sep, consistent
         with CL&P's own summer-peaking finding (MCOS-1 testimony)."""
         load_df = _make_ct_summer_peaking_load()
         normalized = normalize_load_to_cairo_8760(load_df, "ct_eversource", 2025)
-        weighted = calculate_pop_weights(normalized, n_hours=100)
+        allocated = top_n_load_share(normalized, 21.22, 100)
 
-        peak_months = weighted.filter(pl.col("is_peak"))["timestamp"].dt.month().to_list()
+        peak_months = allocated.filter(pl.col("mc_total_per_kwh") > 0)["timestamp"].dt.month().to_list()
         assert all(m in {6, 7, 8, 9} for m in peak_months)
         assert sum(1 for m in peak_months if m in {7, 8}) / len(peak_months) > 0.5
 
     def test_no_peak_hours_in_winter(self) -> None:
         load_df = _make_ct_summer_peaking_load()
         normalized = normalize_load_to_cairo_8760(load_df, "ct_eversource", 2025)
-        weighted = calculate_pop_weights(normalized, n_hours=100)
+        allocated = top_n_load_share(normalized, 21.22, 100)
 
-        peak_months = set(weighted.filter(pl.col("is_peak"))["timestamp"].dt.month().to_list())
+        peak_months = set(allocated.filter(pl.col("mc_total_per_kwh") > 0)["timestamp"].dt.month().to_list())
         assert peak_months.isdisjoint({11, 12, 1, 2, 3})
 
 

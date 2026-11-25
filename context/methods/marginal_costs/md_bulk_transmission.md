@@ -8,6 +8,7 @@ values sourced from PJM's published documents.
 
 Related docs:
 
+- `context/methods/marginal_costs/top_n_load_share_allocation.md` — the peak N load hours (PCAF load-share) formula used in Step 3
 - `context/domain/marginal_costs/pjm_supply_capacity_marginal_cost.md` — PJM capacity (RPM/5-CP); **do not conflate with bulk TX**
 - `context/methods/marginal_costs/ny_bulk_transmission_marginal_cost.md` — NY approach (OATT ATRR proxy, same method)
 - `context/methods/marginal_costs/ri_bulk_transmission_marginal_cost.md` — RI approach (AESC avoided PTF, cleaner LRMC)
@@ -275,11 +276,8 @@ billing integrated over the year. It is the correct annual scalar to use for the
 - The **full-year PCAF** (Steps 2–3) answers: _Which specific hours drive that cost?_
   Answer: the top-150 load hours across the full year.
 
-They compose cleanly:
-
-    cost_h = (load_h / Σ_{top-150} load) × B    for the 150 peak hours
-    cost_h = 0                                    for all other hours
-    Σ cost_h across all 8760 hours = B            ← full annual cost recovered ✓
+They compose cleanly: B is the `$/kW-yr` input to the peak N load hours allocation with N = 150
+([top_n_load_share_allocation.md](top_n_load_share_allocation.md)), and the 8760 it returns sums to B.
 
 **Rationale for blending rather than two separate rate-period passes:**
 
@@ -333,30 +331,17 @@ use it to restrict which hours are eligible for PCAF allocation.
 Apply the **PCAF load-share** method (following E3's ICC-VDER Appendix C prose — note that E3's
 Figure 42 gives a different, threshold-excess formula; see
 [E3's Figure 42 says something different](#e3s-figure-42-says-something-different--and-the-difference-is-not-small))
-to allocate the blended annual $/kW-yr across the top-K hours of the full year:
+to allocate the blended annual $/kW-yr across the top-K hours of the full year. PCAF load-share is
+the platform's peak N load hours allocation; the formula and its properties are in
+[top_n_load_share_allocation.md](top_n_load_share_allocation.md). The MD inputs are:
 
-1. Load the PJM zone hourly demand for the relevant utility and year.
-   Source: `s3://data.sb/pjm/hourly_demand/utilities/utility={name}/year={year}/data.parquet`
-2. Rank all 8760 hours by `load_mw` descending.
-3. Select the **top K = 150 hours** by load.
-4. Compute each hour's **load-share allocation factor**:
+- **Load curve:** the utility's PJM hourly demand,
+  `s3://data.sb/pjm/hourly_demand/utilities/utility={name}/year={year}/data.parquet`, full year.
+- **Annual cost:** the blended NITS rate B from Step 1.
+- **N:** K = 150.
 
-       AF_h = load_h / Σ(load in top-K hours)
-
-   where `load_h` is the zonal demand in hour `h`, and the sum is over all K = 150 peak hours.
-   The sum of all AFs equals exactly 1.0.
-
-5. Compute each hour's allocated cost:
-
-       cost_h = AF_h × annual_cost_kw_yr
-
-   This distributes the full annual $/kW-yr across exactly 150 hours.
-   All other 8610 hours (8760 − 150) receive **zero** marginal cost.
-
-6. **Validate:** sum of `cost_h` across all 8760 hours = blended annual $/kW-yr (tolerance < 0.01).
-
-**Key property: exactly 150 non-zero hours.** All other hours have zero bulk TX marginal cost.
-This is by construction — only the top-150 full-year hours receive allocation.
+The other 8,610 hours get zero bulk TX marginal cost. `compute_pjm_bulk_tx_mc` checks that the
+8760 sums to B and has exactly 150 nonzero hours.
 
 ### Why K = 150? E3's approach vs. PJM's billing mechanism
 
@@ -425,9 +410,11 @@ choice is explicit, not inadvertent.
 
 ### Why PCAF load-share (not exceedance weighting)?
 
-Our existing platform uses PoP exceedance weighting (`allocate_annual_exceedance_to_hours()` in
-`supply_utils.py`), which allocates proportionally to each hour's exceedance above a threshold.
-For MD bulk TX, we instead use **PCAF load-share** weighting because:
+PCAF load-share is the peak N load hours allocation that distribution PoP also uses
+([top_n_load_share_allocation.md](top_n_load_share_allocation.md)). Exceedance weighting
+(`allocate_annual_exceedance_to_hours()` in `supply_utils.py`) is a different method:
+it allocates proportionally to each hour's load above a threshold. For MD bulk TX,
+we use **PCAF load-share** (with N = 150) because:
 
 1. **E3 precedent:** E3's Illinois methodology (the official source) describes raw load-share
    weighting in its Appendix C prose: _"based on the share of load in each of these hours
@@ -439,14 +426,8 @@ For MD bulk TX, we instead use **PCAF load-share** weighting because:
 3. **Matching official methodology:** When an official state-commissioned study exists for the
    same RTO (PJM) and cost component (transmission capacity), we follow it.
 
-**PCAF formula (as implemented, per E3 Appendix C prose):**
-
-    PCAF_h = L_h / Σ_{k ∈ top-K} L_k     for h in top-K hours
-    PCAF_h = 0                              for all other hours
-
-    cost_h = PCAF_h × annual_$/kW-yr
-
-Where `L_h` is the hourly load (MW) in hour `h`. The resulting hourly costs sum to the annual rate.
+The implemented formula is E3's Appendix C prose, written out in
+[top_n_load_share_allocation.md](top_n_load_share_allocation.md) §2.
 
 **Source:** [E3 ICC-VDER Report, Illinois, Jan 2025](https://www.ethree.com/wp-content/uploads/2025/01/ICC-VDER-Report-FINAL-2025-1-17.pdf),
 Appendix C, pp. 98-99.
@@ -615,8 +596,9 @@ hardcoded) was chosen because:
 
 - [x] `utils/data_prep/marginal_costs/bulk_tx/bulk_tx_pjm.py` implemented:
   - Reads `nits_rates.csv`, computes day-weighted blended rate per year
-  - Loads zone hourly demand from S3, selects top-K=150 peak hours (full year)
-  - Applies PCAF load-share weighting to allocate annual cost to peak hours
+  - Loads zone hourly demand from S3 on the CAIRO 8760 (full year)
+  - Calls `methods/top_n_load_share.py` with N = 150
+    ([top_n_load_share_allocation.md](top_n_load_share_allocation.md))
   - Outputs 8760-row DataFrame with `timestamp`, `bulk_tx_cost_enduse`
   - Validates that allocated cost sums to the blended annual rate
 - [x] `generate_bulk_tx_mc.py` extended with `--iso pjm` path:

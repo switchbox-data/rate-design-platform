@@ -3,8 +3,8 @@
 Covers:
 - compute_blended_nits_rate: day-weighting arithmetic, leap/non-leap year,
   edge cases (equal Jan/Jun rates, missing data)
-- allocate_pcaf: 1 kW cost recovery, exactly K non-zero hours, correct peak
-  selection, error on insufficient data
+- top_n_load_share (PCAF): 1 kW cost recovery, exactly K non-zero hours
+  inside the full series, correct peak selection, error on insufficient data
 - Utility → NITS zone mapping and VALID_PJM_UTILITIES completeness
 - load_nits_rates: smoke test against the real committed CSV
 """
@@ -18,12 +18,13 @@ import polars as pl
 import pytest
 
 from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_pjm import (
+    DEFAULT_K_PEAK_HOURS,
     UTILITY_TO_NITS_ZONE,
     VALID_PJM_UTILITIES,
-    allocate_pcaf,
     compute_blended_nits_rate,
     load_nits_rates,
 )
+from utils.data_prep.marginal_costs.methods.top_n_load_share import top_n_load_share
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -150,7 +151,16 @@ class TestComputeBlendedNitsRate:
         assert dpl_result == pytest.approx(expected_dpl, rel=1e-9)
 
 
-# ── allocate_pcaf ─────────────────────────────────────────────────────────────
+# ── top-N load-share as PJM PCAF ─────────────────────────────────────────────
+
+
+def _allocate_pcaf(load_df: pl.DataFrame, annual_cost_kw_year: float, k_peak_hours: int) -> pl.DataFrame:
+    return top_n_load_share(
+        load_df,
+        annual_cost_kw_year,
+        k_peak_hours,
+        output_column="bulk_tx_cost_enduse",
+    )
 
 
 class TestAllocatePcaf:
@@ -158,44 +168,45 @@ class TestAllocatePcaf:
         """Sum of allocated costs must equal the annual rate (1 kW basis)."""
         load_df = _make_load_df()
         rate = 57.74
-        result = allocate_pcaf(load_df, annual_cost_kw_year=rate, k_peak_hours=150)
+        result = _allocate_pcaf(load_df, annual_cost_kw_year=rate, k_peak_hours=150)
         total = float(result["bulk_tx_cost_enduse"].sum())
         assert total == pytest.approx(rate, rel=1e-6)
 
-    def test_exactly_k_nonzero_rows(self) -> None:
-        """allocate_pcaf returns exactly K rows, all non-zero."""
+    def test_full_series_with_exactly_k_nonzero_hours(self) -> None:
+        """The method returns every input hour, with cost on exactly K of them."""
         load_df = _make_load_df()
         k = 150
-        result = allocate_pcaf(load_df, annual_cost_kw_year=50.0, k_peak_hours=k)
-        assert result.height == k
-        assert result.filter(pl.col("bulk_tx_cost_enduse") <= 0).height == 0
+        result = _allocate_pcaf(load_df, annual_cost_kw_year=50.0, k_peak_hours=k)
+        assert result.height == load_df.height
+        assert result.filter(pl.col("bulk_tx_cost_enduse") > 0).height == k
+        assert result.filter(pl.col("bulk_tx_cost_enduse") < 0).height == 0
 
-    def test_default_k_is_150(self) -> None:
-        load_df = _make_load_df()
-        result = allocate_pcaf(load_df, annual_cost_kw_year=50.0)
-        assert result.height == 150
+    def test_pjm_default_k_is_150(self) -> None:
+        assert DEFAULT_K_PEAK_HOURS == 150
+        result = _allocate_pcaf(_make_load_df(), annual_cost_kw_year=50.0, k_peak_hours=DEFAULT_K_PEAK_HOURS)
+        assert result.filter(pl.col("bulk_tx_cost_enduse") > 0).height == 150
 
     def test_custom_k(self) -> None:
         load_df = _make_load_df()
         for k in [5, 50, 200]:
-            result = allocate_pcaf(load_df, annual_cost_kw_year=50.0, k_peak_hours=k)
-            assert result.height == k
+            result = _allocate_pcaf(load_df, annual_cost_kw_year=50.0, k_peak_hours=k)
+            assert result.filter(pl.col("bulk_tx_cost_enduse") > 0).height == k
             assert float(result["bulk_tx_cost_enduse"].sum()) == pytest.approx(50.0, rel=1e-6)
 
     def test_peak_hours_are_highest_load_hours(self) -> None:
         """The K allocated hours must be the K highest-load hours in the year."""
         load_df = _make_load_df()
         k = 150
-        result = allocate_pcaf(load_df, annual_cost_kw_year=50.0, k_peak_hours=k)
+        result = _allocate_pcaf(load_df, annual_cost_kw_year=50.0, k_peak_hours=k)
 
         top_k_ts = set(load_df.sort("load_mw", descending=True).head(k)["timestamp"].to_list())
-        allocated_ts = set(result["timestamp"].to_list())
+        allocated_ts = set(result.filter(pl.col("bulk_tx_cost_enduse") > 0)["timestamp"].to_list())
         assert allocated_ts == top_k_ts
 
     def test_proportional_to_load(self) -> None:
         """Higher-load hours receive proportionally larger allocations."""
         load_df = _make_load_df()
-        result = allocate_pcaf(load_df, annual_cost_kw_year=50.0, k_peak_hours=150).sort(
+        result = _allocate_pcaf(load_df, annual_cost_kw_year=50.0, k_peak_hours=150).sort(
             "bulk_tx_cost_enduse", descending=True
         )
 
@@ -207,7 +218,7 @@ class TestAllocatePcaf:
         assert result["timestamp"][0] == max_load_ts
 
     def test_cost_sums_to_rate_with_uniform_load(self) -> None:
-        """With uniform load, all K hours get equal share = rate / K."""
+        """With uniform load, each of the K hours gets an equal share of rate / K."""
         n = 8760
         timestamps = pl.datetime_range(
             datetime(2025, 1, 1, 0),
@@ -218,11 +229,12 @@ class TestAllocatePcaf:
         uniform_load = pl.DataFrame({"timestamp": timestamps, "load_mw": [100.0] * n})
         rate = 60.0
         k = 150
-        result = allocate_pcaf(uniform_load, annual_cost_kw_year=rate, k_peak_hours=k)
+        result = _allocate_pcaf(uniform_load, annual_cost_kw_year=rate, k_peak_hours=k)
 
-        # Every allocated hour should receive rate / K
+        nonzero = result.filter(pl.col("bulk_tx_cost_enduse") > 0)
+        assert nonzero.height == k
         expected_per_hour = rate / k
-        for cost in result["bulk_tx_cost_enduse"].to_list():
+        for cost in nonzero["bulk_tx_cost_enduse"].to_list():
             assert cost == pytest.approx(expected_per_hour, rel=1e-9)
 
     def test_raises_on_insufficient_hours(self) -> None:
@@ -234,18 +246,19 @@ class TestAllocatePcaf:
             eager=True,
         )
         small_df = pl.DataFrame({"timestamp": timestamps, "load_mw": [1000.0] * len(timestamps)})
-        with pytest.raises(ValueError, match="need at least"):
-            allocate_pcaf(small_df, annual_cost_kw_year=50.0, k_peak_hours=150)
+        with pytest.raises(ValueError, match="needs at least"):
+            _allocate_pcaf(small_df, annual_cost_kw_year=50.0, k_peak_hours=150)
 
     def test_raises_on_zero_total_load(self) -> None:
         load_df = _make_load_df().with_columns(pl.lit(0.0).alias("load_mw"))
         with pytest.raises(ValueError, match="zero or negative"):
-            allocate_pcaf(load_df, annual_cost_kw_year=50.0, k_peak_hours=150)
+            _allocate_pcaf(load_df, annual_cost_kw_year=50.0, k_peak_hours=150)
 
     def test_output_columns(self) -> None:
         load_df = _make_load_df()
-        result = allocate_pcaf(load_df, annual_cost_kw_year=50.0)
-        assert set(result.columns) == {"timestamp", "bulk_tx_cost_enduse"}
+        result = _allocate_pcaf(load_df, annual_cost_kw_year=50.0, k_peak_hours=DEFAULT_K_PEAK_HOURS)
+        assert result.columns == ["timestamp", "bulk_tx_cost_enduse"]
+        assert result.height == load_df.height
 
 
 # ── compute_pjm_bulk_tx_mc load year vs NITS year ─────────────────────────────

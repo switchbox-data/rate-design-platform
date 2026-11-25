@@ -190,7 +190,8 @@ weekday vs weekend-and-holiday the same way distribution does. The 8760 sums to 
 annual total. `create-dist-mc-data` uses two of the cost outputs. Its default, `dist_mc_method=month_hour`,
 expands the secondary weekday and weekend-and-holiday month-hour parquets. Its first fallback,
 `dist_mc_method=pop_occ863`, passes `system_load.parquet` as `--path-utility-load`. The
-allocator keeps the requested year and ranks the top 100 hours of that substation series. The
+allocator keeps the requested year and ranks the top 100 hours of that substation series
+(`context/methods/marginal_costs/top_n_load_share_allocation.md`). The
 residential rate-class files are a class shape; they are not the PoP load. See
 `context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md` §3.3 and §7.
 

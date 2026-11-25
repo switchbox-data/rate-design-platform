@@ -16,7 +16,8 @@ BGE's `sub_tx_and_dist` marginal cost is the **Brattle Group avoided distributio
 
 Unlike NY — where we derive an incremental-diluted FLIC value from per-utility MCOS workbooks — BGE
 has no MCOS workbook, but it does publish an avoided-cost scalar. So BGE is handled **RI-style**: a
-single published `$/kW-yr` figure in a config CSV, fed to the existing PoP allocator. There is no
+single published `$/kW-yr` figure in a config CSV, fed to the peak N load hours allocation
+([top_n_load_share_allocation.md](top_n_load_share_allocation.md)). There is no
 local levelization or capital-plan build (the `$32` is already levelized by Brattle with a 12%
 economic carrying charge).
 
@@ -46,7 +47,7 @@ carrying-charge math is applied on our side — the figure is pre-levelized.
 the default target dollar year, the timestamps on the generated 8760, and the `year=YYYY` output
 partition. `--load-year` selects only the PJM utility load profile used to identify and weight the
 top peak hours; it defaults to `--year`. When the years differ, load timestamps are remapped to the
-output year (via `remap_year_if_needed`) before PoP allocation.
+output year (via `remap_year_if_needed`) before allocation.
 
 To prevent a load-shape sensitivity from overwriting the canonical output or being combined by a
 recursive Parquet scan, a non-default load year is written to a sibling dataset root named
@@ -109,17 +110,10 @@ So BGE classifies the plant as peak-driven, computes an avoided cost on a peak b
 
 ---
 
-## 6. Stage B dependency (hourly allocation — not yet wired)
+## 6. Stage B (hourly allocation)
 
-This note covers **Stage A** (the levelized `$/kW-yr` figure). Producing the hourly `$/kWh` BAT
-signal (Stage B) via the PoP allocator additionally requires:
-
-1. Adding `"MD"` to the `--state` choices in
-   [generate_utility_tx_dx_mc.py](../../../utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py)
-   (currently `choices=["NY", "RI"]`).
-2. A `get_state_config("MD")` entry in
-   [data/eia/hourly_loads/eia_region_config.py](../../../data/eia/hourly_loads/eia_region_config.py)
-   (`iso_region="pjm"`, BGE balancing-authority/subregion).
-3. EIA Form 930 BGE hourly load on S3 to use as the PoP weighting profile.
-
-Items 1–3 are tracked by the EIA BGE data-fetch Linear ticket and are out of scope for Stage A.
+This note covers **Stage A** (the `$/kW-yr` figure). Stage B spreads the CPI-adjusted figure over
+the top 100 hours of BGE's PJM hourly demand (`s3://data.sb/pjm/hourly_demand/utilities/`) with the
+peak N load hours allocation. The formula and its properties are in
+[top_n_load_share_allocation.md](top_n_load_share_allocation.md). The inputs are recorded in
+`rate_design/hp_rates/md/config/marginal_costs/allocation.yaml`.

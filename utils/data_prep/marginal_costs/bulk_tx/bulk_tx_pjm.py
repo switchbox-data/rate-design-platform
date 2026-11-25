@@ -18,9 +18,12 @@ Key design choices (see context/methods/marginal_costs/md_bulk_transmission.md):
    tractability (see methodology doc for full rationale).
 3. **Allocation method**: PCAF load-share (not exceedance). Each of the top-K
    hours receives a share proportional to its load divided by total load across
-   all K peak hours. This follows E3's Appendix C *prose*; E3's Figure 42 on the
-   same page states a threshold-excess formula instead, and the two are not
-   equivalent (see the methodology doc for the measured difference).
+   all K peak hours. The formula is ``top_n_load_share`` in
+   ``methods/top_n_load_share.py``, the same function distribution PoP uses.
+   This module chooses the blended NITS rate and the PJM load, then calls it
+   with ``n_hours`` 150. This follows E3's Appendix C *prose*; E3's Figure 42
+   on the same page states a threshold-excess formula instead, and the two are
+   not equivalent (see the methodology doc for the measured difference).
 4. **K = 150**: Following E3's ICC-VDER Appendix C which uses top-150 hours for
    transmission and distribution capacity allocation.
 
@@ -49,6 +52,7 @@ from typing import cast
 
 import polars as pl
 
+from utils.data_prep.marginal_costs.methods.top_n_load_share import top_n_load_share
 from utils.data_prep.marginal_costs.supply_utils import (
     PJM_UTILITY_ZONES,
     build_cairo_8760_timestamps,
@@ -191,49 +195,6 @@ def load_hourly_demand(
     return aligned.select("timestamp", "load_mw")
 
 
-# ── PCAF allocation ───────────────────────────────────────────────────────────
-
-
-def allocate_pcaf(
-    load_df: pl.DataFrame,
-    annual_cost_kw_year: float,
-    k_peak_hours: int = DEFAULT_K_PEAK_HOURS,
-) -> pl.DataFrame:
-    """Allocate annual $/kW-yr to top-K full-year hours using PCAF load-share.
-
-    Implements E3's ICC-VDER Appendix C methodology (no seasonal filter):
-        AF_h = load_h / sum(load across top-K hours)
-        cost_h = AF_h * annual_cost_kw_year
-
-    Args:
-        load_df: DataFrame with 'timestamp' (tz-aware or naive) and 'load_mw'.
-        annual_cost_kw_year: Blended annual NITS rate in $/kW-year.
-        k_peak_hours: Number of top hours for allocation (default 150).
-
-    Returns:
-        DataFrame with 'timestamp' and 'bulk_tx_cost_enduse' for the K peak hours.
-        Exactly k_peak_hours rows with non-zero cost.
-    """
-    if load_df.height < k_peak_hours:
-        raise ValueError(
-            f"Load data has only {load_df.height} hours, need at least {k_peak_hours} for PCAF allocation."
-        )
-
-    # Select top-K hours by load across the full year
-    top_k = load_df.sort("load_mw", descending=True).head(k_peak_hours)
-
-    # Compute PCAF load-share weights
-    total_peak_load = float(top_k["load_mw"].sum())
-    if total_peak_load <= 0:
-        raise ValueError(f"Total load across top-{k_peak_hours} hours is zero or negative.")
-
-    result = top_k.with_columns(
-        (pl.col("load_mw") / total_peak_load * annual_cost_kw_year).alias("bulk_tx_cost_enduse")
-    )
-
-    return result.select("timestamp", "bulk_tx_cost_enduse").sort("timestamp")
-
-
 # ── Full pipeline ─────────────────────────────────────────────────────────────
 
 
@@ -256,9 +217,9 @@ def compute_pjm_bulk_tx_mc(
     Steps:
         1. Load NITS rates and compute blended annual $/kW-yr for ``year``.
         2. Load hourly demand for ``load_year``.
-        3. Run PCAF load-share allocation on top-K full-year hours.
-        4. Expand to full 8760 output on the ``year`` calendar.
-        5. Validate sum equals blended rate.
+        3. Run top-N load-share on the top-K hours. The load is already the
+           output 8760, and the method returns every hour with the rest at zero.
+        4. Validate sum equals blended rate.
 
     Returns:
         8760-row DataFrame with columns: timestamp, bulk_tx_cost_enduse
@@ -290,27 +251,22 @@ def compute_pjm_bulk_tx_mc(
         print(f"  Remapping load timestamps: {load_year} → {year}")
         load_df = remap_year_if_needed(load_df, "timestamp", load_year, year)
 
-    # Step 3: PCAF allocation on full-year load
+    # Step 3: PCAF load-share. The method returns every input hour, with the
+    # rest at zero. The load is already the output 8760.
     print("\n── PCAF Allocation ──")
-    peak_hours_df = allocate_pcaf(
-        load_df=load_df,
-        annual_cost_kw_year=blended_rate,
-        k_peak_hours=k_peak_hours,
+    output = top_n_load_share(
+        load_df,
+        blended_rate,
+        k_peak_hours,
+        output_column="bulk_tx_cost_enduse",
     )
-    print(f"  Allocated to {peak_hours_df.height} hours")
-
-    # Step 4: Expand to full 8760
-    ref_8760 = build_cairo_8760_timestamps(year)
-    output = (
-        ref_8760.join(peak_hours_df, on="timestamp", how="left")
-        .with_columns(pl.col("bulk_tx_cost_enduse").fill_null(0.0).alias("bulk_tx_cost_enduse"))
-        .sort("timestamp")
-    )
+    n_allocated = output.filter(pl.col("bulk_tx_cost_enduse") > 0).height
+    print(f"  Allocated to {n_allocated} hours")
 
     if output.height != 8760:
         raise ValueError(f"Output has {output.height} rows, expected 8760")
 
-    # Step 5: Validate
+    # Step 4: Validate
     actual_sum = float(output["bulk_tx_cost_enduse"].sum())
     error = abs(actual_sum - blended_rate)
     error_pct = (error / blended_rate * 100) if blended_rate > 0 else 0.0

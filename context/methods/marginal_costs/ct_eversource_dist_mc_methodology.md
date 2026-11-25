@@ -22,7 +22,8 @@ and the pipeline YAML declares the key it expects
    scalar and dollar-year rule as the PoP paths, §7.4). Key
    `month_hour_occ863att2_secondary_holidays_cal2025`. Detail is in §7.
 2. **`$21.22/kW-yr` on Eversource's substation load.** The scalar is Table 3's `$20.17/kW-yr`
-   times the OCC-863 secondary loss factor (§2.2). Probability-of-peak (§3.1) spreads it over
+   times the OCC-863 secondary loss factor (§2.2). The peak N load hours allocation (§3.1,
+   [top_n_load_share_allocation.md](top_n_load_share_allocation.md)) spreads it over
    the top 100 hours of OCC-863 Attachment 3 page 2, the distribution-substation load
    (`system_load.parquet`). Key `pop_occ863att3_100h_load2025_2026usd`. There is no CPI
    adjustment: `--target-dollar-year 2026` matches the MCOS study's own 2026 dollar year, so the
@@ -167,24 +168,10 @@ runs zone-load probability-of-peak with the same CSV scalar. Both write the stan
 
 ### 3.1 Method: standard PoP allocation (same as NY, RI, MD)
 
-Use the same Probability of Peak (PoP) allocation method already implemented in
-[`generate_utility_tx_dx_mc.py`](../../../utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py)
-and used for NY, RI, and MD. The method:
-
-1. Load hourly utility load data for the target year.
-2. Rank all 8760 hours by load (descending).
-3. Select the top `K` hours (default `K=100`).
-4. Assign each top-`K` hour a weight proportional to its load share within those `K` hours:
-   $$w_h = \frac{\text{Load}_h}{\sum_{h' \in \text{top-}K} \text{Load}_{h'}}$$
-5. Allocate the annualized `$/kW-yr` cost: $$MC^{\text{dist}}_h = w_h \times \text{MC}_{\text{annual}}$$
-6. All non-top-`K` hours get $$MC^{\text{dist}}_h = 0$$
-   .
-7. Validate: for a flat 1 kW load, $$\sum_h MC^{\text{dist}}_h = \text{MC}_{\text{annual}}$$
-   (exact,
-   by construction).
-
-This is the standard approach across all states in the platform. It allocates the annual marginal cost
-to the hours most likely to drive capacity investment, weighted by load magnitude in those hours.
+Both PoP paths use the peak N load hours allocation, the same method NY, RI, and MD distribution use.
+The formula, its properties, and its callers are in
+[top_n_load_share_allocation.md](top_n_load_share_allocation.md). For CT, the inputs are the
+`$21.22/kW-yr` scalar (§2.3), N = 100, and the load curve named by `dist_mc_method` (§3.3).
 
 ### 3.2 CL&P's own method (context)
 

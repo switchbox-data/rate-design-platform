@@ -2,9 +2,10 @@
 
 ``--method`` picks how the 8760 is built:
 
-- ``pop`` (default; NY, RI, MD, and CT's fallback): Probability of Peak (PoP)
-  allocation of one $/kW-yr value from the MC table over the top
-  ``--n-hours`` hours of a load profile. The load comes from exactly one of
+- ``pop`` (default; NY, RI, MD, and CT's fallback): top-N load-share of one
+  $/kW-yr value from the MC table over the top ``--n-hours`` of a load profile.
+  The formula is ``methods/top_n_load_share.py``. This script chooses the
+  ``$/kW-yr`` and the load, then calls it. The load comes from exactly one of
   ``--utility-load-s3-base`` (hive utility=X/year=YYYY scan) or
   ``--path-utility-load`` (one parquet with timestamp and load_mw).
 - ``month_hour`` (CT only): look up Eversource's OCC-863 Attachment 2
@@ -111,6 +112,7 @@ from utils.data_prep.marginal_costs.mc_manifest import (
     record_mc_write,
     require_published_code,
 )
+from utils.data_prep.marginal_costs.methods.top_n_load_share import top_n_load_share
 from utils.data_prep.marginal_costs.supply_utils import (
     build_cairo_8760_timestamps,
     output_base_for_load_year,
@@ -578,57 +580,6 @@ def load_cpi_inflation_factor(
     print(f"  Factor: {factor:.6f}")
 
     return factor
-
-
-def calculate_pop_weights(load_df: pl.DataFrame, n_hours: int = 100) -> pl.DataFrame:
-    """Calculate Probability of Peak (PoP) weights using load-weighted method.
-
-    Args:
-        load_df: DataFrame with timestamp and load_mw columns
-        n_hours: Number of top hours for allocation (default: 100)
-
-    Returns:
-        DataFrame with added columns: w_sub_tx_and_dist, is_peak
-    """
-    sorted_df = load_df.sort("load_mw", descending=True)
-
-    top_indices = sorted_df.head(n_hours)["timestamp"]
-    sum_top = sorted_df.head(n_hours)["load_mw"].sum()
-
-    print("\nPeak Hour Identification:")
-    print(f"  Top {n_hours} hours sum: {sum_top:.2f} MW")
-
-    result_df = load_df.with_columns(pl.col("timestamp").is_in(top_indices.implode()).alias("is_peak"))
-
-    result_df = result_df.with_columns(
-        pl.when(pl.col("is_peak")).then(pl.col("load_mw") / sum_top).otherwise(0.0).alias("w_sub_tx_and_dist")
-    )
-
-    sum_w = float(result_df["w_sub_tx_and_dist"].sum())
-
-    print("\nWeight Verification:")
-    print(f"  Sum of w_sub_tx_and_dist: {sum_w:.6f} (should be 1.0)")
-
-    if abs(sum_w - 1.0) > 1e-6:
-        raise ValueError(f"Weights do not sum to 1.0: {sum_w}")
-
-    return result_df
-
-
-def allocate_costs_to_hours(
-    load_df: pl.DataFrame,
-    mc_sub_tx_and_dist: float,
-) -> pl.DataFrame:
-    """Allocate marginal costs to hourly price signals.
-
-    Args:
-        load_df: DataFrame with PoP weights (w_sub_tx_and_dist)
-        mc_sub_tx_and_dist: Sub-transmission and distribution marginal cost ($/kW-yr)
-
-    Returns:
-        DataFrame with added column: mc_total_per_kwh
-    """
-    return load_df.with_columns((pl.lit(mc_sub_tx_and_dist) * pl.col("w_sub_tx_and_dist")).alias("mc_total_per_kwh"))
 
 
 def validate_allocation(
@@ -1135,26 +1086,26 @@ def _run_pop_allocation(args: argparse.Namespace, storage_options: dict[str, str
     )
     mc_sub_tx_and_dist = resolved.allocated
 
-    load_df = calculate_pop_weights(load_df, args.n_hours)
-    load_df = allocate_costs_to_hours(load_df, mc_sub_tx_and_dist)
-    validation_results = validate_allocation(load_df, mc_sub_tx_and_dist)
+    print("\nTop-N load-share:")
+    print(f"  Top {args.n_hours} hours")
+    allocated = top_n_load_share(
+        load_df,
+        mc_sub_tx_and_dist,
+        args.n_hours,
+        output_column="mc_total_per_kwh",
+    )
+    validation_results = validate_allocation(allocated, mc_sub_tx_and_dist)
 
     print("\n" + "=" * 60)
     print("SAMPLE RESULTS")
     print("=" * 60)
     print("\nTop 10 hours by total marginal cost:")
-    sample_df = load_df.sort("mc_total_per_kwh", descending=True).head(10)
-    print(
-        sample_df.select(
-            [
-                "timestamp",
-                "load_mw",
-                "w_sub_tx_and_dist",
-                "mc_total_per_kwh",
-                "is_peak",
-            ]
-        )
+    sample_df = (
+        allocated.join(load_df.select("timestamp", "load_mw"), on="timestamp", how="left")
+        .sort("mc_total_per_kwh", descending=True)
+        .head(10)
     )
+    print(sample_df.select("timestamp", "load_mw", "mc_total_per_kwh"))
 
     if args.upload:
         if args.path_utility_load:
@@ -1187,7 +1138,7 @@ def _run_pop_allocation(args: argparse.Namespace, storage_options: dict[str, str
             inputs=inputs,
         )
         save_allocated_costs(
-            load_df,
+            allocated,
             args.utility,
             output_year,
             output_s3_base,
