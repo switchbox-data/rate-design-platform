@@ -926,7 +926,7 @@ def _run_isone_pop_kde(
         save_output,
         validate_allocation,
     )
-    from utils.data_prep.marginal_costs.probability_of_peak import (
+    from utils.data_prep.marginal_costs.methods.pop_kde import (
         DEFAULT_TRUNCATION_SIGMAS,
     )
     from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (

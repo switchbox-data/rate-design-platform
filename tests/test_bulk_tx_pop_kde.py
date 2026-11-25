@@ -16,9 +16,10 @@ from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_isone import (
     validate_allocation,
 )
 from utils.data_prep.marginal_costs.mc_manifest import build_key
-from utils.data_prep.marginal_costs.probability_of_peak import (
+from utils.data_prep.marginal_costs.methods.pop_kde import (
     WEEKDAY,
     label_hour_types,
+    pop_kde,
 )
 
 
@@ -58,7 +59,10 @@ def test_parse_history_years() -> None:
 
 
 def test_pop_kde_recovers_the_annual_cost_on_an_8760() -> None:
-    hourly, pop = compute_isone_bulk_tx_pop_kde(_history((2022, 2023)), 70.82, 2025, calendar_year=2025)
+    history = _history((2022, 2023))
+    hourly, pop = compute_isone_bulk_tx_pop_kde(history, 70.82, 2025, calendar_year=2025)
+    direct = pop_kde(history, 70.82, 2025, calendar_year=2025, output_column="bulk_tx_cost_enduse")
+    assert hourly["bulk_tx_cost_enduse"].to_list() == pytest.approx(direct["bulk_tx_cost_enduse"].to_list())
     assert hourly.columns == ["timestamp", "bulk_tx_cost_enduse"]
     assert hourly.height == 8760
     assert hourly["timestamp"].dt.year().unique().to_list() == [2025]

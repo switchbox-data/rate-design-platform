@@ -84,7 +84,7 @@ Allocation formulas and the state files that choose their inputs. The catalog is
 | top_n_load_share_allocation.md            | Top-N load-share formula.                                                                 |
 | top_n_exceedance_allocation.md            | Top-N exceedance formula.                                                                 |
 | seasonal_scr_exceedance_allocation.md     | Seasonal SCR exceedance formula.                                                          |
-| probability_of_peak_kde.md                | KDE probability-of-peak formula.                                                          |
+| probability_of_peak_kde.md                | KDE probability-of-peak formula (`methods/pop_kde.py`).                                   |
 | ny_dist_mc_bat_methodology.md             | NY sub-transmission and distribution `$/kW-yr` from the MCOS workbooks.                   |
 | ny_mcos_studies_comparison.md             | Comparison of the seven NY 2025 MCOS studies.                                             |
 | ny_bulk_transmission_marginal_cost.md     | Choosing a NY bulk-transmission `$/kW-yr`, and the implemented seasonal SCR inputs.       |

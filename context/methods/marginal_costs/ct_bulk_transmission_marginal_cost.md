@@ -37,18 +37,22 @@ The $69/kW-year value must be converted to an 8760 hourly signal for CAIRO. The 
 
 ### KDE probability of peak (`pop_kde`, default)
 
-`bulk_tx_method=pop_kde` (the ct Justfile default) spreads the cost by a month × day-type × hour **probability of peak**. It is the method Eversource described in OCC-733 for its OCC-863 distribution PoP ([probability_of_peak_kde.md](probability_of_peak_kde.md)), applied to the New England system load:
+`bulk_tx_method=pop_kde` (the ct Justfile default) spreads the cost by a month × day-type × hour probability of peak ([probability_of_peak_kde.md](probability_of_peak_kde.md)). The CT inputs:
 
-1. Load four complete years of allocation load, **2022–2025** by default (`--pop-history-years`). Four years, and these four, because that is the history Eversource used for its own PoP, so the bulk-tx and distribution signals rest on the same years. Each year is read with the same `load_isone_zone_loads` as the exceedance method, so the time-zone treatment is identical (hour-beginning Eastern prevailing time kept as naive wall-clock time; the fall-back 1 AM averaged; the spring-forward 2 AM interpolated; December 31 dropped in a leap year). The 2025 system peak lands at 2025-06-24 18:00, hour ending 19, which matches ISO-NE's reported peak hour.
-2. Label each hour by month, hour, and weekday vs weekend-and-holiday; divide each hour by its year's average load; set the delimiter as the mean over years of the year's highest cell mean (1.552 × the year mean on 2022–2025 NE load, about 0.83 of the annual peak); fit a Scott-bandwidth Gaussian KDE per cell, each kernel truncated at ±3 bandwidths; take the share above the delimiter; normalize to 1.
-3. Inflate the PTF value from its dollar year (`--ptf-dollar-year`, default 2024 for AESC 2024) to the target dollar year (`--target-dollar-year`, default `--year`) with FRED CPI. The ct recipe passes 2026, the same dollar year as `create-dist-mc-data` and `month_hour` (below). For 2026 the factor is 1.0560, so `$69` becomes `$72.87/kW-yr`. The exceedance method does not do this; it uses the value as given.
-4. Each cell's `$/kWh` is the inflated `$/kW-yr` × PoP ÷ the number of days of that month and day type on the `--calendar-year` calendar (default `--year`). The cells are laid onto the CAIRO 8760 with `expand_month_hour_mc_to_8760`, the same expansion the OCC-863 month-hour distribution tables use, and the sum is checked against the inflated `$/kW-yr`.
+| Input         | CT value                                                                                                                                                                                                                                         |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Load history  | 2022–2025 (`--pop-history-years`), stacked. Default is the sum of all 8 ISO-NE zones. `utility_zone` uses CT zone load alone. Four years, and these four, because that is the history Eversource used for its own PoP.                           |
+| Annual cost   | AESC `$69/kW-yr` in 2024 dollars, CPI-inflated to `--target-dollar-year`. The ct recipe passes 2026, the same dollar year as distribution. For 2026 the factor is 1.0560, so `$69` becomes `$72.87/kW-yr`. The exceedance path does not inflate. |
+| Year          | The output year, stamped on the timestamps.                                                                                                                                                                                                      |
+| Calendar year | `--calendar-year`, default the output year.                                                                                                                                                                                                      |
+
+Each history year is read with the same `load_isone_zone_loads` as the exceedance method, so the time-zone treatment is identical (hour-beginning Eastern prevailing time kept as naive wall-clock time; the fall-back 1 AM averaged; the spring-forward 2 AM interpolated; December 31 dropped in a leap year). The 2025 system peak lands at 2025-06-24 18:00, hour ending 19, which matches ISO-NE's reported peak hour. On 2022–2025 NE system load the delimiter is 1.552 × the year mean, about 0.83 of the annual peak.
+
+The writer calls `pop_kde` and keeps the column name `bulk_tx_cost_enduse`. A flat 1 kW load pays the inflated `$/kW-yr`. This default covers `ct_eversource` and `ct_ui`. The inputs are recorded under `bulk_tx` in `rate_design/hp_rates/ct/config/marginal_costs/allocation.yaml`. `--allocation-load utility_zone` is the same method with `zones: [CT]`. `--pop-history-years 2021-2025` is the five-year sensitivity.
 
 On 2022–2025 NE system load, 121 of 576 cells are nonzero. June, July, August, and September carry 13%, 56%, 26%, and 5% of the probability; weekend-and-holiday cells carry 25%; February holds a trace (0.05%). The result is about 1,900 nonzero hours, and the maximum falls on the July weekday 17:00 cell. The level of every hour scales with the inflated `$/kW-yr`.
 
-`--allocation-load utility_zone` fits the PoP on CT zone load instead; `--pop-history-years 2021-2025` is the five-year sensitivity.
-
-Implementation: `compute_isone_bulk_tx_pop_kde` and `load_isone_zone_load_history` in `bulk_tx/bulk_tx_isone.py`, `_run_isone_pop_kde` in `bulk_tx/generate_bulk_tx_mc.py`.
+Implementation: `compute_isone_bulk_tx_pop_kde` and `load_isone_zone_load_history` in `bulk_tx/bulk_tx_isone.py`, `_run_isone_pop_kde` in `bulk_tx/generate_bulk_tx_mc.py`. The formula is `pop_kde` in `methods/pop_kde.py`.
 
 The manifest key is `aesc_ptf69_pop_kde_ne_system_hist2022to2025_cal2025_2026usd`, which is the key in `pipeline_ct_eversource.yaml`. All three methods write the same path under different manifest keys, and the pipeline YAML's `key` says which one a run accepts.
 
@@ -180,7 +184,7 @@ The manifest keys are `aesc_ptf69_pop_kde_ne_system_hist2022to2025_cal2025_2026u
 | File                                                             | Role                                                                                                                                                 |
 | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `utils/data_prep/marginal_costs/bulk_tx/bulk_tx_isone.py`        | Core logic: `compute_isone_bulk_tx_signal`, `compute_isone_bulk_tx_pop_kde`, `load_isone_zone_load_history`, `prepare_output`, `validate_allocation` |
-| `utils/data_prep/marginal_costs/probability_of_peak.py`          | KDE probability of peak and `allocate_annual_cost_by_pop`, used by `pop_kde`                                                                         |
+| `utils/data_prep/marginal_costs/methods/pop_kde.py`              | KDE probability of peak. `pop_kde` places the annual cost on the 8760                                                                                |
 | `utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py`  | CLI entrypoint; `--method {isone_aesc_ptf,month_hour,pop_kde}` and `--allocation-load`; `_run_isone_month_hour`, `_run_isone_pop_kde`                |
 | `utils/data_prep/marginal_costs/methods/top_n_exceedance.py`     | Top-N exceedance formula used by `isone_aesc_ptf`                                                                                                    |
 | `utils/data_prep/marginal_costs/supply_utils.py`                 | `ISONE_UTILITY_ZONES` mapping                                                                                                                        |
@@ -190,7 +194,8 @@ The manifest keys are `aesc_ptf69_pop_kde_ne_system_hist2022to2025_cal2025_2026u
 | `tests/test_top_n_exceedance.py`                                 | Tests for the exceedance formula and the RI and CT config entries                                                                                    |
 | `tests/test_ri_bulk_tx_mc.py`                                    | Tests for the ISO-NE bulk-tx writer: system vs. zone load, 8760 fill, validation                                                                     |
 | `tests/test_bulk_tx_month_hour.py`                               | Tests for the `month_hour` allocation and its manifest key                                                                                           |
-| `tests/test_bulk_tx_pop_kde.py`                                  | Tests for the `pop_kde` allocation and its manifest key                                                                                              |
+| `tests/test_pop_kde.py`                                          | Tests for the KDE formula, its CLI, and the CT config entry                                                                                          |
+| `tests/test_bulk_tx_pop_kde.py`                                  | Tests for the ISO-NE `pop_kde` writer and its manifest key                                                                                           |
 
 ---
 

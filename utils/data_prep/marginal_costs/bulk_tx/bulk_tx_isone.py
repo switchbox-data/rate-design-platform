@@ -24,11 +24,12 @@ England system load (all 8 ISO-NE load zones summed) by default:
   weighted by its load above the threshold. See
   ``context/methods/marginal_costs/top_n_exceedance_allocation.md``.
 - ``pop_kde``: a month x day-type x hour **probability of peak** from several
-  years of load (truncated Gaussian KDE, ``probability_of_peak.py``), spread
+  years of load (truncated Gaussian KDE, ``methods/pop_kde.py``), spread
   as ``$/kW-yr x PoP / num_days`` on the CAIRO 8760.  The default history is
   2022-2025, the same four years Eversource used for its own PoP.  The CT
   Justfile passes this method; the CLI default remains ``isone_aesc_ptf``
-  so RI is unchanged.
+  so RI is unchanged. See
+  ``context/methods/marginal_costs/probability_of_peak_kde.md``.
 
 A third method, ``month_hour``, uses OCC-863's published probability of peak
 instead of a load curve; it lives in ``generate_bulk_tx_mc.py``.
@@ -50,13 +51,13 @@ from typing import cast
 
 import polars as pl
 
-from utils.data_prep.marginal_costs.methods.top_n_exceedance import top_n_exceedance
-from utils.data_prep.marginal_costs.probability_of_peak import (
+from utils.data_prep.marginal_costs.methods.pop_kde import (
     WEEKEND_HOLIDAY,
     ProbabilityOfPeak,
-    allocate_annual_cost_by_pop,
+    pop_kde,
     probability_of_peak,
 )
+from utils.data_prep.marginal_costs.methods.top_n_exceedance import top_n_exceedance
 from utils.data_prep.marginal_costs.supply.supply_capacity_isone import (
     load_isone_zone_loads,
 )
@@ -212,18 +213,20 @@ def compute_isone_bulk_tx_pop_kde(
             holidays and sets the day counts (default ``year``).
 
     Returns:
-        The 8760 (``timestamp``, ``bulk_tx_cost_enduse``) and the
-        :class:`ProbabilityOfPeak` behind it.
+        The 8760 (``timestamp``, ``bulk_tx_cost_enduse``) from :func:`pop_kde`
+        and the :class:`ProbabilityOfPeak` behind it, so the caller can record
+        the delimiter.
     """
     pop = probability_of_peak(load_history)
-    hourly = allocate_annual_cost_by_pop(
-        pop.cells,
+    hourly = pop_kde(
+        load_history,
         aesc_ptf_kw_year,
         year,
         calendar_year=calendar_year,
-        value_col="bulk_tx_cost_enduse",
+        output_column="bulk_tx_cost_enduse",
+        fitted=pop,
     )
-    return hourly.select("timestamp", "bulk_tx_cost_enduse"), pop
+    return hourly, pop
 
 
 def print_pop_summary(pop: ProbabilityOfPeak) -> None:
