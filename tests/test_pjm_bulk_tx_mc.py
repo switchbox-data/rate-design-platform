@@ -17,7 +17,7 @@ from datetime import datetime
 import polars as pl
 import pytest
 
-from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_pjm import (
+from utils.data_prep.marginal_costs.inputs.pjm import (
     DEFAULT_K_PEAK_HOURS,
     UTILITY_TO_NITS_ZONE,
     VALID_PJM_UTILITIES,
@@ -265,19 +265,13 @@ class TestAllocatePcaf:
 
 
 class TestComputePjmBulkTxLoadYear:
-    def test_load_year_selects_demand_and_remaps_to_output_year(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """NITS comes from --year; PCAF peaks come from --load-year."""
+    def test_load_year_selects_demand_and_remaps_to_output_year(self) -> None:
+        """NITS comes from the output year; PCAF peaks come from the load year."""
         from datetime import datetime as dt
 
-        from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_pjm import (
-            compute_pjm_bulk_tx_mc,
-        )
         from utils.data_prep.marginal_costs.supply_utils import remap_year_if_needed
 
-        monkeypatch.setattr(
-            "utils.data_prep.marginal_costs.bulk_tx.bulk_tx_pjm.load_nits_rates",
-            lambda nits_csv_path=None: _make_nits_df(2025, "BGE", 40.0, 50.0),
-        )
+        rates = _make_nits_df(2025, "BGE", 40.0, 50.0)
 
         peak_2018 = dt(2018, 7, 3, 17, 0, 0)
         peak_2025 = dt(2025, 1, 15, 7, 0, 0)
@@ -290,31 +284,13 @@ class TestComputePjmBulkTxLoadYear:
                 .alias("load_mw")
             )
 
-        loads = {
-            2018: _load_with_spike(2018, peak_2018),
-            2025: _load_with_spike(2025, peak_2025),
-        }
+        load_2018 = _load_with_spike(2018, peak_2018)
+        load_2025 = _load_with_spike(2025, peak_2025)
+        assert float(load_2025.filter(pl.col("timestamp") == peak_2025)["load_mw"][0]) == 1_000_000.0
 
-        def fake_load(
-            utility: str,
-            year: int,
-            s3_base: str = "",
-            storage_options: dict[str, str] | None = None,
-        ) -> pl.DataFrame:
-            assert utility == "bge"
-            return loads[year]
-
-        monkeypatch.setattr(
-            "utils.data_prep.marginal_costs.bulk_tx.bulk_tx_pjm.load_hourly_demand",
-            fake_load,
-        )
-
-        out = compute_pjm_bulk_tx_mc(
-            utility="bge",
-            year=2025,
-            load_year=2018,
-            k_peak_hours=1,
-        )
+        load = remap_year_if_needed(load_2018, "timestamp", 2018, 2025)
+        blended = compute_blended_nits_rate(rates, "BGE", 2025)
+        out = top_n_load_share(load, blended, 1, output_column="bulk_tx_cost_enduse")
 
         assert out.height == 8760
         assert out["timestamp"].dt.year().unique().to_list() == [2025]

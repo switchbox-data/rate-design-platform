@@ -4,7 +4,7 @@
 marginal cost, listed in order of preference. `create-dist-mc-data` builds any of them; its
 `dist_mc_method` variable picks `month_hour` (the default), `pop_occ863`, or `pop_isone_zone`.
 Each method passes the matching `--method` (`month_hour` or `pop`) and load source to
-`generate_utility_tx_dx_mc.py`. All three write the same standard path,
+`run_allocation.py`. All three write the same standard path,
 `dist_and_sub_tx/utility=ct_eversource/year=<year>/data.parquet`, and append an entry to the
 `manifest.yaml` beside it; the latest entry's key says which method the current file came from,
 and the pipeline YAML declares the key it expects
@@ -148,7 +148,7 @@ ct_eversource,21.22,2026
 [Open questions](#4-open-questions--decisions-needed) below). `dollar_year=2026` records that
 `$21.22` is in the MCOS study's own 2026 dollars. That is not rate year 1, which runs July 1, 2027
 through June 30, 2028 (`context/sources/exhibit_clp_revreq_1.md`). The CT recipe passes
-`--target-dollar-year 2026`, which matches that column, so `generate_utility_tx_dx_mc.py` allocates
+`--target-dollar-year 2026`, which matches that column, so `run_allocation.py` allocates
 `$21.22` as provided. It does not CPI-adjust the scalar onto the load year. RI and MD still inflate
 from their `dollar_year` to the run year; this skip is CT-only.
 
@@ -216,8 +216,8 @@ substation series: OCC-863 says no forecasted hourly system loads are available.
 
 ### 3.4 Implementation notes
 
-1. **Added CT to `generate_utility_tx_dx_mc.py`**: `"CT"` is now in the `--state` choices
-   (`["NY", "RI", "MD", "CT"]`).
+1. **CT is a config.** `run_allocation.py` reads
+   `rate_design/hp_rates/ct/config/marginal_costs/allocation.yaml`. There is no `--state` flag.
 2. **Created the config CSV** (§2.3).
 3. **Filled the utility-level load gap** (§3.3) — `ct_eversource`/`ct_ui` zone-mapping rows, ran the
    ISO-NE utility aggregation for 2025, uploaded to S3.
@@ -233,7 +233,7 @@ substation series: OCC-863 says no forecasted hourly system loads are available.
    just -f ct/Justfile dist_mc_method=pop_occ863 create-dist-mc-data 2025 --upload
    just -f ct/Justfile dist_mc_method=pop_isone_zone create-dist-mc-data 2025 --upload
    ```
-   Both call `generate_utility_tx_dx_mc.py --method pop --target-dollar-year 2026` with the
+   Both call `run_allocation.py --component dist_and_sub_tx --variant pop_occ863` or `pop_isone_zone` with the
    CT config CSV. `pop_occ863` passes `--path-utility-load .../occ-863/parquet/system_load.parquet`
    and `--load-source occ863att3`. `pop_isone_zone` passes
    `--utility-load-s3-base s3://data.sb/isone/hourly_demand/utilities/` and
@@ -327,7 +327,7 @@ allocation or as a direct replacement. This is a nice-to-have, not a blocker for
 
 ## 5. Concrete task list
 
-1. ~~Add `"CT"` to `--state` choices in `generate_utility_tx_dx_mc.py`.~~ Done.
+1. ~~Point `run_allocation.py` at the CT `allocation.yaml`.~~ Done.
 2. ~~Create `rate_design/hp_rates/ct/config/marginal_costs/ct_marginal_costs_2025.csv` (§2.3).~~ Done.
 3. ~~Wire a `just` recipe in `rate_design/hp_rates/ct/Justfile` (`create-dist-mc-data`).~~ Done.
 4. ~~Run PoP allocation and validate (§3.4).~~ Done for the earlier zone-load run, at

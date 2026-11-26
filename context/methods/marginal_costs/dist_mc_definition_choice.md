@@ -92,7 +92,7 @@ locational figure (`$86.58`) is itself much larger than NY's undiluted MCOS figu
 | CT (ct_eversource / CL&P) | **FLIC-like** (system-wide diluted from MCOS-2 Table 3, then × secondary loss factor)     | 21.22 (2026$) | CL&P's own MCOS dilutes locational cost by expansion-area load share, structurally the same move as NY's diluted FLIC. The config scalar grosses Table 3's `$20.17` up by the OCC-863 secondary loss factor 1.051845137 (see [ct_eversource_dist_mc_methodology.md](ct_eversource_dist_mc_methodology.md) §2) |
 
 NY, RI, and MD put this value in the same `sub_tx_and_dist_mc_kw_yr` slot, and
-[generate_utility_tx_dx_mc.py](../../../utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py)
+[run_allocation.py](../../../utils/data_prep/marginal_costs/run_allocation.py)
 spreads it with the peak N load hours allocation
 ([top_n_load_share_allocation.md](top_n_load_share_allocation.md)). Each state's load curve and N
 are in its own doc: [ny_dist_mc_bat_methodology.md](ny_dist_mc_bat_methodology.md),

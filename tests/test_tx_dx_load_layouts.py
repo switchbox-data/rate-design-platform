@@ -1,4 +1,4 @@
-"""Tests for sub-TX/DX load-layout handling in generate_utility_tx_dx_mc.
+"""Tests for the utility/year hive load reader.
 
 All states (NY, MD, RI) now use ISO-native layouts:
     utility=X/year=YYYY[/month=MM]/data.parquet
@@ -15,9 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
-    load_utility_load_profile,
-)
+from utils.data_prep.marginal_costs.inputs.generic import load_utility_load_profile
 
 
 def _write_partition(path: Path, n: int = 48, year: int = 2025) -> None:

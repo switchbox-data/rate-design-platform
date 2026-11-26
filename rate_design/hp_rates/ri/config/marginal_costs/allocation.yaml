@@ -32,7 +32,7 @@ bulk_tx:
       from: literal
       value: 69.0
     load:
-      from: zone_sum_load
+      from: isone_zone_load
       path: s3://data.sb/isone/hourly_demand/zones/
       zones: [CT, ME, NEMA, NH, RI, SEMA, VT, WCMA]
       year: "{load_year}"

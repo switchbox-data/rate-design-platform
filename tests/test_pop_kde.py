@@ -388,7 +388,7 @@ def test_state_config_names_this_method_and_its_inputs() -> None:
         "cpi_s3_base": "s3://data.sb/fred/cpi/",
     }
     load = bulk["inputs"]["load"]
-    assert load["from"] == "zone_sum_load"
+    assert load["from"] == "isone_zone_load"
     assert load["path"] == "s3://data.sb/isone/hourly_demand/zones/"
     assert load["zones"] == _NE_ZONES
     assert load["history_years"] == [2022, 2023, 2024, 2025]

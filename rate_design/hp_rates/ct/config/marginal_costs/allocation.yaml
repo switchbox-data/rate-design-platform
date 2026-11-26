@@ -76,7 +76,7 @@ bulk_tx:
       target_dollar_year: 2026
       cpi_s3_base: s3://data.sb/fred/cpi/
     load:
-      from: zone_sum_load
+      from: isone_zone_load
       path: s3://data.sb/isone/hourly_demand/zones/
       zones: [CT, ME, NEMA, NH, RI, SEMA, VT, WCMA]
       history_years: [2022, 2023, 2024, 2025]
@@ -112,7 +112,7 @@ bulk_tx:
           from: literal
           value: 69.0
         load:
-          from: zone_sum_load
+          from: isone_zone_load
           path: s3://data.sb/isone/hourly_demand/zones/
           zones: [CT, ME, NEMA, NH, RI, SEMA, VT, WCMA]
           year: "{load_year}"

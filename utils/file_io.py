@@ -162,6 +162,22 @@ def write_hive_partitioned_parquet_to_s3(
         print(f"  Uploaded {partition.height:,} rows → s3://{bucket}/{key}")
 
 
+def read_parquet_local_or_s3(path: str | Path, **kwargs: Any) -> pl.DataFrame:
+    """Read one Parquet file from a local path or an S3 URI.
+
+    Parameters
+    ----------
+    path:
+        Local filesystem path or full S3 URI (``s3://...``).
+    **kwargs:
+        Forwarded to :func:`polars.read_parquet` / :func:`read_parquet_from_s3`.
+    """
+    s = str(path)
+    if s.startswith("s3://"):
+        return read_parquet_from_s3(s, **kwargs)
+    return pl.read_parquet(s, **kwargs)
+
+
 def read_csv_local_or_s3(path: str | Path, **kwargs: Any) -> pl.DataFrame:
     """Read a CSV from either a local path or an S3 URI.
 

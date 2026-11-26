@@ -456,6 +456,32 @@ def pop_kde(
     )
 
 
+def print_pop_summary(pop: ProbabilityOfPeak) -> None:
+    """Print the delimiter, the per-year normalization, and where the probability lands."""
+    print("\n── Probability of Peak (KDE) ──")
+    print(f"  Delimiter: {pop.delimiter:.4f} x year mean load")
+    print(f"  Delimiter / normalized peak: {pop.delimiter_share_of_peak:.4f}")
+    print(pop.years)
+    by_month = (
+        pop.cells.group_by("month")
+        .agg(pl.col("probability_of_peak").sum().alias("pop"))
+        .sort("month")
+        .filter(pl.col("pop") > 0)
+    )
+    weekend = pop.cells.filter(pl.col("daytype") == WEEKEND_HOLIDAY)["probability_of_peak"].sum()
+    nonzero = pop.cells.filter(pl.col("probability_of_peak") > 0).height
+    print(f"  Weekend-and-holiday share: {float(weekend):.4f}")
+    print(f"  Nonzero cells: {nonzero} of {pop.cells.height}")
+    print("  PoP by month (nonzero):")
+    print(by_month)
+    print("  Top 5 cells:")
+    print(
+        pop.cells.sort("probability_of_peak", descending=True)
+        .head(5)
+        .select("month", "daytype", "hour", "n_obs", "probability_of_peak")
+    )
+
+
 def main(argv: list[str] | None = None) -> None:
     """Read one load parquet, allocate, and write the hourly cost parquet."""
     parser = argparse.ArgumentParser(

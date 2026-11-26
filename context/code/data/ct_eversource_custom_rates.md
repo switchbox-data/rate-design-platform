@@ -243,7 +243,7 @@ average transmission rider.
 
 The marginal cost is derived from the **AESC 2024 avoided PTF cost** (Synapse, AESC 2024 study):
 $69/kW-yr in 2024 dollars (see `context/methods/marginal_costs/ct_bulk_transmission_marginal_cost.md`
-and `utils/data_prep/marginal_costs/bulk_tx/bulk_tx_isone.py` line 52: `AESC_2024_AVOIDED_PTF_KW_YEAR = 69.0`).
+and `utils/data_prep/marginal_costs/inputs/isone.py`: `AESC_2024_AVOIDED_PTF_KW_YEAR = 69.0`).
 
 To convert to a flat $/kWh rate in 2026 dollars:
 
@@ -299,16 +299,16 @@ For these variants, the Block 2 riders break down as:
 
 ### Per-number provenance (MC-trans variants)
 
-| Component                                | Value         | Source                                                | Derivation                                                           |
-| ---------------------------------------- | ------------- | ----------------------------------------------------- | -------------------------------------------------------------------- |
-| AESC 2024 avoided PTF                    | $69/kW-yr     | `bulk_tx_isone.py` line 52, AESC 2024 study (Synapse) | Direct value, 2024 dollars                                           |
-| CPI 2024 annual avg                      | 313.698167    | FRED CPIAUCSL, `data/fred/cpi/` pipeline              | Annual average of monthly CPIAUCSL for 2024                          |
-| CPI 2026 annual avg                      | 331.279875    | FRED CPIAUCSL, `data/fred/cpi/` pipeline              | Annual average of monthly CPIAUCSL for 2026                          |
-| MC-trans ($/kWh, 2026$)                  | $0.00832/kWh  | derived                                               | $69 × (331.28 / 313.70) / 8760 = $0.00832                            |
-| Block 2 riders_other                     | -$0.00911/kWh | derived                                               | shared_riders.total − shared_riders.transmission = 0.04139 − 0.05050 |
-| Block 2 riders_total (mc-trans)          | -$0.00079/kWh | derived                                               | 0.00832 + (−0.00911) = −0.00079                                      |
-| **RATE=MC TX=MC delivery Block 2**       | **0.04073**   | derived                                               | distribution 0.04152 + riders −0.00079                               |
-| **FIXED+RATE=MC TX=MC delivery Block 2** | **0.00179**   | derived                                               | distribution 0.00258 + riders −0.00079                               |
+| Component                                | Value         | Source                                       | Derivation                                                           |
+| ---------------------------------------- | ------------- | -------------------------------------------- | -------------------------------------------------------------------- |
+| AESC 2024 avoided PTF                    | $69/kW-yr     | `inputs/isone.py`, AESC 2024 study (Synapse) | Direct value, 2024 dollars                                           |
+| CPI 2024 annual avg                      | 313.698167    | FRED CPIAUCSL, `data/fred/cpi/` pipeline     | Annual average of monthly CPIAUCSL for 2024                          |
+| CPI 2026 annual avg                      | 331.279875    | FRED CPIAUCSL, `data/fred/cpi/` pipeline     | Annual average of monthly CPIAUCSL for 2026                          |
+| MC-trans ($/kWh, 2026$)                  | $0.00832/kWh  | derived                                      | $69 × (331.28 / 313.70) / 8760 = $0.00832                            |
+| Block 2 riders_other                     | -$0.00911/kWh | derived                                      | shared_riders.total − shared_riders.transmission = 0.04139 − 0.05050 |
+| Block 2 riders_total (mc-trans)          | -$0.00079/kWh | derived                                      | 0.00832 + (−0.00911) = −0.00079                                      |
+| **RATE=MC TX=MC delivery Block 2**       | **0.04073**   | derived                                      | distribution 0.04152 + riders −0.00079                               |
+| **FIXED+RATE=MC TX=MC delivery Block 2** | **0.00179**   | derived                                      | distribution 0.00258 + riders −0.00079                               |
 
 ## Rate 6 MC-trans, MFC=0 variant (RATE=MC, MFC=0, TX=MC)
 

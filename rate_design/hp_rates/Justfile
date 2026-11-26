@@ -380,26 +380,36 @@ create-gas-tariff-maps-all:
 ensure-gas-tariff-envelope:
     uv run python {{ path_repo }}/utils/pre/ensure_urdb_envelope.py "{{ path_tariffs_gas }}"
 
-# Distribution marginal costs
+# Allocate one marginal-cost 8760 from the state's allocation.yaml.
+# variant is empty for the block's default method. Extra args pass through
+# (--load-year, --upload, --set, --source, --path-local-base).
+create-mc-data component utility_arg year_arg variant="" *extra_args:
+    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/run_allocation.py \
+      --config {{ path_config }}/marginal_costs/allocation.yaml \
+      --component {{ component }} \
+      --utility {{ utility_arg }} \
+      --year {{ year_arg }} \
+      {{ if variant != "" { "--variant " + variant } else { "" } }} \
+      {{ extra_args }}
+
+# Distribution marginal costs. Utilities and inputs come from allocation.yaml.
 create-dist-and-sub-tx-mc-data:
-    uv run python {{ path_repo }}/utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py \
-      --state {{ state_upper }} \
-      --utility {{ utility }} \
-      --year {{ year }} \
+    just --justfile "{{ justfile() }}" create-mc-data dist_and_sub_tx {{ utility }} {{ year }} "" \
       --load-year {{ dist_load_year }} \
-      --mc-table-path {{ path_mc_table }} \
-      --utility-load-s3-base {{ path_s3_utility_loads }} \
-      --output-s3-base {{ path_s3_mc_output }} \
-      --n-hours {{ upstream_hours }} \
       --upload
 
 create-dist-and-sub-tx-mc-data-all:
     #!/usr/bin/env bash
     set -euo pipefail
-    IFS=',' read -ra utils <<< "{{ utilities }}"
+    mapfile -t utils < <(uv run python {{ path_repo }}/utils/data_prep/marginal_costs/run_allocation.py \
+      --config {{ path_config }}/marginal_costs/allocation.yaml \
+      --component dist_and_sub_tx \
+      --list-utilities)
     for util in "${utils[@]}"; do
         echo ">> Running create-dist-and-sub-tx-mc-data for utility: $util" >&2
-        UTILITY="$util" just create-dist-and-sub-tx-mc-data
+        just --justfile "{{ justfile() }}" create-mc-data dist_and_sub_tx "$util" {{ year }} "" \
+          --load-year {{ dist_load_year }} \
+          --upload
     done
 
 # =============================================================================

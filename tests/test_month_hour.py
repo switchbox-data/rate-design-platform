@@ -10,6 +10,7 @@ import polars as pl
 import pytest
 import yaml
 
+from utils.data_prep.marginal_costs.inputs.generic import _voltage_from_table_paths
 from utils.data_prep.marginal_costs.methods.month_hour import (
     expand_month_hour_to_8760,
     main,
@@ -17,9 +18,6 @@ from utils.data_prep.marginal_costs.methods.month_hour import (
     month_hour_costs_from_probability,
     scale_8760_to_annual,
     us_federal_holidays,
-)
-from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
-    _voltage_from_table_paths,
 )
 
 _REPO = Path(__file__).parent.parent

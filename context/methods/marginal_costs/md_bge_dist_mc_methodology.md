@@ -38,7 +38,7 @@ bge,32.0,2022
 ```
 
 The allocator
-([generate_utility_tx_dx_mc.py](../../../utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py))
+([run_allocation.py](../../../utils/data_prep/marginal_costs/run_allocation.py))
 reads the optional `dollar_year` column and CPI-inflates the value (CPIAUCSL) from 2022 to the target
 dollar year (defaults to `--year`). For a 2025 run that is roughly `$32` → `~$36/kW-yr`. No
 carrying-charge math is applied on our side — the figure is pre-levelized.

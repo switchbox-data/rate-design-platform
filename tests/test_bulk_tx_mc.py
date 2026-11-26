@@ -9,17 +9,48 @@ from typing import cast
 import polars as pl
 import pytest
 
-from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_nyiso import (
+from utils.data_prep.marginal_costs.inputs.nyiso import (
     DEFAULT_SCR_WINTER_MONTHS,
     build_nested_locality_load_profiles,
     compute_paying_locality_costs,
-    compute_utility_bulk_tx_signal,
+    icap_components,
     load_constraint_group_table,
-    prepare_output,
 )
 from utils.data_prep.marginal_costs.methods.seasonal_scr_exceedance import (
     seasonal_scr_exceedance,
 )
+from utils.data_prep.marginal_costs.run_allocation import align_8760
+
+
+def compute_utility_bulk_tx_signal(
+    utility_icap_rows: pl.DataFrame,
+    paying_locality_costs: dict[str, float],
+    locality_profiles: dict[str, pl.DataFrame],
+    n_scr: int,
+    winter_months: list[int],
+) -> pl.DataFrame:
+    """One seasonal-SCR call per ICAP row, then the sum of the cost column."""
+    components = icap_components(utility_icap_rows, paying_locality_costs, locality_profiles)
+    frames = [
+        seasonal_scr_exceedance(
+            component["load"],
+            component["annual_cost_kw_year"],
+            n_scr,
+            winter_months,
+            output_column="bulk_tx_cost_enduse",
+        )
+        for component in components
+    ]
+    return (
+        pl.concat(frames)
+        .group_by("timestamp")
+        .agg(pl.col("bulk_tx_cost_enduse").sum().alias("bulk_tx_cost_enduse"))
+        .sort("timestamp")
+    )
+
+
+def prepare_output(allocated_df: pl.DataFrame, year: int) -> pl.DataFrame:
+    return align_8760(allocated_df, year, "bulk_tx_cost_enduse")
 
 
 def _make_hourly_load_profile(year: int = 2025) -> pl.DataFrame:

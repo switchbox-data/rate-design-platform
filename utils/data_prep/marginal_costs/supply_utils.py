@@ -297,6 +297,94 @@ def remap_year_if_needed(df: pl.DataFrame, timestamp_col: str, from_year: int, t
     return df.with_columns(pl.col(timestamp_col).dt.offset_by(offset).alias(timestamp_col))
 
 
+def normalize_load_to_cairo_8760(load_df: pl.DataFrame, utility: str, year_load: int) -> pl.DataFrame:
+    """Normalize a utility load profile to the Cairo 8760 clock.
+
+    Cairo drops December 31 when February 29 is present so the year stays 8760
+    hours. Duplicate wall-clock timestamps (DST fall-back) are averaged, then
+    missing hours are interpolated.
+
+    Args:
+        load_df: Load with at least ``timestamp`` and ``load_mw``.
+        utility: Utility short code stamped on the result.
+        year_load: Load year to keep.
+
+    Returns:
+        Exactly 8760 rows with columns ``timestamp``, ``utility``, ``load_mw``.
+    """
+    if "timestamp" not in load_df.columns or "load_mw" not in load_df.columns:
+        raise ValueError("load_df must contain timestamp and load_mw columns")
+
+    print("\nNormalizing load profile to Cairo-compatible 8760...")
+
+    cols = ["timestamp", "load_mw"]
+    if "utility" in load_df.columns:
+        cols.append("utility")
+    df = load_df.select(cols)
+
+    # Convert timezone-aware timestamps to local wall-clock naive timestamps.
+    ts_dtype = df.schema["timestamp"]
+    if isinstance(ts_dtype, pl.Datetime) and ts_dtype.time_zone is not None:
+        df = df.with_columns(
+            pl.col("timestamp").dt.convert_time_zone("America/New_York").dt.replace_time_zone(None).alias("timestamp")
+        )
+
+    # The expected 8760 index is datetime[us]. A load file in another unit
+    # (e.g. ms from an Excel-sourced parquet) would fail the join without this.
+    df = df.with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
+
+    df = df.filter(pl.col("timestamp").dt.year() == year_load)
+    if df.is_empty():
+        raise ValueError(f"No load rows found for load_year={year_load}")
+
+    # Cairo leap-year rule: if Feb 29 exists, drop Dec 31.
+    has_feb29 = df.select(
+        ((pl.col("timestamp").dt.month() == 2) & (pl.col("timestamp").dt.day() == 29)).any().alias("has_feb29")
+    ).item()
+    if has_feb29:
+        print("  Leap-year pattern detected (Feb 29 present); dropping Dec 31 to match Cairo.")
+        df = df.filter(~((pl.col("timestamp").dt.month() == 12) & (pl.col("timestamp").dt.day() == 31)))
+
+    duplicate_count = df.height - df.select(pl.col("timestamp").n_unique()).item()
+    if duplicate_count > 0:
+        print(f"  Collapsing {duplicate_count} duplicate timestamp row(s) with mean load.")
+    agg_exprs = [pl.col("load_mw").mean().alias("load_mw")]
+    if "utility" in df.columns:
+        agg_exprs.append(pl.col("utility").first().alias("utility"))
+    df = df.group_by("timestamp").agg(agg_exprs).sort("timestamp")
+
+    start = datetime(year_load, 1, 1, 0, 0, 0)
+    end = datetime(year_load, 12, 31, 23, 0, 0)
+    expected: list[datetime] = []
+    cur = start
+    while cur <= end:
+        expected.append(cur)
+        cur += timedelta(hours=1)
+    if has_feb29:
+        expected = [t for t in expected if not (t.month == 12 and t.day == 31)]
+    expected_df = pl.DataFrame({"timestamp": expected}).with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
+
+    df = expected_df.join(df, on="timestamp", how="left").sort("timestamp")
+    missing_before_fill = df.filter(pl.col("load_mw").is_null()).height
+    if missing_before_fill > 0:
+        print(f"  Filling {missing_before_fill} missing hour(s) via interpolation.")
+    df = df.with_columns(pl.col("load_mw").interpolate().forward_fill().backward_fill().alias("load_mw"))
+    if "utility" in df.columns:
+        df = df.with_columns(pl.col("utility").fill_null(utility).alias("utility"))
+    else:
+        df = df.with_columns(pl.lit(utility).alias("utility"))
+
+    if df.height != 8760:
+        raise ValueError(f"Cairo 8760 normalization failed: expected 8760 rows, got {df.height}")
+    if df.select(pl.col("timestamp").n_unique()).item() != 8760:
+        raise ValueError("Cairo 8760 normalization failed: timestamps are not unique")
+    if df.filter(pl.col("load_mw").is_null()).height > 0:
+        raise ValueError("Cairo 8760 normalization failed: load_mw contains nulls")
+
+    print("  ✓ Normalized to 8760 hourly rows (Cairo-compatible)")
+    return df.select(["timestamp", "utility", "load_mw"])
+
+
 def output_base_for_load_year(
     output_s3_base: str,
     output_year: int,

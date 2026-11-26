@@ -165,7 +165,7 @@ The VDER Value Stack's DRV and LSRV are based on MCOS studies covering local sub
 
 ## Implemented allocation
 
-NY bulk transmission (`cenhud`, `coned`, `nimo`, `nyseg`, `or`, `psegli`, `rge`) spreads each utility ICAP row with seasonal SCR exceedance ([seasonal_scr_exceedance_allocation.md](seasonal_scr_exceedance_allocation.md)). `generate_bulk_tx_mc.py --iso nyiso` builds one load and one `$/kW-yr` per row, calls `seasonal_scr_exceedance` once per row, and sums the hourly costs. How the constraint-group scalar and the nested-locality load are chosen is in [ny_bulk_tx_marginal_costs.md](../../code/marginal_costs/ny_bulk_tx_marginal_costs.md).
+NY bulk transmission (`cenhud`, `coned`, `nimo`, `nyseg`, `or`, `psegli`, `rge`) spreads each utility ICAP row with seasonal SCR exceedance ([seasonal_scr_exceedance_allocation.md](seasonal_scr_exceedance_allocation.md)). `run_allocation.py --component bulk_tx` builds one load and one `$/kW-yr` per row (`inputs/nyiso.py`), calls `seasonal_scr_exceedance` once per row, and sums the hourly costs. How the constraint-group scalar and the nested-locality load are chosen is in [ny_bulk_tx_marginal_costs.md](../../code/marginal_costs/ny_bulk_tx_marginal_costs.md).
 
 | Input         | NY value                                                                                                                                                      |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -131,50 +131,21 @@ ct_bulk_tx_years := "2025"
 create-bulk-tx-mc-data utility_arg year_arg *extra_args:
     #!/usr/bin/env bash
     set -euo pipefail
-    calendar_year="{{ month_hour_calendar_year }}"
-    calendar_year="${calendar_year:-{{ year_arg }}}"
-    case "{{ bulk_tx_method }}" in
-      pop_kde)
-        method_args=(
-          --method pop_kde
-          --load-year {{ year_arg }}
-          --calendar-year "${calendar_year}"
-          --target-dollar-year 2026
-        )
-        ;;
-      isone_aesc_ptf)
-        method_args=(
-          --method isone_aesc_ptf
-          --load-year {{ year_arg }}
-        )
-        ;;
-      month_hour)
-        if [[ "{{ utility_arg }}" != "ct_eversource" ]]; then
-          echo "bulk_tx_method=month_hour is only defined for ct_eversource (got '{{ utility_arg }}')" >&2
-          exit 1
-        fi
-        method_args=(
-          --method month_hour
-          --path-weekday-pop "{{ path_s3_occ863_parquet }}/month_hour_probability_of_peak_weekday.parquet"
-          --path-weekend-pop "{{ path_s3_occ863_parquet }}/month_hour_probability_of_peak_weekend_holidays.parquet"
-          --include-holidays "{{ include_holidays }}"
-          --calendar-year "${calendar_year}"
-          --table-source occ863att2
-          --ptf-dollar-year 2024
-          --target-dollar-year 2026
-          --source 'AESC 2024 avoided PTF ($69/kW-yr, 2024$) x OCC-863 Attachment 2 page 3 probability of peak / num_days, CPI to 2026$, scaled so the 8760 sums to that inflated annual total'
-        )
-        ;;
-      *)
-        echo "bulk_tx_method must be pop_kde, month_hour, or isone_aesc_ptf (got '{{ bulk_tx_method }}')" >&2
-        exit 1
-        ;;
-    esac
-    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \
-      --iso isone \
-      --utility {{ utility_arg }} \
-      --year {{ year_arg }} \
-      "${method_args[@]}" \
+    sets=()
+    if [[ -n "{{ month_hour_calendar_year }}" ]]; then
+        sets+=(--set "calendar_year={{ month_hour_calendar_year }}")
+    fi
+    if [[ "{{ include_holidays }}" != "true" ]]; then
+        sets+=(--set "include_holidays={{ include_holidays }}")
+    fi
+    source_args=()
+    if [[ "{{ bulk_tx_method }}" == "month_hour" ]]; then
+        source_args=(--source 'AESC 2024 avoided PTF ($69/kW-yr, 2024$) x OCC-863 Attachment 2 page 3 probability of peak / num_days, CPI to 2026$, scaled so the 8760 sums to that inflated annual total')
+    fi
+    just --justfile "{{ justfile() }}" create-mc-data bulk_tx {{ utility_arg }} {{ year_arg }} {{ bulk_tx_method }} \
+      --load-year {{ year_arg }} \
+      "${sets[@]}" \
+      "${source_args[@]}" \
       {{ extra_args }}
 
 # Generate bulk TX MC for all CT utilities across all available years.
@@ -184,7 +155,12 @@ create-bulk-tx-mc-data utility_arg year_arg *extra_args:
 create-bulk-tx-mc-data-all *extra_args:
     #!/usr/bin/env bash
     set -euo pipefail
-    IFS=',' read -ra utils <<< "{{ utilities }}"
+    cd {{ path_repo }}
+    mapfile -t utils < <(uv run python {{ path_repo }}/utils/data_prep/marginal_costs/run_allocation.py \
+      --config {{ path_config }}/marginal_costs/allocation.yaml \
+      --component bulk_tx \
+      --variant {{ bulk_tx_method }} \
+      --list-utilities)
     for utility in "${utils[@]}"; do
         for year in {{ ct_bulk_tx_years }}; do
             echo ">> Generating ISO-NE bulk TX MC: utility=${utility} year=${year} method={{ bulk_tx_method }}" >&2
@@ -248,60 +224,34 @@ create-dist-mc-data year_arg *extra_args:
     #!/usr/bin/env bash
     set -euo pipefail
     pop_scalar_source='PURA Docket 26-05-10, MCOS-2 Table 3 secondary ($20.17/kW-yr, 2026$) x OCC-863 Attachment 2 secondary loss factor = $21.22/kW-yr'
-    calendar_year="{{ month_hour_calendar_year }}"
-    calendar_year="${calendar_year:-{{ year_arg }}}"
+    sets=()
+    if [[ -n "{{ month_hour_calendar_year }}" ]]; then
+        sets+=(--set "calendar_year={{ month_hour_calendar_year }}")
+    fi
+    if [[ "{{ include_holidays }}" != "true" ]]; then
+        sets+=(--set "include_holidays={{ include_holidays }}")
+    fi
     case "{{ dist_mc_method }}" in
       month_hour)
-        method_args=(
-          --method month_hour
-          --path-weekday-mc "{{ path_s3_occ863_parquet }}/month_hour_marginal_costs_weekday_secondary.parquet"
-          --path-weekend-mc "{{ path_s3_occ863_parquet }}/month_hour_marginal_costs_weekend_holidays_secondary.parquet"
-          --include-holidays "{{ include_holidays }}"
-          --calendar-year "${calendar_year}"
-          --table-source occ863att2
-          --mc-table-path "{{ path_config }}/marginal_costs/ct_marginal_costs_{{ year_arg }}.csv"
-          --target-dollar-year 2026
-          --source 'PURA Docket 26-05-10, OCC-863 Attachment 2, secondary month-hour $/kWh (weekday; weekend and holiday), scaled uniformly to the MCOS-2 secondary $/kW-yr'
-        )
+        source_arg='PURA Docket 26-05-10, OCC-863 Attachment 2, secondary month-hour $/kWh (weekday; weekend and holiday), scaled uniformly to the MCOS-2 secondary $/kW-yr'
         ;;
       pop_occ863)
-        method_args=(
-          --method pop
-          --path-utility-load "{{ path_s3_occ863_parquet }}/system_load.parquet"
-          --load-source occ863att3
-          --source "${pop_scalar_source}; load: OCC-863 Attachment 3 page 2 distribution-substation load"
-        )
+        source_arg="${pop_scalar_source}; load: OCC-863 Attachment 3 page 2 distribution-substation load"
         ;;
       pop_isone_zone)
-        method_args=(
-          --method pop
-          --utility-load-s3-base "{{ path_s3_utility_loads }}"
-          --load-source isone_zone
-          --source "${pop_scalar_source}; load: ISO-NE CT zone hourly demand"
-        )
+        source_arg="${pop_scalar_source}; load: ISO-NE CT zone hourly demand"
         ;;
       *)
         echo "dist_mc_method must be month_hour, pop_occ863, or pop_isone_zone (got '{{ dist_mc_method }}')" >&2
         exit 1
         ;;
     esac
-    if [[ "${method_args[1]}" == "pop" ]]; then
-      method_args+=(
-        --load-year "{{ year_arg }}"
-        --target-dollar-year 2026
-        --mc-table-path "{{ path_config }}/marginal_costs/ct_marginal_costs_{{ year_arg }}.csv"
-        --n-hours "{{ upstream_hours }}"
-      )
-    fi
     echo ">> CT dist MC: method={{ dist_mc_method }} year={{ year_arg }} -> dist_and_sub_tx/" >&2
-    cd {{ path_repo }}
-    uv run python utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py \
-      --state CT \
-      --utility ct_eversource \
-      --year {{ year_arg }} \
-      --output-s3-base "{{ path_s3_mc_root }}dist_and_sub_tx/" \
-      --path-local-output-base "{{ path_local_mc_root }}dist_and_sub_tx/" \
-      "${method_args[@]}" \
+    just --justfile "{{ justfile() }}" create-mc-data dist_and_sub_tx ct_eversource {{ year_arg }} {{ dist_mc_method }} \
+      --load-year {{ year_arg }} \
+      --source "${source_arg}" \
+      --path-local-base "{{ path_local_mc_root }}dist_and_sub_tx/" \
+      "${sets[@]}" \
       {{ extra_args }}
 
 # =============================================================================

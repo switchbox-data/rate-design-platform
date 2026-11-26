@@ -184,7 +184,7 @@ def test_state_configs_name_this_method_and_its_output() -> None:
     assert ri["output_base"] == "s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/"
     assert ri["inputs"]["annual_cost_kw_year"] == {"from": "literal", "value": 69.0}
     load = ri["inputs"]["load"]
-    assert load["from"] == "zone_sum_load"
+    assert load["from"] == "isone_zone_load"
     assert load["path"] == "s3://data.sb/isone/hourly_demand/zones/"
     assert load["zones"] == _NE_ZONES
     assert load["year"] == "{load_year}"
@@ -197,6 +197,6 @@ def test_state_configs_name_this_method_and_its_output() -> None:
     assert alternative["utilities"] == ["ct_eversource", "ct_ui"]
     assert alternative["inputs"]["n_hours"] == 100
     assert alternative["inputs"]["annual_cost_kw_year"] == {"from": "literal", "value": 69.0}
-    assert alternative["inputs"]["load"]["from"] == "zone_sum_load"
+    assert alternative["inputs"]["load"]["from"] == "isone_zone_load"
     assert alternative["inputs"]["load"]["zones"] == _NE_ZONES
     assert alternative["inputs"]["load"]["path"] == "s3://data.sb/isone/hourly_demand/zones/"

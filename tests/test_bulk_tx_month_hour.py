@@ -7,14 +7,11 @@ from pathlib import Path
 import polars as pl
 import pytest
 
+from utils.data_prep.marginal_costs.inputs.generic import inflate_annual_mc, load_cpi_inflation_factor
 from utils.data_prep.marginal_costs.methods.month_hour import (
     expand_month_hour_to_8760,
     month_hour_costs_from_probability,
     scale_8760_to_annual,
-)
-from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
-    inflate_annual_mc,
-    load_cpi_inflation_factor,
 )
 
 _ANNUAL = 69.0

@@ -16,6 +16,33 @@ Each method turns an annual `$/kW-yr` (or a month-hour table) into an hourly ser
 
 Code paths are under `utils/data_prep/marginal_costs/`.
 
+## How to run
+
+One runner reads the state's `allocation.yaml`, resolves each `from:` input, calls the method, checks the 8760, and writes on `--upload`.
+
+```bash
+uv run python utils/data_prep/marginal_costs/run_allocation.py \
+  --config rate_design/hp_rates/<state>/config/marginal_costs/allocation.yaml \
+  --component dist_and_sub_tx \
+  --utility <utility> \
+  --year <year> \
+  --load-year <year> \
+  --upload
+```
+
+`--variant` selects an `alternatives` entry. The state Justfiles call this through `create-mc-data`. The older recipe names (`create-dist-and-sub-tx-mc-data`, `create-bulk-tx-mc-data`, CT `create-dist-mc-data`) are aliases.
+
+Readers live in `utils/data_prep/marginal_costs/inputs/`. `generic.py` covers a literal, an MC-table cell, CPI, one parquet, the `utility=/year=` hive, and a periods YAML. `isone.py` reads the ISO-NE zone hive (`isone_zone_load`). `pjm.py` blends a NITS rate and reads PJM load with the old null-fill (`pjm_hive_load`). `nyiso.py` returns one `{load, annual_cost_kw_year}` per utility ICAP row (`nyiso_scr_components`); the runner calls seasonal SCR once per row and sums the cost column.
+
+## Adding a state
+
+| Situation                                                                   | New code                                                                                  |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| A state in an existing ISO, existing method, inputs on S3 in a known layout | An `allocation.yaml`. No Python.                                                          |
+| Same, but a filed table arrives as an Excel workbook                        | A `convert_*.py` script that writes parquet, plus the config.                             |
+| A new ISO whose `$/kW-yr` or load cannot be read with the generic loaders   | `inputs/<iso>.py` with one function, registered in `inputs/__init__.py`, plus the config. |
+| A new allocation formula                                                    | A new `methods/<name>.py` script, with tests, plus the config.                            |
+
 ## Other files
 
 Open one of these when the task is about a state's inputs, a study comparison, or which marginal-cost definition to use. The allocation formula is in the table above.

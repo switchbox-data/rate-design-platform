@@ -180,13 +180,13 @@ The AESC is the institutional standard in New England for avoided transmission c
 
 ## Implemented allocation
 
-RI bulk transmission (`rie`) spreads the AESC 2024 avoided PTF cost with top-N exceedance ([top_n_exceedance_allocation.md](top_n_exceedance_allocation.md)). `generate_bulk_tx_mc.py --iso isone` loads the curve, then calls `top_n_exceedance`. This path does not apply CPI. The `$69/kW-yr` is used as filed.
+RI bulk transmission (`rie`) spreads the AESC 2024 avoided PTF cost with top-N exceedance ([top_n_exceedance_allocation.md](top_n_exceedance_allocation.md)). `run_allocation.py --component bulk_tx` loads the ISO-NE zone sum (`inputs/isone.py`), then calls `top_n_exceedance`. This path does not apply CPI. The `$69/kW-yr` is used as filed.
 
 | Input       | RI value                                                                                                                        |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | Load curve  | Sum of all 8 ISO-NE zones (`CT`, `ME`, `NEMA`, `NH`, `RI`, `SEMA`, `VT`, `WCMA`) from `s3://data.sb/isone/hourly_demand/zones/` |
 | Load year   | `--load-year`, defaulting to the output year                                                                                    |
-| Annual cost | `$69/kW-yr` (`AESC_2024_AVOIDED_PTF_KW_YEAR` in `bulk_tx_isone.py`). `--aesc-ptf-kw-year` overrides it                          |
+| Annual cost | `$69/kW-yr` (`AESC_2024_AVOIDED_PTF_KW_YEAR` in `inputs/isone.py`), the `literal` in `allocation.yaml`                          |
 | N           | 100                                                                                                                             |
 
 The utility's own zone load is loaded when the allocation load is the New England system, and only so the run can print that zone's share of the peak hour. The weights use the system load. Output: `s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year={year}/data.parquet`, column `bulk_tx_cost_enduse`. These inputs are recorded in `rate_design/hp_rates/ri/config/marginal_costs/allocation.yaml`.

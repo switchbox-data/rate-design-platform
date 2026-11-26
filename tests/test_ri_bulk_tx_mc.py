@@ -8,16 +8,40 @@ from typing import cast
 import polars as pl
 import pytest
 
-from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_isone import (
+from utils.data_prep.marginal_costs.inputs.isone import (
     AESC_2024_AVOIDED_PTF_KW_YEAR,
     DEFAULT_N_PEAK_HOURS,
-    compute_isone_bulk_tx_signal,
-    prepare_output,
-    validate_allocation,
 )
+from utils.data_prep.marginal_costs.methods.top_n_exceedance import top_n_exceedance
+from utils.data_prep.marginal_costs.run_allocation import _check_annual_sum, align_8760
 from utils.data_prep.marginal_costs.supply_utils import ISONE_ALL_LOAD_ZONES
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+
+
+def compute_isone_bulk_tx_signal(
+    load_df: pl.DataFrame,
+    aesc_ptf_kw_year: float,
+    n_peak_hours: int = DEFAULT_N_PEAK_HOURS,
+    utility_zone_load_df: pl.DataFrame | None = None,
+    utility_label: str = "Utility zone",
+) -> pl.DataFrame:
+    """Top-N exceedance. The utility-zone frame is not an input to the cost."""
+    del utility_zone_load_df, utility_label
+    return top_n_exceedance(
+        load_df,
+        aesc_ptf_kw_year,
+        n_peak_hours,
+        output_column="bulk_tx_cost_enduse",
+    )
+
+
+def prepare_output(allocated_df: pl.DataFrame, year: int) -> pl.DataFrame:
+    return align_8760(allocated_df, year, "bulk_tx_cost_enduse")
+
+
+def validate_allocation(df: pl.DataFrame, expected: float) -> None:
+    _check_annual_sum(df, "bulk_tx_cost_enduse", expected)
 
 
 def _make_ne_load_profile(year: int = 2025, n_hours: int = 8760) -> pl.DataFrame:
@@ -132,7 +156,7 @@ class TestValidateAllocation:
         signal = compute_isone_bulk_tx_signal(ne_load, aesc_ptf_kw_year=ptf)
         output = prepare_output(signal, year=2025)
         # Validate with a different PTF value → should fail
-        with pytest.raises(ValueError, match="PTF validation failed"):
+        with pytest.raises(ValueError, match="Annual sum"):
             validate_allocation(output, ptf * 2.0)
 
 

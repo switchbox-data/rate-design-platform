@@ -44,6 +44,7 @@ bulk_tx:
       path: data/pjm/bulk_tx/nits/nits_rates.csv
       year: "{year}"
     load:
-      from: hive_load
+      # Keeps the PJM writer's fill: interpolate, then 0. hive_load forward-fills.
+      from: pjm_hive_load
       path: s3://data.sb/pjm/hourly_demand/utilities/
       load_year: "{load_year}"

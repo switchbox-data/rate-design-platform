@@ -38,7 +38,7 @@ utility,sub_tx_and_dist_mc_kw_yr,dollar_year
 rie,80.24,2019
 ```
 
-[generate_utility_tx_dx_mc.py](../../../utils/data_prep/marginal_costs/sub_tx_and_dist/generate_utility_tx_dx_mc.py) reads the `dollar_year` column and CPI-inflates (CPIAUCSL, latest vintage under `s3://data.sb/fred/cpi/`) from 2019 to the target dollar year, which defaults to `--year`. For the 2025 run the factor is about 1.2594, so the allocated value is about `$101.05/kW-yr`. No carrying-charge math is applied on our side.
+[run_allocation.py](../../../utils/data_prep/marginal_costs/run_allocation.py) reads the `dollar_year` column (`inputs/generic.py`) and CPI-inflates (CPIAUCSL, latest vintage under `s3://data.sb/fred/cpi/`) from 2019 to the target dollar year, which defaults to `--year`. For the 2025 run the factor is about 1.2594, so the allocated value is about `$101.05/kW-yr`. No carrying-charge math is applied on our side.
 
 `rate_design/hp_rates/ri/state.env` sets `MC_TABLE` to an absolute path under another user's home directory. Without it, the shared Justfile falls back to the repo CSV above.
 
@@ -71,4 +71,4 @@ Rebuild from `rate_design/hp_rates/`:
 just s ri create-dist-and-sub-tx-mc-data
 ```
 
-The recipe always passes `--upload`, so it overwrites the S3 file and writes a manifest beside it. To inspect without writing, call `generate_utility_tx_dx_mc.py` directly without `--upload`.
+The recipe always passes `--upload`, so it overwrites the S3 file and writes a manifest beside it. To inspect without writing, call `run_allocation.py` without `--upload`.

@@ -25,7 +25,7 @@ CT uses the same cost source as RI: the **Avoided Energy Supply Components (AESC
 
 **Key value:** `$69/kW-year` (AESC 2024, Table: Avoided T&D — PTF) — [DocumentCloud p. 288](https://www.documentcloud.org/documents/28039756-synapse-2024-avoided-energy-supply-components-in-new-england-2024-repor/#document/p288/a2811325).
 
-This is the LRMC of bulk transmission in ISO-NE territory: the cost deferred or avoided when a CT customer reduces peak demand by 1 kW during peak hours. The same $69/kW-year applies across all six NE states because PTF is a regional (pooled) cost. The value is implemented as `AESC_2024_AVOIDED_PTF_KW_YEAR` in `utils/data_prep/marginal_costs/bulk_tx/bulk_tx_isone.py`.
+This is the LRMC of bulk transmission in ISO-NE territory: the cost deferred or avoided when a CT customer reduces peak demand by 1 kW during peak hours. The same $69/kW-year applies across all six NE states because PTF is a regional (pooled) cost. The value is implemented as `AESC_2024_AVOIDED_PTF_KW_YEAR` in `utils/data_prep/marginal_costs/inputs/isone.py`.
 
 For full background on the AESC study, the RNS rate, and the reasoning behind choosing AESC over the embedded RNS rate, see `context/methods/marginal_costs/ri_bulk_transmission_marginal_cost.md`.
 
@@ -33,7 +33,7 @@ For full background on the AESC study, the RNS rate, and the reasoning behind ch
 
 ## Hourly allocation
 
-The $69/kW-year value must be converted to an 8760 hourly signal for CAIRO. The ct Justfile's `bulk_tx_method` variable picks one of three allocations, passed to `generate_bulk_tx_mc.py --method`. The shared CLI defaults to `isone_aesc_ptf` so a bare `generate_bulk_tx_mc.py --iso isone` call (and the RI recipe) is unchanged.
+The $69/kW-year value must be converted to an 8760 hourly signal for CAIRO. The ct Justfile's `bulk_tx_method` variable picks one of three allocations and passes it as `--variant` to `run_allocation.py`. RI uses the same runner with the `isone_aesc_ptf` block and does not pass a variant.
 
 ### KDE probability of peak (`pop_kde`, default)
 
@@ -52,13 +52,13 @@ The writer calls `pop_kde` and keeps the column name `bulk_tx_cost_enduse`. A fl
 
 On 2022–2025 NE system load, 121 of 576 cells are nonzero. June, July, August, and September carry 13%, 56%, 26%, and 5% of the probability; weekend-and-holiday cells carry 25%; February holds a trace (0.05%). The result is about 1,900 nonzero hours, and the maximum falls on the July weekday 17:00 cell. The level of every hour scales with the inflated `$/kW-yr`.
 
-Implementation: `compute_isone_bulk_tx_pop_kde` and `load_isone_zone_load_history` in `bulk_tx/bulk_tx_isone.py`, `_run_isone_pop_kde` in `bulk_tx/generate_bulk_tx_mc.py`. The formula is `pop_kde` in `methods/pop_kde.py`.
+Implementation: `isone_zone_load` in `inputs/isone.py` stacks the history years, and `run_allocation.py` calls `pop_kde` in `methods/pop_kde.py`.
 
 The manifest key is `aesc_ptf69_pop_kde_ne_system_hist2022to2025_cal2025_2026usd`, which is the key in `pipeline_ct_eversource.yaml`. All three methods write the same path under different manifest keys, and the pipeline YAML's `key` says which one a run accepts.
 
 ### Month-hour allocation from OCC-863 (`month_hour`, ct_eversource only)
 
-`bulk_tx_method=month_hour` (`generate_bulk_tx_mc.py --method month_hour`) is the same month-hour
+`bulk_tx_method=month_hour` (`run_allocation.py --variant month_hour`) is the same month-hour
 calendar expansion as distribution ([month_hour_allocation.md](month_hour_allocation.md)), with
 `table_kind` `probability`. It builds the 8760 from OCC-863 Attachment 2 page 3 instead of from a
 load curve. Page 3 is the probability of distribution peak by month, hour, and day type. There is
@@ -105,7 +105,7 @@ The writer calls `top_n_exceedance` and keeps the column name `bulk_tx_cost_endu
 
 ## Allocation load: system-wide vs. CT zone
 
-This applies to `pop_kde` and `isone_aesc_ptf`. `month_hour` does not use a load curve. The `generate_bulk_tx_mc.py` CLI accepts `--allocation-load`:
+This applies to `pop_kde` and `isone_aesc_ptf`. `month_hour` does not use a load curve. The allocation load is the `zones` list on `isone_zone_load` in `allocation.yaml`:
 
 | Flag value     | Load used                           |
 | -------------- | ----------------------------------- |
@@ -176,7 +176,7 @@ just s ct bulk_tx_method=isone_aesc_ptf create-bulk-tx-mc-data ct_eversource 202
 
 The manifest keys are `aesc_ptf69_pop_kde_ne_system_hist2022to2025_cal2025_2026usd` (default), `month_hour_occ863att2_aesc_ptf69_holidays_cal2025_2026usd`, and `aesc_ptf69_ne_system_100h_load2025` ([mc_provenance_manifest.md](../../code/marginal_costs/mc_provenance_manifest.md)).
 
-`create-bulk-tx-mc-data-all` loops `UTILITIES` from `state.env` (`UTILITIES=ct_eversource,ct_ui`). With `bulk_tx_method=month_hour` that loop only succeeds for `ct_eversource`, because the recipe wires CL&P's OCC-863 files. Both utilities are in `supply_utils.py` as entries in `ISONE_UTILITY_ZONES`. External data sources still use historical identifiers (HIFLD: "CONNECTICUT LIGHT & POWER CO" / "UNITED ILLUMINATING CO"; EIA IDs 4176 / 19497).
+`create-bulk-tx-mc-data-all` lists the utilities on the selected `allocation.yaml` block. `month_hour` lists only `ct_eversource`, because that alternative is CL&P's OCC-863 tables. Both utilities are in `supply_utils.py` as entries in `ISONE_UTILITY_ZONES`. External data sources still use historical identifiers (HIFLD: "CONNECTICUT LIGHT & POWER CO" / "UNITED ILLUMINATING CO"; EIA IDs 4176 / 19497).
 
 ---
 
@@ -184,13 +184,13 @@ The manifest keys are `aesc_ptf69_pop_kde_ne_system_hist2022to2025_cal2025_2026u
 
 | File                                                             | Role                                                                                                                                                          |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `utils/data_prep/marginal_costs/bulk_tx/bulk_tx_isone.py`        | Core logic: `compute_isone_bulk_tx_signal`, `compute_isone_bulk_tx_pop_kde`, `load_isone_zone_load_history`, `prepare_output`, `validate_allocation`          |
+| `utils/data_prep/marginal_costs/inputs/isone.py`                 | ISO-NE zone load (`isone_zone_load`), including a multi-year history for `pop_kde`                                                                            |
 | `utils/data_prep/marginal_costs/methods/month_hour.py`           | Month-hour calendar expansion. `month_hour` with `table_kind` `probability` is the `month_hour` alternative; `pop_kde` calls its expander and skips the scale |
 | `utils/data_prep/marginal_costs/methods/pop_kde.py`              | KDE probability of peak. `pop_kde` places the annual cost on the 8760                                                                                         |
-| `utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py`  | CLI entrypoint; `--method {isone_aesc_ptf,month_hour,pop_kde}` and `--allocation-load`; `_run_isone_month_hour`, `_run_isone_pop_kde`                         |
+| `utils/data_prep/marginal_costs/run_allocation.py`               | Runner. `--variant` selects `pop_kde` (default), `month_hour`, or `isone_aesc_ptf`                                                                            |
 | `utils/data_prep/marginal_costs/methods/top_n_exceedance.py`     | Top-N exceedance formula used by `isone_aesc_ptf`                                                                                                             |
 | `utils/data_prep/marginal_costs/supply_utils.py`                 | `ISONE_UTILITY_ZONES` mapping                                                                                                                                 |
-| `utils/data_prep/marginal_costs/supply/supply_capacity_isone.py` | `load_isone_zone_loads`                                                                                                                                       |
+| `utils/data_prep/marginal_costs/supply/supply_capacity_isone.py` | FCA supply capacity. Imports `load_isone_zone_loads` from `inputs/isone.py`                                                                                   |
 | `rate_design/hp_rates/ct/Justfile`                               | `create-bulk-tx-mc-data`, `create-bulk-tx-mc-data-all` recipes; `bulk_tx_method` variable                                                                     |
 | `rate_design/hp_rates/ct/state.env`                              | `UTILITIES=ct_eversource,ct_ui`, `REGION=isone`, `YEAR=2025`                                                                                                  |
 | `tests/test_top_n_exceedance.py`                                 | Tests for the exceedance formula and the RI and CT config entries                                                                                             |

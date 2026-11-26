@@ -23,13 +23,13 @@ from data.isone.hourly_demand.aggregate_isone_utility_loads import (
     get_utility_zone_mapping,
 )
 from data.isone.zone_mapping.generate_zone_mapping_csv import build_zone_mapping
-from utils.data_prep.marginal_costs.methods.top_n_load_share import top_n_load_share
-from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
+from utils.data_prep.marginal_costs.inputs.generic import (
     get_marginal_cost_for_utility,
     load_utility_load_file,
-    normalize_load_to_cairo_8760,
     resolve_utility_load,
 )
+from utils.data_prep.marginal_costs.methods.top_n_load_share import top_n_load_share
+from utils.data_prep.marginal_costs.supply_utils import normalize_load_to_cairo_8760
 
 CT_MC_TABLE_PATH = (
     Path(__file__).parent.parent

@@ -198,5 +198,5 @@ just -f data/pjm/hourly_demand/Justfile upload                # aws s3 sync to S
 This pipeline produces the loads only. The MD sub-TX/DX workflow consumes these
 PJM-native utility loads via the `md/Justfile` `path_s3_utility_loads` override
 (`s3://data.sb/pjm/hourly_demand/utilities/`) and the ISO-native-path handling in
-`generate_utility_tx_dx_mc.py` (the region filter applies only to EIA paths; all
+`run_allocation.py` via `hive_load` (the region filter applies only to EIA paths; all
 ISO-native paths, including PJM, skip it).

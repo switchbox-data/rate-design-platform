@@ -12,10 +12,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from utils.data_prep.marginal_costs.inputs.generic import get_marginal_cost_for_utility
 from utils.data_prep.marginal_costs.methods.top_n_load_share import top_n_load_share
-from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
-    get_marginal_cost_for_utility,
-)
 from utils.data_prep.marginal_costs.supply_utils import (
     output_base_for_load_year,
     remap_year_if_needed,

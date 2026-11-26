@@ -31,6 +31,7 @@ from datetime import date
 
 import polars as pl
 
+from utils.data_prep.marginal_costs.inputs.isone import load_isone_zone_loads
 from utils.data_prep.marginal_costs.methods.top_n_exceedance import top_n_exceedance
 from utils.data_prep.marginal_costs.supply_utils import (
     DEFAULT_ISONE_FCA_S3_PATH,
@@ -39,7 +40,6 @@ from utils.data_prep.marginal_costs.supply_utils import (
     ISONE_CAPACITY_ZONE_LOAD_ZONES,
     ISONE_UTILITY_CAPACITY_ZONES,
     build_cairo_8760_timestamps,
-    strip_tz_if_needed,
 )
 
 # Number of top system-peak hours in a calendar year over which FCA cost is spread.
@@ -208,127 +208,6 @@ def resolve_fca_price_for_calendar_year(
 
 
 # ---------------------------------------------------------------------------
-# ISO-NE zone load loading
-# ---------------------------------------------------------------------------
-
-
-def _load_single_zone(
-    base: str,
-    zone: str,
-    year: int,
-    ref_8760: pl.DataFrame,
-    storage_options: dict[str, str],
-) -> pl.DataFrame:
-    """Load one ISO-NE zone's hourly load for a year, returning exactly 8760 rows.
-
-    - DST fall-back: the two 1:00 AM hours that share a naive timestamp are averaged.
-    - DST spring-forward: the absent 2:00 AM hour is filled by linear interpolation.
-
-    Returns a DataFrame with columns ``timestamp`` and ``load_mw`` (8760 rows).
-    """
-    raw = (
-        pl.scan_parquet(
-            base,
-            hive_partitioning=True,
-            storage_options=storage_options,
-        )
-        .filter(pl.col("zone") == zone, pl.col("year") == year)
-        .select("interval_start_et", "load_mw")
-        .collect()
-    )
-    if not isinstance(raw, pl.DataFrame) or raw.is_empty():
-        raise FileNotFoundError(f"No ISO-NE zone load data found for zone={zone!r}, year={year} under {base}")
-
-    raw = strip_tz_if_needed(raw, "interval_start_et").rename({"interval_start_et": "timestamp"})
-
-    # Validate months
-    months_present = (
-        raw.with_columns(pl.col("timestamp").dt.month().alias("month")).select("month").unique().to_series().to_list()
-    )
-    missing_months = sorted(set(range(1, 13)) - set(months_present))
-    if missing_months:
-        raise ValueError(
-            f"ISO-NE zone load data for zone={zone!r}, year={year} is missing months: "
-            f"{missing_months}. Backfill source data before generating marginal costs."
-        )
-
-    # Average any DST fall-back duplicate timestamps, then align to 8760
-    deduped = raw.group_by("timestamp").agg(pl.col("load_mw").mean()).sort("timestamp")
-    n_raw, n_deduped = raw.height, deduped.height
-    if n_raw != n_deduped:
-        print(f"    {zone}: DST fall-back — {n_raw - n_deduped} duplicate timestamp(s) averaged")
-
-    zone_8760 = (
-        ref_8760.join(deduped, on="timestamp", how="left")
-        .sort("timestamp")
-        .with_columns(pl.col("load_mw").interpolate())
-    )
-    n_gaps = zone_8760.filter(pl.col("load_mw").is_null()).height
-    if n_gaps > 0:
-        zone_8760 = zone_8760.with_columns(pl.col("load_mw").fill_null(0.0))
-        print(f"    {zone}: {n_gaps} hour(s) zero-filled (could not interpolate)")
-    n_interpolated = 8760 - n_deduped
-    if n_interpolated > 0:
-        print(f"    {zone}: {n_interpolated} gap(s) interpolated (DST spring-forward)")
-
-    return zone_8760
-
-
-def load_isone_zone_loads(
-    zone_loads_s3_base: str,
-    zone_names: list[str],
-    year: int,
-    storage_options: dict[str, str],
-) -> pl.DataFrame:
-    """Load ISO-NE zone loads and sum them into an 8760-row aggregate.
-
-    Each zone is loaded independently (one S3 scan per zone), DST-handled, and
-    aligned to the Cairo 8760 grid before summing.  This avoids any multi-zone
-    intermediate dataframe.
-
-    Args:
-        zone_loads_s3_base: S3 base path for ISO-NE zone hourly demand data.
-        zone_names: Zone abbreviations to sum (e.g. ["RI", "SEMA"]).
-        year: Calendar year to load.
-        storage_options: AWS storage options for S3 access.
-
-    Returns:
-        DataFrame with columns ``timestamp`` (naive datetime) and ``load_mw``
-        (aggregate load in MW), with exactly 8760 rows.
-    """
-    base = zone_loads_s3_base.rstrip("/") + "/"
-    ref_8760 = build_cairo_8760_timestamps(year)
-
-    # Load each zone separately → 8760 rows each → sum load_mw
-    aggregate: pl.DataFrame | None = None
-    for zone in sorted(zone_names):
-        zone_df = _load_single_zone(base, zone, year, ref_8760, storage_options)
-        if aggregate is None:
-            aggregate = zone_df
-        else:
-            aggregate = (
-                aggregate.join(
-                    zone_df.rename({"load_mw": "_load_other"}),
-                    on="timestamp",
-                    how="left",
-                )
-                .with_columns((pl.col("load_mw") + pl.col("_load_other")).alias("load_mw"))
-                .select("timestamp", "load_mw")
-            )
-
-    assert aggregate is not None  # zone_names is non-empty by construction
-    print(
-        f"Loaded SENE aggregate load: {len(zone_names)} zone(s) "
-        f"[{', '.join(sorted(zone_names))}] summed → {aggregate.height:,} hours"
-    )
-    return aggregate
-
-
-# ---------------------------------------------------------------------------
-# Annual FCA exceedance allocation
-# ---------------------------------------------------------------------------
-
-
 def allocate_fca_to_hours(
     load_df: pl.DataFrame,
     capacity_cost_kw_year: float,

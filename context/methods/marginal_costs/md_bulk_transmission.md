@@ -592,21 +592,22 @@ hardcoded) was chosen because:
       `s3://data.sb/pjm/hourly_demand/utilities/utility={slug}/year={year}/month={month}/data.parquet`
 - [x] All 4 MD zones present for 2018–2025; schema confirmed compatible with PCAF allocation
 
-### 3 — Implement `bulk_tx_pjm.py` (DONE)
+### 3 — Implement the PJM bulk-tx path (DONE)
 
-- [x] `utils/data_prep/marginal_costs/bulk_tx/bulk_tx_pjm.py` implemented:
-  - Reads `nits_rates.csv`, computes day-weighted blended rate per year
-  - Loads zone hourly demand from S3 on the CAIRO 8760 (full year)
-  - Calls `methods/top_n_load_share.py` with N = 150
+- [x] `utils/data_prep/marginal_costs/inputs/pjm.py` blends the NITS rate and reads the load:
+  - Reads `nits_rates.csv`, computes the day-weighted blended rate per year
+  - Loads zone hourly demand from S3 on the CAIRO 8760 (`pjm_hive_load`)
+  - `run_allocation.py` calls `methods/top_n_load_share.py` with N = 150
     ([top_n_load_share_allocation.md](top_n_load_share_allocation.md))
-  - Outputs 8760-row DataFrame with `timestamp`, `bulk_tx_cost_enduse`
-  - Validates that allocated cost sums to the blended annual rate
-- [x] `generate_bulk_tx_mc.py` extended with `--iso pjm` path:
+  - Outputs an 8760 with `timestamp` and `bulk_tx_cost_enduse`
+  - Checks that the allocated cost sums to the blended annual rate
+- [x] MD `allocation.yaml` `bulk_tx` block, run with:
   ```
-  uv run python utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \
-      --iso pjm --utility bge --year <YYYY> [--load-year <YYYY>] [--upload]
+  uv run python utils/data_prep/marginal_costs/run_allocation.py \
+      --config rate_design/hp_rates/md/config/marginal_costs/allocation.yaml \
+      --component bulk_tx --utility bge --year <YYYY> [--load-year <YYYY>] [--upload]
   ```
-  Valid utilities: `bge`, `dpl`, `pepco`, `poted`. Optional `--k-peak-hours` (default 150).
+  Utilities are the block's `utilities` list. N is `n_hours` (150).
   `--year` is the NITS dollar year, output timestamps, and Hive `year=` partition.
   `--load-year` selects the PJM utility load used for PCAF peak hours (defaults to `--year`).
   When they differ, timestamps are remapped to `--year` and the 8760 is written under a sibling
