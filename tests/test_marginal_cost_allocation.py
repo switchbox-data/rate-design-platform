@@ -12,11 +12,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
-    allocate_costs_to_hours,
-    calculate_pop_weights,
-    get_marginal_cost_for_utility,
-)
+from utils.data_prep.marginal_costs.inputs.generic import get_marginal_cost_for_utility
+from utils.data_prep.marginal_costs.methods.top_n_load_share import top_n_load_share
 from utils.data_prep.marginal_costs.supply_utils import (
     output_base_for_load_year,
     remap_year_if_needed,
@@ -71,72 +68,60 @@ def create_sample_mc_table() -> pl.DataFrame:
     )
 
 
-def test_calculate_pop_weights_normalization():
-    """Test that PoP weights sum to 1.0."""
+def test_top_n_load_share_weights_sum_to_one():
+    """Hourly costs divided by the annual cost are weights that sum to 1."""
     df = create_sample_load_profile()
+    annual = 18.0
 
-    result_df = calculate_pop_weights(df, n_hours=100)
+    result_df = top_n_load_share(df, annual, 100)
 
-    sum_w = float(result_df["w_sub_tx_and_dist"].sum())
-
+    sum_w = float(result_df["mc_total_per_kwh"].sum()) / annual
     assert abs(sum_w - 1.0) < 1e-6, f"Weights sum to {sum_w}, not 1.0"
 
 
-def test_calculate_pop_weights_peak_identification():
-    """Test that peak hours are correctly identified."""
+def test_top_n_load_share_peak_identification():
+    """Exactly n_hours receive a nonzero cost, and the other hours stay zero."""
     df = create_sample_load_profile()
 
-    result_df = calculate_pop_weights(df, n_hours=100)
+    result_df = top_n_load_share(df, 18.0, 100)
 
-    n_peaks = result_df["is_peak"].sum()
-
+    n_peaks = result_df.filter(pl.col("mc_total_per_kwh") > 0).height
     assert n_peaks == 100, f"Expected 100 peaks, got {n_peaks}"
+    assert result_df.height == df.height
+    assert result_df.filter(pl.col("mc_total_per_kwh") == 0).height == df.height - 100
 
 
-def test_calculate_pop_weights_load_weighted():
-    """Test that weights are load-weighted, not uniform."""
+def test_top_n_load_share_is_load_weighted():
+    """Costs follow load within the top hours, rather than a uniform share."""
     df = create_sample_load_profile()
 
-    result_df = calculate_pop_weights(df, n_hours=100)
+    result_df = top_n_load_share(df, 18.0, 100)
+    peaks = result_df.join(df.select("timestamp", "load_mw"), on="timestamp").filter(pl.col("mc_total_per_kwh") > 0)
 
-    weights = result_df.filter(pl.col("is_peak"))["w_sub_tx_and_dist"]
+    assert peaks["mc_total_per_kwh"].n_unique() > 1, "Costs should be load-weighted, not uniform"
 
-    unique_weights = weights.unique()
-    assert len(unique_weights) > 1, "Weights should be load-weighted, not uniform"
-
-    peak_df = result_df.filter(pl.col("is_peak")).sort("load_mw", descending=True)
-    max_load_weight = peak_df.head(1)["w_sub_tx_and_dist"][0]
-    min_load_weight = peak_df.tail(1)["w_sub_tx_and_dist"][0]
-
-    assert max_load_weight > min_load_weight, "Higher load hours should have higher weights"
+    ordered = peaks.sort("load_mw", descending=True)
+    assert ordered["mc_total_per_kwh"][0] > ordered["mc_total_per_kwh"][-1]
 
 
-def test_allocate_costs_to_hours():
-    """Test cost allocation to hourly signals."""
+def test_top_n_load_share_output_column():
+    """The default cost column is mc_total_per_kwh, on every input hour."""
     df = create_sample_load_profile()
-    df = calculate_pop_weights(df, n_hours=100)
 
-    mc = 18.0  # $/kW-yr
+    result_df = top_n_load_share(df, 18.0, 100)
 
-    result_df = allocate_costs_to_hours(df, mc)
-
-    assert "mc_total_per_kwh" in result_df.columns
-
-    non_peak_costs = result_df.filter(~pl.col("is_peak"))["mc_total_per_kwh"]
-    assert all(cost == 0 for cost in non_peak_costs), "Non-peak hours should have zero marginal cost"
+    assert result_df.columns == ["timestamp", "mc_total_per_kwh"]
 
 
 def test_validation_1kw_constant_load():
     """Test that 1 kW constant load sums back to the input $/kW-yr."""
     df = create_sample_load_profile()
-    df = calculate_pop_weights(df, n_hours=100)
+    annual = 18.0
 
-    mc = 18.0  # $/kW-yr
-
-    result_df = allocate_costs_to_hours(df, mc)
+    result_df = top_n_load_share(df, annual, 100)
     total_cost = float(result_df["mc_total_per_kwh"].sum())
 
-    assert abs(total_cost - mc) < 0.001, f"Total cost {total_cost} != {mc}"
+    assert abs(total_cost - annual) < 0.001, f"Total cost {total_cost} != {annual}"
 
 
 def test_get_marginal_cost_for_utility():
@@ -202,11 +187,11 @@ def test_leap_year_handling():
         }
     )
 
-    df = calculate_pop_weights(df, n_hours=100)
-    df = allocate_costs_to_hours(df, 18.0)
+    result = top_n_load_share(df, 18.0, 100)
 
-    total_cost = float(df["mc_total_per_kwh"].sum())
+    total_cost = float(result["mc_total_per_kwh"].sum())
     assert abs(total_cost - 18.0) < 0.001, f"Leap year validation failed: {total_cost} != 18.0"
+    assert result.height == df.height
 
 
 def test_different_allocation_windows():
@@ -214,11 +199,11 @@ def test_different_allocation_windows():
     df = create_sample_load_profile()
 
     for n_hours in [200, 50, 10]:
-        result_df = calculate_pop_weights(df, n_hours=n_hours)
-        result_df = allocate_costs_to_hours(result_df, 18.0)
+        result_df = top_n_load_share(df, 18.0, n_hours)
 
         total_cost = float(result_df["mc_total_per_kwh"].sum())
         assert abs(total_cost - 18.0) < 0.001, f"Validation failed for window {n_hours}: {total_cost}"
+        assert result_df.filter(pl.col("mc_total_per_kwh") > 0).height == n_hours
 
 
 def test_pop_timestamp_remap_preserves_allocation() -> None:
@@ -234,39 +219,38 @@ def test_pop_timestamp_remap_preserves_allocation() -> None:
         }
     )
 
-    df = calculate_pop_weights(df, n_hours=100)
-    df = allocate_costs_to_hours(df, 18.0)
+    allocated = top_n_load_share(df, 18.0, 100)
 
-    remapped = remap_year_if_needed(df, "timestamp", 2018, 2025)
+    remapped = remap_year_if_needed(allocated, "timestamp", 2018, 2025)
 
     years = remapped["timestamp"].dt.year().unique().to_list()
     assert years == [2025]
 
-    peak_orig = df.filter(pl.col("is_peak"))
-    peak_remap = remapped.filter(pl.col("is_peak"))
+    peak_orig = allocated.filter(pl.col("mc_total_per_kwh") > 0)
+    peak_remap = remapped.filter(pl.col("mc_total_per_kwh") > 0)
     assert peak_remap.height == peak_orig.height
 
-    assert float(remapped["mc_total_per_kwh"].sum()) == pytest.approx(float(df["mc_total_per_kwh"].sum()))
+    assert float(remapped["mc_total_per_kwh"].sum()) == pytest.approx(float(allocated["mc_total_per_kwh"].sum()))
 
     def ordinals(frame: pl.DataFrame) -> list[tuple[int, int, int]]:
-        ts = frame.filter(frame["is_peak"]).sort("timestamp")["timestamp"]
+        ts = frame.filter(pl.col("mc_total_per_kwh") > 0).sort("timestamp")["timestamp"]
         return [(t.month, t.day, t.hour) for t in ts.to_list()]
 
-    assert ordinals(df) == ordinals(remapped)
+    assert ordinals(allocated) == ordinals(remapped)
 
 
 if __name__ == "__main__":
-    test_calculate_pop_weights_normalization()
-    print("✓ test_calculate_pop_weights_normalization passed")
+    test_top_n_load_share_weights_sum_to_one()
+    print("✓ test_top_n_load_share_weights_sum_to_one passed")
 
-    test_calculate_pop_weights_peak_identification()
-    print("✓ test_calculate_pop_weights_peak_identification passed")
+    test_top_n_load_share_peak_identification()
+    print("✓ test_top_n_load_share_peak_identification passed")
 
-    test_calculate_pop_weights_load_weighted()
-    print("✓ test_calculate_pop_weights_load_weighted passed")
+    test_top_n_load_share_is_load_weighted()
+    print("✓ test_top_n_load_share_is_load_weighted passed")
 
-    test_allocate_costs_to_hours()
-    print("✓ test_allocate_costs_to_hours passed")
+    test_top_n_load_share_output_column()
+    print("✓ test_top_n_load_share_output_column passed")
 
     test_validation_1kw_constant_load()
     print("✓ test_validation_1kw_constant_load passed")

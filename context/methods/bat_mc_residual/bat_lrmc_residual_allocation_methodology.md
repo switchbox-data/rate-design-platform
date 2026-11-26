@@ -208,11 +208,7 @@ $$\overline{MC}^{\text{dist}} = \frac{1}{7} \sum_{Y=2026}^{2032} MC^{\text{dist}
 
 The levelized value is the BAT input, reported as \$/kW-yr. It represents the average annual forward-looking sub-TX and distribution investment cost per kW of system peak, in constant 2026 dollars.
 
-5. Allocate to hours using a **Probability of Peak (PoP)** method: identify the top 100 hours by utility load; weight proportionally to load:
-
-$$MC^{\text{dist}}_h = w_h \times \overline{MC}^{\text{dist}} \quad \text{where} \quad w_h = \frac{\text{Load}_h}{\sum_{h' \in \text{top 100}} \text{Load}_{h'}}$$
-
-Non-peak hours receive zero MC.
+5. Allocate $\overline{MC}^{\text{dist}}$ to hours with the peak N load hours allocation, N = 100 on utility load: each of the top 100 hours gets a share proportional to its load, and every other hour gets zero. The formula is in [top_n_load_share_allocation.md](../marginal_costs/top_n_load_share_allocation.md).
 
 ### Why incremental, not cumulative
 

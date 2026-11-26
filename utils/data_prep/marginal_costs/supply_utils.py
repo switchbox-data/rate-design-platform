@@ -12,7 +12,6 @@ from cloudpathlib import S3Path
 
 from data.pjm import PJM_LMP_S3_BASE
 from utils.data_prep.marginal_costs.mc_manifest import record_mc_write, zero_spec
-from utils.numeric import as_float
 
 # ---------------------------------------------------------------------------
 # NYISO defaults
@@ -209,73 +208,6 @@ def warn_if_multiple_partition_parquets(
     print(f"    All files: {', '.join(sorted(filenames))}")
 
 
-def allocate_annual_exceedance_to_hours(
-    load_df: pl.DataFrame,
-    annual_cost_kw_year: float,
-    n_peak_hours: int = 100,
-    cost_col: str = "cost_per_kw",
-) -> pl.DataFrame:
-    """Allocate an annual $/kW-year cost to hours using top-N exceedance weighting.
-
-    Identifies the top-N hours by load, computes a threshold as the maximum load
-    strictly below the Nth-highest hour, and distributes the annual cost
-    proportionally to each hour's exceedance above that threshold.
-
-    This is a generic building block used by both supply capacity (FCA) and bulk
-    transmission marginal cost pipelines.
-
-    Args:
-        load_df: DataFrame with columns ``timestamp`` (datetime) and ``load_mw`` (float).
-        annual_cost_kw_year: Annual cost in $/kW-year to allocate.
-        n_peak_hours: Number of top-load hours over which to spread the cost.
-        cost_col: Name of the output cost column.
-
-    Returns:
-        DataFrame with columns ``timestamp`` and *cost_col*, containing only the
-        *n_peak_hours* rows with non-zero cost.  Sorted by timestamp.
-
-    Raises:
-        ValueError: If load_df has fewer rows than *n_peak_hours*, total exceedance
-            is non-positive, or weights fail to sum to 1.
-    """
-    if load_df.height < n_peak_hours:
-        raise ValueError(
-            f"Load profile has only {load_df.height} hours, need at least {n_peak_hours} for exceedance allocation"
-        )
-
-    sorted_load = load_df.sort("load_mw", descending=True)
-    top_n = sorted_load.head(n_peak_hours)
-    load_nth = float(top_n["load_mw"][-1])
-
-    # Threshold = max load strictly below the Nth-highest (tie-safe)
-    below = load_df.filter(pl.col("load_mw") < load_nth)["load_mw"]
-    threshold = as_float(below.max()) if not below.is_empty() else 0.0
-
-    result = top_n.with_columns((pl.col("load_mw") - threshold).alias("exceedance"))
-    total_exceedance = float(result["exceedance"].sum())
-    if total_exceedance <= 0:
-        raise ValueError(
-            f"Total exceedance is zero or negative. "
-            f"Threshold={threshold:.2f} MW, "
-            f"max load={float(sorted_load['load_mw'][0]):.2f} MW"
-        )
-
-    result = result.with_columns((pl.col("exceedance") / total_exceedance * annual_cost_kw_year).alias(cost_col))
-
-    weight_sum = float((result["exceedance"] / total_exceedance).sum())
-    if abs(weight_sum - 1.0) > 1e-6:
-        raise ValueError(f"Exceedance weights sum to {weight_sum:.6f}, expected 1.0")
-
-    n_nonzero = result.filter(pl.col(cost_col) > 0).height
-    print(
-        f"  Annual exceedance allocation: ${annual_cost_kw_year:.4f}/kW-yr, "
-        f"threshold={threshold:,.1f} MW, "
-        f"{n_nonzero} peak hours (of {n_peak_hours} requested)"
-    )
-
-    return result.select("timestamp", cost_col).sort("timestamp")
-
-
 def load_zone_mapping(path: str, storage_options: dict[str, str]) -> pl.DataFrame:
     """Load utility zone mapping CSV from local path or S3."""
     if path.startswith("s3://"):
@@ -363,6 +295,94 @@ def remap_year_if_needed(df: pl.DataFrame, timestamp_col: str, from_year: int, t
         return df
     offset = f"{to_year - from_year}y"
     return df.with_columns(pl.col(timestamp_col).dt.offset_by(offset).alias(timestamp_col))
+
+
+def normalize_load_to_cairo_8760(load_df: pl.DataFrame, utility: str, year_load: int) -> pl.DataFrame:
+    """Normalize a utility load profile to the Cairo 8760 clock.
+
+    Cairo drops December 31 when February 29 is present so the year stays 8760
+    hours. Duplicate wall-clock timestamps (DST fall-back) are averaged, then
+    missing hours are interpolated.
+
+    Args:
+        load_df: Load with at least ``timestamp`` and ``load_mw``.
+        utility: Utility short code stamped on the result.
+        year_load: Load year to keep.
+
+    Returns:
+        Exactly 8760 rows with columns ``timestamp``, ``utility``, ``load_mw``.
+    """
+    if "timestamp" not in load_df.columns or "load_mw" not in load_df.columns:
+        raise ValueError("load_df must contain timestamp and load_mw columns")
+
+    print("\nNormalizing load profile to Cairo-compatible 8760...")
+
+    cols = ["timestamp", "load_mw"]
+    if "utility" in load_df.columns:
+        cols.append("utility")
+    df = load_df.select(cols)
+
+    # Convert timezone-aware timestamps to local wall-clock naive timestamps.
+    ts_dtype = df.schema["timestamp"]
+    if isinstance(ts_dtype, pl.Datetime) and ts_dtype.time_zone is not None:
+        df = df.with_columns(
+            pl.col("timestamp").dt.convert_time_zone("America/New_York").dt.replace_time_zone(None).alias("timestamp")
+        )
+
+    # The expected 8760 index is datetime[us]. A load file in another unit
+    # (e.g. ms from an Excel-sourced parquet) would fail the join without this.
+    df = df.with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
+
+    df = df.filter(pl.col("timestamp").dt.year() == year_load)
+    if df.is_empty():
+        raise ValueError(f"No load rows found for load_year={year_load}")
+
+    # Cairo leap-year rule: if Feb 29 exists, drop Dec 31.
+    has_feb29 = df.select(
+        ((pl.col("timestamp").dt.month() == 2) & (pl.col("timestamp").dt.day() == 29)).any().alias("has_feb29")
+    ).item()
+    if has_feb29:
+        print("  Leap-year pattern detected (Feb 29 present); dropping Dec 31 to match Cairo.")
+        df = df.filter(~((pl.col("timestamp").dt.month() == 12) & (pl.col("timestamp").dt.day() == 31)))
+
+    duplicate_count = df.height - df.select(pl.col("timestamp").n_unique()).item()
+    if duplicate_count > 0:
+        print(f"  Collapsing {duplicate_count} duplicate timestamp row(s) with mean load.")
+    agg_exprs = [pl.col("load_mw").mean().alias("load_mw")]
+    if "utility" in df.columns:
+        agg_exprs.append(pl.col("utility").first().alias("utility"))
+    df = df.group_by("timestamp").agg(agg_exprs).sort("timestamp")
+
+    start = datetime(year_load, 1, 1, 0, 0, 0)
+    end = datetime(year_load, 12, 31, 23, 0, 0)
+    expected: list[datetime] = []
+    cur = start
+    while cur <= end:
+        expected.append(cur)
+        cur += timedelta(hours=1)
+    if has_feb29:
+        expected = [t for t in expected if not (t.month == 12 and t.day == 31)]
+    expected_df = pl.DataFrame({"timestamp": expected}).with_columns(pl.col("timestamp").cast(pl.Datetime("us")))
+
+    df = expected_df.join(df, on="timestamp", how="left").sort("timestamp")
+    missing_before_fill = df.filter(pl.col("load_mw").is_null()).height
+    if missing_before_fill > 0:
+        print(f"  Filling {missing_before_fill} missing hour(s) via interpolation.")
+    df = df.with_columns(pl.col("load_mw").interpolate().forward_fill().backward_fill().alias("load_mw"))
+    if "utility" in df.columns:
+        df = df.with_columns(pl.col("utility").fill_null(utility).alias("utility"))
+    else:
+        df = df.with_columns(pl.lit(utility).alias("utility"))
+
+    if df.height != 8760:
+        raise ValueError(f"Cairo 8760 normalization failed: expected 8760 rows, got {df.height}")
+    if df.select(pl.col("timestamp").n_unique()).item() != 8760:
+        raise ValueError("Cairo 8760 normalization failed: timestamps are not unique")
+    if df.filter(pl.col("load_mw").is_null()).height > 0:
+        raise ValueError("Cairo 8760 normalization failed: load_mw contains nulls")
+
+    print("  ✓ Normalized to 8760 hourly rows (Cairo-compatible)")
+    return df.select(["timestamp", "utility", "load_mw"])
 
 
 def output_base_for_load_year(

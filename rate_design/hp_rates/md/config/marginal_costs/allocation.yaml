@@ -1,0 +1,50 @@
+# Maryland already uses top-N load-share for both components: distribution
+# (N = 100) and PJM bulk transmission (N = 150). BAT runs set UTILITIES=bge.
+# The bulk-tx list is every MD slug that shares a NITS zone.
+state: md
+dist_and_sub_tx:
+  method: top_n_load_share
+  output_column: mc_total_per_kwh
+  manifest_method: pop
+  utilities: [bge]
+  output_base: s3://data.sb/switchbox/marginal_costs/md/dist_and_sub_tx/
+  inputs:
+    n_hours: 100
+    annual_cost_kw_year:
+      from: mc_table
+      path: rate_design/hp_rates/md/config/marginal_costs/md_marginal_costs_2025.csv
+      column: sub_tx_and_dist_mc_kw_yr
+      dollar_year_column: dollar_year
+      target_dollar_year: "{year}"
+      cpi_s3_base: s3://data.sb/fred/cpi/
+    load:
+      from: hive_load
+      path: s3://data.sb/pjm/hourly_demand/utilities/
+      load_year: "{load_year}"
+bulk_tx:
+  method: top_n_load_share
+  output_column: bulk_tx_cost_enduse
+  manifest_method: pjm_nits_pcaf
+  utilities:
+    - bge
+    - dpl
+    - pepco
+    - poted
+    - smeco
+    - choptank
+    - somerset_rec
+    - hagerstown_muni
+    - easton_muni
+    - berlin_muni
+  output_base: s3://data.sb/switchbox/marginal_costs/md/bulk_tx/
+  inputs:
+    n_hours: 150
+    annual_cost_kw_year:
+      from: pjm_nits
+      path: data/pjm/bulk_tx/nits/nits_rates.csv
+      year: "{year}"
+    load:
+      # Keeps the PJM writer's fill: interpolate, then 0. hive_load forward-fills.
+      from: pjm_hive_load
+      path: s3://data.sb/pjm/hourly_demand/utilities/
+      load_year: "{load_year}"

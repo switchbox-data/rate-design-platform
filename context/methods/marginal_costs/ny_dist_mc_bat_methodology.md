@@ -16,6 +16,8 @@ The BAT requires a sub-TX and distribution marginal cost ($/kW-yr) for each util
 
 The result is seven levelized incremental diluted values — one per utility — that answer: "what is the average annual forward-looking sub-TX and distribution investment cost per kW of system peak, in constant 2026 dollars, over a 7-year near-term planning horizon?"
 
+This document covers the annual `$/kW-yr` only. Each value is spread onto an 8760 over the top 100 hours of the utility's NYISO load by the peak N load hours allocation; see [top_n_load_share_allocation.md](top_n_load_share_allocation.md).
+
 ### Per-utility READMEs
 
 Each utility directory in `utils/pre/dist_mc/` has a README with cell-level workbook references, per-project tables, worked examples, and script usage instructions. This document provides the shared methodology and cross-utility rationale; the READMEs provide the implementation-level detail for each utility.

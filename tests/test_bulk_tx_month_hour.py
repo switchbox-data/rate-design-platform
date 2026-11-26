@@ -7,10 +7,9 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
-    expand_month_hour_mc_to_8760,
-    inflate_annual_mc,
-    load_cpi_inflation_factor,
+from utils.data_prep.marginal_costs.inputs.generic import inflate_annual_mc, load_cpi_inflation_factor
+from utils.data_prep.marginal_costs.methods.month_hour import (
+    expand_month_hour_to_8760,
     month_hour_costs_from_probability,
     scale_8760_to_annual,
 )
@@ -55,10 +54,10 @@ def test_matching_day_count_recovers_the_annual_before_scaling() -> None:
     """When num_days equals how often that month-hour occurs, the 8760 sums to the annual."""
     weekend = month_hour_costs_from_probability(_pop((1, 0), 0.0, 1), _ANNUAL, label="weekend")
     probe = month_hour_costs_from_probability(_pop((7, 18), 1.0, 1), _ANNUAL, label="weekday")
-    expanded = expand_month_hour_mc_to_8760(probe, weekend, 2025, "ct_eversource", include_holidays=True)
+    expanded = expand_month_hour_to_8760(probe, weekend, 2025, include_holidays=True)
     n_days = expanded.filter(pl.col("mc_total_per_kwh") > 0).height
     costs = month_hour_costs_from_probability(_pop((7, 18), 1.0, n_days), _ANNUAL, label="weekday")
-    expanded = expand_month_hour_mc_to_8760(costs, weekend, 2025, "ct_eversource", include_holidays=True)
+    expanded = expand_month_hour_to_8760(costs, weekend, 2025, include_holidays=True)
     assert float(expanded["mc_total_per_kwh"].sum()) == pytest.approx(_ANNUAL)
     _, scale = scale_8760_to_annual(expanded, _ANNUAL)
     assert scale == pytest.approx(1.0)
@@ -84,6 +83,6 @@ def test_cpi_changes_the_annual_the_8760_must_sum_to(tmp_path: Path) -> None:
 
     costs = month_hour_costs_from_probability(_pop((7, 18), 1.0, 21), resolved.allocated, label="weekday")
     weekend = month_hour_costs_from_probability(_pop((1, 0), 0.0, 1), resolved.allocated, label="weekend")
-    expanded = expand_month_hour_mc_to_8760(costs, weekend, 2025, "ct_eversource", include_holidays=True)
+    expanded = expand_month_hour_to_8760(costs, weekend, 2025, include_holidays=True)
     scaled, _ = scale_8760_to_annual(expanded, resolved.allocated)
     assert float(scaled["mc_total_per_kwh"].sum()) == pytest.approx(resolved.allocated)

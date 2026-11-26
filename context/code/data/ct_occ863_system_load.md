@@ -12,8 +12,7 @@ within the month.
 Raw workbooks, the discovery-request PDF, and the parquets built from Attachments 3 and 4:
 
 ```text
-s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/
-/ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/
+s3://data.sb/eversource/occ863/
 ├── pdf/OCC-863_Final.pdf
 ├── xlsx/attachment-1.xlsx    # (a) hourly system load, 2023–2025
 ├── xlsx/attachment-2.xlsx    # (b) hourly marginal cost by month, primary and secondary
@@ -35,8 +34,29 @@ s3://data.sb/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/
     └── month_hour_probability_of_peak_weekend_holidays.parquet
 ```
 
-The local path is the EBS mirror of the S3 prefix (`/ebs/data/` mirrors `s3://data.sb/`). The
-workbooks are not in git.
+The workbooks are not in git.
+
+The pipeline is `data/eversource/occ863/`. Its Justfile stages the workbooks
+and parquets inside the repo (both git-ignored), then syncs the parquets back to the S3 prefix
+above:
+
+```text
+data/eversource/occ863/
+├── Justfile
+├── convert_occ863_xlsx_to_parquet.py   # subcommands: system-load, rate-class-load, month-hour-mc, probability-of-peak, all
+├── xlsx/       # fetch: aws s3 sync from .../occ863/xlsx/
+└── parquet/    # convert: the 13 parquets listed above; upload: aws s3 sync to .../occ863/parquet/
+```
+
+```bash
+# Everything: fetch the workbooks, then convert all four attachments' outputs
+just -f data/eversource/occ863/Justfile prepare
+just -f data/eversource/occ863/Justfile upload
+just -f data/eversource/occ863/Justfile clean   # remove xlsx/ and parquet/
+```
+
+The converters check every output and exit non-zero before writing a parquet, so there is no
+separate `validate` recipe.
 
 ## Why page 2, not Attachment 1
 
@@ -60,15 +80,11 @@ zone load.
 
 `system_monthly_peak_mw.parquet` has `year`, `month` (1–12), and `peak_mw`. Four years, 48 rows.
 
-Rebuild both with:
+Rebuild both (the workbooks must already be in `xlsx/`; `fetch` puts them there):
 
 ```bash
-just -f rate_design/hp_rates/ct/Justfile convert-occ863-system-load \
-  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/xlsx/attachment-3.xlsx \
-  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet
+just -f data/eversource/occ863/Justfile convert-system-load
 ```
-
-Then sync the `occ-863/` directory to the S3 prefix above. Attachment 2 is archived only.
 
 ## Rate-class loads (Attachment 4)
 
@@ -92,16 +108,14 @@ spring-forward 02:00 hour, which the standard-time series does not have, is the 
 Each parquet has `timestamp`, `load_kw`, and `load_mw` (`load_kw / 1000`).
 
 ```bash
-just -f rate_design/hp_rates/ct/Justfile convert-occ863-rate-class-load \
-  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/xlsx/attachment-4.xlsx \
-  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet
+just -f data/eversource/occ863/Justfile convert-rate-class-load
 ```
 
 ## Attachment 2: marginal cost by month and hour
 
 Page 1 is secondary service and page 2 is primary. Each has three month-by-hour matrices in
 `$/kWh`: all day types, weekdays, and weekends plus public holidays. Above each matrix a "No Days"
-row gives the day count for that month. `--voltage secondary` reads page 1 and `--voltage primary`
+row gives the day count for that month. The `voltage` argument `secondary` reads page 1 and `primary`
 reads page 2. Each run writes three parquets, melted to one row per month and hour. The names end
 in `_secondary` or `_primary`:
 
@@ -122,19 +136,13 @@ For each month the all-day-types day count must equal the weekday count plus the
 weekend-and-holiday count. The fourth sheet is a copy of page 3 (the probability-of-peak table)
 with an extra `dist_mc` column, not a copy of page 2.
 
-The converters read cells with openpyxl, not `pl.read_excel`. Calamine turns a column that mixes
+The converter reads cells with openpyxl, not `pl.read_excel`. Calamine turns a column that mixes
 text and numbers into strings and keeps only about nine significant digits, which put up to a
 3e-5 relative error into the matrix values.
 
 ```bash
-just -f rate_design/hp_rates/ct/Justfile convert-occ863-month-hour-mc \
-  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/xlsx/attachment-2.xlsx \
-  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet \
-  secondary
-just -f rate_design/hp_rates/ct/Justfile convert-occ863-month-hour-mc \
-  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/xlsx/attachment-2.xlsx \
-  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet \
-  primary
+just -f data/eversource/occ863/Justfile convert-month-hour-mc secondary
+just -f data/eversource/occ863/Justfile convert-month-hour-mc primary
 ```
 
 ## Attachment 2 page 3: probability of peak
@@ -176,22 +184,24 @@ the same counts and that on both pages `mc_total_per_kwh * num_days / probabilit
 constant, with zero cost wherever the probability is zero.
 
 ```bash
-just -f rate_design/hp_rates/ct/Justfile convert-occ863-probability-of-peak \
-  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/xlsx/attachment-2.xlsx \
-  /ebs/data/switchbox/sources/ct/eversource/docket-26-05-10/occ-863/parquet
+just -f data/eversource/occ863/Justfile convert-probability-of-peak
 ```
 
 ## Using this load for CT distribution marginal cost
 
-`create-bulk-tx-mc-data` (default `bulk_tx_method=month_hour`) reads the two probability-of-peak
-parquets. For each month-hour it sets $/kWh to the AESC $/kW-yr (69 in 2024 dollars, CPI-inflated
-to `--target-dollar-year`) times `probability_of_peak` divided by `num_days`, then expands
-weekday vs weekend-and-holiday the same way distribution does. The 8760 sums to that inflated
-annual total. `create-dist-mc-data` uses two of the cost outputs. Its default, `dist_mc_method=month_hour`,
-expands the secondary weekday and weekend-and-holiday month-hour parquets. Its first fallback,
-`dist_mc_method=pop_occ863`, passes `system_load.parquet` as `--path-utility-load`. The
-allocator keeps the requested year and ranks the top 100 hours of that substation series. The
-residential rate-class files are a class shape; they are not the PoP load. See
+`create-bulk-tx-mc-data` reads the two probability-of-peak parquets when `bulk_tx_method=month_hour`
+(CT Eversource only). The default is `pop_kde`. The month-hour expansion
+(`utils/data_prep/marginal_costs/methods/month_hour.py`, described in
+`context/methods/marginal_costs/month_hour_allocation.md`) sets each cell to the AESC `$/kW-yr`
+(69 in 2024 dollars, CPI-inflated to `--target-dollar-year`) times `probability_of_peak` divided by
+`num_days`, then expands weekday vs weekend-and-holiday onto the calendar year. The 8760 sums to
+that inflated annual total. `create-dist-mc-data` uses two of the cost outputs. Its default,
+`dist_mc_method=month_hour`, runs the same `month_hour` method on the secondary weekday and
+weekend-and-holiday `$/kWh` parquets. Its first fallback, `dist_mc_method=pop_occ863`, passes
+`system_load.parquet` as `--path-utility-load`. The allocator keeps the requested year and ranks the
+top 100 hours of that substation series
+(`context/methods/marginal_costs/top_n_load_share_allocation.md`). The residential rate-class files
+are a class shape; they are not the PoP load. See
 `context/methods/marginal_costs/ct_eversource_dist_mc_methodology.md` §3.3 and §7.
 
 `--utility-load-s3-base` still scans a hive `utility`/`year` folder (the other states, and CT's

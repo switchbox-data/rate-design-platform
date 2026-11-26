@@ -1,0 +1,38 @@
+# New York. Distribution is top-N load-share. Bulk transmission is seasonal
+# SCR exceedance: one call per utility ICAP row, summed.
+state: ny
+dist_and_sub_tx:
+  method: top_n_load_share
+  output_column: mc_total_per_kwh
+  manifest_method: pop
+  utilities: [cenhud, coned, nimo, nyseg, or, psegli, rge]
+  output_base: s3://data.sb/switchbox/marginal_costs/ny/dist_and_sub_tx/
+  inputs:
+    n_hours: 100
+    annual_cost_kw_year:
+      from: mc_table
+      path: rate_design/hp_rates/ny/config/marginal_costs/ny_sub_tx_and_dist_mc_levelized.csv
+      column: sub_tx_and_dist_mc_kw_yr
+    load:
+      from: hive_load
+      path: s3://data.sb/nyiso/hourly_demand/utilities/
+      load_year: "{load_year}"
+bulk_tx:
+  method: seasonal_scr_exceedance
+  output_column: bulk_tx_cost_enduse
+  manifest_method: nyiso_scr
+  combine: sum
+  utilities: [cenhud, coned, nimo, nyseg, or, psegli, rge]
+  output_base: s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/
+  inputs:
+    n_hours_per_season: 40
+    winter_months:
+      from: periods_yaml
+      path: rate_design/hp_rates/ny/config/periods/{utility}.yaml
+      default: [10, 11, 12, 1, 2, 3]
+    components:
+      from: nyiso_scr_components
+      constraint_groups: s3://data.sb/nyiso/bulk_tx/ny_bulk_tx_constraint_groups.csv
+      zone_mapping: s3://data.sb/nyiso/zone_mapping/ny_utility_zone_mapping.csv
+      zone_loads: s3://data.sb/nyiso/hourly_demand/zones/
+      load_year: "{load_year}"

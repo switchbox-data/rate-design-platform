@@ -154,7 +154,7 @@ The VDER Value Stack's DRV and LSRV are based on MCOS studies covering local sub
 2. Obtain each TO's coincident peak demand from the NYISO Gold Book or from Attachment H billing units.
 3. Compute $/kW-year = ATRR / peak demand.
 4. Add a `bulk_transmission` column to `ny_marginal_costs_2026_2035.csv` with these values, utility by utility.
-5. In `generate_utility_tx_dx_mc.py`, allocate the annual $/kW-year to hourly $/kWh using the PoP method on NYISO zonal load (top N peak hours). The number of peak hours (N) should reflect that bulk transmission is driven by broader regional/zonal peaks, not local substation peaks — use the same N as for upstream sub-transmission (currently 100 hours) or a wider window.
+5. Allocate the annual $/kW-year onto an 8760 with seasonal SCR exceedance ([seasonal_scr_exceedance_allocation.md](seasonal_scr_exceedance_allocation.md)). The implemented inputs are in [Implemented allocation](#implemented-allocation): 40 hours in each season, on nested-locality load.
 6. The allocated hourly MC adds to `mc_total_per_kwh` alongside energy, capacity, sub-TX, and distribution MCs.
 
 **Sensitivity:** Run the BAT with and without the bulk TX MC to quantify its impact on cross-subsidy results. If the OATT proxy produces unreasonable results (e.g., bulk TX MC dominates the total and distorts HP/non-HP comparisons), consider applying a discount factor (Option 3) or switching to CLCPA project costs (Option 2) if available.
@@ -163,12 +163,19 @@ The VDER Value Stack's DRV and LSRV are based on MCOS studies covering local sub
 
 ---
 
-## Hourly allocation: which peak to use?
+## Implemented allocation
 
-Bulk NYISO transmission is driven by **zonal or statewide coincident peaks**, not local substation peaks. The PoP allocation should use:
+NY bulk transmission (`cenhud`, `coned`, `nimo`, `nyseg`, `or`, `psegli`, `rge`) spreads each utility ICAP row with seasonal SCR exceedance ([seasonal_scr_exceedance_allocation.md](seasonal_scr_exceedance_allocation.md)). `run_allocation.py --component bulk_tx` builds one load and one `$/kW-yr` per row (`inputs/nyiso.py`), calls `seasonal_scr_exceedance` once per row, and sums the hourly costs. How the constraint-group scalar and the nested-locality load are chosen is in [ny_bulk_tx_marginal_costs.md](../../code/marginal_costs/ny_bulk_tx_marginal_costs.md).
 
-- **Load shape**: NYISO zonal load (matching the TO's service territory), not individual customer or substation load.
-- **Peak hours**: The top N hours of the NYISO zonal load curve. N = 100 is a reasonable starting point (consistent with sub-TX upstream allocation). Bulk TX may justify a narrower window (e.g., N = 50) since major transmission constraints bind only at extreme peaks, but this is a judgment call.
-- **Seasonality**: NYISO is currently summer-peaking. Bulk TX peaks align with summer system peaks. As electrification grows and the system potentially shifts toward winter peaking, the allocation will need to reflect that.
+| Input         | NY value                                                                                                                                                      |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Load curve    | NYISO zone loads (`s3://data.sb/nyiso/hourly_demand/zones/`) summed to the ICAP row's nested locality (`NYCA`, `LHV`, `NYC`, or `LI`)                         |
+| Annual cost   | Mean `v_constraint_group_kw_yr` of the constraint groups that name the row's paying locality (`ROS`, `LHV`, `NYC`, `LI`), times that row's `capacity_weight`  |
+| N per season  | 40 (`--scr-hours-per-season`)                                                                                                                                 |
+| Winter months | The utility periods YAML (`rate_design/hp_rates/ny/config/periods/<utility>.yaml`), or October–March (`10, 11, 12, 1, 2, 3`) when that file does not set them |
 
-The PoP weights for bulk TX should be computed from the same NYISO zonal load data used for energy and capacity, ensuring consistency across the MC stack.
+Load year is `BULK_TX_LOAD_YEAR` (`--load-year`), defaulting to the output year. Output: `s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility={utility}/year={year}/data.parquet`, column `bulk_tx_cost_enduse`. These inputs are recorded in `rate_design/hp_rates/ny/config/marginal_costs/allocation.yaml`.
+
+## Hourly allocation
+
+The implemented window is 40 hours in summer and 40 in winter, on the nested-locality load, weighted by seasonal SCR exceedance ([seasonal_scr_exceedance_allocation.md](seasonal_scr_exceedance_allocation.md)). Summer is every month outside the winter list. A season's share of the annual cost follows how far that season's peak sits above the lower of the two thresholds, so a shift toward winter peaking moves cost onto winter hours without a separate rule.

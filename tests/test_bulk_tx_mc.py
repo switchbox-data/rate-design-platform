@@ -9,19 +9,48 @@ from typing import cast
 import polars as pl
 import pytest
 
-from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_nyiso import (
+from utils.data_prep.marginal_costs.inputs.nyiso import (
     DEFAULT_SCR_WINTER_MONTHS,
-    aggregate_paying_locality_hourly_signals_from_constraint_groups,
-    allocate_bulk_tx_to_hours,
     build_nested_locality_load_profiles,
-    compute_nested_locality_scr_weights,
     compute_paying_locality_costs,
-    compute_utility_bulk_tx_signal,
-    identify_scr_hours,
+    icap_components,
     load_constraint_group_table,
-    prepare_output,
-    resolve_utility_paying_locality_signal,
 )
+from utils.data_prep.marginal_costs.methods.seasonal_scr_exceedance import (
+    seasonal_scr_exceedance,
+)
+from utils.data_prep.marginal_costs.run_allocation import align_8760
+
+
+def compute_utility_bulk_tx_signal(
+    utility_icap_rows: pl.DataFrame,
+    paying_locality_costs: dict[str, float],
+    locality_profiles: dict[str, pl.DataFrame],
+    n_scr: int,
+    winter_months: list[int],
+) -> pl.DataFrame:
+    """One seasonal-SCR call per ICAP row, then the sum of the cost column."""
+    components = icap_components(utility_icap_rows, paying_locality_costs, locality_profiles)
+    frames = [
+        seasonal_scr_exceedance(
+            component["load"],
+            component["annual_cost_kw_year"],
+            n_scr,
+            winter_months,
+            output_column="bulk_tx_cost_enduse",
+        )
+        for component in components
+    ]
+    return (
+        pl.concat(frames)
+        .group_by("timestamp")
+        .agg(pl.col("bulk_tx_cost_enduse").sum().alias("bulk_tx_cost_enduse"))
+        .sort("timestamp")
+    )
+
+
+def prepare_output(allocated_df: pl.DataFrame, year: int) -> pl.DataFrame:
+    return align_8760(allocated_df, year, "bulk_tx_cost_enduse")
 
 
 def _make_hourly_load_profile(year: int = 2025) -> pl.DataFrame:
@@ -88,47 +117,6 @@ def _make_hourly_load_profile_with_peak_hour(
     )
 
 
-def _make_constraint_group_hourly() -> pl.DataFrame:
-    hours = pl.datetime_range(
-        datetime(2025, 1, 1, 0, 0, 0),
-        datetime(2025, 1, 1, 2, 0, 0),
-        interval="1h",
-        eager=True,
-    )
-    return pl.DataFrame(
-        {
-            "timestamp": hours.to_list() * 3,
-            "constraint_group": ["cg1"] * 3 + ["cg2"] * 3 + ["cg3"] * 3,
-            "tightest_nested_locality": ["NYCA"] * 9,
-            "paying_localities": ["ROS|LHV"] * 3 + ["LHV"] * 3 + ["NYC|LI"] * 3,
-            "constraint_group_cost_enduse": [
-                1.0,
-                2.0,
-                3.0,
-                5.0,
-                7.0,
-                9.0,
-                2.0,
-                2.0,
-                2.0,
-            ],
-        }
-    )
-
-
-def _make_mapping() -> pl.DataFrame:
-    return pl.DataFrame(
-        {
-            "utility": ["u1", "u1", "u2", "u2"],
-            "gen_capacity_zone": ["ROS", "LHV", "NYC", "LI"],
-            "capacity_weight": [0.6, 0.4, 0.87, 0.13],
-            "load_zone_letter": ["A", "G", "J", "K"],
-            "lbmp_zone_name": ["WEST", "HUD_VL", "N.Y.C.", "LONGIL"],
-            "icap_locality": ["NYCA", "GHIJ", "NYC", "LI"],
-        }
-    )
-
-
 class TestConstraintGroupTable:
     def test_load_constraint_group_table(self, tmp_path: Path) -> None:
         path_csv = tmp_path / "constraint_groups.csv"
@@ -153,26 +141,14 @@ class TestConstraintGroupTable:
         }
 
 
-class TestScrAllocation:
-    def test_identify_scr_hours_has_80_hours(self) -> None:
-        load_df = _make_hourly_load_profile()
-        result = identify_scr_hours(load_df, n_hours_per_season=40)
-        assert result.filter(pl.col("is_scr")).height == 80
-
-    def test_scr_weights_sum_to_one(self) -> None:
-        load_df = _make_hourly_load_profile()
-        weights = compute_nested_locality_scr_weights(
-            load_df,
-            n_hours_per_season=40,
-            winter_months=list(DEFAULT_SCR_WINTER_MONTHS),
-        )
-        assert abs(float(weights["scr_weight"].sum()) - 1.0) < 1e-4
-
-    def test_1kw_recovery(self) -> None:
-        load_df = _make_hourly_load_profile()
-        with_scr = identify_scr_hours(load_df, n_hours_per_season=40)
-        allocated = allocate_bulk_tx_to_hours(with_scr, v_constraint_group_kw_yr=47.5)
-        assert abs(float(allocated["bulk_tx_cost_enduse"].sum()) - 47.5) < 1e-3
+def _allocate(load_df: pl.DataFrame, annual_cost_kw_year: float) -> pl.DataFrame:
+    return seasonal_scr_exceedance(
+        load_df,
+        annual_cost_kw_year,
+        40,
+        list(DEFAULT_SCR_WINTER_MONTHS),
+        output_column="bulk_tx_cost_enduse",
+    )
 
 
 class TestLocalityProfiles:
@@ -184,28 +160,6 @@ class TestLocalityProfiles:
         nyca_avg = cast(float, profiles["NYCA"]["load_mw"].mean())
         nyc_avg = cast(float, profiles["NYC"]["load_mw"].mean())
         assert nyca_avg > nyc_avg
-
-
-class TestAggregationAndUtilityResolution:
-    def test_aggregate_paying_locality_hourly_signals(self) -> None:
-        hourly = _make_constraint_group_hourly()
-        locality_hourly = aggregate_paying_locality_hourly_signals_from_constraint_groups(hourly)
-
-        assert set(locality_hourly) == {"ROS", "LHV", "NYC", "LI"}
-        # LHV receives cg1 and cg2 => mean at first hour = (1 + 5) / 2
-        lhv_first = float(locality_hourly["LHV"].sort("timestamp")["bulk_tx_cost_enduse"][0])
-        assert abs(lhv_first - 3.0) < 1e-9
-
-    def test_resolve_utility_paying_locality_signal(self) -> None:
-        hourly = _make_constraint_group_hourly()
-        locality_hourly = aggregate_paying_locality_hourly_signals_from_constraint_groups(hourly)
-        mapping = _make_mapping()
-
-        utility_hourly = resolve_utility_paying_locality_signal(mapping, "u1", locality_hourly)
-        assert utility_hourly.height == 3
-        # u1 = 0.6*ROS + 0.4*LHV; first hour: 0.6*1 + 0.4*3 = 1.8
-        first = float(utility_hourly.sort("timestamp")["bulk_tx_cost_enduse"][0])
-        assert abs(first - 1.8) < 1e-9
 
 
 class TestUtilityAllocationBehavior:
@@ -244,6 +198,7 @@ class TestUtilityAllocationBehavior:
 
         n_nonzero = utility_hourly.filter(pl.col("bulk_tx_cost_enduse") > 0).height
         assert n_nonzero == 80
+        assert float(utility_hourly["bulk_tx_cost_enduse"].sum()) == pytest.approx(50.0)
 
     def test_two_locality_blend_can_exceed_80_nonzero_hours(self) -> None:
         utility_icap_rows = pl.DataFrame(
@@ -269,13 +224,13 @@ class TestUtilityAllocationBehavior:
 
         n_nonzero = utility_hourly.filter(pl.col("bulk_tx_cost_enduse") > 0).height
         assert n_nonzero > 80
+        assert float(utility_hourly["bulk_tx_cost_enduse"].sum()) == pytest.approx(0.87 * 80.0 + 0.13 * 20.0)
 
 
 class TestPrepareOutput:
     def test_prepare_output_8760(self) -> None:
         load_df = _make_hourly_load_profile()
-        with_scr = identify_scr_hours(load_df, n_hours_per_season=40)
-        allocated = allocate_bulk_tx_to_hours(with_scr, v_constraint_group_kw_yr=30.0)
+        allocated = _allocate(load_df, 30.0)
         output = prepare_output(allocated, year=2025)
 
         assert output.height == 8760
@@ -286,8 +241,7 @@ class TestTimestampRemap:
     def test_bulk_tx_remap_preserves_allocation(self) -> None:
         """Remapping 2018->2025 timestamps preserves ordinal positions and totals."""
         load_df = _make_hourly_load_profile(year=2018)
-        with_scr = identify_scr_hours(load_df, n_hours_per_season=40)
-        allocated = allocate_bulk_tx_to_hours(with_scr, v_constraint_group_kw_yr=30.0)
+        allocated = _allocate(load_df, 30.0)
 
         remapped = allocated.with_columns(pl.col("timestamp").dt.offset_by(f"{2025 - 2018}y"))
 
@@ -311,11 +265,12 @@ class TestTimestampRemap:
 
 class TestErrors:
     def test_invalid_paying_locality_raises(self) -> None:
-        bad = _make_constraint_group_hourly().with_columns(
-            pl.when(pl.col("constraint_group") == "cg3")
-            .then(pl.lit("BAD"))
-            .otherwise(pl.col("paying_localities"))
-            .alias("paying_localities")
+        bad = pl.DataFrame(
+            {
+                "constraint_group": ["cg1", "cg2"],
+                "v_constraint_group_kw_yr": [10.0, 20.0],
+                "paying_localities": ["LHV", "NYC|BAD"],
+            }
         )
         with pytest.raises(ValueError, match="Invalid paying_locality"):
-            aggregate_paying_locality_hourly_signals_from_constraint_groups(bad)
+            compute_paying_locality_costs(bad)

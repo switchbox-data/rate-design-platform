@@ -36,6 +36,10 @@ data/pjm/_local_lmp/
 data/eia/hourly_loads/zone_parquet/
 data/eia/hourly_loads/utility_parquet/
 data/fred/cpi/parquet/
+data/eversource/occ733/xlsx/
+data/eversource/occ733/parquet/
+data/eversource/occ863/xlsx/
+data/eversource/occ863/parquet/
 data/isone/capacity/cso/parquet/
 data/isone/capacity/cso/xlsx/
 data/isone/capacity/mra/parquet/

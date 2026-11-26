@@ -171,10 +171,27 @@ The AESC is the institutional standard in New England for avoided transmission c
 1. **Obtain AESC 2024 avoided PTF cost for RI.** Download the User Interface workbook from the AESC 2024 Materials page (https://www.synapse-energy.com/aesc-2024-materials). Extract the "Avoided T&D - PTF" component, in $/kW-year, by year (2024-2050).
 2. **Also obtain the RNS rate forecast.** From the PTO-AC annual filing (presented at NEPOOL RC/TC meetings, published on ISO-NE website). Current: $184/kW-year (2026), rising to $220/kW-year (2030).
 3. **Add a `bulk_transmission` column to `ri_marginal_costs_2026_2035.csv`** with the AESC avoided PTF cost, utility by utility (for RI there is only one utility, RIE, but the framework should be generalizable).
-4. **Allocate the annual $/kW-year to hourly $/kWh** using the PoP method on ISO-NE zonal load (top N peak hours). Because the RNS rate is allocated on 12-CP (monthly coincident peaks), the PoP allocation for bulk TX should use ISO-NE regional or RI-zone load, with N reflecting the monthly peak structure.
-   - **Peak allocation consideration**: The RNS rate uses 12-CP (one peak per month, 12 peaks per year). For PoP allocation, this suggests using a wider peak window than for generation capacity (which uses a single annual peak or top ~100 hours). A reasonable approach: allocate to the top ~250-300 peak hours (roughly the top 20-25 hours per month across the 12 months), weighted by how close each hour is to the monthly peak.
-   - Alternatively, use the same top-100-hours approach as for upstream sub-TX, for simplicity and consistency. The difference is unlikely to be material for the BAT.
+4. **Allocate the annual $/kW-year onto an 8760** with top-N exceedance ([top_n_exceedance_allocation.md](top_n_exceedance_allocation.md)). The implemented inputs are in [Implemented allocation](#implemented-allocation): N = 100 on the sum of all eight ISO-NE zones, and the AESC `$69/kW-yr` used as filed.
+   - **Peak-window consideration**: The RNS rate uses 12-CP (one peak per month, 12 peaks per year). A wider window, on the order of the top 250–300 hours, would track that monthly peak structure more closely.
+   - The implemented window is the top 100 hours, the same width as upstream sub-TX. Sub-TX weights those hours by load share ([top_n_load_share_allocation.md](top_n_load_share_allocation.md)). Bulk transmission weights them by exceedance.
 5. **Run the BAT with AESC values (primary) and RNS rate (sensitivity)** to quantify the impact.
+
+---
+
+## Implemented allocation
+
+RI bulk transmission (`rie`) spreads the AESC 2024 avoided PTF cost with top-N exceedance ([top_n_exceedance_allocation.md](top_n_exceedance_allocation.md)). `run_allocation.py --component bulk_tx` loads the ISO-NE zone sum (`inputs/isone.py`), then calls `top_n_exceedance`. This path does not apply CPI. The `$69/kW-yr` is used as filed.
+
+| Input       | RI value                                                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Load curve  | Sum of all 8 ISO-NE zones (`CT`, `ME`, `NEMA`, `NH`, `RI`, `SEMA`, `VT`, `WCMA`) from `s3://data.sb/isone/hourly_demand/zones/` |
+| Load year   | `--load-year`, defaulting to the output year                                                                                    |
+| Annual cost | `$69/kW-yr` (`AESC_2024_AVOIDED_PTF_KW_YEAR` in `inputs/isone.py`), the `literal` in `allocation.yaml`                          |
+| N           | 100                                                                                                                             |
+
+The utility's own zone load is loaded when the allocation load is the New England system, and only so the run can print that zone's share of the peak hour. The weights use the system load. Output: `s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/utility=rie/year={year}/data.parquet`, column `bulk_tx_cost_enduse`. These inputs are recorded in `rate_design/hp_rates/ri/config/marginal_costs/allocation.yaml`.
+
+CT can run the same method with `bulk_tx_method=isone_aesc_ptf`. Its default bulk-transmission method is the KDE probability of peak. See [ct_bulk_transmission_marginal_cost.md](ct_bulk_transmission_marginal_cost.md).
 
 ---
 
@@ -182,24 +199,20 @@ The AESC is the institutional standard in New England for avoided transmission c
 
 ISO-NE is currently **summer-peaking** for bulk transmission purposes. The 12-CP peaks that drive RNS allocation are dominated by summer months (July-August). However, ISO-NE is transitioning toward winter peaking due to heating electrification, and the 2050 Transmission Study explicitly models winter peak constraints.
 
-For the BAT:
-
-- **Load shape**: ISO-NE RI zone load (or aggregate New England load, depending on whether we want state-specific or regional allocation).
-- **Peak hours**: Top N hours of the load curve. N = 100-300 depending on how broadly we define "peak-driven."
-- **Seasonality**: Currently summer-weighted. As electrification proceeds, winter peaks will increasingly drive bulk TX investment, and the allocation should reflect this. For a multi-year BAT run, using the actual zonal load shape will automatically capture the evolving seasonal pattern.
+The implemented run uses top-N exceedance with N = 100 on the sum of all eight ISO-NE zones ([Implemented allocation](#implemented-allocation)). On today's summer-peaking system that window falls in summer. As electrification shifts the peak, the same rule follows the load.
 
 ---
 
 ## Comparison with NY approach
 
-| Feature                  | NY                                  | RI                                          |
-| ------------------------ | ----------------------------------- | ------------------------------------------- |
-| Best available MC source | OATT ATRR (embedded cost proxy)     | AESC avoided PTF cost (marginal cost)       |
-| Institutional backing    | None for bulk TX MC                 | AESC is the regional standard, used by PUC  |
-| Data quality             | OATT embedded rate only             | AESC provides year-by-year LRMC projections |
-| Upper bound              | OATT ATRR / peak demand             | RNS rate                                    |
-| Forward-looking study    | FERC Order 1920 (not yet available) | ISO-NE 2050 Transmission Study (2024)       |
-| Allocation to peaks      | NYISO zonal load, top N hours       | ISO-NE zonal load, 12-CP-informed           |
+| Feature                  | NY                                                       | RI                                          |
+| ------------------------ | -------------------------------------------------------- | ------------------------------------------- |
+| Best available MC source | OATT ATRR (embedded cost proxy)                          | AESC avoided PTF cost (marginal cost)       |
+| Institutional backing    | None for bulk TX MC                                      | AESC is the regional standard, used by PUC  |
+| Data quality             | OATT embedded rate only                                  | AESC provides year-by-year LRMC projections |
+| Upper bound              | OATT ATRR / peak demand                                  | RNS rate                                    |
+| Forward-looking study    | FERC Order 1920 (not yet available)                      | ISO-NE 2050 Transmission Study (2024)       |
+| Allocation to peaks      | Nested-locality load, seasonal SCR (40 hours per season) | NE system load, top-100 exceedance          |
 
 RI is in a better position than NY for this component: the institutional framework (AESC + explicit RNS allocation) provides a cleaner marginal cost signal than anything available in NYISO territory.
 

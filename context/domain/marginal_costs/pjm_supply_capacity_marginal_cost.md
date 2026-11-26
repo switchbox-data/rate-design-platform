@@ -191,7 +191,7 @@ Each decision below is **independent**. Recommended defaults are marked ★.
 | ----------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | **C1 ★ K = 5 (PJM 5CP timestamps)** | Allocate only to PJM-published five summer coincident peak hours  | **Strongest alignment with PLC obligation logic**; clear citation (Manual 19, EDC docs) | Very peaky; only 5 nonzero hours; differs from NY (96) and RI (100)    |
 | **C2 K = 5, summer pool**           | Pick top 5 hours from Jun–Sep zone load (replicate PJM algorithm) | Reproducible without waiting for published 5CP; same season logic                       | May not exactly match published timestamps; EDC reconciliation differs |
-| **C3 K = 100, annual exceedance**   | Platform default from RI dist/capacity/bulk TX                    | Cross-component consistency within a state run                                          | **No PJM citation** for 100; weak obligation alignment                 |
+| **C3 K = 100, annual exceedance**   | Same formula and N as RI bulk transmission and ISO-NE FCA         | Cross-component consistency with those RI signals                                       | **No PJM citation** for 100; weak obligation alignment                 |
 | **C4 K = 8/month × 12**             | NY ICAP pattern                                                   | Familiar to NY team                                                                     | Wrong price granularity for RPM; no PJM basis                          |
 | **C5 K = 500**                      | BAT paper Appendix A reference                                    | Literature anchor                                                                       | Extremely peaky in `$/MWh`; unused elsewhere in platform               |
 
@@ -223,15 +223,15 @@ Each decision below is **independent**. Recommended defaults are marked ★.
 
 ### Decision F — Weighting among the K peak hours
 
-| Option                      | Description                                                        | Pros                                                                                    | Cons                                                 |
-| --------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| **F1 ★ Equal 1/K weights**  | Each of 5 hours gets `annual_cost / 5`                             | Matches EDC definition: PLC = **average** of five hourly loads                          | Differs from platform exceedance convention          |
-| **F2 Exceedance weighting** | Threshold-exceedance among the 5 hours (or top-K from summer pool) | Consistent with `allocate_annual_exceedance_to_hours` in `supply_utils.py`; used for RI | **Not** how PLC is defined (average, not exceedance) |
-| **F3 Load-proportional**    | Weight by zone load in each hour                                   | Simple physical interpretation                                                          | Still not identical to PLC reconciliation            |
+| Option                      | Description                                                        | Pros                                                                                                              | Cons                                                 |
+| --------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| **F1 ★ Equal 1/K weights**  | Each of 5 hours gets `annual_cost / 5`                             | Matches EDC definition: PLC = **average** of five hourly loads                                                    | Differs from platform exceedance convention          |
+| **F2 Exceedance weighting** | Threshold-exceedance among the 5 hours (or top-K from summer pool) | Same formula as `top_n_exceedance` in `methods/top_n_exceedance.py`; used for RI bulk transmission and ISO-NE FCA | **Not** how PLC is defined (average, not exceedance) |
+| **F3 Load-proportional**    | Weight by zone load in each hour                                   | Simple physical interpretation                                                                                    | Still not identical to PLC reconciliation            |
 
 **Decision: F1 (equal 1/K weights).** This is the implemented choice in `supply_capacity_pjm.py`.
 
-**Rationale.** PJM defines a customer's capacity obligation (PLC) as the **simple average** of that customer's reconciled load across the five coincident-peak hours (PJM Manual 19 §4.3; BGE PLC Overview). Averaging across the five hours is mathematically equivalent to giving each hour a weight of exactly **1/5**. Equal weighting is therefore the literal analog of how the capacity obligation is assigned: it is _definitionally_ correct, not merely a convenient default. The exceedance (F2) and load-proportional (F3) alternatives re-introduce a within-peak load signal that the PLC _average_ deliberately removes, so both deviate from the obligation definition. F2 is retained only as a cross-component-consistency sensitivity (it matches the RI dist/bulk-TX convention), not as a capacity-fidelity option.
+**Rationale.** PJM defines a customer's capacity obligation (PLC) as the **simple average** of that customer's reconciled load across the five coincident-peak hours (PJM Manual 19 §4.3; BGE PLC Overview). Averaging across the five hours is mathematically equivalent to giving each hour a weight of exactly **1/5**. Equal weighting is therefore the literal analog of how the capacity obligation is assigned: it is _definitionally_ correct, not merely a convenient default. The exceedance (F2) and load-proportional (F3) alternatives re-introduce a within-peak load signal that the PLC _average_ deliberately removes, so both deviate from the obligation definition. F2 is retained only as a cross-component-consistency sensitivity (it matches RI bulk transmission and ISO-NE FCA, both of which call `top_n_exceedance`), not as a capacity-fidelity option.
 
 **Empirical note (BGE).** For BGE the choice is also immaterial in practice: BGE's zonal load at the five summer-2025 5CP hours is nearly flat (≈ 6.1–6.6 GW), so F1 vs. load-weighting changes the within-peak split by only about ±4%. Both options place the same total `$/kW-year` on the same five hours.
 
@@ -276,7 +276,7 @@ For any new PJM utility MC pipeline:
 | PJM step              | Platform analog                                                       |
 | --------------------- | --------------------------------------------------------------------- |
 | DY 5/7 blend          | `resolve_fca_price_for_calendar_year()` in `supply_capacity_isone.py` |
-| Exceedance allocation | `allocate_annual_exceedance_to_hours()` in `supply_utils.py`          |
+| Exceedance allocation | `top_n_exceedance()` in `methods/top_n_exceedance.py`                 |
 | 8760 output           | `prepare_component_output()` in `supply_utils.py`                     |
 | CLI entrypoint        | Extend `generate_supply_capacity_mc.py` with `--iso pjm`              |
 

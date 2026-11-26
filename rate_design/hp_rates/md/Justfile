@@ -351,10 +351,7 @@ pjm_bulk_tx_years := "2025"
 #   just -f md/Justfile create-bulk-tx-mc-data bge 2025
 # just -f md/Justfile create-bulk-tx-mc-data smeco 2025 --upload
 create-bulk-tx-mc-data utility_arg year_arg *extra_args:
-    cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \
-      --iso pjm \
-      --utility {{ utility_arg }} \
-      --year {{ year_arg }} \
+    just --justfile "{{ justfile() }}" create-mc-data bulk_tx {{ utility_arg }} {{ year_arg }} "" \
       --load-year {{ bulk_tx_load_year }} \
       {{ extra_args }}
 
@@ -364,18 +361,18 @@ create-bulk-tx-mc-data utility_arg year_arg *extra_args:
 create-bulk-tx-mc-data-all *extra_args:
     #!/usr/bin/env bash
     set -euo pipefail
-    for utility in {{ pjm_bulk_tx_utilities }}; do
+    cd {{ path_repo }}
+    mapfile -t utils < <(uv run python {{ path_repo }}/utils/data_prep/marginal_costs/run_allocation.py \
+      --config {{ path_config }}/marginal_costs/allocation.yaml \
+      --component bulk_tx \
+      --list-utilities)
+    for utility in "${utils[@]}"; do
         for year in {{ pjm_bulk_tx_years }}; do
             echo ">> Generating PJM bulk TX MC: utility=${utility} year=${year}" >&2
-            cd {{ path_repo }} && uv run python {{ path_repo }}/utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py \
-              --iso pjm \
-              --utility "${utility}" \
-              --year "${year}" \
-              --load-year {{ bulk_tx_load_year }} \
-              {{ extra_args }}
+            just --justfile "{{ justfile() }}" create-bulk-tx-mc-data "${utility}" "${year}" {{ extra_args }}
         done
     done
-    echo ">> Done: all MD bulk TX MC ($(echo {{ pjm_bulk_tx_utilities }} | wc -w) utilities × $(echo {{ pjm_bulk_tx_years }} | wc -w) years)" >&2
+    echo ">> Done: all MD bulk TX MC (${#utils[@]} utilities × $(echo {{ pjm_bulk_tx_years }} | wc -w) years)" >&2
 
 # =============================================================================
 # MD-only: supply capacity marginal costs (PJM RPM + 5CP)

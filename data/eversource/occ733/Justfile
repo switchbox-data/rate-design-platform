@@ -1,0 +1,43 @@
+# Eversource CT OCC-733 Attachment 1 (PURA Docket 26-05-10) -> parquet.
+#
+# OCC-733 describes the Python calculation behind the probability of peak on
+# OCC-863 Attachment 2 page 3; Attachment 1 is that calculation's hourly input
+# (gross load, behind-the-meter PV, net load, 2022-2025). The workbook is
+# archived on S3 by hand (there is no API), so `fetch` syncs it down.
+# utils/data_prep/marginal_costs/methods/pop_kde.py implements the calculation.
+#
+# Usage (from project root):
+#   just -f data/eversource/occ733/Justfile prepare   # fetch, then convert
+#   just -f data/eversource/occ733/Justfile upload
+#   just -f data/eversource/occ733/Justfile clean
+
+path_local_repo := `git rev-parse --show-toplevel`
+path_local_base := path_local_repo + "/data/eversource/occ733"
+path_local_xlsx := path_local_base + "/xlsx/"
+path_local_parquet := path_local_base + "/parquet/"
+path_s3_xlsx := "s3://data.sb/eversource/occ733/xlsx/"
+path_s3_parquet := "s3://data.sb/eversource/occ733/parquet/"
+path_script := path_local_base + "/convert_occ733_xlsx_to_parquet.py"
+
+# Sync the archived workbook (attachment-1.xlsx) from S3 to local xlsx/.
+fetch:
+    aws s3 sync "{{ path_s3_xlsx }}" "{{ path_local_xlsx }}"
+
+# Attachment 1 Code_Input -> hourly_load.parquet in local parquet/.
+convert:
+    uv run python "{{ path_script }}" \
+      --path-xlsx "{{ path_local_xlsx }}attachment-1.xlsx" \
+      --path-local-parquet "{{ path_local_parquet }}"
+
+# Fetch, then convert. The converter checks its output and exits non-zero
+# before writing, so there is no separate validate step. Does not upload.
+prepare: fetch convert
+
+# Sync local parquet/ to S3.
+upload:
+    aws s3 sync "{{ path_local_parquet }}" "{{ path_s3_parquet }}"
+
+# Remove local staging (xlsx/ and parquet/).
+clean:
+    rm -rf "{{ path_local_xlsx }}" "{{ path_local_parquet }}"
+    @echo "Removed {{ path_local_xlsx }} and {{ path_local_parquet }}"

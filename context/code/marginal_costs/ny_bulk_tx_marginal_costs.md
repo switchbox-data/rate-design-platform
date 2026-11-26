@@ -68,26 +68,25 @@ Mapping from nested-locality sets to paying-locality sets is implemented in
 
 ## Generation script
 
-`utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py`
+`utils/data_prep/marginal_costs/run_allocation.py`, with the NY `bulk_tx` block in `rate_design/hp_rates/ny/config/marginal_costs/allocation.yaml`. The constraint-group and zone-load readers are `nyiso_scr_components` in `utils/data_prep/marginal_costs/inputs/nyiso.py`.
 
 CLI:
-`--utility <name> --year <YYYY> [--load-year <YYYY>] --constraint-group-table-path <path> [--upload]`
+`--config <allocation.yaml> --component bulk_tx --utility <name> --year <YYYY> [--load-year <YYYY>] [--upload]`
 
 High-level flow:
 
 1. Load `ny_bulk_tx_constraint_groups.csv`.
-2. Build load profiles for required `tightest_nested_locality` values from NYISO zone loads (`s3://data.sb/nyiso/hourly_demand/zones/`). When `--load-year` differs from `--year`, timestamps are remapped after allocation.
-3. Compute SCR weights per nested locality.
-4. Allocate each `constraint_group` value to hours using its tightest locality SCR weights.
-5. Aggregate hourly signals to paying localities.
-6. Blend paying localities to utility-level signal via `gen_capacity_zone` + `capacity_weight`.
-7. Save 8760 output to:
+2. Average `v_constraint_group_kw_yr` over the constraint groups that list each paying locality (`ROS`, `LHV`, `NYC`, `LI`) to get one `$/kW-yr` per paying locality (`compute_paying_locality_costs`).
+3. Read the utility's ICAP rows from the zone mapping (`icap_locality`, `gen_capacity_zone`, `capacity_weight`). Map each `icap_locality` to a nested locality (`NYCA`, `GHIJ` → `LHV`, `NYC`, `LI`).
+4. Build a load profile for each of those nested localities by summing NYISO zone loads (`s3://data.sb/nyiso/hourly_demand/zones/`).
+5. For each ICAP row, allocate the paying locality's `$/kW-yr` × `capacity_weight` onto that row's nested-locality load with seasonal SCR exceedance (`seasonal_scr_exceedance` in `methods/seasonal_scr_exceedance.py`; see [seasonal_scr_exceedance_allocation.md](../../methods/marginal_costs/seasonal_scr_exceedance_allocation.md)), and sum the rows into one utility signal. `inputs/nyiso.py` chooses the scalar and the load; the formula lives in the method script. When `--load-year` differs from `--year`, the loader remaps the load onto the output year before that call, and the runner then aligns the result to the Cairo 8760.
+6. Save 8760 output to:
    `s3://data.sb/switchbox/marginal_costs/ny/bulk_tx/utility={utility}/year={year}/data.parquet`
 
 ## Load year / output year separation
 
-The `--year` argument controls the output year (partition key, output timestamps). The `--load-year` argument controls which year's NYISO zone loads are used for SCR peak identification. When they differ, timestamps are remapped from load_year to year via `dt.offset_by()` after allocation.
+The `--year` argument controls the output year (partition key, output timestamps). The `--load-year` argument controls which year's NYISO zone loads are used for SCR peak identification. When they differ, the loader remaps load timestamps from load_year to year via `dt.offset_by()` before allocation.
 
 ### Justfile control
 
-`BULK_TX_LOAD_YEAR` in `rate_design/hp_rates/ny/state.env` controls the load year for bulk TX MC generation. The NY Justfile reads it via `env_var('BULK_TX_LOAD_YEAR')` and passes it as `--load-year` to `utils/data_prep/marginal_costs/bulk_tx/generate_bulk_tx_mc.py`. Each MC pipeline (supply energy, supply capacity, bulk TX, dist/sub-TX) has its own load year variable in `state.env`.
+`BULK_TX_LOAD_YEAR` in `rate_design/hp_rates/ny/state.env` controls the load year for bulk TX MC generation. The NY Justfile reads it via `env_var('BULK_TX_LOAD_YEAR')` and passes it as `--load-year` to `run_allocation.py`. Each MC pipeline (supply energy, supply capacity, bulk TX, dist/sub-TX) has its own load year variable in `state.env`.

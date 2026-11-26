@@ -1,26 +1,35 @@
-"""Probability of peak from hourly history, and its $/kW-yr allocation."""
+"""Tests for the KDE probability-of-peak method and the state config that calls it."""
 
 from __future__ import annotations
 
+import tempfile
 from datetime import date, datetime, timedelta
+from pathlib import Path
 
 import numpy as np
 import polars as pl
 import pytest
+import yaml
 from scipy.stats import norm, truncnorm
 
-from utils.data_prep.marginal_costs.probability_of_peak import (
+from utils.data_prep.marginal_costs.methods.pop_kde import (
     WEEKDAY,
     WEEKEND_HOLIDAY,
     allocate_annual_cost_by_pop,
     count_day_types,
     label_hour_types,
+    main,
     month_hour_costs_from_pop,
+    pop_kde,
     probability_of_peak,
     scott_bandwidth,
     truncated_kde_tail_share,
     us_federal_holidays,
 )
+
+_REPO = Path(__file__).parent.parent
+_CONFIGS = _REPO / "rate_design" / "hp_rates"
+_NE_ZONES = ["CT", "ME", "NEMA", "NH", "RI", "SEMA", "VT", "WCMA"]
 
 # ---------------------------------------------------------------------------
 # Calendar
@@ -310,3 +319,83 @@ def test_allocation_rejects_malformed_pop_tables() -> None:
         allocate_annual_cost_by_pop(cells.drop("hour"), 1.0, 2026)
     with pytest.raises(ValueError, match="daytype"):
         allocate_annual_cost_by_pop(cells.with_columns(pl.lit("saturday").alias("daytype")), 1.0, 2026)
+
+
+def test_pop_kde_matches_the_fit_and_recovers_the_annual_cost() -> None:
+    history = _synthetic_history((2022,))
+    hourly = pop_kde(history, 69.0, 2025, output_column="bulk_tx_cost_enduse")
+    fitted = probability_of_peak(history)
+    expected = allocate_annual_cost_by_pop(
+        fitted.cells,
+        69.0,
+        2025,
+        value_col="bulk_tx_cost_enduse",
+    )
+
+    assert hourly.columns == ["timestamp", "bulk_tx_cost_enduse"]
+    assert hourly.height == 8760
+    assert hourly["timestamp"].dt.year().unique().to_list() == [2025]
+    assert float(hourly["bulk_tx_cost_enduse"].sum()) == pytest.approx(69.0)
+    assert hourly["bulk_tx_cost_enduse"].to_list() == pytest.approx(expected["bulk_tx_cost_enduse"].to_list())
+    with pytest.raises(ValueError, match="timestamp"):
+        pop_kde(history, 1.0, 2025, output_column="timestamp")
+
+
+def test_cli_writes_the_8760() -> None:
+    history = _synthetic_history((2025,))
+    with tempfile.TemporaryDirectory() as directory:
+        path_load = Path(directory) / "load.parquet"
+        path_output = Path(directory) / "out" / "allocated.parquet"
+        history.write_parquet(path_load)
+        main(
+            [
+                "--path-load",
+                str(path_load),
+                "--annual-cost-kw-year",
+                "10",
+                "--year",
+                "2026",
+                "--calendar-year",
+                "2025",
+                "--output-column",
+                "bulk_tx_cost_enduse",
+                "--path-output",
+                str(path_output),
+            ]
+        )
+        result = pl.read_parquet(path_output)
+    assert result.columns == ["timestamp", "bulk_tx_cost_enduse"]
+    assert result.height == 8760
+    assert result["timestamp"].dt.year().unique().to_list() == [2026]
+    assert float(result["bulk_tx_cost_enduse"].sum()) == pytest.approx(10.0)
+
+
+def test_state_config_names_this_method_and_its_inputs() -> None:
+    bulk = _allocation("ct")["bulk_tx"]
+    assert bulk["method"] == "pop_kde"
+    assert bulk["output_column"] == "bulk_tx_cost_enduse"
+    assert bulk["manifest_method"] == "isone_aesc_ptf_pop_kde"
+    assert bulk["utilities"] == ["ct_eversource", "ct_ui"]
+    assert bulk["output_base"] == "s3://data.sb/switchbox/marginal_costs/ct/bulk_tx/"
+    assert bulk["inputs"]["year"] == "{year}"
+    assert bulk["inputs"]["calendar_year"] == "{year}"
+    annual = bulk["inputs"]["annual_cost_kw_year"]
+    assert annual == {
+        "from": "cpi",
+        "value": 69.0,
+        "dollar_year": 2024,
+        "target_dollar_year": 2026,
+        "cpi_s3_base": "s3://data.sb/fred/cpi/",
+    }
+    load = bulk["inputs"]["load"]
+    assert load["from"] == "isone_zone_load"
+    assert load["path"] == "s3://data.sb/isone/hourly_demand/zones/"
+    assert load["zones"] == _NE_ZONES
+    assert load["history_years"] == [2022, 2023, 2024, 2025]
+
+
+def _allocation(state: str) -> dict:
+    path = _CONFIGS / state / "config" / "marginal_costs" / "allocation.yaml"
+    loaded = yaml.safe_load(path.read_text())
+    assert isinstance(loaded, dict)
+    return loaded

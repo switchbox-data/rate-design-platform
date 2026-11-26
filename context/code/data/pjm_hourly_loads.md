@@ -152,10 +152,11 @@ utility's load — dropping the phantom slugs that were never assigned in ResSto
 (`an-electric`, `thurmont`, `williamsport`) left `poted`/`dpl` etc. unchanged.
 
 **Why identical (and full-zone) profiles are acceptable: the MC allocation is
-scale-invariant.** The sub-TX/DX marginal-cost methods that consume these loads
-(`generate_utility_tx_dx_mc.py`: peak-of-peak weighting, exceedance weighting)
-allocate a fixed `$/kW-yr` cost across hours using only the **shape** of the load
-profile — they normalize by the profile's own peak/exceedance, so the absolute
+scale-invariant.** The sub-TX/DX and PJM bulk-TX marginal-cost methods that consume
+these loads (the peak N load hours allocation in `methods/top_n_load_share.py`; see
+`context/methods/marginal_costs/top_n_load_share_allocation.md`) allocate a fixed `$/kW-yr` cost across hours using
+only the **shape** of the load profile — they normalize by the load in those
+hours, so the absolute
 magnitude divides out. Two utilities with the same shape but different absolute
 MW get the same hourly MC allocation; a utility assigned its whole zone's MW
 rather than just its retail slice gets the same allocation it would from a scaled
@@ -197,5 +198,5 @@ just -f data/pjm/hourly_demand/Justfile upload                # aws s3 sync to S
 This pipeline produces the loads only. The MD sub-TX/DX workflow consumes these
 PJM-native utility loads via the `md/Justfile` `path_s3_utility_loads` override
 (`s3://data.sb/pjm/hourly_demand/utilities/`) and the ISO-native-path handling in
-`generate_utility_tx_dx_mc.py` (the region filter applies only to EIA paths; all
+`run_allocation.py` via `hive_load` (the region filter applies only to EIA paths; all
 ISO-native paths, including PJM, skip it).

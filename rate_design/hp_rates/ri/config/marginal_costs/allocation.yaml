@@ -1,0 +1,38 @@
+# Rhode Island. Distribution is top-N load-share. Bulk transmission is top-N
+# exceedance on the New England system, with the AESC value used as filed.
+state: ri
+dist_and_sub_tx:
+  method: top_n_load_share
+  output_column: mc_total_per_kwh
+  manifest_method: pop
+  utilities: [rie]
+  output_base: s3://data.sb/switchbox/marginal_costs/ri/dist_and_sub_tx/
+  inputs:
+    n_hours: 100
+    annual_cost_kw_year:
+      from: mc_table
+      path: rate_design/hp_rates/ri/config/marginal_costs/ri_marginal_costs_2025.csv
+      column: sub_tx_and_dist_mc_kw_yr
+      dollar_year_column: dollar_year
+      target_dollar_year: "{year}"
+      cpi_s3_base: s3://data.sb/fred/cpi/
+    load:
+      from: hive_load
+      path: s3://data.sb/isone/hourly_demand/utilities/
+      load_year: "{load_year}"
+bulk_tx:
+  method: top_n_exceedance
+  output_column: bulk_tx_cost_enduse
+  manifest_method: isone_aesc_ptf
+  utilities: [rie]
+  output_base: s3://data.sb/switchbox/marginal_costs/ri/bulk_tx/
+  inputs:
+    n_hours: 100
+    annual_cost_kw_year:
+      from: literal
+      value: 69.0
+    load:
+      from: isone_zone_load
+      path: s3://data.sb/isone/hourly_demand/zones/
+      zones: [CT, ME, NEMA, NH, RI, SEMA, VT, WCMA]
+      year: "{load_year}"

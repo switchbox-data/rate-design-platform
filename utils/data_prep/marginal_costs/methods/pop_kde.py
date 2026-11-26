@@ -1,9 +1,8 @@
-"""Probability of peak (PoP) by month, day type and hour from historical loads.
+"""Allocate an annual $/kW-yr by a month x day-type x hour KDE probability of peak.
 
-This is the method Eversource's OCC-733 response (PURA Docket 26-05-10)
-describes for the PoP table on OCC-863 Attachment 2 page 3, reconstructed
-from the filed text and checked against that table. Given any hourly load
-series covering one or more calendar years:
+From one or more complete years of hourly load, estimate a probability of
+peak for each month x day-type x hour cell, then place the annual cost on the
+CAIRO 8760.
 
 1. Label each hour by month, hour beginning, and day type. Weekend-and-holiday
    days are Saturday, Sunday and the eleven US federal holidays (5 U.S.C.
@@ -24,25 +23,39 @@ series covering one or more calendar years:
    that share divided by its sum over all cells, so it sums to one. It is not
    multiplied by the number of days in the cell.
 
-To turn PoP into an hourly marginal cost, a single $/kW-yr is spread as
-``$/kW-yr x PoP / num_days`` in each cell, where ``num_days`` is the number of
-days of that month and day type on the target calendar. A flat 1 kW load then
-pays exactly the $/kW-yr over the year. ``allocate_annual_cost_by_pop`` does
-this on the CAIRO 8760 with the same weekday / weekend-and-holiday expansion
-the OCC-863 month-hour tables use.
+``$/kWh = ($/kW-yr) * PoP / num_days``, with ``num_days`` from the target
+calendar, then expanded onto the 8760 with the weekday / weekend-and-holiday
+lookup. A flat 1 kW load pays the annual cost exactly, so this path does not
+apply an extra uniform scale.
+
+This is the reading of Eversource's OCC-733 response (PURA Docket 26-05-10)
+that matches the PoP table on OCC-863 Attachment 2 page 3. The caller chooses
+the load history, the ``$/kW-yr``, the timestamp year, the calendar year, and
+the output column name. This module does not know the state, the utility, the
+ISO, where the file came from, or the manifest.
+See context/methods/marginal_costs/probability_of_peak_kde.md.
+
+Usage:
+    uv run python utils/data_prep/marginal_costs/methods/pop_kde.py \\
+        --path-load load.parquet \\
+        --annual-cost-kw-year 69.0 \\
+        --year 2025 \\
+        --path-output allocated.parquet
 """
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass
-from datetime import date, timedelta
+from pathlib import Path
 
 import numpy as np
 import polars as pl
 from scipy.special import ndtr
 
-from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
-    expand_month_hour_mc_to_8760,
+from utils.data_prep.marginal_costs.methods.month_hour import (
+    expand_month_hour_to_8760,
+    us_federal_holidays,
 )
 from utils.data_prep.marginal_costs.supply_utils import build_cairo_8760_timestamps
 
@@ -60,53 +73,6 @@ _N_CELLS = 12 * 2 * 24
 # ---------------------------------------------------------------------------
 # Calendar
 # ---------------------------------------------------------------------------
-
-
-def us_federal_holidays(year: int) -> set[date]:
-    """US federal holidays observed in ``year`` (5 U.S.C. § 6103).
-
-    A fixed-date holiday on Saturday is observed the Friday before and one on
-    Sunday the Monday after, so December 31 is a holiday when the next
-    January 1 is a Saturday. Juneteenth is included from 2021, the year it
-    became a federal holiday. This is the rule whose day counts match the
-    "No Days" rows of OCC-863 Attachment 2.
-    """
-    fixed = [
-        date(year, 1, 1),
-        date(year, 7, 4),
-        date(year, 11, 11),
-        date(year, 12, 25),
-        date(year + 1, 1, 1),
-    ]
-    if year >= 2021:
-        fixed.append(date(year, 6, 19))
-    floating = [
-        _nth_weekday(year, 1, 0, 3),  # Martin Luther King Jr. Day
-        _nth_weekday(year, 2, 0, 3),  # Washington's Birthday
-        _nth_weekday(year, 5, 0, -1),  # Memorial Day
-        _nth_weekday(year, 9, 0, 1),  # Labor Day
-        _nth_weekday(year, 10, 0, 2),  # Columbus Day
-        _nth_weekday(year, 11, 3, 4),  # Thanksgiving
-    ]
-    observed = {_observe_holiday(day) for day in fixed + floating}
-    return {day for day in observed if day.year == year}
-
-
-def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
-    """The nth ``weekday`` of ``month`` (Monday = 0). ``n`` of -1 is the last."""
-    if n > 0:
-        first = date(year, month, 1)
-        return first + timedelta(days=(weekday - first.weekday()) % 7 + 7 * (n - 1))
-    last = date(year, 12, 31) if month == 12 else date(year, month + 1, 1) - timedelta(1)
-    return last - timedelta(days=(last.weekday() - weekday) % 7)
-
-
-def _observe_holiday(day: date) -> date:
-    if day.weekday() == 5:
-        return day - timedelta(days=1)
-    if day.weekday() == 6:
-        return day + timedelta(days=1)
-    return day
 
 
 def label_hour_types(frame: pl.DataFrame, *, timestamp_col: str = "timestamp") -> pl.DataFrame:
@@ -410,11 +376,12 @@ def allocate_annual_cost_by_pop(
     """Hourly 8760 of ``value_col`` ($/kWh) that recovers ``annual_cost_kw_year``.
 
     The per-cell $/kWh from :func:`month_hour_costs_from_pop` is placed on
-    the CAIRO 8760 by :func:`expand_month_hour_mc_to_8760`: each hour takes
+    the CAIRO 8760 by :func:`expand_month_hour_to_8760`: each hour takes
     its month-hour value from the weekday or the weekend-and-holiday table
     according to ``calendar_year`` (default ``year``), and ``year`` is stamped
-    on the timestamps. A flat 1 kW load therefore pays the annual cost
-    exactly, which is checked before returning.
+    on the timestamps. The uniform scale month-hour applies is skipped: the
+    day counts and the calendar match, so a flat 1 kW load pays the annual
+    cost exactly. That is checked before returning.
 
     Returns ``timestamp`` (naive, hour beginning, 8,760 rows) and ``value_col``.
     """
@@ -424,17 +391,161 @@ def allocate_annual_cost_by_pop(
         daytype: costs.filter(pl.col("daytype") == daytype).select("month", "hour", "mc_total_per_kwh")
         for daytype in DAY_TYPES
     }
-    expanded = expand_month_hour_mc_to_8760(
+    expanded = expand_month_hour_to_8760(
         tables[WEEKDAY],
         tables[WEEKEND_HOLIDAY],
         year,
-        "",
         include_holidays=True,
         calendar_year=calendar_year,
-    ).select("timestamp", pl.col("mc_total_per_kwh").alias(value_col))
+        output_column=value_col,
+    )
     total = float(expanded[value_col].sum())
     if abs(total - annual_cost_kw_year) > 1e-6 * max(1.0, abs(annual_cost_kw_year)):
         raise ValueError(
             f"8760 sums to {total}, expected {annual_cost_kw_year}: the day counts and the calendar expansion disagree"
         )
     return expanded
+
+
+def pop_kde(
+    load: pl.DataFrame,
+    annual_cost_kw_year: float,
+    year: int,
+    calendar_year: int | None = None,
+    *,
+    output_column: str = "mc_total_per_kwh",
+    fitted: ProbabilityOfPeak | None = None,
+) -> pl.DataFrame:
+    """Fit a KDE probability of peak and spread ``annual_cost_kw_year`` on the 8760.
+
+    Args:
+        load: One or more complete calendar years, stacked. Required columns
+            are ``timestamp`` and ``load_mw``. Extra columns are ignored. Each
+            year needs at least ``MIN_HOURS_PER_YEAR`` rows, because each year
+            is divided by its own average load. Ignored when ``fitted`` is passed.
+        annual_cost_kw_year: The ``$/kW-yr`` the hourly costs must sum to,
+            already in the dollar year of the run.
+        year: Year stamped on the output timestamps.
+        calendar_year: Calendar for day types and for ``num_days``. Defaults
+            to ``year``. Must match ``year`` on leap versus non-leap.
+        output_column: Name of the cost column. Bulk transmission uses
+            ``bulk_tx_cost_enduse``.
+        fitted: A :class:`ProbabilityOfPeak` already fit on ``load``. When
+            passed, the load is not fit again. Callers that only want the
+            8760 leave this unset.
+
+    Returns:
+        ``timestamp`` and ``output_column``, 8,760 rows, sorted by timestamp.
+        The cost column sums to ``annual_cost_kw_year``.
+
+    Raises:
+        ValueError: A required column is missing, a year is short, a cell has
+            fewer than two observations, no cell has density above the
+            delimiter, or the 8760 does not sum to ``annual_cost_kw_year``.
+        TypeError: ``timestamp`` is not a datetime.
+    """
+    if output_column == "timestamp":
+        raise ValueError("output_column 'timestamp' collides with the timestamp column")
+    cells = probability_of_peak(load).cells if fitted is None else fitted.cells
+    return allocate_annual_cost_by_pop(
+        cells,
+        annual_cost_kw_year,
+        year,
+        calendar_year=calendar_year,
+        value_col=output_column,
+    )
+
+
+def print_pop_summary(pop: ProbabilityOfPeak) -> None:
+    """Print the delimiter, the per-year normalization, and where the probability lands."""
+    print("\n── Probability of Peak (KDE) ──")
+    print(f"  Delimiter: {pop.delimiter:.4f} x year mean load")
+    print(f"  Delimiter / normalized peak: {pop.delimiter_share_of_peak:.4f}")
+    print(pop.years)
+    by_month = (
+        pop.cells.group_by("month")
+        .agg(pl.col("probability_of_peak").sum().alias("pop"))
+        .sort("month")
+        .filter(pl.col("pop") > 0)
+    )
+    weekend = pop.cells.filter(pl.col("daytype") == WEEKEND_HOLIDAY)["probability_of_peak"].sum()
+    nonzero = pop.cells.filter(pl.col("probability_of_peak") > 0).height
+    print(f"  Weekend-and-holiday share: {float(weekend):.4f}")
+    print(f"  Nonzero cells: {nonzero} of {pop.cells.height}")
+    print("  PoP by month (nonzero):")
+    print(by_month)
+    print("  Top 5 cells:")
+    print(
+        pop.cells.sort("probability_of_peak", descending=True)
+        .head(5)
+        .select("month", "daytype", "hour", "n_obs", "probability_of_peak")
+    )
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Read one load parquet, allocate, and write the hourly cost parquet."""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Allocate an annual $/kW-yr by a month x day-type x hour probability of peak, "
+            "fit with a truncated Gaussian KDE on one or more years of hourly load."
+        )
+    )
+    parser.add_argument(
+        "--path-load",
+        type=Path,
+        required=True,
+        help=(
+            "Parquet with timestamp and load_mw. One or more complete calendar years, "
+            "stacked. The years present are the history."
+        ),
+    )
+    parser.add_argument(
+        "--annual-cost-kw-year",
+        type=float,
+        required=True,
+        help="Annual cost to recover, in $/kW-yr, already in the output dollar year.",
+    )
+    parser.add_argument(
+        "--year",
+        type=int,
+        required=True,
+        help="Year stamped on the output timestamps.",
+    )
+    parser.add_argument(
+        "--calendar-year",
+        type=int,
+        default=None,
+        help="Calendar for day types and day counts. Defaults to --year. Must match --year on leap years.",
+    )
+    parser.add_argument(
+        "--output-column",
+        type=str,
+        default="mc_total_per_kwh",
+        help="Cost column name (default: mc_total_per_kwh). CT bulk tx uses bulk_tx_cost_enduse.",
+    )
+    parser.add_argument(
+        "--path-output",
+        type=Path,
+        required=True,
+        help="Parquet to write. Columns: timestamp and the cost column. 8,760 rows.",
+    )
+    args = parser.parse_args(argv)
+
+    allocated = pop_kde(
+        pl.read_parquet(args.path_load),
+        args.annual_cost_kw_year,
+        args.year,
+        args.calendar_year,
+        output_column=args.output_column,
+    )
+    args.path_output.parent.mkdir(parents=True, exist_ok=True)
+    allocated.write_parquet(args.path_output)
+    total = float(allocated[args.output_column].sum())
+    nonzero = allocated.filter(pl.col(args.output_column) > 0).height
+    print(f"Wrote {allocated.height} rows to {args.path_output}")
+    print(f"Non-zero hours: {nonzero}")
+    print(f"Sum of {args.output_column}: {total:.6f}")
+
+
+if __name__ == "__main__":
+    main()

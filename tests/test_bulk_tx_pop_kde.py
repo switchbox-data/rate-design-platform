@@ -8,18 +8,43 @@ import numpy as np
 import polars as pl
 import pytest
 
-from utils.data_prep.marginal_costs.bulk_tx.bulk_tx_isone import (
+from utils.data_prep.marginal_costs.inputs.isone import (
     AESC_2024_DOLLAR_YEAR,
     DEFAULT_POP_KDE_HISTORY_YEARS,
-    compute_isone_bulk_tx_pop_kde,
     parse_history_years,
-    validate_allocation,
 )
 from utils.data_prep.marginal_costs.mc_manifest import build_key
-from utils.data_prep.marginal_costs.probability_of_peak import (
+from utils.data_prep.marginal_costs.methods.pop_kde import (
     WEEKDAY,
+    ProbabilityOfPeak,
     label_hour_types,
+    pop_kde,
+    probability_of_peak,
 )
+from utils.data_prep.marginal_costs.run_allocation import _check_annual_sum
+
+
+def compute_isone_bulk_tx_pop_kde(
+    load_history: pl.DataFrame,
+    aesc_ptf_kw_year: float,
+    year: int,
+    *,
+    calendar_year: int | None = None,
+) -> tuple[pl.DataFrame, ProbabilityOfPeak]:
+    pop = probability_of_peak(load_history)
+    hourly = pop_kde(
+        load_history,
+        aesc_ptf_kw_year,
+        year,
+        calendar_year=calendar_year,
+        output_column="bulk_tx_cost_enduse",
+        fitted=pop,
+    )
+    return hourly, pop
+
+
+def validate_allocation(df: pl.DataFrame, expected: float) -> None:
+    _check_annual_sum(df, "bulk_tx_cost_enduse", expected)
 
 
 def _history(years: tuple[int, ...], *, seed: int = 0) -> pl.DataFrame:
@@ -58,7 +83,10 @@ def test_parse_history_years() -> None:
 
 
 def test_pop_kde_recovers_the_annual_cost_on_an_8760() -> None:
-    hourly, pop = compute_isone_bulk_tx_pop_kde(_history((2022, 2023)), 70.82, 2025, calendar_year=2025)
+    history = _history((2022, 2023))
+    hourly, pop = compute_isone_bulk_tx_pop_kde(history, 70.82, 2025, calendar_year=2025)
+    direct = pop_kde(history, 70.82, 2025, calendar_year=2025, output_column="bulk_tx_cost_enduse")
+    assert hourly["bulk_tx_cost_enduse"].to_list() == pytest.approx(direct["bulk_tx_cost_enduse"].to_list())
     assert hourly.columns == ["timestamp", "bulk_tx_cost_enduse"]
     assert hourly.height == 8760
     assert hourly["timestamp"].dt.year().unique().to_list() == [2025]

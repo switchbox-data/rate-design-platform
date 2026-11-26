@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import polars as pl
 
-from utils.data_prep.marginal_costs.sub_tx_and_dist.generate_utility_tx_dx_mc import (
-    normalize_load_to_cairo_8760,
-)
 from utils.data_prep.marginal_costs.supply_utils import (
     load_zone_loads,
+    normalize_load_to_cairo_8760,
     remap_year_if_needed,
 )
 from utils.numeric import as_float
